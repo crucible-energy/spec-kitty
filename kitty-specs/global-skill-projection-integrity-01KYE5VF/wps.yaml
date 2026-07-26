@@ -1,0 +1,55 @@
+work_packages:
+  - id: WP01
+    title: "Recover and verify global managed skill projections"
+    dependencies: []
+    owned_files:
+      - "src/specify_cli/runtime/agent_skills.py"
+      - "tests/runtime/test_agent_skills.py"
+    requirement_refs:
+      - FR-001
+      - FR-002
+      - FR-003
+      - FR-004
+      - FR-005
+      - NFR-001
+      - NFR-002
+      - NFR-003
+      - NFR-004
+      - C-001
+      - C-003
+      - C-004
+    plan_concern_refs:
+      - IC-01
+      - IC-02
+      - IC-03
+    subtasks:
+      - T001
+      - T002
+      - T003
+      - T004
+      - T005
+      - T006
+    agent_profile: "python-pedro"
+    role: "implementer"
+    agent: "codex"
+    prompt_file: "tasks/WP01-global-projection-integrity.md"
+  - id: WP02
+    title: "Document global projection diagnosis and recovery"
+    dependencies:
+      - WP01
+    owned_files:
+      - "docs/guides/diagnose-installation.md"
+    requirement_refs:
+      - FR-006
+      - C-002
+      - C-005
+    plan_concern_refs:
+      - IC-04
+    subtasks:
+      - T007
+      - T008
+      - T009
+    agent_profile: "curator-carla"
+    role: "curator"
+    agent: "codex"
+    prompt_file: "tasks/WP02-projection-recovery-guidance.md"
