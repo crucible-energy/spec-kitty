@@ -606,10 +606,18 @@ class TestFetchSelectorRecovery:
             "_load_local_directives",
             lambda _repo_root: {"DIR-014": local_directive},
         )
+        doctrine_calls: list[Path] = []
+
+        def _spy_doctrine_service(
+            repo_root: Path, org_roots: object = None
+        ) -> _StubService:
+            doctrine_calls.append(repo_root)
+            return _StubService()
+
         monkeypatch.setattr(
             context_module,
             "_build_doctrine_service",
-            lambda repo_root, org_roots=None: _StubService(),
+            _spy_doctrine_service,
         )
 
         text = context_module.build_charter_context_include(
@@ -620,6 +628,9 @@ class TestFetchSelectorRecovery:
         assert "Directive DIR-014: Pull-Request Review Closure" in text
         assert "Source: project charter" in text
         assert "Reply directly on each addressed review thread." in text
+        assert doctrine_calls == [], (
+            "local directive must resolve before probing shipped doctrine"
+        )
 
     def test_generic_artifact_selector_fails_closed_on_ambiguous_match(
         self,
