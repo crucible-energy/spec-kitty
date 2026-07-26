@@ -41,6 +41,8 @@ LAYER_ORG = "org"
 LAYER_PROJECT = "project"
 
 _PROJECT_PROFILE_SUBDIR = ".kittify/agent_profiles"
+_CANONICAL_DOCTRINE_PREFIX = "src/doctrine/"
+_INSTALLED_DOCTRINE_PREFIX = "site-packages/doctrine/"
 
 _REPAIR_HINT = "spec-kitty doctor tool-surfaces --kind agent-profile --fix"
 
@@ -53,7 +55,25 @@ def _profile_urn(profile: AgentProfile) -> str:
 def _manifest_source_path(source_path: Path | None, project_root: Path) -> str | None:
     if source_path is None:
         return None
-    return relativize_under_root(source_path, project_root)
+    serialized_path = relativize_under_root(source_path, project_root)
+    if not Path(serialized_path).is_absolute():
+        return serialized_path
+    return _canonical_doctrine_source_path(source_path) or serialized_path
+
+
+def _canonical_doctrine_source_path(source_path: Path) -> str | None:
+    """Return stable source-repository provenance for bundled doctrine files.
+
+    Built-in profiles resolve from either a source checkout (``src/doctrine``)
+    or an installed Python package (``site-packages/doctrine``).  The physical
+    path is host-local and must not be committed into a project manifest.
+    """
+    normalized = source_path.resolve().as_posix()
+    for marker in (_CANONICAL_DOCTRINE_PREFIX, _INSTALLED_DOCTRINE_PREFIX):
+        if marker in normalized:
+            suffix = normalized.split(marker, 1)[1]
+            return f"{_CANONICAL_DOCTRINE_PREFIX}{suffix}"
+    return None
 
 
 def _source_hash(source_path: Path | None) -> str | None:

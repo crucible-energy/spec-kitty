@@ -48,6 +48,19 @@ def test_project_claude_returns_builtin_profiles() -> None:
     assert sample.file_hash is None  # computed only after write
 
 
+def test_project_serializes_builtin_provenance_portably(tmp_path: Path) -> None:
+    """Built-in profile manifests must not retain an installation-specific path."""
+    projected = {
+        profile.profile_urn: profile
+        for profile in ProfileProjector(_builtin_repo()).project("claude", tmp_path)
+    }
+
+    assert (
+        projected["agent_profile:architect-alphonso"].source_path
+        == "src/doctrine/agent_profiles/built-in/architect-alphonso.agent.yaml"
+    )
+
+
 def test_project_unsupported_tool_returns_empty() -> None:
     # "codex" now has a renderer (WP02), so use a truly unsupported tool key.
     projector = ProfileProjector(_builtin_repo())

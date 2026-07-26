@@ -1439,9 +1439,11 @@ def _dump_yaml(data: dict[str, object]) -> str:
 def _trim_source_path(source_path: str) -> str:
     if not source_path:
         return ""
-    marker = "src/doctrine/"
-    if marker in source_path:
-        return source_path[source_path.index(marker) :]
+    canonical_prefix = "src/doctrine/"
+    normalized = source_path.replace("\\", "/")
+    for marker in (canonical_prefix, "site-packages/doctrine/"):
+        if marker in normalized:
+            return f"{canonical_prefix}{normalized.split(marker, 1)[1]}"
     return source_path
 
 
