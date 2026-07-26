@@ -10,5 +10,7 @@
   "purpose_tldr": "global skill projection integrity",
   "slug": "global-skill-projection-integrity-01KYE5VF",
   "target_branch": "fix/global-skill-projection-integrity",
-  "topology": "single_branch"
+  "topology": "single_branch",
+  "vcs": "git",
+  "vcs_locked_at": "2026-07-26T03:14:06.440235+00:00"
 }

@@ -30,7 +30,8 @@
       "notes": [
         "Current-lock integrity, atomic recovery, and ownership regression evidence complete.",
         "Rejected: registry failure must be observable and integrity must use deterministic hashes.",
-        "Review corrections complete: raw content hashes and observable registry-unavailable failure added."
+        "Review corrections complete: raw content hashes and observable registry-unavailable failure added.",
+        "Arbiter override: independent re-review approved e3d7ef5c0; review-cycle-2 only records the corrected prior rejection and has no matching approval artifact."
       ],
       "provider": "__resolved_provider_absent__",
       "review": {
