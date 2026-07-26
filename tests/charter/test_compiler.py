@@ -34,6 +34,9 @@ pytestmark = pytest.mark.fast
         # An ancestor checkout also contains ``src/doctrine/``; the innermost
         # (rightmost) install marker must win so the outer layout does not leak.
         "/home/me/src/doctrine/proj/.venv/lib/python3.11/site-packages/doctrine/paradigms/built-in/atomic-design.paradigm.yaml",
+        # ``pip install --target /app/vendor`` drops the ``doctrine`` package
+        # under an arbitrary parent that matches none of the conventional names.
+        "/app/vendor/doctrine/paradigms/built-in/atomic-design.paradigm.yaml",
     ],
 )
 def test_trim_source_path_canonicalizes_installed_doctrine(source_path: str) -> None:

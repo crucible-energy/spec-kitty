@@ -128,6 +128,32 @@ def test_manifest_source_path_selects_innermost_doctrine_root(
     )
 
 
+def test_manifest_source_path_canonicalizes_pip_target_install(
+    tmp_path: Path,
+) -> None:
+    """A ``pip install --target`` layout still yields canonical provenance.
+
+    ``pip install --target /app/vendor`` drops the ``doctrine`` package directly
+    under an arbitrary directory (``/app/vendor/doctrine/...``) whose parent
+    matches none of the conventional ``src``/``site-packages``/``dist-packages``
+    names. The package root must still be recognized so the manifest records the
+    portable ``src/doctrine/...`` provenance rather than the host path.
+    """
+    installed = (
+        tmp_path
+        / "app"
+        / "vendor"
+        / "doctrine"
+        / "agent_profiles"
+        / "built-in"
+        / "architect-alphonso.agent.yaml"
+    )
+    assert (
+        _manifest_source_path(installed, tmp_path / "elsewhere", LAYER_BUILTIN)
+        == "src/doctrine/agent_profiles/built-in/architect-alphonso.agent.yaml"
+    )
+
+
 def test_manifest_source_path_preserves_out_of_tree_org_source(
     tmp_path: Path,
 ) -> None:

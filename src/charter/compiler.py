@@ -1440,26 +1440,19 @@ def _trim_source_path(source_path: str) -> str:
     if not source_path:
         return ""
     canonical_prefix = "src/doctrine/"
-    normalized = source_path.replace("\\", "/")
-    # ``dist-packages`` is the Debian-derived system-Python install root; it must
-    # normalize identically to ``site-packages`` so that Linux distro layouts do
-    # not persist a machine-specific absolute path. Match the *rightmost* marker
-    # so the innermost doctrine root wins even when an ancestor directory also
-    # contains ``src/doctrine/`` (otherwise the checkout/venv layout leaks in).
-    best_index = -1
-    best_marker = ""
-    for marker in (
-        canonical_prefix,
-        "site-packages/doctrine/",
-        "dist-packages/doctrine/",
-    ):
-        index = normalized.rfind(marker)
-        if index > best_index:
-            best_index = index
-            best_marker = marker
-    if best_index == -1:
-        return source_path
-    return f"{canonical_prefix}{normalized[best_index + len(best_marker) :]}"
+    # Bundled doctrine installs as a top-level ``doctrine`` package regardless of
+    # the parent directory name -- ``src`` in a checkout, ``site-packages``/
+    # ``dist-packages`` in an installed environment, or an arbitrary directory
+    # under ``pip install --target``. Recognize the package root by name so every
+    # layout normalizes to portable provenance. Use the *rightmost* ``doctrine``
+    # component so an unrelated ancestor named ``doctrine`` does not leak the
+    # outer layout into the suffix.
+    parts = source_path.replace("\\", "/").split("/")
+    for index in range(len(parts) - 1, -1, -1):
+        if parts[index] == "doctrine":
+            suffix = "/".join(parts[index + 1 :])
+            return f"{canonical_prefix}{suffix}" if suffix else source_path
+    return source_path
 
 
 def _yaml_inline_list(values: list[str]) -> str:
