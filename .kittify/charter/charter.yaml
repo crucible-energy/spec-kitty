@@ -18,7 +18,11 @@ governance:
     rules: []
   doctrine:
     selected_paradigms: []
-    selected_directives: []
+    # This project-level directive is deliberately selected rather than added
+    # to shipped action indexes: it must reach every review runtime without
+    # becoming product-wide doctrine for downstream projects.
+    selected_directives:
+    - DIR-014
     selected_tactics: []
     selected_styleguides: []
     selected_toolguides: []
