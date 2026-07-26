@@ -45,17 +45,18 @@ _COMMON_ACTION_CRITICAL_SECTIONS = [
 ACTION_CRITICAL_SECTIONS: dict[str, list[str]] = {
     "implement": list(_COMMON_ACTION_CRITICAL_SECTIONS),
     "review": [*_COMMON_ACTION_CRITICAL_SECTIONS, PULL_REQUEST_REVIEW_CLOSURE],
+    "merge": [PULL_REQUEST_REVIEW_CLOSURE],
 }
 """Mapping of action -> ordered list of charter section names whose body
 the resolver MUST surface (or fetch-substitute).  Future missions may
 extend the set for specify / plan / tasks actions; absent actions yield
 an empty block.
 
-``Pull-Request Review Closure`` is review-scoped: it binds how a reviewing
-agent closes out review threads at handoff, so its verbatim charter body is
-injected at the ``review`` action boundary (the charter directive DIR-014 is
-its runtime-governance companion; this registration makes the body reachable
-via the documented action-scoped ``charter context --action review`` load)."""
+``Pull-Request Review Closure`` binds review and merge handoff: its verbatim
+charter body is injected at both action boundaries (the charter directive
+DIR-014 is its runtime-governance companion). This makes the rule reachable
+through the documented action-scoped ``charter context`` load even when merge
+uses the compact context rail."""
 
 
 CRITICAL_SECTION_WHEN_CLAUSES: dict[str, str] = {

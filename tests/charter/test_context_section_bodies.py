@@ -322,6 +322,13 @@ class TestActionSectionSets:
         )
         assert "Pull-Request Review Closure" not in result
 
+    def test_action_merge_uses_review_closure_section(self) -> None:
+        result = render_critical_section_bodies(
+            _CHARTER_WITH_ALL_SECTIONS, action="merge"
+        )
+        assert "### Pull-Request Review Closure" in result
+        assert "Reply on every addressed review thread" in result
+
     def test_unknown_action_emits_no_section(self) -> None:
         result = render_critical_section_bodies(
             _CHARTER_WITH_ALL_SECTIONS, action="unknown-action"
