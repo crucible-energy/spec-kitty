@@ -2,7 +2,7 @@
 title: Diagnose Installation Problems
 description: 'How to diagnose installation problems with Spec Kitty 3.2: When Spec Kitty stops working -- skills go missing, slash commands vanish, or the runtime reports.'
 doc_status: active
-updated: '2026-06-14'
+updated: '2026-07-25'
 related:
 - docs/guides/install-spec-kitty.md
 - docs/guides/manage-agents.md
@@ -36,6 +36,61 @@ For general project status, use:
 ```bash
 spec-kitty agent tasks status
 ```
+
+---
+
+## A global managed skill is missing or skipped
+
+Some hosts discover skills from user-global directories and can report a
+warning like this one:
+
+```text
+Skipped loading a skill: .../spec-kitty-orchestrator-api-operator/SKILL.md
+```
+
+The user-global and project-local managed skill trees are generated
+**compatibility projections**. They are not the canonical source of a skill.
+`agent-skills.lock` records the Spec Kitty version after a successful sync; it
+is a cache marker, not proof that every generated file is still present and
+readable.
+
+### Diagnose and recover safely
+
+From the repository root, first inspect the project-local command-skill
+surface:
+
+```bash
+spec-kitty doctor skills --json
+```
+
+If it reports gaps or drift, repair the configured project surface through the
+supported command:
+
+```bash
+spec-kitty doctor skills --fix
+```
+
+Then run the supported project upgrade path to apply any pending migrations and
+refresh the managed bootstrap surface:
+
+```bash
+spec-kitty upgrade --project --yes
+```
+
+Restart the host that reported the warning so it rescans its skill directories.
+Do not copy or hand-edit generated `SKILL.md` files, and do not delete a skill
+directory to force a refresh. A managed projection repair preserves unrelated
+user-owned custom skills; custom skills should remain outside the managed
+Spec Kitty packages.
+
+`spec-kitty doctor skills` verifies the project-local command-skill manifest.
+It is useful evidence, but it is not by itself proof that a separate host has
+rescanned its user-global skill directory; the host restart is still required.
+
+The planned Aletheia-backed PolymorphDB contract is the future runtime
+authority for governed skill retrieval and invocation. It is not part of this
+compatibility-projection recovery path, so this guide does not claim a live
+PolymorphDB endpoint or listener.
 
 ---
 

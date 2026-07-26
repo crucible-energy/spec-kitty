@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from specify_cli.runtime.agent_skills import ensure_global_agent_skills
@@ -21,6 +22,12 @@ def _create_skill(root: Path, name: str, content: str | None = None) -> None:
         content or f"---\nname: {name}\ndescription: test\n---\n# {name}\n",
         encoding="utf-8",
     )
+
+
+def _create_reference(root: Path, skill_name: str, name: str, content: str) -> None:
+    reference = root / skill_name / "references" / name
+    reference.parent.mkdir(parents=True, exist_ok=True)
+    reference.write_text(content, encoding="utf-8")
 
 
 def test_global_bootstrap_preserves_non_spec_kitty_user_skills(tmp_path: Path, monkeypatch) -> None:
@@ -50,6 +57,216 @@ def test_global_bootstrap_preserves_non_spec_kitty_user_skills(tmp_path: Path, m
 
     mode = managed_skill.stat().st_mode
     assert mode & 0o200 == 0
+
+
+def test_global_bootstrap_logs_and_skips_lock_when_registry_is_unavailable(tmp_path: Path, monkeypatch, caplog) -> None:
+    home = tmp_path / "home"
+    kittify_home = home / ".kittify"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("SPEC_KITTY_HOME", str(kittify_home))
+    monkeypatch.setattr("specify_cli.runtime.agent_skills._discover_registry", lambda: None)
+
+    with caplog.at_level(logging.ERROR, logger="specify_cli.runtime.agent_skills"):
+        ensure_global_agent_skills()
+
+    assert "canonical registry is unavailable" in caplog.text
+    assert not (kittify_home / "cache" / "agent-skills.lock").exists()
+
+
+def test_global_bootstrap_repairs_missing_managed_file_with_current_lock(tmp_path: Path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    kittify_home = home / ".kittify"
+    version = "3.2.6"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("SPEC_KITTY_HOME", str(kittify_home))
+    monkeypatch.setattr("specify_cli.runtime.agent_skills._get_cli_version", lambda: version)
+
+    skills_root = tmp_path / "doctrine_skills"
+    _create_skill(skills_root, "spec-kitty-test-skill")
+    registry = SkillRegistry(skills_root)
+    monkeypatch.setattr(
+        "specify_cli.runtime.agent_skills._discover_registry",
+        lambda: registry,
+    )
+
+    ensure_global_agent_skills()
+
+    managed_skill = home / ".agents" / "skills" / "spec-kitty-test-skill" / "SKILL.md"
+    assert (kittify_home / "cache" / "agent-skills.lock").read_text(encoding="utf-8") == version
+    managed_skill.unlink()
+
+    ensure_global_agent_skills()
+
+    assert managed_skill.read_text(encoding="utf-8").startswith("---\n")
+    assert managed_skill.stat().st_mode & 0o200 == 0
+
+
+def test_global_bootstrap_repairs_missing_reference_with_current_lock(tmp_path: Path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    kittify_home = home / ".kittify"
+    version = "3.2.6"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("SPEC_KITTY_HOME", str(kittify_home))
+    monkeypatch.setattr("specify_cli.runtime.agent_skills._get_cli_version", lambda: version)
+
+    skills_root = tmp_path / "doctrine_skills"
+    _create_skill(skills_root, "spec-kitty-test-skill")
+    _create_reference(skills_root, "spec-kitty-test-skill", "recovery.md", "# Recovery\n")
+    registry = SkillRegistry(skills_root)
+    monkeypatch.setattr(
+        "specify_cli.runtime.agent_skills._discover_registry",
+        lambda: registry,
+    )
+
+    ensure_global_agent_skills()
+
+    reference = home / ".agents" / "skills" / "spec-kitty-test-skill" / "references" / "recovery.md"
+    reference.unlink()
+
+    ensure_global_agent_skills()
+
+    assert reference.read_text(encoding="utf-8") == "# Recovery\n"
+
+
+def test_global_bootstrap_repairs_divergent_managed_file_with_current_lock(tmp_path: Path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    kittify_home = home / ".kittify"
+    version = "3.2.6"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("SPEC_KITTY_HOME", str(kittify_home))
+    monkeypatch.setattr("specify_cli.runtime.agent_skills._get_cli_version", lambda: version)
+
+    skills_root = tmp_path / "doctrine_skills"
+    _create_skill(skills_root, "spec-kitty-test-skill")
+    registry = SkillRegistry(skills_root)
+    monkeypatch.setattr(
+        "specify_cli.runtime.agent_skills._discover_registry",
+        lambda: registry,
+    )
+
+    ensure_global_agent_skills()
+
+    managed_skill = home / ".agents" / "skills" / "spec-kitty-test-skill" / "SKILL.md"
+    managed_skill.chmod(0o644)
+    managed_skill.write_text("# divergent\n", encoding="utf-8")
+
+    ensure_global_agent_skills()
+
+    assert managed_skill.read_text(encoding="utf-8").startswith("---\n")
+    assert "# divergent\n" not in managed_skill.read_text(encoding="utf-8")
+
+
+def test_global_integrity_rejects_divergent_managed_file(tmp_path: Path) -> None:
+    from specify_cli.runtime import agent_skills
+
+    skills_root = tmp_path / "doctrine_skills"
+    _create_skill(skills_root, "spec-kitty-test-skill")
+    registry = SkillRegistry(skills_root)
+    global_root = tmp_path / "global_skills"
+    agent_skills._sync_skill_root(global_root, registry)
+
+    managed_skill = global_root / "spec-kitty-test-skill" / "SKILL.md"
+    managed_skill.chmod(0o644)
+    managed_skill.write_text("# divergent\n", encoding="utf-8")
+
+    assert not agent_skills._is_integral_skill_root(global_root, registry.discover_skills())
+
+
+def test_global_bootstrap_atomically_replaces_an_existing_managed_file(tmp_path: Path, monkeypatch) -> None:
+    from specify_cli.runtime import agent_skills
+
+    home = tmp_path / "home"
+    kittify_home = home / ".kittify"
+    version = "3.2.6"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("SPEC_KITTY_HOME", str(kittify_home))
+    monkeypatch.setattr("specify_cli.runtime.agent_skills._get_cli_version", lambda: version)
+
+    skills_root = tmp_path / "doctrine_skills"
+    _create_skill(skills_root, "spec-kitty-test-skill")
+    registry = SkillRegistry(skills_root)
+    monkeypatch.setattr(
+        "specify_cli.runtime.agent_skills._discover_registry",
+        lambda: registry,
+    )
+    ensure_global_agent_skills()
+
+    managed_skill = home / ".agents" / "skills" / "spec-kitty-test-skill" / "SKILL.md"
+    managed_skill.chmod(0o644)
+    managed_skill.write_text("# divergent\n", encoding="utf-8")
+    real_replace = agent_skills.os.replace
+    destinations_existed: list[bool] = []
+
+    def replace_and_record(source: str | Path, destination: str | Path) -> None:
+        destinations_existed.append(Path(destination).is_file())
+        real_replace(source, destination)
+
+    monkeypatch.setattr(agent_skills.os, "replace", replace_and_record)
+
+    ensure_global_agent_skills()
+
+    assert destinations_existed
+    assert all(destinations_existed)
+
+
+def test_global_bootstrap_does_not_sync_a_healthy_current_lock(tmp_path: Path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    kittify_home = home / ".kittify"
+    version = "3.2.6"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("SPEC_KITTY_HOME", str(kittify_home))
+    monkeypatch.setattr("specify_cli.runtime.agent_skills._get_cli_version", lambda: version)
+
+    skills_root = tmp_path / "doctrine_skills"
+    _create_skill(
+        skills_root,
+        "spec-kitty-test-skill",
+        "# spec-kitty-test-skill\n\nA plain canonical skill.\n",
+    )
+    registry = SkillRegistry(skills_root)
+    monkeypatch.setattr(
+        "specify_cli.runtime.agent_skills._discover_registry",
+        lambda: registry,
+    )
+
+    ensure_global_agent_skills()
+
+    def unexpected_sync(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("healthy roots must not be rewritten")
+
+    monkeypatch.setattr("specify_cli.runtime.agent_skills._sync_skill_root", unexpected_sync)
+
+    ensure_global_agent_skills()
+
+
+def test_global_bootstrap_preserves_prefixed_user_skill_during_recovery(tmp_path: Path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    kittify_home = home / ".kittify"
+    version = "3.2.6"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("SPEC_KITTY_HOME", str(kittify_home))
+    monkeypatch.setattr("specify_cli.runtime.agent_skills._get_cli_version", lambda: version)
+
+    skills_root = tmp_path / "doctrine_skills"
+    _create_skill(skills_root, "spec-kitty-test-skill")
+    registry = SkillRegistry(skills_root)
+    monkeypatch.setattr(
+        "specify_cli.runtime.agent_skills._discover_registry",
+        lambda: registry,
+    )
+
+    ensure_global_agent_skills()
+
+    custom_skill = home / ".agents" / "skills" / "spec-kitty-custom-skill" / "SKILL.md"
+    custom_skill.parent.mkdir(parents=True)
+    custom_skill.write_text("# user-owned\n", encoding="utf-8")
+    managed_skill = home / ".agents" / "skills" / "spec-kitty-test-skill" / "SKILL.md"
+    managed_skill.unlink()
+
+    ensure_global_agent_skills()
+
+    assert custom_skill.read_text(encoding="utf-8") == "# user-owned\n"
+    assert managed_skill.is_file()
 
 
 def test_global_bootstrap_removes_retired_paula_and_debbie_skills(tmp_path: Path, monkeypatch) -> None:
