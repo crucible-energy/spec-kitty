@@ -646,6 +646,71 @@ class TestQueryCurrentStateErrorPaths:
         # Real persisted run → run_id is the real one (callers can advance against it).
         assert decision.run_id == "real-run-id-456"
 
+    def test_persisted_run_query_loads_frozen_template_when_live_path_is_stale(self, tmp_path: Path) -> None:
+        """A moved installation must not make an existing Mission unqueryable."""
+        from mission_runtime import MissionArtifactContext, MissionArtifactKind, MissionContext, MissionTopology
+        from runtime.next.runtime_bridge import query_current_state
+        from unittest.mock import MagicMock
+
+        mission_dir = tmp_path / "kitty-specs" / "069-test"
+        task_dir = mission_dir / "tasks"
+        task_dir.mkdir(parents=True)
+        context = MissionContext(
+            mission_slug="069-test",
+            mission_type="software-dev",
+            topology=MissionTopology.SINGLE_BRANCH,
+            artifacts=(
+                MissionArtifactContext(
+                    kind=MissionArtifactKind.PRIMARY_METADATA,
+                    read_dir=mission_dir,
+                    write_dir=mission_dir,
+                    commit_target=None,
+                ),
+                MissionArtifactContext(
+                    kind=MissionArtifactKind.WORK_PACKAGE_TASK,
+                    read_dir=task_dir,
+                    write_dir=task_dir,
+                    commit_target=None,
+                ),
+                MissionArtifactContext(
+                    kind=MissionArtifactKind.STATUS_STATE,
+                    read_dir=mission_dir,
+                    write_dir=mission_dir,
+                    commit_target=None,
+                ),
+            ),
+        )
+
+        persisted_ref = MagicMock()
+        persisted_ref.run_dir = str(tmp_path / "real_run")
+        persisted_ref.run_id = "real-run-id-frozen-template"
+
+        snapshot = MagicMock()
+        snapshot.completed_steps = ["discovery"]
+        snapshot.pending_decisions = {}
+        snapshot.decisions = {}
+        snapshot.template_path = str(tmp_path / "removed-install" / "mission-runtime.yaml")
+        snapshot.issued_step_id = "plan"
+        snapshot.policy_snapshot = MagicMock()
+
+        next_step = MagicMock()
+        next_step.kind = "step"
+        next_step.step_id = "plan"
+
+        with (
+            patch("mission_runtime.mission_context_for", return_value=context),
+            patch("runtime.next.runtime_bridge_io._existing_run_ref", return_value=persisted_ref),
+            patch("runtime.next.runtime_bridge.get_mission_type", return_value="software-dev"),
+            patch("runtime.next.runtime_bridge._compute_wp_progress", return_value=None),
+            patch("runtime.next._internal_runtime.engine._read_snapshot", return_value=snapshot),
+            patch("runtime.next.runtime_bridge.load_mission_template_file", return_value=MagicMock()) as load_template,
+            patch("runtime.next._internal_runtime.planner.plan_next", return_value=next_step),
+        ):
+            decision = query_current_state(None, "069-test", tmp_path)
+
+        assert decision.run_id == "real-run-id-frozen-template"
+        load_template.assert_called_once_with(Path(persisted_ref.run_dir) / "mission_template_frozen.yaml")
+
     def test_inner_query_validation_error_propagates_unwrapped(self, tmp_path: Path) -> None:
         """A QueryModeValidationError raised inside the bootstrap should propagate
         as-is rather than being wrapped in a generic 'Could not read query state'

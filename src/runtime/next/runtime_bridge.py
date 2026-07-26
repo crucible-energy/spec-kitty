@@ -2123,13 +2123,14 @@ def query_current_state(
                 template = load_mission_template_file(template_path)
             else:
                 snapshot = _engine_adapter._read_snapshot(Path(run_ref.run_dir))
-                template_path = Path(snapshot.template_path)
+                template_path = Path(run_ref.run_dir) / "mission_template_frozen.yaml"
                 template = load_mission_template_file(template_path)
+            live_template_path = _engine_adapter._live_template_path(snapshot)
             runtime_decision = _engine_adapter.plan_next(
                 snapshot,
                 template,
                 snapshot.policy_snapshot,
-                live_template_path=template_path,
+                live_template_path=live_template_path,
             )
         except QueryModeValidationError:
             raise
