@@ -31,6 +31,9 @@ pytestmark = pytest.mark.fast
         "/Users/example/.local/share/uv/tools/spec-kitty-cli/lib/python3.11/site-packages/doctrine/paradigms/built-in/atomic-design.paradigm.yaml",
         r"C:\Users\example\AppData\Local\Programs\Python\Python311\Lib\site-packages\doctrine\paradigms\built-in\atomic-design.paradigm.yaml",
         "/usr/lib/python3/dist-packages/doctrine/paradigms/built-in/atomic-design.paradigm.yaml",
+        # An ancestor checkout also contains ``src/doctrine/``; the innermost
+        # (rightmost) install marker must win so the outer layout does not leak.
+        "/home/me/src/doctrine/proj/.venv/lib/python3.11/site-packages/doctrine/paradigms/built-in/atomic-design.paradigm.yaml",
     ],
 )
 def test_trim_source_path_canonicalizes_installed_doctrine(source_path: str) -> None:

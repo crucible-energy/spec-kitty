@@ -1443,15 +1443,23 @@ def _trim_source_path(source_path: str) -> str:
     normalized = source_path.replace("\\", "/")
     # ``dist-packages`` is the Debian-derived system-Python install root; it must
     # normalize identically to ``site-packages`` so that Linux distro layouts do
-    # not persist a machine-specific absolute path.
+    # not persist a machine-specific absolute path. Match the *rightmost* marker
+    # so the innermost doctrine root wins even when an ancestor directory also
+    # contains ``src/doctrine/`` (otherwise the checkout/venv layout leaks in).
+    best_index = -1
+    best_marker = ""
     for marker in (
         canonical_prefix,
         "site-packages/doctrine/",
         "dist-packages/doctrine/",
     ):
-        if marker in normalized:
-            return f"{canonical_prefix}{normalized.split(marker, 1)[1]}"
-    return source_path
+        index = normalized.rfind(marker)
+        if index > best_index:
+            best_index = index
+            best_marker = marker
+    if best_index == -1:
+        return source_path
+    return f"{canonical_prefix}{normalized[best_index + len(best_marker) :]}"
 
 
 def _yaml_inline_list(values: list[str]) -> str:

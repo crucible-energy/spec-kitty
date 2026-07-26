@@ -97,6 +97,37 @@ def test_manifest_source_path_canonicalizes_in_project_install(
     )
 
 
+def test_manifest_source_path_selects_innermost_doctrine_root(
+    tmp_path: Path,
+) -> None:
+    """The innermost doctrine root wins when an ancestor also matches a marker.
+
+    An install can sit beneath a checkout whose own path contains
+    ``src/doctrine/`` (``/home/me/src/doctrine/proj/.venv/.../site-packages/
+    doctrine/...``). Splitting on the leftmost marker would leak the outer
+    checkout and virtualenv layout; the rightmost recognized marker must be
+    used so only the canonical package-relative suffix survives.
+    """
+    installed = (
+        tmp_path
+        / "src"
+        / "doctrine"
+        / "proj"
+        / ".venv"
+        / "lib"
+        / "python3.11"
+        / "site-packages"
+        / "doctrine"
+        / "agent_profiles"
+        / "built-in"
+        / "architect-alphonso.agent.yaml"
+    )
+    assert (
+        _manifest_source_path(installed, tmp_path / "elsewhere", LAYER_BUILTIN)
+        == "src/doctrine/agent_profiles/built-in/architect-alphonso.agent.yaml"
+    )
+
+
 def test_manifest_source_path_preserves_out_of_tree_org_source(
     tmp_path: Path,
 ) -> None:

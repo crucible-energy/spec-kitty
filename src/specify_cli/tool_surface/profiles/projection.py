@@ -90,11 +90,22 @@ def _canonical_doctrine_source_path(source_path: Path) -> str | None:
     path is host-local and must not be committed into a project manifest.
     """
     normalized = source_path.resolve().as_posix()
+    # Match the *rightmost* recognized marker so the innermost doctrine root
+    # wins. An install can sit beneath an ancestor that itself contains
+    # ``src/doctrine/`` (e.g. ``/home/me/src/doctrine/proj/.venv/.../
+    # site-packages/doctrine/...``); splitting on the first/leftmost match would
+    # leak the checkout and virtualenv layout into the suffix.
+    best_index = -1
+    best_marker = ""
     for marker in (_CANONICAL_DOCTRINE_PREFIX, *_INSTALLED_DOCTRINE_PREFIXES):
-        if marker in normalized:
-            suffix = normalized.split(marker, 1)[1]
-            return f"{_CANONICAL_DOCTRINE_PREFIX}{suffix}"
-    return None
+        index = normalized.rfind(marker)
+        if index > best_index:
+            best_index = index
+            best_marker = marker
+    if best_index == -1:
+        return None
+    suffix = normalized[best_index + len(best_marker) :]
+    return f"{_CANONICAL_DOCTRINE_PREFIX}{suffix}"
 
 
 def _source_hash(source_path: Path | None) -> str | None:
