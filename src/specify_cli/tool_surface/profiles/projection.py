@@ -55,10 +55,16 @@ def _profile_urn(profile: AgentProfile) -> str:
 def _manifest_source_path(source_path: Path | None, project_root: Path) -> str | None:
     if source_path is None:
         return None
-    serialized_path = relativize_under_root(source_path, project_root)
-    if not Path(serialized_path).is_absolute():
-        return serialized_path
-    return _canonical_doctrine_source_path(source_path) or serialized_path
+    # Bundled doctrine must serialize to its portable canonical form *before*
+    # any project-relative fallback. A source checkout or an installed package
+    # nested inside the project (e.g. ``<project>/.venv/.../site-packages/
+    # doctrine/...``) resolves *under* the project root, so a repo-relative
+    # serialization would otherwise persist a host-specific installation path
+    # and defeat the portability fix.
+    canonical = _canonical_doctrine_source_path(source_path)
+    if canonical is not None:
+        return canonical
+    return relativize_under_root(source_path, project_root)
 
 
 def _canonical_doctrine_source_path(source_path: Path) -> str | None:

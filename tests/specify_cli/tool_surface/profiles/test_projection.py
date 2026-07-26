@@ -16,6 +16,7 @@ from specify_cli.tool_surface.findings import (
 )
 from specify_cli.tool_surface.profiles.projection import (
     ProfileProjector,
+    _manifest_source_path,
     default_profile_repository,
 )
 from specify_cli.tool_surface.profiles.manifest import PROJECTION_VERSION, hash_file
@@ -57,6 +58,35 @@ def test_project_serializes_builtin_provenance_portably(tmp_path: Path) -> None:
 
     assert (
         projected["agent_profile:architect-alphonso"].source_path
+        == "src/doctrine/agent_profiles/built-in/architect-alphonso.agent.yaml"
+    )
+
+
+def test_manifest_source_path_canonicalizes_in_project_venv_install(
+    tmp_path: Path,
+) -> None:
+    """An in-project venv doctrine install must not leak its host-local path.
+
+    When Spec Kitty is installed into ``<project>/.venv/.../site-packages``,
+    the built-in doctrine source resolves *under* the project root, so a naive
+    repo-relative serialization would persist a host-specific
+    ``.venv/.../site-packages/doctrine/...`` path that changes across
+    virtualenv layouts. The manifest path must instead canonicalize to the
+    portable ``src/doctrine/...`` form.
+    """
+    installed = (
+        tmp_path
+        / ".venv"
+        / "lib"
+        / "python3.11"
+        / "site-packages"
+        / "doctrine"
+        / "agent_profiles"
+        / "built-in"
+        / "architect-alphonso.agent.yaml"
+    )
+    assert (
+        _manifest_source_path(installed, tmp_path)
         == "src/doctrine/agent_profiles/built-in/architect-alphonso.agent.yaml"
     )
 
