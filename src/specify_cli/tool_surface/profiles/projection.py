@@ -42,7 +42,13 @@ LAYER_PROJECT = "project"
 
 _PROJECT_PROFILE_SUBDIR = ".kittify/agent_profiles"
 _CANONICAL_DOCTRINE_PREFIX = "src/doctrine/"
-_INSTALLED_DOCTRINE_PREFIX = "site-packages/doctrine/"
+# Installed-package roots that hold bundled doctrine. ``dist-packages`` is the
+# Debian-derived system-Python layout; it must normalize identically to the
+# ``site-packages`` virtualenv layout.
+_INSTALLED_DOCTRINE_PREFIXES = (
+    "site-packages/doctrine/",
+    "dist-packages/doctrine/",
+)
 
 _REPAIR_HINT = "spec-kitty doctor tool-surfaces --kind agent-profile --fix"
 
@@ -52,18 +58,26 @@ def _profile_urn(profile: AgentProfile) -> str:
     return f"agent_profile:{profile.profile_id}"
 
 
-def _manifest_source_path(source_path: Path | None, project_root: Path) -> str | None:
+def _manifest_source_path(
+    source_path: Path | None, project_root: Path, layer: str
+) -> str | None:
     if source_path is None:
         return None
-    # Bundled doctrine must serialize to its portable canonical form *before*
-    # any project-relative fallback. A source checkout or an installed package
-    # nested inside the project (e.g. ``<project>/.venv/.../site-packages/
-    # doctrine/...``) resolves *under* the project root, so a repo-relative
-    # serialization would otherwise persist a host-specific installation path
-    # and defeat the portability fix.
-    canonical = _canonical_doctrine_source_path(source_path)
-    if canonical is not None:
-        return canonical
+    # Only *built-in* doctrine is canonicalized to the portable ``src/doctrine/``
+    # form. A source checkout or an installed package nested inside the project
+    # (e.g. ``<project>/.venv/.../site-packages/doctrine/...``) resolves *under*
+    # the project root, so a repo-relative serialization would otherwise persist
+    # a host-specific installation path and defeat the portability fix.
+    #
+    # Org/project overlays keep their real provenance (repo-relative under root,
+    # else out-of-tree absolute per ``relativize_under_root``). An out-of-tree
+    # org checkout whose path happens to contain ``src/doctrine/`` (e.g.
+    # ``/opt/acme/src/doctrine/...``) must NOT be rewritten to a bundled-looking
+    # ``src/doctrine/...`` path, which would lose the real source location.
+    if layer == LAYER_BUILTIN:
+        canonical = _canonical_doctrine_source_path(source_path)
+        if canonical is not None:
+            return canonical
     return relativize_under_root(source_path, project_root)
 
 
@@ -71,11 +85,12 @@ def _canonical_doctrine_source_path(source_path: Path) -> str | None:
     """Return stable source-repository provenance for bundled doctrine files.
 
     Built-in profiles resolve from either a source checkout (``src/doctrine``)
-    or an installed Python package (``site-packages/doctrine``).  The physical
+    or an installed Python package (``site-packages/doctrine`` in a virtualenv,
+    ``dist-packages/doctrine`` on Debian-derived system Python).  The physical
     path is host-local and must not be committed into a project manifest.
     """
     normalized = source_path.resolve().as_posix()
-    for marker in (_CANONICAL_DOCTRINE_PREFIX, _INSTALLED_DOCTRINE_PREFIX):
+    for marker in (_CANONICAL_DOCTRINE_PREFIX, *_INSTALLED_DOCTRINE_PREFIXES):
         if marker in normalized:
             suffix = normalized.split(marker, 1)[1]
             return f"{_CANONICAL_DOCTRINE_PREFIX}{suffix}"
@@ -188,7 +203,7 @@ class ProfileProjector:
             output_path=output_path,
             format=renderer.format_key,
             file_hash=None,
-            source_path=_manifest_source_path(source_path, project_root),
+            source_path=_manifest_source_path(source_path, project_root, layer),
             source_hash=_source_hash(source_path),
             projection_version=PROJECTION_VERSION,
         )

@@ -1441,7 +1441,14 @@ def _trim_source_path(source_path: str) -> str:
         return ""
     canonical_prefix = "src/doctrine/"
     normalized = source_path.replace("\\", "/")
-    for marker in (canonical_prefix, "site-packages/doctrine/"):
+    # ``dist-packages`` is the Debian-derived system-Python install root; it must
+    # normalize identically to ``site-packages`` so that Linux distro layouts do
+    # not persist a machine-specific absolute path.
+    for marker in (
+        canonical_prefix,
+        "site-packages/doctrine/",
+        "dist-packages/doctrine/",
+    ):
         if marker in normalized:
             return f"{canonical_prefix}{normalized.split(marker, 1)[1]}"
     return source_path
