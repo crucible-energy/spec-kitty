@@ -1,0 +1,75 @@
+{
+  "entries": [
+    {
+      "created_at": "2026-07-26T03:01:59.204058Z",
+      "decision_id": "01KYE5YK94DW10SSX2H55CKNS1",
+      "final_answer": "Verify every registry-owned file",
+      "input_key": "canonical_file_set",
+      "mission_id": "01KYE5VFFDDW8JDEEHXXXAS5Y7",
+      "mission_slug": "global-skill-projection-integrity-01KYE5VF",
+      "opened_by": "codex",
+      "options": [
+        "Verify only SKILL.md",
+        "Verify every registry-owned file"
+      ],
+      "origin_flow": "plan",
+      "other_answer": false,
+      "question": "Should a current global skill lock verify only SKILL.md or every registry-owned skill file before bootstrap skips synchronization?",
+      "rationale": "The installed skill package includes referenced procedural assets as well as SKILL.md. The harvested architecture requires deterministic verification of the whole reusable skill artifact, and the registry already defines the complete ownership set.",
+      "resolved_at": "2026-07-26T03:02:22.006116Z",
+      "resolved_by": "codex",
+      "slot_key": "projection_integrity_scope",
+      "status": "resolved",
+      "step_id": null,
+      "summary_json": null
+    },
+    {
+      "created_at": "2026-07-26T03:02:00.012980Z",
+      "decision_id": "01KYE5YM2CXZYNJ0MF1XY66PD2",
+      "final_answer": "Synchronize the complete managed root",
+      "input_key": "damaged_global_projection",
+      "mission_id": "01KYE5VFFDDW8JDEEHXXXAS5Y7",
+      "mission_slug": "global-skill-projection-integrity-01KYE5VF",
+      "opened_by": "codex",
+      "options": [
+        "Patch only the damaged file",
+        "Synchronize the complete managed root"
+      ],
+      "origin_flow": "plan",
+      "other_answer": false,
+      "question": "When any managed global skill file is missing or divergent, should recovery patch that file alone or reuse the existing full managed-root synchronization primitive?",
+      "rationale": "The existing root synchronizer is ownership-safe, canonicalizes all managed files together, preserves unrelated user paths, and avoids leaving a partially repaired package after an interrupted migration.",
+      "resolved_at": "2026-07-26T03:02:22.786149Z",
+      "resolved_by": "codex",
+      "slot_key": "recovery_granularity",
+      "status": "resolved",
+      "step_id": null,
+      "summary_json": null
+    },
+    {
+      "created_at": "2026-07-26T03:02:00.836175Z",
+      "decision_id": "01KYE5YMW4WEH1G43A02H50CRT",
+      "final_answer": "Compare directly with canonical registry",
+      "input_key": "global_projection_health",
+      "mission_id": "01KYE5VFFDDW8JDEEHXXXAS5Y7",
+      "mission_slug": "global-skill-projection-integrity-01KYE5VF",
+      "opened_by": "codex",
+      "options": [
+        "Introduce a global projection manifest",
+        "Compare directly with canonical registry"
+      ],
+      "origin_flow": "plan",
+      "other_answer": false,
+      "question": "Should this recovery slice introduce a new global projection manifest or compare the installed tree directly with the canonical registry?",
+      "rationale": "The registry is the existing canonical source. A new manifest would duplicate authority and itself need recovery; direct hash comparison keeps this slice small, deterministic, and self-validating.",
+      "resolved_at": "2026-07-26T03:02:23.589130Z",
+      "resolved_by": "codex",
+      "slot_key": "integrity_state_storage",
+      "status": "resolved",
+      "step_id": null,
+      "summary_json": null
+    }
+  ],
+  "mission_id": "01KYE5VFFDDW8JDEEHXXXAS5Y7",
+  "version": 1
+}
