@@ -231,3 +231,50 @@ spec-kitty agent action implement WP01 --agent codex
 ## Activity Log
 
 - 2026-07-26T03:19:37Z – codex – shell_pid=82136 – T001 red-first evidence: .venv/bin/pytest tests/runtime/test_agent_skills.py::test_global_bootstrap_repairs_missing_managed_file_with_current_lock -vv -s failed as expected on the planning runtime (1 failed, assertion that the deleted managed SKILL.md was not restored). Test-only commit bc054d24a created before runtime changes.
+- 2026-07-26T03:25:51Z – codex – shell_pid=82136 – T002-T006 evidence: .venv/bin/pytest tests/runtime/test_agent_skills.py -q passed (12 passed, 30.48s); .venv/bin/ruff check src/specify_cli/runtime/agent_skills.py tests/runtime/test_agent_skills.py passed; .venv/bin/mypy --strict src/specify_cli/runtime/agent_skills.py passed. {
+  "configured_agents": [
+    "codex"
+  ],
+  "manifest_agents": [
+    "codex"
+  ],
+  "entries": 15,
+  "canonical_commands": 15,
+  "drift": [],
+  "gaps": [
+    ".agents/skills/spec-kitty.accept/SKILL.md",
+    ".agents/skills/spec-kitty.analyze/SKILL.md",
+    ".agents/skills/spec-kitty.charter/SKILL.md",
+    ".agents/skills/spec-kitty.dashboard/SKILL.md",
+    ".agents/skills/spec-kitty.implement/SKILL.md",
+    ".agents/skills/spec-kitty.merge/SKILL.md",
+    ".agents/skills/spec-kitty.plan/SKILL.md",
+    ".agents/skills/spec-kitty.research/SKILL.md",
+    ".agents/skills/spec-kitty.review/SKILL.md",
+    ".agents/skills/spec-kitty.specify/SKILL.md",
+    ".agents/skills/spec-kitty.status/SKILL.md",
+    ".agents/skills/spec-kitty.tasks-finalize/SKILL.md",
+    ".agents/skills/spec-kitty.tasks-outline/SKILL.md",
+    ".agents/skills/spec-kitty.tasks-packages/SKILL.md",
+    ".agents/skills/spec-kitty.tasks/SKILL.md"
+  ],
+  "orphans": [],
+  "stale": [],
+  "unsafe": [],
+  "uninstalled_agents": [],
+  "vibe_config_missing": false,
+  "repaired_agents": [],
+  "pruned": [],
+  "repaired_vibe_config": false,
+  "repair_errors": [],
+  "ok": false,
+  "slash_commands": {
+    "configured_agents": [
+      "claude"
+    ],
+    "gaps": [],
+    "repaired": [],
+    "errors": [],
+    "ok": true
+  }
+} correctly exposed 15 missing project-local generated files in this fresh lane; the planning base tracks no .agents/skills paths, so this is a separate project-projection state rather than a global-bootstrap regression. Baseline-capture tooling defect recorded as #2929.
