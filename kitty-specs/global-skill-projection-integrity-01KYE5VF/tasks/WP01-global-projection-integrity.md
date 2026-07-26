@@ -227,3 +227,7 @@ the planning base and reported through the required project workflow.
 ```bash
 spec-kitty agent action implement WP01 --agent codex
 ```
+
+## Activity Log
+
+- 2026-07-26T03:19:37Z – codex – shell_pid=82136 – T001 red-first evidence: .venv/bin/pytest tests/runtime/test_agent_skills.py::test_global_bootstrap_repairs_missing_managed_file_with_current_lock -vv -s failed as expected on the planning runtime (1 failed, assertion that the deleted managed SKILL.md was not restored). Test-only commit bc054d24a created before runtime changes.
