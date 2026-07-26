@@ -1,7 +1,7 @@
 {
-  "event_count": 2,
-  "last_event_id": "01KYE6EJY6FCKVCCQN8DH2SPX8",
-  "materialized_at": "2026-07-26T03:10:43.142951+00:00",
+  "event_count": 4,
+  "last_event_id": "01KYE6MV584APDVRJ29M0VNYXG",
+  "materialized_at": "2026-07-26T03:14:08.167892+00:00",
   "mission_number": "",
   "mission_slug": "global-skill-projection-integrity-01KYE5VF",
   "mission_type": "software-dev",
@@ -12,17 +12,20 @@
     "claimed": 0,
     "done": 0,
     "for_review": 0,
-    "in_progress": 0,
+    "in_progress": 1,
     "in_review": 0,
-    "planned": 2
+    "planned": 1
   },
   "work_packages": {
     "WP01": {
-      "actor": "finalize-tasks",
+      "actor": "codex",
+      "agent": "codex",
       "force_count": 0,
-      "lane": "planned",
-      "last_event_id": "01KYE6EJGRYXXH1GS1NTFNHX9S",
-      "last_transition_at": "2026-07-26T03:10:42.712516+00:00"
+      "lane": "in_progress",
+      "last_event_id": "01KYE6MV584APDVRJ29M0VNYXG",
+      "last_transition_at": "2026-07-26T03:14:08.167892+00:00",
+      "shell_pid": 28718,
+      "shell_pid_created_at": "1785035645.063921"
     },
     "WP02": {
       "actor": "finalize-tasks",
