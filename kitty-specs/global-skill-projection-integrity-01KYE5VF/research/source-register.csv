@@ -1,0 +1,5 @@
+source_id,source_type,location,role,trust_status
+S-001,source-code,src/specify_cli/runtime/agent_skills.py,Current bootstrap and canonical synchronizer,canonical
+S-002,source-code,src/specify_cli/skills/registry.py,Canonical skill discovery and owned file inventory,canonical
+S-003,governance,.kittify/charter/charter.md,User customization and canonical-authority constraints,binding
+S-004,harvested-thread,../technonomicon/references/chatgpt/improving-agents-md-guidelines/transcript.md,Target AGENTS/skills and Aletheia-backed PDB architecture,architecture-input

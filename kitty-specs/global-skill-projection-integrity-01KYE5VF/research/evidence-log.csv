@@ -1,0 +1,4 @@
+evidence_id,claim,source,verification_method,status
+E-001,Current global version lock does not verify managed-file completeness,src/specify_cli/runtime/agent_skills.py::ensure_global_agent_skills,Focused current-lock missing-file regression test,verified
+E-002,Managed projections contain all registry-owned files and normalized SKILL.md content,src/specify_cli/runtime/agent_skills.py::_sync_skill_root,Hash comparison against normalized canonical bytes,verified
+E-003,Unknown global sibling skill directories must be preserved,Spec Kitty charter User Customization Preservation section,Custom-neighbor preservation test,required
