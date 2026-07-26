@@ -34,6 +34,7 @@ __all__ = [
 TERMINOLOGY_CANON = "Terminology Canon"
 CODE_REVIEW_CHECKLIST = "Code Review Checklist"
 REGRESSION_VIGILANCE = "Regression Vigilance"
+PULL_REQUEST_REVIEW_CLOSURE = "Pull-Request Review Closure"
 _COMMON_ACTION_CRITICAL_SECTIONS = [
     TERMINOLOGY_CANON,
     CODE_REVIEW_CHECKLIST,
@@ -43,18 +44,25 @@ _COMMON_ACTION_CRITICAL_SECTIONS = [
 
 ACTION_CRITICAL_SECTIONS: dict[str, list[str]] = {
     "implement": list(_COMMON_ACTION_CRITICAL_SECTIONS),
-    "review": list(_COMMON_ACTION_CRITICAL_SECTIONS),
+    "review": [*_COMMON_ACTION_CRITICAL_SECTIONS, PULL_REQUEST_REVIEW_CLOSURE],
 }
 """Mapping of action -> ordered list of charter section names whose body
 the resolver MUST surface (or fetch-substitute).  Future missions may
 extend the set for specify / plan / tasks actions; absent actions yield
-an empty block."""
+an empty block.
+
+``Pull-Request Review Closure`` is review-scoped: it binds how a reviewing
+agent closes out review threads at handoff, so its verbatim charter body is
+injected at the ``review`` action boundary (the charter directive DIR-014 is
+its runtime-governance companion; this registration makes the body reachable
+via the documented action-scoped ``charter context --action review`` load)."""
 
 
 CRITICAL_SECTION_WHEN_CLAUSES: dict[str, str] = {
     TERMINOLOGY_CANON: "rename or introduce a term in the diff",
     CODE_REVIEW_CHECKLIST: "prepare a WP for review",
     REGRESSION_VIGILANCE: "perform a terminology cutover",
+    PULL_REQUEST_REVIEW_CLOSURE: "need to hand off a pull request with open review threads",
 }
 """Per-section when-doing clause used when the verbatim body is missing.
 
