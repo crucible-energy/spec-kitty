@@ -6,63 +6,63 @@
   "criteria": [
     {
       "criterion_id": "FR-001",
-      "description": "Verify FR-001 is satisfied",
+      "description": "A current version lock skips synchronization only after every registry-owned projected file matches its normalized canonical content hash.",
       "proof_type": "automated_test",
-      "evidence": null,
-      "pass_fail": "pending",
-      "verified_by": null,
-      "verified_at": null,
-      "notes": "TODO: replace with a real acceptance criterion"
+      "evidence": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest --noconftest tests/runtime/test_agent_skills.py -q (14 passed)",
+      "pass_fail": "pass",
+      "verified_by": "codex",
+      "verified_at": "2026-07-26T03:35:00Z",
+      "notes": "Covers healthy current-lock and divergent managed-file integrity paths."
     },
     {
       "criterion_id": "FR-002",
-      "description": "Verify FR-002 is satisfied",
+      "description": "A current lock with a missing or divergent registry-owned file restores the canonical managed projection.",
       "proof_type": "automated_test",
-      "evidence": null,
-      "pass_fail": "pending",
-      "verified_by": null,
-      "verified_at": null,
-      "notes": "TODO: replace with a real acceptance criterion"
+      "evidence": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest --noconftest tests/runtime/test_agent_skills.py -q (14 passed)",
+      "pass_fail": "pass",
+      "verified_by": "codex",
+      "verified_at": "2026-07-26T03:35:00Z",
+      "notes": "Covers missing SKILL.md, missing reference, and divergent content recovery."
     },
     {
       "criterion_id": "FR-003",
-      "description": "Verify FR-003 is satisfied",
+      "description": "Recovery preserves unrelated user-owned global skills, including names that resemble package-managed skills.",
       "proof_type": "automated_test",
-      "evidence": null,
-      "pass_fail": "pending",
-      "verified_by": null,
-      "verified_at": null,
-      "notes": "TODO: replace with a real acceptance criterion"
+      "evidence": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest --noconftest tests/runtime/test_agent_skills.py -q (14 passed)",
+      "pass_fail": "pass",
+      "verified_by": "codex",
+      "verified_at": "2026-07-26T03:35:00Z",
+      "notes": "Covers a prefixed user-owned custom skill during managed recovery."
     },
     {
       "criterion_id": "FR-004",
-      "description": "Verify FR-004 is satisfied",
+      "description": "Integrity verification and recovery evaluate every distinct supported user-global skill root.",
       "proof_type": "automated_test",
-      "evidence": null,
-      "pass_fail": "pending",
-      "verified_by": null,
-      "verified_at": null,
-      "notes": "TODO: replace with a real acceptance criterion"
+      "evidence": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest --noconftest tests/runtime/test_agent_skills.py -q (14 passed)",
+      "pass_fail": "pass",
+      "verified_by": "codex",
+      "verified_at": "2026-07-26T03:35:00Z",
+      "notes": "The isolated home fixture drives the supported-agent global-root resolver."
     },
     {
       "criterion_id": "FR-005",
-      "description": "Verify FR-005 is satisfied",
+      "description": "Recovered managed SKILL.md files retain normalized frontmatter and read-only file mode.",
       "proof_type": "automated_test",
-      "evidence": null,
-      "pass_fail": "pending",
-      "verified_by": null,
-      "verified_at": null,
-      "notes": "TODO: replace with a real acceptance criterion"
+      "evidence": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest --noconftest tests/runtime/test_agent_skills.py -q (14 passed)",
+      "pass_fail": "pass",
+      "verified_by": "codex",
+      "verified_at": "2026-07-26T03:35:00Z",
+      "notes": "Covers normalized frontmatter, read-only mode, and atomic replacement."
     },
     {
       "criterion_id": "FR-006",
-      "description": "Verify FR-006 is satisfied",
-      "proof_type": "automated_test",
-      "evidence": null,
-      "pass_fail": "pending",
-      "verified_by": null,
-      "verified_at": null,
-      "notes": "TODO: replace with a real acceptance criterion"
+      "description": "Operator guidance explains lock-versus-integrity recovery, supported commands, custom-skill preservation, and the future PolymorphDB authority boundary.",
+      "proof_type": "code_review",
+      "evidence": "Independent WP02 review approved b45034756; terminology guard passed with 4 tests.",
+      "pass_fail": "pass",
+      "verified_by": "codex",
+      "verified_at": "2026-07-26T03:35:00Z",
+      "notes": "Guide commands were validated against the local CLI before review."
     }
   ],
   "negative_invariants": []
