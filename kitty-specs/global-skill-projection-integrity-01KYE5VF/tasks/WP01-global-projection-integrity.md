@@ -18,6 +18,9 @@ requirement_refs:
 planning_base_branch: fix/global-skill-projection-integrity
 merge_target_branch: fix/global-skill-projection-integrity
 branch_strategy: Planning artifacts for this mission were generated on fix/global-skill-projection-integrity. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into fix/global-skill-projection-integrity unless the human explicitly redirects the landing branch.
+base_branch: kitty/mission-global-skill-projection-integrity-01KYE5VF
+base_commit: 70b9c342ab500ed433289534574bc35eb51204df
+created_at: '2026-07-26T03:14:07.986539+00:00'
 subtasks:
 - T001
 - T002
