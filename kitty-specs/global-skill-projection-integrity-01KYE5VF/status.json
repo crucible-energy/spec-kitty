@@ -1,7 +1,7 @@
 {
-  "event_count": 15,
-  "last_event_id": "01KYE7T3TAMKGAVYCRVP2KD5JW",
-  "materialized_at": "2026-07-26T03:34:29.450244+00:00",
+  "event_count": 16,
+  "last_event_id": "01KYE7T9CPDDEJZSWBVR0BHWXP",
+  "materialized_at": "2026-07-26T03:34:35.158198+00:00",
   "mission_number": "",
   "mission_slug": "global-skill-projection-integrity-01KYE5VF",
   "mission_type": "software-dev",
@@ -11,9 +11,9 @@
     "canceled": 0,
     "claimed": 0,
     "done": 0,
-    "for_review": 1,
+    "for_review": 0,
     "in_progress": 0,
-    "in_review": 0,
+    "in_review": 1,
     "planned": 0
   },
   "work_packages": {
@@ -58,12 +58,15 @@
       "agent_profile": "__resolved_profile_absent__",
       "agent_profile_version": "__resolved_profile_version_absent__",
       "force_count": 0,
-      "lane": "for_review",
-      "last_event_id": "01KYE7T3TAMKGAVYCRVP2KD5JW",
-      "last_transition_at": "2026-07-26T03:34:29.450244+00:00",
+      "lane": "in_review",
+      "last_event_id": "01KYE7T9CPDDEJZSWBVR0BHWXP",
+      "last_transition_at": "2026-07-26T03:34:35.158198+00:00",
       "model": "__resolved_model_absent__",
+      "notes": [
+        "Supported recovery guidance, authority boundaries, and terminology checks complete."
+      ],
       "provider": "__resolved_provider_absent__",
-      "role": "implementer",
+      "role": "reviewer",
       "shell_pid": 82136,
       "shell_pid_created_at": "1784988639.084582",
       "subtasks": {
