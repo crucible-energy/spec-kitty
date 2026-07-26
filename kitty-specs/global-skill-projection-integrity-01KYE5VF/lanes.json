@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "mission_slug": "global-skill-projection-integrity-01KYE5VF",
+  "mission_id": "01KYE5VFFDDW8JDEEHXXXAS5Y7",
+  "mission_branch": "kitty/mission-global-skill-projection-integrity-01KYE5VF",
+  "target_branch": "fix/global-skill-projection-integrity",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01"
+      ],
+      "write_scope": [
+        "src/specify_cli/runtime/agent_skills.py",
+        "tests/runtime/test_agent_skills.py"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "legacy-cleanup",
+        "tracker-integration"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    },
+    {
+      "lane_id": "lane-b",
+      "wp_ids": [
+        "WP02"
+      ],
+      "write_scope": [
+        "docs/guides/diagnose-installation.md"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "legacy-cleanup",
+        "tracker-integration"
+      ],
+      "depends_on_lanes": [
+        "lane-a"
+      ],
+      "parallel_group": 1
+    }
+  ],
+  "computed_at": "2026-07-26T03:10:43.395189+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": []
+}
