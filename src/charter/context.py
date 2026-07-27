@@ -83,6 +83,14 @@ MISSING_REFERENCES_MESSAGE = "  - No references manifest found."
 _MIN_EFFECTIVE_DEPTH = 2   # minimum depth for bootstrap context (full summary + references)
 _EXTENDED_CONTEXT_DEPTH = 3  # depth that includes extended styleguide/toolguide lines
 
+#: Aggregate ``section:`` selector id emitted by the WP05 token-budget
+#: substitution loop when the whole charter-selected artifact block is swapped
+#: out for its fetch stanza. It is resolved by
+#: :func:`_render_charter_selections_include` so the emitted
+#: ``--include section:charter-selections`` recovery command re-renders the
+#: selected governance instead of failing closed with "No charter section found".
+CHARTER_SELECTIONS_SELECTOR_ID = "charter-selections"
+
 
 @dataclass(frozen=True)
 class CharterContextResult:
@@ -337,19 +345,7 @@ def build_charter_context_include(
         raise ValueError("Expected --include selector in '<kind>:<id>' form.")
 
     if kind == "section":
-        canonical_root = _bundle_root_for_json(repo_root)
-        charter_path = canonical_root / CHARTER_MD
-        if not charter_path.exists():
-            raise ValueError("No charter.md found for section selector.")
-        charter_content = charter_path.read_text(encoding="utf-8")
-        section = render_critical_section_include(
-            charter_content,
-            identifier,
-            action=action.strip().lower() if action else None,
-        )
-        if section is None:
-            raise ValueError(f"No charter section found for selector '{selector}'.")
-        return str(section)
+        return _render_section_include(repo_root, selector, identifier, action)
 
     org_roots = [org_root] if org_root is not None else None
 
@@ -406,6 +402,63 @@ def build_charter_context_include(
         return artifact
 
     raise ValueError(f"Unsupported --include selector kind '{kind}'.")
+
+
+def _render_section_include(
+    repo_root: Path,
+    selector: str,
+    identifier: str,
+    action: str | None,
+) -> str:
+    """Resolve a ``section:<id>`` fetch selector.
+
+    ``section:charter-selections`` is the aggregate governance selector emitted
+    by the token-budget substitution loop and is handled specially; every other
+    identifier addresses a charter heading (a ``critical-<action>`` bundle or a
+    known heading slug) rendered from ``charter.md``.
+    """
+    if identifier == CHARTER_SELECTIONS_SELECTOR_ID:
+        return _render_charter_selections_include(repo_root)
+    canonical_root = _bundle_root_for_json(repo_root)
+    charter_path = canonical_root / CHARTER_MD
+    if not charter_path.exists():
+        raise ValueError("No charter.md found for section selector.")
+    charter_content = charter_path.read_text(encoding="utf-8")
+    section = render_critical_section_include(
+        charter_content,
+        identifier,
+        action=action.strip().lower() if action else None,
+    )
+    if section is None:
+        raise ValueError(f"No charter section found for selector '{selector}'.")
+    return str(section)
+
+
+def _render_charter_selections_include(repo_root: Path) -> str:
+    """Render the aggregate ``section:charter-selections`` fetch selector.
+
+    The WP05 token-budget substitution loop (:func:`_enforce_token_budget`)
+    swaps the whole charter-selected artifact block for a single fetch stanza
+    when a compact context runs over the NFR-001 budget. That stanza points the
+    agent at ``--include section:charter-selections``; this handler re-renders
+    the selected governance (using the same org-root-aware service the compact
+    renderer used) so the recovery command resolves instead of failing closed
+    with "No charter section found". Raises when no artifacts are selected.
+    """
+    doctrine_selection = _load_doctrine_selection(repo_root)
+    service = _build_doctrine_service(
+        repo_root,
+        org_roots=_existing_org_roots(repo_root) or None,
+    )
+    block = _render_selection_block(
+        doctrine_selection, service, repo_root=repo_root
+    )
+    if not block:
+        raise ValueError(
+            "No charter-selected artifacts found for selector "
+            f"'section:{CHARTER_SELECTIONS_SELECTOR_ID}'."
+        )
+    return block
 
 
 def _render_template_include(
@@ -1229,7 +1282,7 @@ def _enforce_token_budget(
                 section_id="selected-charter-artifacts",
                 header="",
                 body=selection_block,
-                selector="section:charter-selections",
+                selector=f"section:{CHARTER_SELECTIONS_SELECTOR_ID}",
                 when_doing_clause="need to consult the selected charter artifacts",
                 substitutable=True,
                 indent="  ",

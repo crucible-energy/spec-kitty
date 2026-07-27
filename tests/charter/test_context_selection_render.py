@@ -34,6 +34,7 @@ from ruamel.yaml.error import YAMLError
 
 import charter.context as context_module
 from charter.context import (
+    CHARTER_SELECTIONS_SELECTOR_ID,
     _PROFILE_INLINE_BODY_LIMIT_CHARS,
     _SELECTED_AGENT_PROFILES_HEADER,
     _SELECTED_MISSION_STEP_CONTRACTS_HEADER,
@@ -409,6 +410,62 @@ class TestFetchSelectorRecovery:
             context_module.build_charter_context_include(
                 tmp_path,
                 "section:regression-vigilance",
+            )
+
+    def test_charter_selections_selector_round_trips_through_context_include(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        # The token-budget loop swaps the whole selection block for a fetch
+        # stanza pointing at ``section:charter-selections``; that recovery
+        # command must re-render the selected governance rather than fail
+        # closed on an unknown charter section.
+        directive = _DummyDirective(
+            title="Security Baseline", intent="Never leak secrets."
+        )
+        service = _StubService(directives=_StubRepo(items={"DIRECTIVE_999": directive}))
+        selection = DoctrineSelectionConfig(selected_directives=["DIRECTIVE_999"])
+        monkeypatch.setattr(
+            context_module,
+            "_load_doctrine_selection",
+            lambda _repo_root: selection,
+        )
+        monkeypatch.setattr(
+            context_module,
+            "_build_doctrine_service",
+            lambda repo_root, org_roots=None: service,
+        )
+
+        text = context_module.build_charter_context_include(
+            tmp_path,
+            f"section:{CHARTER_SELECTIONS_SELECTOR_ID}",
+        )
+
+        assert "Selected directives:" in text
+        assert "DIRECTIVE_999" in text
+        assert "Never leak secrets." in text
+
+    def test_charter_selections_selector_fails_closed_when_empty(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        monkeypatch.setattr(
+            context_module,
+            "_load_doctrine_selection",
+            lambda _repo_root: DoctrineSelectionConfig(),
+        )
+        monkeypatch.setattr(
+            context_module,
+            "_build_doctrine_service",
+            lambda repo_root, org_roots=None: _StubService(),
+        )
+
+        with pytest.raises(ValueError, match="No charter-selected artifacts found"):
+            context_module.build_charter_context_include(
+                tmp_path,
+                f"section:{CHARTER_SELECTIONS_SELECTOR_ID}",
             )
 
     def test_selected_styleguide_include_recovers_body(self) -> None:
