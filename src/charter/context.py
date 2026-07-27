@@ -895,10 +895,7 @@ def _load_local_directives(repo_root: Path) -> dict[str, object]:
     """Return project-authored directives declared in the structured charter."""
     from charter.sync import load_directives_config
 
-    try:
-        directives = load_directives_config(repo_root).directives
-    except Exception:  # noqa: BLE001 — selected catalog directives still render normally
-        return {}
+    directives = load_directives_config(repo_root).directives
     return {directive.id: directive for directive in directives}
 
 
