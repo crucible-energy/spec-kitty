@@ -13,9 +13,9 @@ All notable changes to the Spec Kitty CLI and templates are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 3.2.6
+## [Unreleased] - 3.2.7
 
-_The 3.2.6 development cycle is open. Entries land here as missions merge._
+_The 3.2.7 development cycle is open. Entries land here as missions merge._
 
 ### ✨ Added
 
