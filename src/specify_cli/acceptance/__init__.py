@@ -876,6 +876,7 @@ def collect_feature_summary(
     *,
     strict_metadata: bool = True,
     mutate_matrix: bool = True,
+    require_hosted_workflow_evidence: bool = False,
 ) -> AcceptanceSummary:
     # WP09/FR-001 (kind-correct): ``_primary_anchor_feature_dir`` only needs
     # the coord-aware existence/identity read described in its own docstring
@@ -996,7 +997,13 @@ def collect_feature_summary(
         blocked_checks,
         mutate_matrix=mutate_matrix,
     )
-    _check_workflow_run_evidence(repo_root, read_feature_dir, branch, activity_issues)
+    _check_workflow_run_evidence(
+        repo_root,
+        read_feature_dir,
+        branch,
+        activity_issues,
+        require_hosted_workflow_evidence=require_hosted_workflow_evidence,
+    )
 
     normalized_unchecked_tasks = _normalized_unchecked_tasks(unchecked_tasks, lanes)
     recommended_fix_order = _build_recommended_fix_order(

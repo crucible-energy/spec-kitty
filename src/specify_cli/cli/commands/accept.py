@@ -399,6 +399,7 @@ def _collect_summary_with_optional_repair(
     strict_metadata: bool,
     mutate_matrix: bool,
     normalize_encoding: bool,
+    require_hosted_workflow_evidence: bool,
 ) -> AcceptanceSummary:
     """Collect the acceptance summary, optionally repairing artifact encoding.
 
@@ -416,6 +417,7 @@ def _collect_summary_with_optional_repair(
             mission_slug,
             strict_metadata=strict_metadata,
             mutate_matrix=mutate_matrix,
+            require_hosted_workflow_evidence=require_hosted_workflow_evidence,
         )
     except ArtifactEncodingError:
         if not normalize_encoding:
@@ -429,6 +431,7 @@ def _collect_summary_with_optional_repair(
             mission_slug,
             strict_metadata=strict_metadata,
             mutate_matrix=mutate_matrix,
+            require_hosted_workflow_evidence=require_hosted_workflow_evidence,
         )
 
 
@@ -450,6 +453,11 @@ def accept(
         False,
         "--normalize-encoding/--no-normalize-encoding",
         help="Repair acceptance-artifact encoding (Windows-1252/Latin-1 -> UTF-8) before validating.",
+    ),
+    require_hosted_workflow_evidence: bool = typer.Option(
+        False,
+        "--require-hosted-workflow-evidence",
+        help="Require a successful GitHub Actions run ID or URL; do not accept a pre-PR deferral.",
     ),
 ) -> None:
     """Validate mission readiness before merging to main."""
@@ -518,6 +526,7 @@ def accept(
             # FR-005: opt-in repair of mojibake acceptance artifacts via the
             # canonical normalize_feature_encoding before validating (default off).
             normalize_encoding=normalize_encoding,
+            require_hosted_workflow_evidence=require_hosted_workflow_evidence,
         )
     except Pre30LayoutError as exc:
         # #1057 / squad Blocker 1: a pre-3.0 lane-directory mission must hard-reject

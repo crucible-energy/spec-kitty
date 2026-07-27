@@ -143,6 +143,7 @@ def test_wrap_up_sequence_validates_the_final_aggregate_before_handoff() -> None
     )
     pr_index = titles.index("Open a full pull request and complete remote automation")
     acceptance_index = titles.index("Record final acceptance before opening the full pull request")
+    hosted_evidence_index = titles.index("Verify hosted workflow evidence before handoff")
     catalog = yaml.load((root / ".kittify/charter/charter.yaml").read_text(encoding="utf-8"))
     procedure = next(
         entry
@@ -150,7 +151,9 @@ def test_wrap_up_sequence_validates_the_final_aggregate_before_handoff() -> None
         if entry["id"] == "PROCEDURE:mission-wrap-up-sequence"
     )
 
-    assert merge_index < rebase_index < aggregate_index < acceptance_index < pr_index
+    assert merge_index < rebase_index < aggregate_index < acceptance_index < pr_index < hosted_evidence_index
     assert procedure["summary"].index("lands the lanes locally") < procedure["summary"].index(
         "establishes aggregate automated proof"
     )
+    charter_text = (root / ".kittify/charter/charter.md").read_text(encoding="utf-8")
+    assert charter_text.index("local merge") < charter_text.index("establish aggregate automated proof")

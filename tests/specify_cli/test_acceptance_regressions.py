@@ -594,6 +594,34 @@ def test_collect_feature_summary_allows_workflow_changes_with_deferral_marker(
     assert not any("Workflow run evidence required" in issue for issue in summary.activity_issues)
 
 
+def test_collect_feature_summary_requires_hosted_evidence_after_pr(tmp_path: Path) -> None:
+    """A pre-PR deferral cannot satisfy the final hosted-evidence validation."""
+    repo_root, feature_dir = _create_test_feature(tmp_path)
+    subprocess.run(["git", "-C", str(repo_root), "branch", "-M", "main"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo_root), "checkout", "-b", "kitty/mission-workflow-lane-a"], check=True, capture_output=True)
+
+    workflow_path = repo_root / ".github" / "workflows" / "ci.yml"
+    workflow_path.parent.mkdir(parents=True)
+    workflow_path.write_text("name: CI\non: [pull_request]\njobs: {}\n")
+    (feature_dir / "workflow-evidence.md").write_text(
+        "Hosted Actions run deferred to the mission PR. Local validation: actionlint passed.\n"
+    )
+    subprocess.run(
+        ["git", "-C", str(repo_root), "add", ".github/workflows/ci.yml", f"kitty-specs/{_FEATURE_SLUG}/workflow-evidence.md"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(["git", "-C", str(repo_root), "commit", "-m", "Add deferred workflow evidence"], check=True, capture_output=True)
+
+    summary = collect_feature_summary(
+        repo_root,
+        _FEATURE_SLUG,
+        require_hosted_workflow_evidence=True,
+    )
+
+    assert any("Workflow run evidence required" in issue for issue in summary.activity_issues)
+
+
 def test_collect_feature_summary_rejects_placeholder_workflow_evidence(tmp_path: Path) -> None:
     repo_root, feature_dir = _create_test_feature(tmp_path)
     subprocess.run(["git", "-C", str(repo_root), "branch", "-M", "main"], check=True, capture_output=True)

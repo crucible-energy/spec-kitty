@@ -318,7 +318,7 @@ The 1.x/2.x branch split was originally documented in [ADR-12: Two-Branch Strate
   opens. An adversarial review squad may add useful signal, but is optional and never a
   substitute for executable proof.
 
-The standing close-out sequence that produces such a PR — accept → resolve issue verdicts → establish aggregate automated proof → local merge → compact history → rebase onto upstream → full PR → required remote checks → hand off — is captured as the `mission-wrap-up-sequence` procedure (active). The operator, not the agent, performs the mainline merge (`045-prs-only-and-read-intent`).
+The standing close-out sequence that produces such a PR — confirm readiness → retire or split development-assist tests → resolve issue verdicts → local merge → compact history → rebase onto upstream → establish aggregate automated proof → acceptance → full PR → required remote checks → hosted-evidence verification → hand off — is captured as the `mission-wrap-up-sequence` procedure (active). The operator, not the agent, performs the mainline merge (`045-prs-only-and-read-intent`).
 
 ### Code Review Checklist
 

@@ -371,7 +371,11 @@ def _changed_workflow_files(repo_root: Path, feature_dir: Path, branch: str | No
     return sorted({line.strip() for line in changed if line.strip()})
 
 
-def _workflow_evidence_missing(feature_dir: Path) -> bool:
+def _workflow_evidence_missing(
+    feature_dir: Path,
+    *,
+    require_hosted_workflow_evidence: bool,
+) -> bool:
     evidence_path = feature_dir / WORKFLOW_EVIDENCE_FILE
     if not evidence_path.is_file():
         return True
@@ -380,7 +384,7 @@ def _workflow_evidence_missing(feature_dir: Path) -> bool:
         return True
     if WORKFLOW_RUN_URL_RE.search(text) is not None or _contains_workflow_run_id(text):
         return False
-    return WORKFLOW_EVIDENCE_DEFERRAL_RE.search(text) is None
+    return require_hosted_workflow_evidence or WORKFLOW_EVIDENCE_DEFERRAL_RE.search(text) is None
 
 
 def _contains_workflow_run_id(text: str) -> bool:
@@ -426,14 +430,27 @@ def _check_workflow_run_evidence(
     feature_dir: Path,
     branch: str | None,
     activity_issues: list[str],
+    *,
+    require_hosted_workflow_evidence: bool = False,
 ) -> None:
     changed = _changed_workflow_files(repo_root, feature_dir, branch)
-    if changed and _workflow_evidence_missing(feature_dir):
+    if changed and _workflow_evidence_missing(
+        feature_dir,
+        require_hosted_workflow_evidence=require_hosted_workflow_evidence,
+    ):
+        evidence_requirement = (
+            "Add a successful real GitHub Actions run ID or URL"
+            if require_hosted_workflow_evidence
+            else (
+                "Add a successful real GitHub Actions run ID or URL, or record that "
+                "the hosted Actions run is deferred to the mission PR "
+                "(captured there before the operator merges)"
+            )
+        )
         activity_issues.append(
             "Workflow run evidence required: this mission changes "
             + ", ".join(changed)
-            + f". Add a successful real GitHub Actions run ID or URL to {feature_dir.name}/{WORKFLOW_EVIDENCE_FILE}"
-            + ", or record that the hosted Actions run is deferred to the mission PR (captured there before the operator merges)."
+            + f". {evidence_requirement} in {feature_dir.name}/{WORKFLOW_EVIDENCE_FILE}."
         )
 
 

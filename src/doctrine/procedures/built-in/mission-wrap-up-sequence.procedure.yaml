@@ -110,6 +110,13 @@ steps:
       findings before handoff. For a workflow-changing mission, capture the
       successful GitHub Actions run ID or URL in `workflow-evidence.md`.
     actor: agent
+  - title: Verify hosted workflow evidence before handoff
+    description: >
+      For a workflow-changing mission, rerun `spec-kitty accept --mission <slug>
+      --require-hosted-workflow-evidence --no-commit` after the full PR's remote
+      workflow completes. This final check rejects the pre-PR deferral marker
+      until it is replaced by a successful GitHub Actions run ID or URL.
+    actor: agent
   - title: Hand off to the operator
     description: >
       Summarise the outcome (what shipped, the automated validation evidence, which
@@ -153,9 +160,10 @@ notes: |
 
   Sequence summary: confirm readiness -> retire/split dev-assist tests -> resolve issue
   verdicts -> local merge -> compact history -> rebase onto upstream -> aggregate automated
-  proof -> acceptance -> full PR -> required remote checks -> hand off. Aggregate proof runs
-  on the merged, compacted, rebased tree (the first checkout where the WPs coexist), not on
-  separate lanes. The operator performs the mainline merge (DIRECTIVE_045).
+  proof -> acceptance -> full PR -> required remote checks -> hosted-evidence verification ->
+  hand off. Aggregate proof runs on the merged, compacted, rebased tree (the first checkout
+  where the WPs coexist), not on separate lanes. The operator performs the mainline merge
+  (DIRECTIVE_045).
 
   The three quality pillars this enforces are captured as a standard in the
   readable-consistent-prs directive (DIRECTIVE_046): linear, consistent/complete,
