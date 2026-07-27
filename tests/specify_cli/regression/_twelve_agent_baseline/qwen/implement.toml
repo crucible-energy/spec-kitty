@@ -327,13 +327,14 @@ persona automatically.
 
 ### GitHub Actions Workflow Changes
 
-If this WP adds or modifies `.github/workflows/*`, finish the mission's coherent,
-locally validated slice before opening a full, non-draft PR:
+If this WP adds or modifies `.github/workflows/*`, do not open a PR solely to run
+the workflow. Include it in the coherent, locally validated merge-ready slice, then
+open a full PR (never a draft) so it runs on a real GitHub Actions runner:
 
-1. Push the WP branch.
-2. Open a full PR so the workflow runs on a real GitHub Actions runner.
-3. Iterate until the changed workflow has a successful run.
-4. Record the successful run ID or Actions URL in `kitty-specs/<mission>/workflow-evidence.md`.
+1. Push the complete, locally validated branch.
+2. Open a full PR only once the slice is ready to merge.
+3. Record the successful run ID or Actions URL in `kitty-specs/<mission>/workflow-evidence.md`.
+4. Resolve any workflow failure with focused validation and update the evidence.
 5. Only then move the WP to `for_review`.
 
 Do not open a pull request solely to use a runner, and never use GitHub's draft state

@@ -2175,7 +2175,7 @@ class _MoveTaskArgs:
     over the local ≤13 ceiling. Grouping every raw input into ONE dataclass
     (field set and defaults mirror the pre-extraction signature exactly,
     NFR-002) collapses the call surface to ``(args, *, ports)`` — 2
-    parameters — leaving headroom for future flags (e.g. draft PR #2639) to
+    parameters — leaving headroom for future PR-metadata flags (e.g. #2639) to
     join this dataclass instead of re-breaching the ceiling. Module-private
     (C-008/NFR-004): no net-new public symbol.
     """

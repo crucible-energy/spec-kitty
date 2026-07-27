@@ -2,27 +2,27 @@ schema_version: "1.0"
 id: mission-wrap-up-sequence
 name: Mission Wrap-Up Sequence
 purpose: >
-  Drive a mission from "all work packages approved" to "a clean, reviewable full,
-  non-draft pull request handed to the operator" through one standing, repeatable close-out
-  sequence. The sequence makes the last mile deterministic: it verifies readiness,
-  resolves every tracked-issue verdict, subjects the aggregate diff to an
-  independent review, lands locally, compacts the branch into readable history,
-  and opens a full PR — so no mission ends in an ad-hoc, unreviewed, or messy
-  state. It complements (does not replace) the per-work-package implement/review
-  loop.
+  Drive a mission from "all work packages approved" to "a clean, full pull
+  request with automated evidence handed to the operator" through one standing,
+  repeatable close-out sequence. The sequence makes the last mile deterministic:
+  it verifies readiness, resolves every tracked-issue verdict, establishes
+  aggregate automated proof, lands locally, compacts the branch into readable
+  history, and opens a full PR — so no mission ends in an ad-hoc, insufficiently
+  validated, or messy state. It complements (does not replace) the per-work-package
+  implement/review loop.
 entry_condition: >
   Every work package in the mission is approved (the per-WP implement/review loop
   is complete). Acceptance has not yet been recorded and the mission branch has
   not yet been merged locally.
 exit_condition: >
   Acceptance is recorded; every tracker issue referenced by the spec carries a
-  terminal issue-matrix verdict; the aggregate diff has passed an independent
-  review (the adversarial squad being the recommended mechanism); the lanes are
-  merged into the mission branch; the branch
+  terminal issue-matrix verdict; the aggregate diff has passed the relevant
+  automated tests, type/lint checks, and applicable regression or architectural
+  gates; the lanes are merged into the mission branch; the branch
   history is compacted into a small set of readable, logically-sliced commits
-  rebased onto the current upstream base; and a full, non-draft pull request is open and
-  handed to the operator. The operator — not the agent — performs the merge to
-  the protected mainline.
+  rebased onto the current upstream base; and a full pull request is open with
+  required remote checks complete before handoff. The operator — not the agent —
+  performs the merge to the protected mainline.
 steps:
   - title: Confirm readiness and run acceptance
     description: >
@@ -52,14 +52,14 @@ steps:
       placeholder must be driven to a terminal state before the mission can reach
       done. Record the evidence for each verdict.
     actor: agent
-  - title: Independently review the aggregate diff before landing
+  - title: Establish automated proof on the aggregate diff before landing
     description: >
-      The sum of the per-WP reviews is not the final gate — the WPs only coexist
-      once combined. Obtain an independent review of the aggregate diff — the
-      adversarial review squad (adversarial-squad-deployment) is the recommended
-      mechanism — to catch cross-WP integration issues, behaviour drift, and any
-      documented exception that no longer holds. Synthesize a LAND / HOLD verdict
-      and resolve anything real before landing.
+      The WPs only coexist once combined. Run the relevant targeted tests,
+      type/lint checks, and applicable regression or architectural gates against
+      the aggregate diff; add focused regression coverage for new behaviour.
+      An adversarial review squad may be used when it adds verification signal,
+      but it is optional and does not replace executable proof. Resolve actual
+      failures before landing.
     actor: agent
   - title: Merge the lanes locally
     description: >
@@ -88,20 +88,22 @@ steps:
       If the rebase conflicts with new upstream work, resolve slice-by-slice and
       re-verify; if the base has diverged unexpectedly, fetch and reconcile before
       pushing rather than forcing over unseen commits.
-  - title: Open a full pull request and request automated review
+  - title: Open a full pull request and complete remote automation
     description: >
-      Open a full, non-draft PR against the upstream mainline only after the branch
-      is a coherent, locally validated slice. Its body states the change, the review
-      evidence, and any remaining reviewer/Sonar work. Request automated review and
-      run a final adversarial review squad; fold any real finding in before hand-off.
+      Open a full PR against the upstream mainline only after the coherent,
+      complete slice has passed its local automated proof. Draft pull requests are
+      prohibited, and a PR must never be opened merely to solicit interim human feedback. The body states
+      the change, exact automated-validation evidence, and any remaining merge
+      blocker. Complete required remote checks and address actionable automated
+      findings before handoff.
     actor: agent
   - title: Hand off to the operator
     description: >
-      Summarise the outcome (what shipped, the review verdicts, which
+      Summarise the outcome (what shipped, the automated validation evidence, which
       development-assist tests were retired / split / kept-and-renamed, open
-      follow-ups) and hand the full PR to the operator for merge after required checks.
-      Capture durable learnings in the mission retrospective and memory. Do not merge
-      to the mainline on the agent's own initiative.
+      follow-ups) and hand the full PR to the operator to merge. Capture durable
+      learnings in the mission retrospective and memory. Do not merge to the
+      mainline on the agent's own initiative.
     actor: agent
 anti_patterns:
   - name: Per-WP green treated as the final gate
@@ -122,6 +124,11 @@ anti_patterns:
     description: >
       Merging to the protected mainline on the agent's own initiative. The operator
       merges; the agent prepares and hands off.
+  - name: Draft-pull-request or human-review handoff
+    description: >
+      Using a draft pull request, opening a PR merely because a change exists, or
+      treating human review as correctness evidence. A full PR follows
+      sufficient automated proof for the coherent slice.
   - name: Unresolved issue verdicts at close
     description: >
       Leaving in-mission or empty verdicts in the issue matrix at hand-off. Every
@@ -132,19 +139,19 @@ notes: |
   procedure makes the mission land cleanly and reviewably.
 
   Sequence summary: accept -> retire/split dev-assist tests -> resolve issue verdicts
-  -> aggregate review squad -> local merge -> compact history -> rebase onto upstream
-  -> full PR + automated review -> hand off. The operator performs the mainline merge
+  -> aggregate automated proof -> local merge -> compact history -> rebase onto upstream
+  -> full PR -> required remote checks -> hand off. The operator performs the mainline merge
   (DIRECTIVE_045).
 
   The three quality pillars this enforces are captured as a standard in the
   readable-consistent-prs directive (DIRECTIVE_046): linear, consistent/complete,
-  independently reviewed.
+  automatically proven.
 references:
   - type: procedure
     id: adversarial-squad-deployment
     reason: >
-      The aggregate pre-merge review and the full-PR automated review are both instances of
-      the adversarial-squad-deployment procedure applied at the pre-merge point-cut.
+      An adversarial review may add signal at the pre-merge point-cut, but remains
+      optional and never replaces the required automated proof.
   - type: procedure
     id: post-merge-arch-gate-adjudication
     reason: >

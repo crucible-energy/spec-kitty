@@ -56,8 +56,9 @@ origin/main — you never do.
   guard before pushing any prose/doctrine:
   `pytest tests/architectural/test_no_legacy_terminology.py`.
 - Git law: `origin` = your fork, `upstream` = Priivacy-ai. NEVER `git push origin
-  main`. Open a full, non-draft PR only for a coherent, locally validated slice.
-  `spec-kitty merge` is LOCAL only; the operator merges to origin/main.
+  main`. Open a full PR only for a coherent, complete, locally validated slice;
+  drafts and PRs opened merely for interim feedback are prohibited. `spec-kitty merge`
+  is LOCAL only; the operator merges to origin/main.
 
 ## Known current friction points
 Read `docs/development/known-friction-points.md` BEFORE you start — it is the
@@ -136,13 +137,14 @@ UNLOCKED — it is decided WITH the operator in step 2, not asserted here.>
     inference. Classify every red into PR-defect / contract-crossed /
     pre-existing-main / flake — never retry-to-green.
 
-12. **Full PR + automated review.** Open a full, non-draft PR from the mission branch
-    (`gh pr create`) only after the intended scope is coherent and locally validated.
-    Write a readable PR per DIRECTIVE_046 (what / why / verification; call out any
-    remaining Sonar or UI work). Run the mission-wrap-up-sequence procedure. Then
-    request automated review and SELF-REVIEW with a fresh squad lens (architect +
-    reviewer) over the aggregate diff; synthesize a LAND/HOLD verdict for the operator.
-    🛑 Hand off — the operator merges. You never run `gh pr merge`.
+12. **Full PR + automated proof.** Only after the coherent, complete, rebased slice
+    passes its relevant automated tests, type/lint checks, and regression/architecture
+    gates, open a full PR from the mission branch (`gh pr create`; never `--draft`).
+    Write a readable PR per DIRECTIVE_046 with the exact validation evidence and any
+    remaining merge blocker. Complete required remote checks, address actionable
+    automated findings, and reply to and resolve review threads whenever possible.
+    An adversarial pass is optional when it adds verification signal; it is not a
+    human-review gate. 🛑 Hand off — the operator merges. You never run `gh pr merge`.
 
 ## Discipline that applies at every step
 - Squads are BOUNDED and PROFILE-LOADED (load the YAML; delegations LOAD the profile,
