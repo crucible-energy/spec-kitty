@@ -487,6 +487,57 @@ class TestFetchSelectorRecovery:
         assert captured == [[supplied_root]]
         assert "Only in the supplied pack." in text
 
+    def test_charter_selections_selector_merges_supplied_and_configured_roots(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        # The CLI passes only the first configured root as org_root; the
+        # handler must merge it with the remaining configured roots (preserving
+        # precedence) so a selection deferred from a later pack is still
+        # reproduced rather than dropped to a catalog miss.
+        root_a = tmp_path / "pack-a"
+        root_b = tmp_path / "pack-b"
+        selection = DoctrineSelectionConfig(selected_directives=["DIRECTIVE_777"])
+        captured: list[Any] = []
+
+        def _spy_doctrine_service(repo_root: Path, org_roots: Any = None) -> _StubService:
+            captured.append(org_roots)
+            return _StubService(
+                directives=_StubRepo(
+                    items={
+                        "DIRECTIVE_777": _DummyDirective(
+                            title="Later Pack", intent="Only in pack-b."
+                        )
+                    }
+                )
+            )
+
+        monkeypatch.setattr(
+            context_module,
+            "_load_doctrine_selection",
+            lambda _repo_root: selection,
+        )
+        monkeypatch.setattr(
+            context_module,
+            "_existing_org_roots",
+            lambda _repo_root: [root_a, root_b],
+        )
+        monkeypatch.setattr(
+            context_module,
+            "_build_doctrine_service",
+            _spy_doctrine_service,
+        )
+
+        context_module.build_charter_context_include(
+            tmp_path,
+            f"section:{CHARTER_SELECTIONS_SELECTOR_ID}",
+            org_root=root_a,
+        )
+
+        # root_a stays first (precedence) and root_b is retained, not discarded.
+        assert captured == [[root_a, root_b]]
+
     def test_charter_selections_selector_fails_closed_when_empty(
         self,
         monkeypatch: pytest.MonkeyPatch,

@@ -453,17 +453,23 @@ def _render_charter_selections_include(
     renderer used) so the recovery command resolves instead of failing closed
     with "No charter section found". Raises when no artifacts are selected.
 
-    When the caller supplies an explicit ``org_root`` (e.g. a snapshot pack not
-    recorded in the project config) that root is preferred, mirroring the other
-    ``--include`` selectors, so an artifact living only in the supplied pack
-    still renders its binding content instead of degrading to a catalog miss.
-    Otherwise the configured org roots are used, matching what the compact
-    renderer rendered.
+    When the caller supplies an explicit ``org_root`` (e.g. the CLI passes the
+    first configured root, or a snapshot pack not recorded in the project
+    config) it takes precedence but is *merged* with every configured org root
+    rather than replacing them. The compact renderer builds its selection
+    service from all configured roots, so a selection deferred from the second-
+    or-later pack would otherwise degrade to a catalog miss when the recovery
+    command ran with just that singleton root.
     """
     doctrine_selection = _load_doctrine_selection(repo_root)
-    org_roots = (
-        [org_root] if org_root is not None else (_existing_org_roots(repo_root) or None)
-    )
+    configured_roots = _existing_org_roots(repo_root)
+    if org_root is not None:
+        org_roots: list[Path] | None = [
+            org_root,
+            *(root for root in configured_roots if root != org_root),
+        ]
+    else:
+        org_roots = configured_roots or None
     service = _build_doctrine_service(repo_root, org_roots=org_roots)
     block = _render_selection_block(
         doctrine_selection, service, repo_root=repo_root
