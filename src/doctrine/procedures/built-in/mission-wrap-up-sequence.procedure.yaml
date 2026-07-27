@@ -5,10 +5,10 @@ purpose: >
   Drive a mission from "all work packages approved" to "a clean, full pull
   request with automated evidence handed to the operator" through one standing,
   repeatable close-out sequence. The sequence makes the last mile deterministic:
-  it verifies readiness, resolves every tracked-issue verdict, establishes
-  aggregate automated proof, lands locally, compacts the branch into readable
-  history, and opens a full PR — so no mission ends in an ad-hoc, insufficiently
-  validated, or messy state. It complements (does not replace) the per-work-package
+  it verifies readiness, resolves every tracked-issue verdict, lands the lanes
+  locally, compacts the branch into readable history, establishes aggregate
+  automated proof on the combined tree, and opens a full PR, so no mission ends in
+  an ad-hoc, insufficiently validated, or messy state. It complements (does not replace) the per-work-package
   implement/review loop.
 entry_condition: >
   Every work package in the mission is approved (the per-WP implement/review loop
@@ -16,13 +16,13 @@ entry_condition: >
   not yet been merged locally.
 exit_condition: >
   Acceptance is recorded; every tracker issue referenced by the spec carries a
-  terminal issue-matrix verdict; the aggregate diff has passed the relevant
-  automated tests, type/lint checks, and applicable regression or architectural
-  gates; the lanes are merged into the mission branch; the branch
-  history is compacted into a small set of readable, logically-sliced commits
-  rebased onto the current upstream base; and a full pull request is open with
-  required remote checks complete before handoff. The operator — not the agent —
-  performs the merge to the protected mainline.
+  terminal issue-matrix verdict; the lanes are merged into the mission branch and
+  its history is compacted into a small set of readable, logically-sliced commits
+  rebased onto the current upstream base; that merged, compacted, rebased aggregate
+  has passed the relevant automated tests, type/lint checks, and applicable
+  regression or architectural gates; and a full pull request is open with required
+  remote checks complete before handoff. The operator, not the agent, performs the
+  merge to the protected mainline.
 steps:
   - title: Confirm readiness and run acceptance
     description: >
@@ -52,42 +52,45 @@ steps:
       placeholder must be driven to a terminal state before the mission can reach
       done. Record the evidence for each verdict.
     actor: agent
-  - title: Establish automated proof on the aggregate diff before landing
-    description: >
-      The WPs only coexist once combined. Run the relevant targeted tests,
-      type/lint checks, and applicable regression or architectural gates against
-      the aggregate diff; add focused regression coverage for new behaviour.
-      An adversarial review squad may be used when it adds verification signal,
-      but it is optional and does not replace executable proof. Resolve actual
-      failures before landing.
-    actor: agent
   - title: Merge the lanes locally
     description: >
       Merge the approved lanes into the mission branch with the host merge command
       (`spec-kitty merge --mission <slug>`), which lands locally only. Resolve any
-      stale-lane conflicts on shared files. Do not push to the protected mainline
-      and never merge it yourself — the operator does that.
+      stale-lane conflicts on shared files. This is the first checkout in which the
+      work packages coexist, so the aggregate gates below cannot run before it. Do
+      not push to the protected mainline and never merge it yourself; the operator
+      does that.
     actor: agent
   - title: Compact the branch into readable history
     description: >
       Rewrite the mission branch into a small set of readable, logically-sliced
       commits (for example docs / surface / repoints), following the
       clean-linear-commit-history tactic (a non-reordering, behaviour-preserving
-      snapshot chain) — never an interactive reorder. Verify the compacted tree is
+      snapshot chain), never an interactive reorder. Verify the compacted tree is
       identical to the pre-compaction tree except for intentionally-dropped ignored
       artefacts.
     actor: agent
   - title: Rebase onto the current upstream base
     description: >
       Fetch the true upstream mainline and rebase the compacted commits onto it so
-      the branch is ahead-only (rebase over merge — linear history). Re-run the
-      affected tests on the rebased tip to confirm the newer base introduced no
-      break, then force-push with lease.
+      the branch is ahead-only (rebase over merge, for linear history). This yields
+      the final combined tree the aggregate gates run against in the next step.
     actor: agent
     on_failure: >
-      If the rebase conflicts with new upstream work, resolve slice-by-slice and
-      re-verify; if the base has diverged unexpectedly, fetch and reconcile before
-      pushing rather than forcing over unseen commits.
+      If the rebase conflicts with new upstream work, resolve slice-by-slice; if the
+      base has diverged unexpectedly, fetch and reconcile before proceeding rather
+      than forcing over unseen commits.
+  - title: Establish automated proof on the consolidated aggregate before landing
+    description: >
+      The WPs only coexist once the lanes are merged, so run the aggregate gates on
+      the merged, compacted, rebased tree rather than on any single lane. Run the
+      relevant targeted tests, type/lint checks, and applicable regression or
+      architectural gates against the combined diff, and add focused regression
+      coverage for new behaviour. An adversarial review squad may be used when it
+      adds verification signal, but it is optional and does not replace executable
+      proof. Resolve actual failures before landing, then force-push the validated
+      branch with lease.
+    actor: agent
   - title: Open a full pull request and complete remote automation
     description: >
       Open a full PR against the upstream mainline only after the coherent,
