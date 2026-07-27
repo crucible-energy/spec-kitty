@@ -162,10 +162,13 @@ _The 3.2.6 development cycle is open. Entries land here as missions merge._
   `--require-hosted-workflow-evidence` option on `spec-kitty accept`. The flag is
   threaded through a new public `require_hosted_workflow_evidence` keyword on
   `collect_feature_summary()`. In the required (handoff) mode the workflow-change
-  diff now bases on `origin/<target>` instead of local `<target>`: the PR branch is
-  cut from a local target onto which `spec-kitty merge` has already landed the
-  mission, so a local-first base compared two identical tips and hid the very
-  workflow change the gate must evidence.
+  diff now bases on the target branch's upstream tracking ref (its true PR base,
+  `upstream/<target>` in a fork clone or `origin/<target>` in a direct clone)
+  instead of local `<target>`: after `spec-kitty merge` lands the mission onto the
+  local target, a local-first base compared two content-identical tips and hid the
+  very workflow change the gate must evidence, and resolving the tracked upstream
+  avoids mis-attributing an upstream-only change to the mission when a fork's
+  mainline is stale.
 
 - **The `issue-matrix.md` and `acceptance-matrix.json` missing-file errors now name the regenerate command.**
   Both files are already scaffolded automatically during `spec-kitty tasks` (finalize-tasks); the failure messages an operator actually sees when one is missing (at `move-task --to approved` and at `spec-kitty accept`) previously said nothing about that, so a missing file read as "no tooling exists for this" rather than "re-run finalize-tasks." Both messages now name `spec-kitty agent mission finalize-tasks --mission <slug>`, and the issue-matrix message also points at its schema/worked-example doc (`src/specify_cli/cli/commands/review/ERROR_CODES.md`). The `spec-kitty-mission-review` skill's Gate 4 section gained the same pointer.

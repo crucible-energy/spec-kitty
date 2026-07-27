@@ -575,6 +575,66 @@ def test_changed_workflow_files_prefer_remote_base_survives_local_landing(tmp_pa
     ]
 
 
+def test_changed_workflow_files_prefer_remote_base_uses_upstream_tracking(tmp_path: Path) -> None:
+    """Final mode bases on the target's upstream tracking ref, not a stale fork origin.
+
+    In the fork workflow (`docs/development/onboarding-run.md`) `origin` is the
+    contributor fork and `upstream/main` is the true PR base. When the fork's
+    `origin/main` is stale and `upstream` has landed a workflow change, the mission
+    branch (cut from recent upstream) already carries that upstream-only change.
+    Hardcoding stale `origin/main` as the base would mis-attribute it to this
+    mission and demand hosted evidence; basing on the tracked `upstream/main`
+    correctly excludes it.
+    """
+    repo_root, feature_dir = _create_test_feature(tmp_path)
+    subprocess.run(["git", "-C", str(repo_root), "branch", "-M", "main"], check=True, capture_output=True)
+
+    # Fork's origin/main is stale: it pre-dates the upstream workflow change.
+    stale_origin_sha = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "HEAD"], check=True, capture_output=True, text=True
+    ).stdout.strip()
+    subprocess.run(
+        ["git", "-C", str(repo_root), "update-ref", "refs/remotes/origin/main", stale_origin_sha],
+        check=True,
+        capture_output=True,
+    )
+
+    # Upstream lands a workflow change; upstream/main is the true PR base.
+    workflow_path = repo_root / ".github" / "workflows" / "ci.yml"
+    workflow_path.parent.mkdir(parents=True)
+    workflow_path.write_text("name: CI\non: [pull_request]\njobs: {}\n")
+    subprocess.run(["git", "-C", str(repo_root), "add", ".github/workflows/ci.yml"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo_root), "commit", "-m", "Upstream workflow change"], check=True, capture_output=True)
+    upstream_sha = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "HEAD"], check=True, capture_output=True, text=True
+    ).stdout.strip()
+    # Register the upstream remote with a fetch refspec so `main@{upstream}`
+    # resolves, mirroring a fork clone, then seed its remote-tracking ref.
+    subprocess.run(
+        ["git", "-C", str(repo_root), "remote", "add", "upstream", "https://example.invalid/upstream.git"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo_root), "update-ref", "refs/remotes/upstream/main", upstream_sha],
+        check=True,
+        capture_output=True,
+    )
+    # Local main tracks upstream/main, mirroring a fork clone.
+    subprocess.run(["git", "-C", str(repo_root), "config", "branch.main.remote", "upstream"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo_root), "config", "branch.main.merge", "refs/heads/main"], check=True, capture_output=True)
+
+    # The mission branch is cut from recent upstream and touches only source.
+    subprocess.run(["git", "-C", str(repo_root), "checkout", "-b", "kitty/mission-x-lane-a"], check=True, capture_output=True)
+    (repo_root / "src" / "mission_only.py").write_text("y = 2\n")
+    subprocess.run(["git", "-C", str(repo_root), "add", "src/mission_only.py"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo_root), "commit", "-m", "Mission source change"], check=True, capture_output=True)
+
+    # upstream/main is the resolved base, so the upstream-only workflow change is
+    # NOT attributed to this mission (a naive stale-origin base would return it).
+    assert _changed_workflow_files(repo_root, feature_dir, "kitty/mission-x-lane-a", prefer_remote_base=True) == []
+
+
 @pytest.mark.parametrize(
     ("evidence", "expected"),
     [

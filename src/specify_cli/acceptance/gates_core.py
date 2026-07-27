@@ -353,6 +353,32 @@ def _git_ref_exists(repo_root: Path, ref: str) -> bool:
     return bool(run_git(["rev-parse", "--verify", "--quiet", ref], cwd=repo_root, check=False).returncode == 0)
 
 
+def _resolve_remote_base_ref(repo_root: Path, target_branch: str) -> str | None:
+    """Resolve the remote ref the local target tracks, for the final-mode diff base.
+
+    The final ``--require-hosted-workflow-evidence`` gate must compare against the
+    branch the PR actually targets. In the fork workflow
+    (``docs/development/onboarding-run.md``) ``origin`` is the contributor fork and
+    ``upstream/<target>`` is the true PR base, so hardcoding ``origin/<target>``
+    would mis-attribute an upstream-only workflow change to this mission whenever
+    the fork's mainline is stale. Prefer the target branch's configured upstream
+    (``<target>@{upstream}``, which resolves to ``upstream/<target>`` in a fork
+    clone and ``origin/<target>`` in a direct clone); fall back to
+    ``origin/<target>`` only when no upstream is configured.
+    """
+    tracking = run_git(
+        ["rev-parse", "--abbrev-ref", "--symbolic-full-name", f"{target_branch}@{{upstream}}"],
+        cwd=repo_root,
+        check=False,
+    )
+    if tracking.returncode == 0:
+        ref: str = tracking.stdout.strip()
+        if ref and _git_ref_exists(repo_root, ref):
+            return ref
+    fallback = f"origin/{target_branch}"
+    return fallback if _git_ref_exists(repo_root, fallback) else None
+
+
 def _changed_workflow_files(
     repo_root: Path,
     feature_dir: Path,
@@ -362,12 +388,13 @@ def _changed_workflow_files(
 ) -> list[str]:
     """Return workflow files changed by the current mission branch.
 
-    ``prefer_remote_base`` selects ``origin/<target>`` as the diff base ahead of
-    the local target. The final ``--require-hosted-workflow-evidence`` gate runs
-    on a PR branch cut from a local target that ``spec-kitty merge`` has already
-    landed the mission onto, so diffing against local ``main`` would compare two
-    identical tips and hide the workflow change that ``origin/<target>`` still
-    lacks.
+    ``prefer_remote_base`` selects the target's remote tracking ref (resolved via
+    :func:`_resolve_remote_base_ref`, so a fork clone bases on ``upstream/<target>``
+    rather than the fork's own ``origin/<target>``) as the diff base ahead of the
+    local target. The final ``--require-hosted-workflow-evidence`` gate runs on the
+    mission branch after ``spec-kitty merge`` has already landed the mission onto
+    the local target, so diffing against local ``main`` can compare two content-
+    identical tips and hide the workflow change the true PR base still lacks.
     """
     from specify_cli import acceptance as _acceptance_pkg
 
@@ -376,12 +403,12 @@ def _changed_workflow_files(
         return []
 
     local_ref = target_branch
-    remote_ref = f"origin/{target_branch}"
+    local_exists = _git_ref_exists(repo_root, local_ref)
     if prefer_remote_base:
-        base_ref = remote_ref if _git_ref_exists(repo_root, remote_ref) else local_ref
+        base_ref = _resolve_remote_base_ref(repo_root, target_branch) or (local_ref if local_exists else None)
     else:
-        base_ref = local_ref if _git_ref_exists(repo_root, local_ref) else remote_ref
-    if not _git_ref_exists(repo_root, base_ref):
+        base_ref = local_ref if local_exists else _resolve_remote_base_ref(repo_root, target_branch)
+    if base_ref is None or not _git_ref_exists(repo_root, base_ref):
         return []
 
     changed = merge_base_changed_files(

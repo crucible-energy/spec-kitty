@@ -55,21 +55,22 @@ steps:
     actor: agent
   - title: Merge the lanes locally
     description: >
-      Consolidate the approved lanes with the host merge command
-      (`spec-kitty merge --mission <slug>`), which integrates the mission into the
-      LOCAL target branch (for example `main`) only and, by default, removes the
-      lane and mission branches once integrated (pass `--keep-branch` to preserve
-      the mission branch). It never touches the protected remote mainline. Resolve
-      any stale-lane conflicts on shared files. This is the first checkout in which
-      the work packages coexist, so the aggregate gates below cannot run before it.
-      Because the mission branch is gone, cut a fresh `pr/<slug>` branch from the
-      freshly-updated local target; the compaction, rebase, and aggregate-proof
-      steps below all operate on that branch. Do not push to the protected mainline
-      and never merge it yourself; the operator does that.
+      Consolidate the approved lanes with the host merge command run with the
+      mission branch preserved (`spec-kitty merge --keep-branch --mission <slug>`).
+      It integrates the mission into the LOCAL target branch (for example `main`)
+      only and never touches the protected remote mainline. The default deletes the
+      lane and mission branches once integrated; pass `--keep-branch` because the
+      aggregate-proof and acceptance steps below MUST run on the mission branch (the
+      acceptance branch gate permits only the mission or target branch, and running
+      on the target short-circuits workflow-change detection). Check the preserved
+      mission branch back out and resolve any stale-lane conflicts on shared files.
+      This is the first checkout in which the work packages coexist, so the
+      aggregate gates below cannot run before it. Do not push to the protected
+      mainline and never merge it yourself; the operator does that.
     actor: agent
   - title: Compact the branch into readable history
     description: >
-      Rewrite the `pr/<slug>` branch into a small set of readable, logically-sliced
+      Rewrite the mission branch into a small set of readable, logically-sliced
       commits (for example docs / surface / repoints), following the
       clean-linear-commit-history tactic (a non-reordering, behaviour-preserving
       snapshot chain), never an interactive reorder. Verify the compacted tree is
@@ -99,16 +100,20 @@ steps:
     actor: agent
   - title: Record final acceptance before opening the full pull request
     description: >
-      Run `spec-kitty accept --mission <slug>` against the consolidated, rebased
-      branch and resolve every blocker it reports. For a workflow-changing mission,
-      the documented hosted-run deferral satisfies this pre-PR gate; the successful
-      GitHub Actions run is captured on the full PR in the next step. This keeps the
-      PR merge-ready without requiring a premature per-work-package PR.
+      Run `spec-kitty accept --mission <slug>` from the mission branch checkout so
+      the acceptance branch gate passes and workflow-change detection stays active,
+      and resolve every blocker it reports. Do not run it from the target branch
+      (which short-circuits workflow-change detection) or an ad-hoc PR branch (which
+      the gate rejects). For a workflow-changing mission, the documented hosted-run
+      deferral satisfies this pre-PR gate; the successful GitHub Actions run is
+      captured on the full PR in the next step. This keeps the PR merge-ready
+      without requiring a premature per-work-package PR.
     actor: agent
   - title: Open a full pull request and complete remote automation
     description: >
-      Open a full PR against the upstream mainline only after the coherent,
-      complete slice has passed its local automated proof. Draft pull requests are
+      Push the mission branch and open a full PR against the upstream mainline only
+      after the coherent, complete slice has passed its local automated proof.
+      Draft pull requests are
       prohibited, and a PR must never be opened merely to solicit interim human feedback. The body states
       the change, exact automated-validation evidence, and any remaining merge
       blocker. Complete required remote checks and address actionable automated
@@ -118,9 +123,12 @@ steps:
   - title: Verify hosted workflow evidence before handoff
     description: >
       For a workflow-changing mission, rerun `spec-kitty accept --mission <slug>
-      --require-hosted-workflow-evidence --no-commit` after the full PR's remote
-      workflow completes. This final check rejects the pre-PR deferral marker
-      until it is replaced by a successful GitHub Actions run ID or URL.
+      --require-hosted-workflow-evidence --no-commit` from the mission branch
+      checkout after the full PR's remote workflow completes. This required mode
+      bases the workflow-change diff on the target's upstream tracking ref (the true
+      PR base) rather than a possibly-stale fork mainline, and rejects the pre-PR
+      deferral marker until it is replaced by a successful GitHub Actions run ID or
+      URL.
     actor: agent
   - title: Hand off to the operator
     description: >
