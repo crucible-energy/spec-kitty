@@ -24,13 +24,14 @@ exit_condition: >
   remote checks complete before handoff. The operator, not the agent, performs the
   merge to the protected mainline.
 steps:
-  - title: Confirm readiness and run acceptance
+  - title: Confirm readiness for close-out
     description: >
-      Verify all work packages are in the approved lane, then run the mission's
-      accept step (`spec-kitty accept --mission <slug>`) as the readiness nudge.
-      Resolve any blocker it reports (for example a missing acceptance-matrix)
-      before proceeding. Acceptance is a pre-merge check, not a substitute for
-      per-WP review or the merge gate.
+      Verify all work packages are in the approved lane and that the mission has
+      the artifacts needed for final acceptance (for example an acceptance
+      matrix). A workflow-changing mission also records its documented hosted-run
+      deferral in `workflow-evidence.md`. Final acceptance runs on the
+      consolidated, rebased branch before the PR; it is a pre-merge check, not a
+      substitute for per-WP review or the merge gate.
     actor: agent
   - title: Retire or split the mission's development-assist tests
     description: >
@@ -80,7 +81,7 @@ steps:
       If the rebase conflicts with new upstream work, resolve slice-by-slice; if the
       base has diverged unexpectedly, fetch and reconcile before proceeding rather
       than forcing over unseen commits.
-  - title: Establish automated proof on the consolidated aggregate before landing
+  - title: Establish automated proof on the consolidated, rebased aggregate before landing
     description: >
       The WPs only coexist once the lanes are merged, so run the aggregate gates on
       the merged, compacted, rebased tree rather than on any single lane. Run the
@@ -91,6 +92,14 @@ steps:
       proof. Resolve actual failures before landing, then force-push the validated
       branch with lease.
     actor: agent
+  - title: Record final acceptance before opening the full pull request
+    description: >
+      Run `spec-kitty accept --mission <slug>` against the consolidated, rebased
+      branch and resolve every blocker it reports. For a workflow-changing mission,
+      the documented hosted-run deferral satisfies this pre-PR gate; the successful
+      GitHub Actions run is captured on the full PR in the next step. This keeps the
+      PR merge-ready without requiring a premature per-work-package PR.
+    actor: agent
   - title: Open a full pull request and complete remote automation
     description: >
       Open a full PR against the upstream mainline only after the coherent,
@@ -98,7 +107,8 @@ steps:
       prohibited, and a PR must never be opened merely to solicit interim human feedback. The body states
       the change, exact automated-validation evidence, and any remaining merge
       blocker. Complete required remote checks and address actionable automated
-      findings before handoff.
+      findings before handoff. For a workflow-changing mission, capture the
+      successful GitHub Actions run ID or URL in `workflow-evidence.md`.
     actor: agent
   - title: Hand off to the operator
     description: >
@@ -141,10 +151,10 @@ notes: |
   the per-work-package implement/review loop: the loop makes each WP correct, this
   procedure makes the mission land cleanly and reviewably.
 
-  Sequence summary: accept -> retire/split dev-assist tests -> resolve issue verdicts
-  -> aggregate automated proof -> local merge -> compact history -> rebase onto upstream
-  -> full PR -> required remote checks -> hand off. The operator performs the mainline merge
-  (DIRECTIVE_045).
+  Sequence summary: confirm readiness -> retire/split dev-assist tests -> resolve issue
+  verdicts -> local merge -> compact history -> rebase onto upstream -> aggregate automated
+  proof -> acceptance -> full PR -> required remote checks -> hand off. The operator performs
+  the mainline merge (DIRECTIVE_045).
 
   The three quality pillars this enforces are captured as a standard in the
   readable-consistent-prs directive (DIRECTIVE_046): linear, consistent/complete,

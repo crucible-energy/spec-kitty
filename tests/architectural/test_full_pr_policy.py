@@ -113,3 +113,26 @@ def test_charter_selects_full_pr_policy_directive() -> None:
     assert "must not open draft pull requests" in description
     assert "full pull request" in description
     assert "automated proof" in description
+
+
+def test_wrap_up_sequence_validates_the_final_aggregate_before_handoff() -> None:
+    """Workflow evidence, acceptance, and aggregate proof must have a viable order."""
+    root = _repo_root()
+    yaml = YAML(typ="safe")
+    procedure = yaml.load(
+        (
+            root
+            / "src/doctrine/procedures/built-in/mission-wrap-up-sequence.procedure.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    titles = [step["title"] for step in procedure["steps"]]
+
+    merge_index = titles.index("Merge the lanes locally")
+    rebase_index = titles.index("Rebase onto the current upstream base")
+    aggregate_index = titles.index(
+        "Establish automated proof on the consolidated, rebased aggregate before landing"
+    )
+    pr_index = titles.index("Open a full pull request and complete remote automation")
+    acceptance_index = titles.index("Record final acceptance before opening the full pull request")
+
+    assert merge_index < rebase_index < aggregate_index < acceptance_index < pr_index
