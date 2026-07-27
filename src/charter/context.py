@@ -345,7 +345,9 @@ def build_charter_context_include(
         raise ValueError("Expected --include selector in '<kind>:<id>' form.")
 
     if kind == "section":
-        return _render_section_include(repo_root, selector, identifier, action)
+        return _render_section_include(
+            repo_root, selector, identifier, action, org_root=org_root
+        )
 
     org_roots = [org_root] if org_root is not None else None
 
@@ -409,6 +411,8 @@ def _render_section_include(
     selector: str,
     identifier: str,
     action: str | None,
+    *,
+    org_root: Path | None = None,
 ) -> str:
     """Resolve a ``section:<id>`` fetch selector.
 
@@ -418,7 +422,7 @@ def _render_section_include(
     known heading slug) rendered from ``charter.md``.
     """
     if identifier == CHARTER_SELECTIONS_SELECTOR_ID:
-        return _render_charter_selections_include(repo_root)
+        return _render_charter_selections_include(repo_root, org_root=org_root)
     canonical_root = _bundle_root_for_json(repo_root)
     charter_path = canonical_root / CHARTER_MD
     if not charter_path.exists():
@@ -434,7 +438,11 @@ def _render_section_include(
     return str(section)
 
 
-def _render_charter_selections_include(repo_root: Path) -> str:
+def _render_charter_selections_include(
+    repo_root: Path,
+    *,
+    org_root: Path | None = None,
+) -> str:
     """Render the aggregate ``section:charter-selections`` fetch selector.
 
     The WP05 token-budget substitution loop (:func:`_enforce_token_budget`)
@@ -444,12 +452,19 @@ def _render_charter_selections_include(repo_root: Path) -> str:
     the selected governance (using the same org-root-aware service the compact
     renderer used) so the recovery command resolves instead of failing closed
     with "No charter section found". Raises when no artifacts are selected.
+
+    When the caller supplies an explicit ``org_root`` (e.g. a snapshot pack not
+    recorded in the project config) that root is preferred, mirroring the other
+    ``--include`` selectors, so an artifact living only in the supplied pack
+    still renders its binding content instead of degrading to a catalog miss.
+    Otherwise the configured org roots are used, matching what the compact
+    renderer rendered.
     """
     doctrine_selection = _load_doctrine_selection(repo_root)
-    service = _build_doctrine_service(
-        repo_root,
-        org_roots=_existing_org_roots(repo_root) or None,
+    org_roots = (
+        [org_root] if org_root is not None else (_existing_org_roots(repo_root) or None)
     )
+    service = _build_doctrine_service(repo_root, org_roots=org_roots)
     block = _render_selection_block(
         doctrine_selection, service, repo_root=repo_root
     )

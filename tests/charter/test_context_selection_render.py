@@ -446,6 +446,47 @@ class TestFetchSelectorRecovery:
         assert "DIRECTIVE_999" in text
         assert "Never leak secrets." in text
 
+    def test_charter_selections_selector_prefers_supplied_org_root(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        # A caller-supplied org_root (e.g. a snapshot pack absent from the
+        # project config) must be threaded through to the doctrine service so
+        # an artifact living only in that pack renders instead of degrading to
+        # a catalog miss.
+        directive = _DummyDirective(
+            title="Snapshot Directive", intent="Only in the supplied pack."
+        )
+        service = _StubService(directives=_StubRepo(items={"DIRECTIVE_777": directive}))
+        selection = DoctrineSelectionConfig(selected_directives=["DIRECTIVE_777"])
+        captured: list[Any] = []
+
+        def _spy_doctrine_service(repo_root: Path, org_roots: Any = None) -> _StubService:
+            captured.append(org_roots)
+            return service
+
+        monkeypatch.setattr(
+            context_module,
+            "_load_doctrine_selection",
+            lambda _repo_root: selection,
+        )
+        monkeypatch.setattr(
+            context_module,
+            "_build_doctrine_service",
+            _spy_doctrine_service,
+        )
+
+        supplied_root = tmp_path / "snapshot-pack"
+        text = context_module.build_charter_context_include(
+            tmp_path,
+            f"section:{CHARTER_SELECTIONS_SELECTOR_ID}",
+            org_root=supplied_root,
+        )
+
+        assert captured == [[supplied_root]]
+        assert "Only in the supplied pack." in text
+
     def test_charter_selections_selector_fails_closed_when_empty(
         self,
         monkeypatch: pytest.MonkeyPatch,
