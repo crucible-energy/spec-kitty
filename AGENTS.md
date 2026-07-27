@@ -12,7 +12,7 @@ The charter is the binding governance document. It carries rules that are NOT re
 
 - **Governing principles** — single canonical authority, architectural alignment, DDD + tiered rigour, ATDD-first, terminology adherence.
 - **Quality & Tech-Debt Standing Orders** — the eight binding practices (adversarial squad cadence, campsite cleaning, mission tracer files, test-remediation/red-first discipline, architectural gate discipline, canonical sources, git/workflow discipline, mission hygiene).
-- **Agent operating discipline and collaboration strategy** — model routing, profile-loaded delegation, full-PR-only, the operator merges.
+- **Agent operating discipline and collaboration strategy** — model routing, profile-loaded delegation, merge-ready full PRs only (never draft), the operator merges.
 - **Governance by workflow action** — which rules bind specify/plan/implement/review/merge.
 
 For action-scoped detail, load the doctrine context via `spec-kitty charter context --action <name>` rather than improvising. If the charter and this file ever disagree, the charter wins — flag the drift instead of picking silently.
