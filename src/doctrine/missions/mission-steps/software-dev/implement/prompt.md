@@ -321,11 +321,14 @@ consolidated, so a per-WP PR would be premature and could not be the merge-ready
 slice the full-PR policy requires. Validate the change locally and defer the hosted
 Actions run to the mission PR:
 
-1. Validate the workflow change locally — static lint (e.g. `actionlint`) plus any
-   affected unit/integration checks — then move the WP to `for_review` on that
+1. Validate the workflow change locally (static lint such as `actionlint`, plus any
+   affected unit/integration checks), then move the WP to `for_review` on that
    basis, exactly like any other WP.
-2. Record in `kitty-specs/<mission>/workflow-evidence.md` that the hosted Actions run
-   is deferred to the mission PR, noting the local validation performed.
+2. In `kitty-specs/<mission>/workflow-evidence.md`, record the deferral so
+   `spec-kitty accept` recognises it before the mission PR exists: add the exact
+   line `Hosted Actions run deferred to the mission PR`, then note the local
+   validation performed. The real run ID or URL replaces this once the mission PR
+   runs (step 3).
 3. At mission close-out the wrap-up sequence opens the mission PR. Open a full PR
    (never a draft) at that point so the workflow runs on a real GitHub Actions
    runner, then capture the successful run ID or Actions URL in

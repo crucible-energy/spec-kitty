@@ -562,6 +562,38 @@ def test_collect_feature_summary_parses_plain_workflow_run_ids(
     assert has_issue is not expected
 
 
+@pytest.mark.parametrize(
+    "evidence",
+    [
+        "Hosted Actions run deferred to the mission PR. Local validation: actionlint passed.\n",
+        "Local checks green.\nhosted run deferred to the mission pr\n",
+    ],
+)
+def test_collect_feature_summary_allows_workflow_changes_with_deferral_marker(
+    tmp_path: Path, evidence: str
+) -> None:
+    """The full-PR policy defers the hosted run to the mission PR; a documented
+    deferral must satisfy pre-PR ``accept`` so the close-out sequence is not
+    deadlocked before it can open the PR that produces the run."""
+    repo_root, feature_dir = _create_test_feature(tmp_path)
+    subprocess.run(["git", "-C", str(repo_root), "branch", "-M", "main"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo_root), "checkout", "-b", "kitty/mission-workflow-lane-a"], check=True, capture_output=True)
+
+    workflow_path = repo_root / ".github" / "workflows" / "ci.yml"
+    workflow_path.parent.mkdir(parents=True)
+    workflow_path.write_text("name: CI\non: [pull_request]\njobs: {}\n")
+    (feature_dir / "workflow-evidence.md").write_text(evidence)
+    subprocess.run(
+        ["git", "-C", str(repo_root), "add", ".github/workflows/ci.yml", f"kitty-specs/{_FEATURE_SLUG}/workflow-evidence.md"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(["git", "-C", str(repo_root), "commit", "-m", "Add workflow with deferral marker"], check=True, capture_output=True)
+
+    summary = collect_feature_summary(repo_root, _FEATURE_SLUG)
+    assert not any("Workflow run evidence required" in issue for issue in summary.activity_issues)
+
+
 def test_collect_feature_summary_rejects_placeholder_workflow_evidence(tmp_path: Path) -> None:
     repo_root, feature_dir = _create_test_feature(tmp_path)
     subprocess.run(["git", "-C", str(repo_root), "branch", "-M", "main"], check=True, capture_output=True)

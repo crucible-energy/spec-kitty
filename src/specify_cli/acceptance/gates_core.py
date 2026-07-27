@@ -49,6 +49,14 @@ _TASKS_FILE = "tasks.md"
 
 WORKFLOW_EVIDENCE_FILE = "workflow-evidence.md"
 WORKFLOW_RUN_URL_RE = re.compile(r"https://github\.com/[\w.-]+/[\w.-]+/actions/runs/\d+\b")
+# Under the full-PR-only policy the hosted Actions run for a workflow change
+# happens on the mission PR (opened during wrap-up, after ``accept``), not on a
+# premature per-WP PR. Pre-PR ``accept`` therefore accepts an explicit deferral:
+# the run is captured on the mission PR and gated by the operator's
+# protected-mainline merge. A bare placeholder ("n/a") still fails.
+WORKFLOW_EVIDENCE_DEFERRAL_RE = re.compile(
+    r"hosted\s+(?:actions\s+)?run\s+deferred\s+to\s+the\s+mission\s+pr", re.IGNORECASE
+)
 
 
 @dataclass
@@ -370,7 +378,9 @@ def _workflow_evidence_missing(feature_dir: Path) -> bool:
     text = evidence_path.read_text(encoding="utf-8", errors="replace")
     if not text.strip():
         return True
-    return WORKFLOW_RUN_URL_RE.search(text) is None and not _contains_workflow_run_id(text)
+    if WORKFLOW_RUN_URL_RE.search(text) is not None or _contains_workflow_run_id(text):
+        return False
+    return WORKFLOW_EVIDENCE_DEFERRAL_RE.search(text) is None
 
 
 def _contains_workflow_run_id(text: str) -> bool:
@@ -422,7 +432,8 @@ def _check_workflow_run_evidence(
         activity_issues.append(
             "Workflow run evidence required: this mission changes "
             + ", ".join(changed)
-            + f". Add a successful real GitHub Actions run ID or URL to {feature_dir.name}/{WORKFLOW_EVIDENCE_FILE}."
+            + f". Add a successful real GitHub Actions run ID or URL to {feature_dir.name}/{WORKFLOW_EVIDENCE_FILE}"
+            + ", or record that the hosted Actions run is deferred to the mission PR (captured there before the operator merges)."
         )
 
 
