@@ -326,20 +326,28 @@ persona automatically.
 
 ### GitHub Actions Workflow Changes
 
-If this WP adds or modifies `.github/workflows/*`, do not open a PR solely to run
-the workflow. Include it in the coherent, locally validated merge-ready slice, then
-open a full PR (never a draft) so it runs on a real GitHub Actions runner:
+If this WP adds or modifies `.github/workflows/*`, do **not** open a PR at the WP
+level just to exercise the workflow on a hosted runner. The mission PR is opened by
+`mission-wrap-up-sequence` only after every WP is approved and the lanes are
+consolidated, so a per-WP PR would be premature and could not be the merge-ready
+slice the full-PR policy requires. Validate the change locally and defer the hosted
+Actions run to the mission PR:
 
-1. Push the complete, locally validated branch.
-2. Open a full PR only once the slice is ready to merge.
-3. Record the successful run ID or Actions URL in `kitty-specs/<mission>/workflow-evidence.md`.
-4. Resolve any workflow failure with focused validation and update the evidence.
-5. Only then move the WP to `for_review`.
+1. Validate the workflow change locally — static lint (e.g. `actionlint`) plus any
+   affected unit/integration checks — then move the WP to `for_review` on that
+   basis, exactly like any other WP.
+2. Record in `kitty-specs/<mission>/workflow-evidence.md` that the hosted Actions run
+   is deferred to the mission PR, noting the local validation performed.
+3. At mission close-out the wrap-up sequence opens the mission PR. Open a full PR
+   (never a draft) at that point so the workflow runs on a real GitHub Actions
+   runner, then capture the successful run ID or Actions URL in
+   `workflow-evidence.md` and resolve any failure with focused validation before
+   hand-off.
 
 Do not open a pull request solely to use a runner, and never use GitHub's draft state
 as a staging mechanism.
 
-The reviewer will then use `/ad-hoc-profile-load` with the reviewer profile and apply
+The reviewer will use `/ad-hoc-profile-load` with the reviewer profile and apply
 its self-review gates automatically.
 
 ---
