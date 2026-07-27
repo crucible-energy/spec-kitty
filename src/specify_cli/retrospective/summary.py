@@ -346,7 +346,8 @@ def _resolve_summary_record_path(project_path: Path, mission_dir: Path) -> Path:
     retain the in-registry path for pre-relocation records.
     """
     if mission_dir.parent == project_path / KITTY_SPECS_DIR:
-        return mission_dir / RETROSPECTIVE_FILENAME
+        durable: Path = mission_dir / RETROSPECTIVE_FILENAME
+        return durable
 
     # load_meta_or_empty (post-#2091 silent contract) absorbs a missing or
     # malformed meta.json to {}; mission_slug stays None, matching the prior

@@ -472,9 +472,12 @@ def resolve_mission_steps(
     """
     from charter.mission_steps import MissionStepRepository  # noqa: PLC0415
 
-    return MissionStepRepository.default().resolve_all_for_mission_type(
-        mission_type_id,
-        pack_context=cast("_PackContextLike | None", pack_context),
+    return cast(
+        dict[str, Any],
+        MissionStepRepository.default().resolve_all_for_mission_type(
+            mission_type_id,
+            pack_context=cast("_PackContextLike | None", pack_context),
+        ),
     )
 
 
