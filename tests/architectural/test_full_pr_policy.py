@@ -14,6 +14,8 @@ pytestmark = pytest.mark.architectural
 
 _POLICY_SOURCES: dict[str, str] = {
     ".kittify/charter/charter.md": "Merge-ready full PRs only",
+    "AGENTS.md": "merge-ready full PRs only",
+    "docs/development/onboarding-run.md": "Open a full PR only",
     "src/doctrine/directives/built-in/046-readable-consistent-prs.directive.yaml": "AUTOMATICALLY PROVEN",
     "src/doctrine/procedures/built-in/mission-wrap-up-sequence.procedure.yaml": "Open a full pull request",
     "src/doctrine/missions/mission-steps/software-dev/implement/prompt.md": "Open a full PR",
