@@ -225,6 +225,27 @@ class TestWarningLine:
         assert profile_block not in result
         assert result.rstrip().endswith(warning_line(2, budget))
 
+    def test_selected_artifact_block_is_substitutable_when_over_budget(self) -> None:
+        """Selected-artifact content cannot bypass the compact-context budget."""
+        from charter.context import _enforce_token_budget
+
+        selection_block = "Q" * 1_000
+        text = f"Compact governance\n\n{selection_block}"
+
+        result = _enforce_token_budget(
+            text,
+            action="merge",
+            profile_block="",
+            section_block="",
+            selection_block=selection_block,
+            budget=300,
+        )
+
+        assert len(result) <= 300
+        assert selection_block not in result
+        assert "spec-kitty charter context --include section:charter-selections" in result
+        assert result.rstrip().endswith(warning_line(1, 300))
+
 
 # ---------------------------------------------------------------------------
 # Fetch stanza contract

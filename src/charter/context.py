@@ -1155,6 +1155,7 @@ def _render_bootstrap_text(
         action=action,
         profile_block=profile_block,
         section_block=section_block,
+        selection_block=selection_block,
     )
 
 
@@ -1164,6 +1165,7 @@ def _enforce_token_budget(
     action: str,
     profile_block: str,
     section_block: str,
+    selection_block: str = "",
     budget: int = BUDGET_DEFAULT,
 ) -> str:
     """Apply the NFR-001 token budget to *text* (WP05).
@@ -1177,6 +1179,7 @@ def _enforce_token_budget(
     Substitution preference (in order of preferred swap):
       1. action-critical section bodies (`section_block`) — largest
       2. profile-cited directives + tactics (`profile_block`)
+      3. charter-selected artifacts (`selection_block`)
 
     Authority paths and core action-doctrine sections stay inline (they
     are small + critical to the prompt's actionable surface, per
@@ -1216,6 +1219,18 @@ def _enforce_token_budget(
                 when_doing_clause=(
                     "need to consult the profile-cited directives and tactics"
                 ),
+                substitutable=True,
+                indent="  ",
+            )
+        )
+    if selection_block:
+        candidates.append(
+            RenderedSection(
+                section_id="selected-charter-artifacts",
+                header="",
+                body=selection_block,
+                selector="section:charter-selections",
+                when_doing_clause="need to consult the selected charter artifacts",
                 substitutable=True,
                 indent="  ",
             )
@@ -2839,9 +2854,13 @@ def _render_compact_governance(
     if section_block_str:
         augmented_blocks.append(section_block_str)
 
+    selection_service = _build_doctrine_service(
+        repo_root,
+        org_roots=_existing_org_roots(repo_root) or None,
+    )
     selection_block_str = _render_selection_block(
         doctrine_selection,
-        _build_doctrine_service(repo_root),
+        selection_service,
         repo_root=repo_root,
     )
     if selection_block_str:
@@ -2870,6 +2889,7 @@ def _render_compact_governance(
         action=action or "",
         profile_block=profile_block_str,
         section_block=section_block_str,
+        selection_block=selection_block_str,
     )
 
 

@@ -639,6 +639,36 @@ class TestBuildContextV2:
         assert "DIR-014" in result
         assert "Reply on every addressed review thread with validation evidence." in result
 
+    def test_compact_context_builds_selection_service_with_org_roots(
+        self, tmp_path: Path
+    ) -> None:
+        """An org-only selected directive renders its body in compact mode."""
+        org_root = tmp_path / "org-pack"
+        org_root.mkdir()
+        directive = SimpleNamespace(title="Org rule", intent="Apply the org rule.")
+        service = SimpleNamespace(
+            directives=SimpleNamespace(
+                get=lambda identifier: directive if identifier == "ORG-RULE" else None
+            )
+        )
+        selection = DoctrineSelectionConfig(selected_directives=["ORG-RULE"])
+
+        with (
+            patch(
+                "charter.compact.render_compact_view",
+                return_value=SimpleNamespace(text="Compact governance"),
+            ),
+            patch("charter.context._load_doctrine_selection", return_value=selection),
+            patch("charter.context._existing_org_roots", return_value=[org_root]),
+            patch("charter.context._build_doctrine_service", return_value=service) as build_service,
+            patch("charter.context.render_authority_paths", return_value=""),
+            patch("charter.context.render_governance_references", return_value=""),
+        ):
+            result = _render_compact_governance(tmp_path, action="merge")
+
+        assert "Apply the org rule." in result
+        assert build_service.call_args.kwargs["org_roots"] == [org_root]
+
     def test_json_project_charter_metadata_fallbacks(self, tmp_path: Path) -> None:
         """Project-charter JSON metadata degrades to explicit presence facts."""
         assert _relative_json_path(Path("/outside/charter.md"), tmp_path) == "/outside/charter.md"
