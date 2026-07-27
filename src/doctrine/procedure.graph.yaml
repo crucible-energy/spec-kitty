@@ -221,7 +221,7 @@ edges:
   relation: requires
 - source: procedure:mission-wrap-up-sequence
   target: procedure:adversarial-squad-deployment
-  relation: requires
+  relation: suggests
 - source: procedure:mission-wrap-up-sequence
   target: procedure:development-assist-test-cleanup
   relation: requires
