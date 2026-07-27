@@ -153,8 +153,9 @@ notes: |
 
   Sequence summary: confirm readiness -> retire/split dev-assist tests -> resolve issue
   verdicts -> local merge -> compact history -> rebase onto upstream -> aggregate automated
-  proof -> acceptance -> full PR -> required remote checks -> hand off. The operator performs
-  the mainline merge (DIRECTIVE_045).
+  proof -> acceptance -> full PR -> required remote checks -> hand off. Aggregate proof runs
+  on the merged, compacted, rebased tree (the first checkout where the WPs coexist), not on
+  separate lanes. The operator performs the mainline merge (DIRECTIVE_045).
 
   The three quality pillars this enforces are captured as a standard in the
   readable-consistent-prs directive (DIRECTIVE_046): linear, consistent/complete,

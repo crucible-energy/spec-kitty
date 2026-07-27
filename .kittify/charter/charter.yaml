@@ -1278,7 +1278,7 @@ catalog:
   - id: PROCEDURE:mission-wrap-up-sequence
     kind: procedure
     title: Mission Wrap-Up Sequence
-    summary: "Drive a mission from \"all work packages approved\" to \"a clean, full pull request with automated evidence handed to the operator\" through one standing, repeatable close-out sequence. The sequence makes the last mile deterministic: it verifies readiness, resolves every tracked-issue verdict, establishes aggregate automated proof, lands locally, compacts the branch into readable history, and opens a full PR — so no mission ends in an ad-hoc, insufficiently validated, or messy state. It complements (does not replace) the per-work-package implement/review loop.\n"
+    summary: "Drive a mission from \"all work packages approved\" to \"a clean, full pull request with automated evidence handed to the operator\" through one standing, repeatable close-out sequence. The sequence makes the last mile deterministic: it verifies readiness, resolves every tracked-issue verdict, lands the lanes locally, compacts the branch into readable history, establishes aggregate automated proof on the combined tree, and opens a full PR, so no mission ends in an ad-hoc, insufficiently validated, or messy state. It complements (does not replace) the per-work-package implement/review loop.\n"
     source_path: ''
     local_path: _LIBRARY/procedure-mission-wrap-up-sequence.md
   - id: PROCEDURE:post-merge-arch-gate-adjudication
