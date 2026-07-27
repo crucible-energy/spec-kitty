@@ -35,14 +35,22 @@ _DRAFT_PR_OBJECT = r"draft (?:pull[ -]request|pr)s?"
 _DRAFT_PR_INSTRUCTION_VERBS = "open|create|submit|make|raise|file|start|prepare|use|push|send|publish"
 _DRAFT_PR_INSTRUCTION_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(rf"\b(?:{_DRAFT_PR_INSTRUCTION_VERBS})s?\s+(?:a|an|the)\s+{_DRAFT_PR_OBJECT}\b"),
-    re.compile(r"--draft\b"),
+)
+_DRAFT_FLAG_PATTERN = re.compile(r"--draft\b")
+_NEGATED_DRAFT_FLAG_PATTERN = re.compile(
+    r"\b(?:never|do not|don't|must not|mustn't)\b[^.\n]{0,120}--draft\b"
 )
 
 
 def _contains_draft_pr_instruction(text: str) -> bool:
     """Return True when the text instructs an agent to open a draft pull request."""
     lowered = text.lower()
-    return any(pattern.search(lowered) for pattern in _DRAFT_PR_INSTRUCTION_PATTERNS)
+    if any(pattern.search(lowered) for pattern in _DRAFT_PR_INSTRUCTION_PATTERNS):
+        return True
+    return bool(
+        _DRAFT_FLAG_PATTERN.search(lowered)
+        and not _NEGATED_DRAFT_FLAG_PATTERN.search(lowered)
+    )
 
 
 def _repo_root() -> Path:
@@ -86,6 +94,7 @@ _CANONICAL_PROHIBITIONS: tuple[str, ...] = (
     "Draft pull requests are prohibited.",
     "The PR is full (never draft), opened only for the complete validated slice.",
     "Full, non-draft PR only.",
+    "Never run gh pr create --draft.",
     "Using a draft pull request, opening a PR merely because a change exists, is an anti-pattern.",
 )
 
@@ -134,5 +143,14 @@ def test_wrap_up_sequence_validates_the_final_aggregate_before_handoff() -> None
     )
     pr_index = titles.index("Open a full pull request and complete remote automation")
     acceptance_index = titles.index("Record final acceptance before opening the full pull request")
+    catalog = yaml.load((root / ".kittify/charter/charter.yaml").read_text(encoding="utf-8"))
+    procedure = next(
+        entry
+        for entry in catalog["catalog"]["references"]
+        if entry["id"] == "PROCEDURE:mission-wrap-up-sequence"
+    )
 
     assert merge_index < rebase_index < aggregate_index < acceptance_index < pr_index
+    assert procedure["summary"].index("lands the lanes locally") < procedure["summary"].index(
+        "establishes aggregate automated proof"
+    )
