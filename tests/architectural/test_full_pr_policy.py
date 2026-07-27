@@ -39,9 +39,26 @@ _DRAFT_PR_INSTRUCTION_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(rf"\b(?:{_DRAFT_PR_INSTRUCTION_VERBS})s?\s+(?:a|an|the)\s+{_DRAFT_PR_OBJECT}\b"),
 )
 _DRAFT_FLAG_PATTERN = re.compile(r"--draft\b")
-_NEGATED_DRAFT_FLAG_PATTERN = re.compile(
-    r"\b(?:never|do not|don't|must not|mustn't)\b[^.\n]{0,120}--draft\b"
+# Negation is evaluated per ``--draft`` occurrence, scoped to the clause that
+# contains it (bounded by the nearest sentence break on either side). A cue on
+# either side of the flag within that clause ("never run `gh pr create --draft`",
+# "the `--draft` flag is prohibited") makes that occurrence a prohibition. Scoping
+# per occurrence keeps an unrelated prohibition elsewhere in the source from
+# masking a later affirmative ``gh pr create --draft``.
+_DRAFT_FLAG_NEGATION_CUE = re.compile(
+    r"\b(?:never|not|no|don't|do not|does not|doesn't|must not|mustn't|cannot|can't|"
+    r"avoid|without|prohibit(?:ed|s)?|forbid(?:den|s)?|reject|refuse)\b"
 )
+_CLAUSE_BREAK_CHARS = ".;\n!?"
+
+
+def _draft_flag_occurrence_negated(lowered: str, flag_start: int, flag_end: int) -> bool:
+    """True when the ``--draft`` at ``flag_start`` sits in a clause carrying a negation cue."""
+    left = max(lowered.rfind(char, 0, flag_start) for char in _CLAUSE_BREAK_CHARS)
+    rights = [pos for char in _CLAUSE_BREAK_CHARS if (pos := lowered.find(char, flag_end)) != -1]
+    right = min(rights) if rights else len(lowered)
+    clause = lowered[left + 1 : right]
+    return _DRAFT_FLAG_NEGATION_CUE.search(clause) is not None
 
 
 def _contains_draft_pr_instruction(text: str) -> bool:
@@ -49,9 +66,9 @@ def _contains_draft_pr_instruction(text: str) -> bool:
     lowered = text.lower()
     if any(pattern.search(lowered) for pattern in _DRAFT_PR_INSTRUCTION_PATTERNS):
         return True
-    return bool(
-        _DRAFT_FLAG_PATTERN.search(lowered)
-        and not _NEGATED_DRAFT_FLAG_PATTERN.search(lowered)
+    return any(
+        not _draft_flag_occurrence_negated(lowered, match.start(), match.end())
+        for match in _DRAFT_FLAG_PATTERN.finditer(lowered)
     )
 
 
@@ -97,6 +114,8 @@ _CANONICAL_PROHIBITIONS: tuple[str, ...] = (
     "The PR is full (never draft), opened only for the complete validated slice.",
     "Full, non-draft PR only.",
     "Never run gh pr create --draft.",
+    "The `--draft` flag is prohibited; always open a full PR.",
+    "Open a full PR from the mission branch (`gh pr create`; never `--draft`).",
     "Using a draft pull request, opening a PR merely because a change exists, is an anti-pattern.",
 )
 
@@ -107,6 +126,17 @@ def test_guard_allows_canonical_prohibitions(prohibition: str) -> None:
     assert not _contains_draft_pr_instruction(
         prohibition
     ), f"guard falsely flagged a canonical prohibition: {prohibition!r}"
+
+
+def test_guard_flags_affirmative_draft_flag_despite_earlier_prohibition() -> None:
+    """A prohibition clause must not mask a separate affirmative ``--draft`` occurrence."""
+    text = (
+        "Open a full PR from the mission branch; never `--draft`.\n"
+        "Run `gh pr create --draft` to share progress early.\n"
+    )
+    assert _contains_draft_pr_instruction(
+        text
+    ), "guard let an affirmative --draft slip because an unrelated prohibition negated the file"
 
 
 def test_charter_selects_full_pr_policy_directive() -> None:

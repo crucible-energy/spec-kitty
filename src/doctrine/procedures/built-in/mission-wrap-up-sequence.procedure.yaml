@@ -55,16 +55,21 @@ steps:
     actor: agent
   - title: Merge the lanes locally
     description: >
-      Merge the approved lanes into the mission branch with the host merge command
-      (`spec-kitty merge --mission <slug>`), which lands locally only. Resolve any
-      stale-lane conflicts on shared files. This is the first checkout in which the
-      work packages coexist, so the aggregate gates below cannot run before it. Do
-      not push to the protected mainline and never merge it yourself; the operator
-      does that.
+      Consolidate the approved lanes with the host merge command
+      (`spec-kitty merge --mission <slug>`), which integrates the mission into the
+      LOCAL target branch (for example `main`) only and, by default, removes the
+      lane and mission branches once integrated (pass `--keep-branch` to preserve
+      the mission branch). It never touches the protected remote mainline. Resolve
+      any stale-lane conflicts on shared files. This is the first checkout in which
+      the work packages coexist, so the aggregate gates below cannot run before it.
+      Because the mission branch is gone, cut a fresh `pr/<slug>` branch from the
+      freshly-updated local target; the compaction, rebase, and aggregate-proof
+      steps below all operate on that branch. Do not push to the protected mainline
+      and never merge it yourself; the operator does that.
     actor: agent
   - title: Compact the branch into readable history
     description: >
-      Rewrite the mission branch into a small set of readable, logically-sliced
+      Rewrite the `pr/<slug>` branch into a small set of readable, logically-sliced
       commits (for example docs / surface / repoints), following the
       clean-linear-commit-history tactic (a non-reordering, behaviour-preserving
       snapshot chain), never an interactive reorder. Verify the compacted tree is

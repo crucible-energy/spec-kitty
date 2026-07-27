@@ -353,15 +353,34 @@ def _git_ref_exists(repo_root: Path, ref: str) -> bool:
     return bool(run_git(["rev-parse", "--verify", "--quiet", ref], cwd=repo_root, check=False).returncode == 0)
 
 
-def _changed_workflow_files(repo_root: Path, feature_dir: Path, branch: str | None) -> list[str]:
-    """Return workflow files changed by the current mission branch."""
+def _changed_workflow_files(
+    repo_root: Path,
+    feature_dir: Path,
+    branch: str | None,
+    *,
+    prefer_remote_base: bool = False,
+) -> list[str]:
+    """Return workflow files changed by the current mission branch.
+
+    ``prefer_remote_base`` selects ``origin/<target>`` as the diff base ahead of
+    the local target. The final ``--require-hosted-workflow-evidence`` gate runs
+    on a PR branch cut from a local target that ``spec-kitty merge`` has already
+    landed the mission onto, so diffing against local ``main`` would compare two
+    identical tips and hide the workflow change that ``origin/<target>`` still
+    lacks.
+    """
     from specify_cli import acceptance as _acceptance_pkg
 
     target_branch = _acceptance_pkg._target_branch_for_feature(feature_dir)
     if not target_branch or branch == target_branch:
         return []
 
-    base_ref = target_branch if _git_ref_exists(repo_root, target_branch) else f"origin/{target_branch}"
+    local_ref = target_branch
+    remote_ref = f"origin/{target_branch}"
+    if prefer_remote_base:
+        base_ref = remote_ref if _git_ref_exists(repo_root, remote_ref) else local_ref
+    else:
+        base_ref = local_ref if _git_ref_exists(repo_root, local_ref) else remote_ref
     if not _git_ref_exists(repo_root, base_ref):
         return []
 
@@ -433,7 +452,12 @@ def _check_workflow_run_evidence(
     *,
     require_hosted_workflow_evidence: bool = False,
 ) -> None:
-    changed = _changed_workflow_files(repo_root, feature_dir, branch)
+    changed = _changed_workflow_files(
+        repo_root,
+        feature_dir,
+        branch,
+        prefer_remote_base=require_hosted_workflow_evidence,
+    )
     if changed and _workflow_evidence_missing(
         feature_dir,
         require_hosted_workflow_evidence=require_hosted_workflow_evidence,

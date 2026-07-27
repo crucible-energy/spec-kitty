@@ -529,6 +529,52 @@ def test_changed_workflow_files_three_dot_two_arg_equivalence(tmp_path: Path) ->
     assert result == expected
 
 
+def test_changed_workflow_files_prefer_remote_base_survives_local_landing(tmp_path: Path) -> None:
+    """The final handoff gate must diff the PR branch against ``origin/<target>``.
+
+    Reproduces the publish flow: ``spec-kitty merge`` has already integrated the
+    mission into LOCAL ``main`` (which now carries the workflow change), and the
+    PR branch is cut from that same local tip. Diffing against local ``main``
+    therefore compares two identical commits and hides the change, so the
+    pre-repoint local-first base would report nothing to gate on. Diffing against
+    ``origin/<target>`` (which still lacks the change) surfaces it, which is why
+    ``prefer_remote_base=True`` is threaded from
+    ``--require-hosted-workflow-evidence``.
+    """
+    repo_root, feature_dir = _create_test_feature(tmp_path)
+    subprocess.run(["git", "-C", str(repo_root), "branch", "-M", "main"], check=True, capture_output=True)
+
+    pre_change_sha = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    # origin/main is pinned to the pre-landing tip (it still lacks the change).
+    subprocess.run(
+        ["git", "-C", str(repo_root), "update-ref", "refs/remotes/origin/main", pre_change_sha],
+        check=True,
+        capture_output=True,
+    )
+
+    # spec-kitty merge has already landed the mission (workflow change) on LOCAL main.
+    workflow_path = repo_root / ".github" / "workflows" / "ci.yml"
+    workflow_path.parent.mkdir(parents=True)
+    workflow_path.write_text("name: CI\non: [pull_request]\njobs: {}\n")
+    subprocess.run(["git", "-C", str(repo_root), "add", ".github/workflows/ci.yml"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo_root), "commit", "-m", "Land mission workflow on local main"], check=True, capture_output=True)
+
+    # The PR branch is cut from the freshly-landed local main (identical tip).
+    subprocess.run(["git", "-C", str(repo_root), "checkout", "-b", "pr/workflow-mission"], check=True, capture_output=True)
+
+    # Local-first base compares main..main (same tip) and hides the change.
+    assert _changed_workflow_files(repo_root, feature_dir, "pr/workflow-mission", prefer_remote_base=False) == []
+    # Remote-first base compares origin/main..HEAD and surfaces the change.
+    assert _changed_workflow_files(repo_root, feature_dir, "pr/workflow-mission", prefer_remote_base=True) == [
+        ".github/workflows/ci.yml"
+    ]
+
+
 @pytest.mark.parametrize(
     ("evidence", "expected"),
     [
