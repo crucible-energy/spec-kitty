@@ -311,6 +311,26 @@ def build_charter_context(
     )
 
 
+def _merged_include_org_roots(
+    repo_root: Path, org_root: Path | None
+) -> list[Path] | None:
+    """Merge a caller-supplied ``org_root`` with every configured org root.
+
+    The ``charter context`` CLI passes only the *first* configured root as
+    ``org_root``; wrapping that as a singleton would hide artifacts — and the
+    per-artifact fetch recovery emitted for their over-inline-limit bodies —
+    that live only in a second-or-later configured pack, so the recovery
+    command would report a catalog miss. The supplied root keeps precedence
+    (rendered first) and the remaining configured roots follow in order.
+    Returns ``None`` when no roots apply so callers stay on the built-in /
+    project fast path (byte-stable when no org packs are configured, NFR-001).
+    """
+    configured_roots = _existing_org_roots(repo_root)
+    if org_root is None:
+        return configured_roots or None
+    return [org_root, *(root for root in configured_roots if root != org_root)]
+
+
 def build_charter_context_include(
     repo_root: Path,
     selector: str,
@@ -349,7 +369,7 @@ def build_charter_context_include(
             repo_root, selector, identifier, action, org_root=org_root
         )
 
-    org_roots = [org_root] if org_root is not None else None
+    org_roots = _merged_include_org_roots(repo_root, org_root)
 
     if kind == "artifact":
         return _render_generic_artifact_selector(repo_root, identifier, org_roots)
@@ -462,14 +482,7 @@ def _render_charter_selections_include(
     command ran with just that singleton root.
     """
     doctrine_selection = _load_doctrine_selection(repo_root)
-    configured_roots = _existing_org_roots(repo_root)
-    if org_root is not None:
-        org_roots: list[Path] | None = [
-            org_root,
-            *(root for root in configured_roots if root != org_root),
-        ]
-    else:
-        org_roots = configured_roots or None
+    org_roots = _merged_include_org_roots(repo_root, org_root)
     service = _build_doctrine_service(repo_root, org_roots=org_roots)
     block = _render_selection_block(
         doctrine_selection, service, repo_root=repo_root

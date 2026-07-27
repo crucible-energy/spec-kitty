@@ -538,6 +538,47 @@ class TestFetchSelectorRecovery:
         # root_a stays first (precedence) and root_b is retained, not discarded.
         assert captured == [[root_a, root_b]]
 
+    def test_doctrine_artifact_include_preserves_all_configured_roots(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        # A per-artifact fetch (e.g. directive:<id>) emitted for an
+        # over-inline-limit body must resolve against every configured org
+        # root, not just the first one the CLI supplies as org_root, so a
+        # later-pack artifact is returned instead of a catalog miss.
+        root_a = tmp_path / "pack-a"
+        root_b = tmp_path / "pack-b"
+        directive = _DummyDirective(
+            title="Later Pack Directive", intent="Only in pack-b."
+        )
+        service = _StubService(directives=_StubRepo(items={"DIRECTIVE_888": directive}))
+        captured: list[Any] = []
+
+        def _spy_doctrine_service(repo_root: Path, org_roots: Any = None) -> _StubService:
+            captured.append(org_roots)
+            return service
+
+        monkeypatch.setattr(
+            context_module,
+            "_existing_org_roots",
+            lambda _repo_root: [root_a, root_b],
+        )
+        monkeypatch.setattr(
+            context_module,
+            "_build_doctrine_service",
+            _spy_doctrine_service,
+        )
+
+        text = context_module.build_charter_context_include(
+            tmp_path,
+            "directive:DIRECTIVE_888",
+            org_root=root_a,
+        )
+
+        assert captured == [[root_a, root_b]]
+        assert "Only in pack-b." in text
+
     def test_charter_selections_selector_fails_closed_when_empty(
         self,
         monkeypatch: pytest.MonkeyPatch,
