@@ -20,7 +20,7 @@
     "WP01": {
       "actor": "merge",
       "agent": "claude",
-      "force_count": 1,
+      "force_count": 2,
       "lane": "done",
       "last_event_id": "01KY0TTXPAH3NR4HP4J6A80HNF",
       "last_transition_at": "2026-07-20T22:37:36.842749+00:00",
