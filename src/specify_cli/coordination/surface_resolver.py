@@ -535,7 +535,17 @@ def _coord_mid8(meta: dict[str, object], mission_slug: str, repo_root: Path) -> 
     )
 
 
-def _husk_is_authoritative_surface(repo_root: Path, mission_slug: str) -> bool:
+def _snapshot_authority_active(meta: dict[str, object]) -> bool:
+    """Return whether ``meta`` declares an event-snapshot authority phase."""
+    try:
+        return int(str(meta.get("status_phase")).strip()) >= 1
+    except (TypeError, ValueError):
+        return False
+
+
+def _husk_is_authoritative_surface(
+    repo_root: Path, mission_slug: str, coord_meta: dict[str, object]
+) -> bool:
     """True when a ``.worktrees`` husk MAY be the authoritative read surface.
 
     Gates the ``.worktrees`` short-circuit in
@@ -553,6 +563,12 @@ def _husk_is_authoritative_surface(repo_root: Path, mission_slug: str) -> bool:
       so legacy missions whose status genuinely lives on the coord worktree still
       resolve there.
 
+    A primary ``status_phase >= 1`` is a verified event-snapshot cutover. It
+    supersedes a materialized coord copy that has not made the same cutover:
+    selecting the legacy coord snapshot would discard the explicitly verified
+    primary authority and re-open split-brain state after migration. When both
+    surfaces are phase-1 (or neither is), topology retains the normal decision.
+
     Reads the stored topology from the PRIMARY ``meta.json`` via the SAME
     :func:`read_primary_meta` / :func:`stored_topology_from_meta` seam the guarded
     read path uses (NFR-004 — one stored-topology authority, no re-inference). A
@@ -565,6 +581,10 @@ def _husk_is_authoritative_surface(repo_root: Path, mission_slug: str) -> bool:
         primary_meta, _ = read_primary_meta(repo_root, mission_slug)
     except (ValueError, OSError):
         return True
+    if _snapshot_authority_active(primary_meta) and not _snapshot_authority_active(
+        coord_meta
+    ):
+        return False
     stored = stored_topology_from_meta(primary_meta)
     if stored is None:
         return True
@@ -699,6 +719,7 @@ def resolve_status_surface_with_anchor(
     # malformed (defaults stated explicitly). A malformed worktree meta propagates
     # the typed corrupt-meta error, exactly as before the canonical conversion.
     meta = load_meta(feature_dir, allow_missing=True, on_malformed="raise")
+    candidate_meta = meta
 
     # FR-006 (structural #2062 — the surface read-leg close): the husk
     # short-circuit below trusts the worktree's OWN ``meta.json`` (which EVERY real
@@ -720,7 +741,7 @@ def resolve_status_surface_with_anchor(
     if (
         meta is not None
         and feature_dir_is_husk
-        and _husk_is_authoritative_surface(repo_root, mission_slug)
+        and _husk_is_authoritative_surface(repo_root, mission_slug, meta)
         and (feature_dir / _STATUS_EVENTS_FILENAME).is_file()
     ):
         return ResolvedStatusSurface(
@@ -742,7 +763,7 @@ def resolve_status_surface_with_anchor(
         repo_root,
         _canonicalize_primary_read_handle(repo_root, mission_slug),
     )
-    if meta is None:
+    if meta is None or feature_dir_is_husk:
         # FR-006: canonical reader contract (a) — None on missing, ValueError on
         # malformed (defaults stated explicitly).
         meta = load_meta(primary_dir, allow_missing=True, on_malformed="raise")
@@ -806,6 +827,21 @@ def resolve_status_surface_with_anchor(
     coord_state = probe_coord_state(
         repo_root, mission_slug, mid8, coordination_branch=coord_branch
     )
+
+    # A verified primary snapshot cutover outranks a materialized coordination
+    # worktree that still carries legacy (pre-phase-1) state. The candidate-meta
+    # comparison is intentionally restricted to a real coord candidate; once both
+    # copies declare phase 1, topology remains the deciding authority.
+    if (
+        feature_dir_is_husk
+        and coord_state is CoordState.MATERIALIZED
+        and _snapshot_authority_active(meta)
+        and not _snapshot_authority_active(candidate_meta or {})
+    ):
+        return ResolvedStatusSurface(
+            surface_path=feature_dir / _STATUS_EVENTS_FILENAME,
+            primary_anchor=feature_dir,
+        )
 
     # The append-only event log is the canonical lane-state authority. Teardown
     # can leave a status.json-only coordination husk behind; it must not shadow

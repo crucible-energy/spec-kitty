@@ -195,3 +195,34 @@ def test_create_window_unmaterialized_coord_resolves_primary(tmp_path: Path) -> 
         "anchor — coord-empty fallback must not over-reach here"
     )
     assert resolved.read_dir.resolve() == expected_primary
+
+
+def test_primary_phase_one_snapshot_beats_legacy_coord_worktree(
+    tmp_path: Path,
+) -> None:
+    """A verified primary cutover cannot be shadowed by a legacy coord copy."""
+    _init_repo(tmp_path)
+    primary_dir = tmp_path / "kitty-specs" / SLUG_WITH_MID8
+    _write_meta(
+        primary_dir,
+        mission_id=MISSION_ID,
+        coordination_branch=COORD_BRANCH,
+        topology="coord",
+        status_phase="1",
+    )
+    (primary_dir / "status.events.jsonl").write_text("primary\n", encoding="utf-8")
+    _git(tmp_path, "branch", COORD_BRANCH)
+    coord_root = CoordinationWorkspace.resolve(tmp_path, SLUG_WITH_MID8, MID8)
+    coord_dir = coord_root / "kitty-specs" / SLUG_WITH_MID8
+    _write_meta(
+        coord_dir,
+        mission_id=MISSION_ID,
+        coordination_branch=COORD_BRANCH,
+        topology="coord",
+    )
+    (coord_dir / "status.events.jsonl").write_text("legacy\n", encoding="utf-8")
+
+    resolved = resolve_status_surface_with_anchor(tmp_path, SLUG_WITH_MID8)
+
+    assert resolved.read_dir.resolve() == primary_dir.resolve()
+    assert resolved.primary_anchor.resolve() == primary_dir.resolve()

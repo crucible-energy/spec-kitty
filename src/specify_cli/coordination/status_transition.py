@@ -136,6 +136,8 @@ def _transaction_dir_name(mission_slug: str, mid8: str) -> str:
 
 
 def _transaction_topology_available(identity: _TransactionIdentity, mission_slug: str) -> bool:
+    if _canonical_status_surface_is_primary(identity, mission_slug):
+        return False
     if not _repo_supports_transactions(identity.repo_root):
         return False
     if identity.coordination_branch is not None:
@@ -152,6 +154,32 @@ def _transaction_topology_available(identity: _TransactionIdentity, mission_slug
         identity.repo_root,
         CoordinationWorkspace.branch_name(mission_slug, identity.mid8),
     )
+
+
+def _canonical_status_surface_is_primary(
+    identity: _TransactionIdentity, mission_slug: str
+) -> bool:
+    """True iff the shared status-surface resolver selects the primary log.
+
+    Transactional reads and writes must not revive a separate coordination
+    decision after the canonical resolver has selected primary—for example, in
+    the unmaterialized create window or when a phase-1 primary snapshot outranks
+    a legacy coordination copy. Resolver failures keep the established
+    transaction-specific recovery paths in charge.
+    """
+    from specify_cli.coordination.surface_resolver import (  # noqa: PLC0415
+        CoordinationBranchDeleted,
+        resolve_status_surface,
+    )
+    from specify_cli.missions._read_path_resolver import (  # noqa: PLC0415
+        StatusReadPathNotFound,
+    )
+
+    try:
+        surface_dir = resolve_status_surface(identity.repo_root, mission_slug).parent
+    except (CoordinationBranchDeleted, FileNotFoundError, OSError, StatusReadPathNotFound, ValueError):
+        return False
+    return surface_dir.resolve() == identity.feature_dir.resolve()
 
 
 _NonTxnEmitResult = TypeVar("_NonTxnEmitResult")
@@ -981,7 +1009,9 @@ def _read_contract_routes_through_coordination(
 ) -> bool:
     """Decide the coord-vs-primary read-contract SHAPE from the STORED topology.
 
-    FR-009 / SC-001: the read-contract coord-vs-primary SHAPE is decided by the
+    The canonical status-surface resolver gets the first and final word when it
+    selects the primary log. FR-009 / SC-001 otherwise keeps the read-contract
+    coord-vs-primary SHAPE decided by the
     WP02 topology SSOT, never re-inferred from a bare ``coordination_branch is
     None`` SURFACE test — the exact forbidden re-derivation SC-001 gates against.
 
@@ -1014,6 +1044,9 @@ def _read_contract_routes_through_coordination(
     ``mid8`` materialization / branch-deletion stay the transient probe arms below
     (C-006).
     """
+    if _canonical_status_surface_is_primary(identity, identity.feature_dir.name):
+        return False
+
     from mission_runtime import (  # noqa: PLC0415
         classify_topology,
         routes_through_coordination,
