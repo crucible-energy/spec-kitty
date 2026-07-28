@@ -7,7 +7,7 @@ distinguish and behave correctly for:
 | State           | Meaning                                              | Correct behavior                          |
 |------------------|------------------------------------------------------|--------------------------------------------|
 | ``never-created`` | mission never declared a ``coordination_branch``    | resolve to primary; **no** ``COORDINATION_BRANCH_DELETED`` |
-| ``UNMATERIALIZED``| coord branch exists, worktree not yet created        | resolve lifecycle reads via the branch ref |
+| ``UNMATERIALIZED``| coord branch exists, worktree not yet created        | resolve status reads and writes via primary |
 | ``DELETED``       | coord worktree removed mid-mission                    | actionable error / re-materialize, not stale-primary fallback |
 
 The underlying discriminator (``missions._read_path_resolver.probe_coord_state``
@@ -155,10 +155,11 @@ def test_unmaterialized_resolves_primary_never_deleted(tmp_path: Path) -> None:
         f"got {read_path}."
     )
 
-    # The canonical surface composes the (not-yet-materialized) coord path
-    # rather than existence-gating, but it must not hard-fail DELETED either.
+    # The canonical surface stays primary until a real coord worktree is
+    # registered; it must not create an unregistered husk or hard-fail DELETED.
     surface = resolve_status_surface_with_anchor(tmp_path, SLUG_WITH_MID8)
     assert surface.primary_anchor == feature_dir
+    assert surface.surface_path == feature_dir / "status.events.jsonl"
 
 
 # ---------------------------------------------------------------------------

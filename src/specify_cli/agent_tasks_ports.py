@@ -53,11 +53,11 @@ from specify_cli.coordination.commit_router import (
 from specify_cli.coordination.status_transition import (
     emit_status_transition_transactional,
 )
+from specify_cli.coordination.surface_resolver import resolve_status_surface
 from specify_cli.git.protection_policy import ProtectionPolicy
 from specify_cli.missions._read_path_resolver import (
     _canonicalize_primary_read_handle,
     primary_feature_dir_for_mission,
-    resolve_feature_dir_for_mission,
     resolve_planning_read_dir,
 )
 from specify_cli.status import StatusEvent, TransitionRequest
@@ -157,7 +157,7 @@ class CoordCommitRouter(Protocol):
     """
 
     def feature_write_dir(self, mission: MissionHandle) -> Path:
-        """The kind-blind coord-husk write leg (``resolve_feature_dir_for_mission``)."""
+        """The canonical status write directory for the mission."""
         ...
 
     def commit_status(
@@ -319,9 +319,12 @@ class RealCoordCommitRouter:
         self._emit_fn = emit_fn or emit_status_transition_transactional
 
     def feature_write_dir(self, mission: MissionHandle) -> Path:
-        write_dir: Path = resolve_feature_dir_for_mission(
+        # Status writes must use the canonical status surface. In particular, a
+        # declared coordination branch without a registered worktree resolves to
+        # the durable primary log instead of creating an unregistered coord husk.
+        write_dir = resolve_status_surface(
             mission.repo_root, mission.mission_slug
-        )
+        ).parent
         return write_dir
 
     def commit_status(

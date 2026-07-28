@@ -338,14 +338,10 @@ def _mt_resolve_targets(st: _MoveTaskState, ports: TasksPorts) -> None:
         t.strip() for t in (st.tracker_ref or []) if t and t.strip()
     )
     _mt_warn_worktree_kitty_specs(st)
-    # Boundary guard — hard-reject pre-3.0 layout before any WP mutation.
-    # WP06 FR-010 (T027): the shared coord-status dir STAYS on the coord husk.
-    # ``feature_write_dir`` wraps ``resolve_feature_dir_for_mission`` (the kind-blind
-    # coord-husk leg) — the SAME on-disk dir the pre-rewire body read; it feeds the
-    # pre30 guard, the authoritative event-log lane read (``_read_transactional_wp_lane``),
-    # and the coord override persist. It is NEVER repointed to a primary kind — that
-    # would move the event-log read off the coord husk and reintroduce the split-brain
-    # FR-010 closes.
+    # Boundary guard — hard-reject pre-3.0 layout before any WP mutation. The
+    # canonical status surface feeds the guard, authoritative event-log lane read,
+    # and transition persistence as one path; action-context routing must not revive
+    # a stale coordination copy.
     handle = MissionHandle(repo_root=st.main_repo_root, mission_slug=st.mission_slug)
     st.mt_feature_dir = ports.coord.feature_write_dir(handle)
     try:
@@ -354,14 +350,14 @@ def _mt_resolve_targets(st: _MoveTaskState, ports: TasksPorts) -> None:
         _tasks._output_error(st.json_output, str(e))
         raise typer.Exit(1) from None
     st.wp = _tasks.locate_work_package(repo_root, st.mission_slug, st.task_id)
-    # Lane is event-log-only; read from the canonical coord-husk event log.
+    # Lane is event-log-only; read from the canonical status surface.
     st.old_lane = _read_transactional_wp_lane(
         feature_dir=st.mt_feature_dir,
         mission_slug=st.mission_slug,
         wp_id=st.task_id,
         repo_root=st.main_repo_root,
     )
-    # Event-store write leg — the SAME coord husk as ``mt_feature_dir``.
+    # Event-store write leg — the SAME canonical surface as ``mt_feature_dir``.
     st.feature_dir = st.mt_feature_dir
     # FR-007 / IC-04: prior-owner attribution is snapshot-sourced (the WP file no
     # longer carries the ``agent`` runtime field post-cutover) — read via the

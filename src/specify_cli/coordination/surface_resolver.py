@@ -22,11 +22,12 @@ the fallback emits a single ``logging.WARNING``
 (:data:`_COORD_EMPTY_FALLBACK_WARNING`) that names the stale-surface risk AND
 both operator recovery paths — flatten (drop ``coordination_branch`` from
 ``meta.json``) OR run ``spec-kitty doctor workspaces --fix``. For a solo
-coord mission with no lanes (``MissionTopology.COORD``), an empty coord root
-is the EXPECTED steady state until the mission's first coordination-branch
-write self-materializes it (#2533 / WP08 T029-T031): the fallback stays
-quiet — no warning, no manual flatten prompted for a condition that is not an
-error. It NEVER silently degrades for the genuinely unexpected case: the
+coord mission with no lanes (``MissionTopology.COORD``), an absent or empty
+coord worktree is the EXPECTED steady state until a real worktree is registered:
+the fallback stays quiet — no warning, no manual flatten prompted for a condition
+that is not an error. A status writer must never materialize an unregistered
+``.worktrees`` husk merely by resolving its destination. It NEVER silently
+degrades for the genuinely unexpected case: the
 warning makes that fallback observable so an operator or orchestrating agent
 can intervene. The decision is recorded in
 ``docs/adr/3.x/2026-06-19-1-coord-empty-surface-fallback.md`` and bound
@@ -38,11 +39,11 @@ Coord-topology resolution happens **exactly once** (FR-036). The coord-aware
 :func:`candidate_feature_dir_for_mission` resolver already returns the
 coordination-worktree feature dir whenever that worktree is materialized on
 disk; this module therefore never re-invokes that resolver on an
-already-resolved root. The only remaining case it handles directly is the
-transitional window where ``meta.json`` declares ``coordination_branch`` but
-the coord worktree has not been materialized yet — there it composes the coord
-path **once**, by hand, rather than resolving a second time. Re-running the
-coord-aware resolver against a coord root nested
+already-resolved root. It derives the expected coord path **once**, by hand,
+only to classify a declared coordination branch or report a deleted-branch
+recovery target; until ``git worktree list`` attests to a real worktree, status
+reads and writes remain on the primary surface. Re-running the coord-aware
+resolver against a coord root nested
 ``.worktrees/<m>-coord/.worktrees/<m>-coord/…`` (the #1772 double-resolution
 bug); building the path directly avoids that.
 """
@@ -534,7 +535,17 @@ def _coord_mid8(meta: dict[str, object], mission_slug: str, repo_root: Path) -> 
     )
 
 
-def _husk_is_authoritative_surface(repo_root: Path, mission_slug: str) -> bool:
+def _snapshot_authority_active(meta: dict[str, object]) -> bool:
+    """Return whether ``meta`` declares an event-snapshot authority phase."""
+    try:
+        return int(str(meta.get("status_phase")).strip()) >= 1
+    except (TypeError, ValueError):
+        return False
+
+
+def _husk_is_authoritative_surface(
+    repo_root: Path, mission_slug: str, coord_meta: dict[str, object]
+) -> bool:
     """True when a ``.worktrees`` husk MAY be the authoritative read surface.
 
     Gates the ``.worktrees`` short-circuit in
@@ -552,6 +563,12 @@ def _husk_is_authoritative_surface(repo_root: Path, mission_slug: str) -> bool:
       so legacy missions whose status genuinely lives on the coord worktree still
       resolve there.
 
+    A primary ``status_phase >= 1`` is a verified event-snapshot cutover. It
+    supersedes a materialized coord copy that has not made the same cutover:
+    selecting the legacy coord snapshot would discard the explicitly verified
+    primary authority and re-open split-brain state after migration. When both
+    surfaces are phase-1 (or neither is), topology retains the normal decision.
+
     Reads the stored topology from the PRIMARY ``meta.json`` via the SAME
     :func:`read_primary_meta` / :func:`stored_topology_from_meta` seam the guarded
     read path uses (NFR-004 — one stored-topology authority, no re-inference). A
@@ -564,6 +581,10 @@ def _husk_is_authoritative_surface(repo_root: Path, mission_slug: str) -> bool:
         primary_meta, _ = read_primary_meta(repo_root, mission_slug)
     except (ValueError, OSError):
         return True
+    if _snapshot_authority_active(primary_meta) and not _snapshot_authority_active(
+        coord_meta
+    ):
+        return False
     stored = stored_topology_from_meta(primary_meta)
     if stored is None:
         return True
@@ -646,10 +667,10 @@ def resolve_status_surface_with_anchor(
        bug).
     2. Otherwise the resolver landed in the primary checkout. When that mission
        declares ``coordination_branch`` but the coord worktree is not yet
-       materialized, compose the coord path **directly** (one derivation, via
-       WP01's :func:`coord_feature_dir`). When the coord worktree root *is*
-       materialized but lacks the mission dir (the coord-empty state), apply
-       Option B: return the PRIMARY checkout surface. For a solo (no-lanes)
+       registered, return the PRIMARY checkout surface rather than composing a
+       writable husk path. When the coord worktree root *is* registered but
+       lacks the mission dir (the coord-empty state), apply Option B: return the
+       PRIMARY checkout surface. For a solo (no-lanes)
        coord mission (``MissionTopology.COORD``) this is the EXPECTED steady
        state pre-first-write, so the fallback is quiet — no warning (#2533 /
        WP08). For a mission WITH lanes (``MissionTopology.LANES_WITH_COORD``,
@@ -698,6 +719,7 @@ def resolve_status_surface_with_anchor(
     # malformed (defaults stated explicitly). A malformed worktree meta propagates
     # the typed corrupt-meta error, exactly as before the canonical conversion.
     meta = load_meta(feature_dir, allow_missing=True, on_malformed="raise")
+    candidate_meta = meta
 
     # FR-006 (structural #2062 — the surface read-leg close): the husk
     # short-circuit below trusts the worktree's OWN ``meta.json`` (which EVERY real
@@ -719,7 +741,7 @@ def resolve_status_surface_with_anchor(
     if (
         meta is not None
         and feature_dir_is_husk
-        and _husk_is_authoritative_surface(repo_root, mission_slug)
+        and _husk_is_authoritative_surface(repo_root, mission_slug, meta)
         and (feature_dir / _STATUS_EVENTS_FILENAME).is_file()
     ):
         return ResolvedStatusSurface(
@@ -741,7 +763,7 @@ def resolve_status_surface_with_anchor(
         repo_root,
         _canonicalize_primary_read_handle(repo_root, mission_slug),
     )
-    if meta is None:
+    if meta is None or feature_dir_is_husk:
         # FR-006: canonical reader contract (a) — None on missing, ValueError on
         # malformed (defaults stated explicitly).
         meta = load_meta(primary_dir, allow_missing=True, on_malformed="raise")
@@ -806,6 +828,21 @@ def resolve_status_surface_with_anchor(
         repo_root, mission_slug, mid8, coordination_branch=coord_branch
     )
 
+    # A verified primary snapshot cutover outranks a materialized coordination
+    # worktree that still carries legacy (pre-phase-1) state. The candidate-meta
+    # comparison is intentionally restricted to a real coord candidate; once both
+    # copies declare phase 1, topology remains the deciding authority.
+    if (
+        feature_dir_is_husk
+        and coord_state is CoordState.MATERIALIZED
+        and _snapshot_authority_active(meta)
+        and not _snapshot_authority_active(candidate_meta or {})
+    ):
+        return ResolvedStatusSurface(
+            surface_path=feature_dir / _STATUS_EVENTS_FILENAME,
+            primary_anchor=feature_dir,
+        )
+
     # The append-only event log is the canonical lane-state authority. Teardown
     # can leave a status.json-only coordination husk behind; it must not shadow
     # the durable primary status projection.
@@ -832,14 +869,13 @@ def resolve_status_surface_with_anchor(
             coord_candidate=composed_coord_dir,
             primary_candidate=feature_dir,
         )
-    # A registered worktree is classified above as MATERIALIZED or EMPTY. In a
-    # git repository, an extant coord root that still probes UNMATERIALIZED is an
-    # unregistered teardown husk; its status files cannot become authoritative.
-    # Re-anchor on primary instead of composing the husk path.
-    if (
-        coord_state is CoordState.UNMATERIALIZED
-        and composed_coord_dir.parent.parent.exists()
-    ):
+    # A declared branch is not a registered worktree. Returning the composed
+    # path during this create window lets the first status write create an
+    # unregistered `.worktrees/...-coord` husk; later commands can then split
+    # their lane reads between the husk and the durable primary log. Keep the
+    # primary surface authoritative until `git worktree list` attests to a real
+    # coordination worktree.
+    if coord_state is CoordState.UNMATERIALIZED:
         return ResolvedStatusSurface(
             surface_path=feature_dir / _STATUS_EVENTS_FILENAME,
             primary_anchor=feature_dir,
@@ -850,10 +886,7 @@ def resolve_status_surface_with_anchor(
     # so emit a single loud ``logging.WARNING`` naming the risk AND both recovery
     # paths (flatten OR `spec-kitty doctor workspaces --fix`) — making the fallback
     # observable so an operator/orchestrating agent can intervene — then return the
-    # PRIMARY surface and proceed. Before materialization (``UNMATERIALIZED``) the
-    # composed coord path is returned as-is; the create→first-write window keeps the
-    # primary checkout authoritative one level up (the aggregate's not-yet-
-    # materialized gate).
+    # PRIMARY surface and proceed.
     if coord_state is CoordState.EMPTY:
         # #2533: a solo (no-lanes) coord-topology mission whose coord worktree
         # never received a write is an EXPECTED empty state, not a stale

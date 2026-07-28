@@ -9,8 +9,9 @@ create-window / #1848 coord-deleted).
 
 This file witnesses BOTH halves:
 
-* the stored-topology SHAPE classification (a coord-shaped mission reads the
-  coordination contract; a single-branch mission reads the primary contract);
+* the stored-topology SHAPE classification when the canonical surface is coord,
+  while a primary-selected create window or verified phase-1 cutover remains
+  primary;
 * the transient probe arms still discriminate the materialized-yet / deleted-now
   states for a coord-shaped mission (the SHAPE decision does NOT subsume them).
 
@@ -87,13 +88,13 @@ def _identity(repo: Path) -> st._TransactionIdentity:
 # ---------------------------------------------------------------------------
 
 
-def test_coord_shaped_mission_classifies_coordination_from_stored_topology(
+def test_unmaterialized_coord_mission_reads_primary_through_surface(
     tmp_path: Path,
 ) -> None:
-    """A coord-shaped mission routes the read SHAPE through the stored topology → coord."""
+    """An unmaterialized coord mission keeps the primary status surface."""
     repo = _make_repo(tmp_path, coord=True)
     identity = _identity(repo)
-    assert st._read_contract_routes_through_coordination(identity) is True
+    assert st._read_contract_routes_through_coordination(identity) is False
 
 
 def test_single_branch_mission_classifies_primary_from_stored_topology(
@@ -190,9 +191,8 @@ def test_coord_branch_deleted_transient_falls_back_to_primary(tmp_path: Path) ->
     # coord topology intact in meta.json.
     _git(repo, "branch", "-D", _COORD_BRANCH)
     identity = _identity(repo)
-    # SHAPE is still coord …
-    assert st._read_contract_routes_through_coordination(identity) is True
-    # … but the transient probe routes the actual contract to the primary checkout.
+    # The resolver routes the deleted-branch state to the primary checkout.
+    assert st._read_contract_routes_through_coordination(identity) is False
     contract = st._read_contract_from_transaction_target(identity, _SLUG)
     assert contract == EventLogReadContract.primary_checkout(identity.feature_dir), (
         "the #1848 coord-deleted transient arm must keep routing to primary even "
@@ -209,6 +209,32 @@ def test_coord_worktree_materialised_transient_reads_coordination(tmp_path: Path
     contract = st._read_contract_from_transaction_target(identity, _SLUG)
     # The materialised-worktree transient arm wins (not the primary checkout).
     assert contract != EventLogReadContract.primary_checkout(identity.feature_dir)
+
+
+def test_primary_phase_one_snapshot_beats_materialized_legacy_coord_copy(
+    tmp_path: Path,
+) -> None:
+    """A phase-1 primary cutover prevents transactional reads and writes from reviving a legacy coord log."""
+    repo = _make_repo(tmp_path, coord=True)
+    primary_meta_path = repo / "kitty-specs" / _DIRNAME / "meta.json"
+    primary_meta = json.loads(primary_meta_path.read_text(encoding="utf-8"))
+    primary_meta["topology"] = "coord"
+    primary_meta["status_phase"] = "1"
+    primary_meta_path.write_text(json.dumps(primary_meta) + "\n", encoding="utf-8")
+
+    worktree = repo / ".worktrees" / f"{_DIRNAME}-coord"
+    _git(repo, "worktree", "add", "-q", str(worktree), _COORD_BRANCH)
+    (worktree / "kitty-specs" / _DIRNAME / "status.events.jsonl").write_text(
+        "legacy\n", encoding="utf-8"
+    )
+
+    identity = _identity(repo)
+
+    assert st._read_contract_routes_through_coordination(identity) is False
+    assert st._transaction_topology_available(identity, _SLUG) is False
+    assert st._read_contract_from_transaction_target(identity, _SLUG) == (
+        EventLogReadContract.primary_checkout(identity.feature_dir)
+    )
 
 
 # ---------------------------------------------------------------------------
