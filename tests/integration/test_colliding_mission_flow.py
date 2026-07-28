@@ -218,6 +218,26 @@ def test_doctor_identity_cli_json_returns_ambiguous_selector_error(
     assert "full slug" in payload["next_step"]
 
 
+def test_doctor_identity_cli_json_returns_not_found_error(
+    colliding_080_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing Mission selector is a structured JSON error in machine mode."""
+    monkeypatch.setattr(
+        "specify_cli.cli.commands.doctor.locate_project_root",
+        lambda: colliding_080_repo,
+    )
+
+    result = CliRunner().invoke(doctor_app, ["identity", "--mission", "999", "--json"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    assert payload["result"] == "error"
+    assert payload["error_code"] == "MISSION_NOT_FOUND"
+    assert payload["handle"] == "999"
+    assert "mission list" in payload["next_step"].lower()
+
+
 # ---------------------------------------------------------------------------
 # 2. Ambiguous handle — bare "080" must raise
 # ---------------------------------------------------------------------------
