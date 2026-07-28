@@ -1,0 +1,3 @@
+{"event": "started", "invocation_id": "01KYM42YNF70NN3ZDCG1JVBVGK", "profile_id": "python-pedro", "action": "generate", "request_text": "Fix doctor coordination so --fix with --json emits valid machine-readable JSON only.", "actor": "operator", "mode_of_work": "task_execution", "governance_context_hash": "931de0e8677400c2", "governance_context_available": true, "started_at": "2026-07-28T10:24:54.122129+00:00", "model_id": "claude-sonnet-5"}
+{"event": "completed", "invocation_id": "01KYM42YNF70NN3ZDCG1JVBVGK", "completed_at": "2026-07-28T10:31:11.378081+00:00", "outcome": "done", "closed_by": "agent"}
+{"event": "commit_link", "invocation_id": "01KYM42YNF70NN3ZDCG1JVBVGK", "at": "2026-07-28T10:31:11.378558+00:00", "sha": "17763325f"}
