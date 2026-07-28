@@ -197,6 +197,27 @@ def test_doctor_identity_cli_json_reports_three_duplicates(
     assert report["summary"]["assigned"] == 3, report["summary"]
 
 
+def test_doctor_identity_cli_json_returns_ambiguous_selector_error(
+    colliding_080_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bare ambiguous Mission selector remains valid JSON and names candidates."""
+    monkeypatch.setattr(
+        "specify_cli.cli.commands.doctor.locate_project_root",
+        lambda: colliding_080_repo,
+    )
+
+    result = CliRunner().invoke(doctor_app, ["identity", "--mission", "080", "--json"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    assert payload["result"] == "error"
+    assert payload["error_code"] == "MISSION_AMBIGUOUS_SELECTOR"
+    assert payload["handle"] == "080"
+    assert set(payload["candidates"]) == {"080-bar", "080-baz", "080-foo"}
+    assert "full slug" in payload["next_step"]
+
+
 # ---------------------------------------------------------------------------
 # 2. Ambiguous handle — bare "080" must raise
 # ---------------------------------------------------------------------------

@@ -22,6 +22,7 @@ from rich.table import Table
 
 from mission_runtime import MissionArtifactKind, placement_seam
 from specify_cli.core.constants import KITTY_SPECS_DIR
+from specify_cli.missions._read_path_resolver import MissionSelectorAmbiguous
 
 from ._doctor_shared import console
 
@@ -80,6 +81,26 @@ def _scope_prefixes(
         return {}
     prefix = m.group(1)
     return {prefix: duplicate_prefixes[prefix]} if prefix in duplicate_prefixes else {}
+
+
+def _emit_ambiguous_selector_error(
+    exc: MissionSelectorAmbiguous, json_output: bool
+) -> None:
+    """Render the resolver's typed ambiguity signal at the doctor CLI boundary."""
+    if json_output:
+        payload = {
+            "result": "error",
+            "error_code": exc.error_code,
+            "error": str(exc),
+            "handle": exc.handle,
+            "candidates": exc.candidates,
+            "next_step": "Re-run with a full slug or full mission_id.",
+        }
+        sys.stdout.write(json.dumps(payload, indent=2) + "\n")
+        sys.stdout.flush()
+        return
+
+    console.print(f"[red]{exc.error_code}[/red]\n{exc}")
 
 
 def _print_dup_and_ambig(
@@ -220,7 +241,11 @@ def run_identity_audit(
     all_states = audit_repo(repo_root)
 
     if mission is not None:
-        scoped = _scope_to_mission(repo_root, all_states, mission)
+        try:
+            scoped = _scope_to_mission(repo_root, all_states, mission)
+        except MissionSelectorAmbiguous as exc:
+            _emit_ambiguous_selector_error(exc, json_output)
+            raise typer.Exit(1) from exc
         if not scoped:
             console.print(f"[red]Error:[/red] Mission not found: {mission!r}")
             raise typer.Exit(1)
