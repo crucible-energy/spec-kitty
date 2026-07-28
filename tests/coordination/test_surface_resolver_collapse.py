@@ -174,9 +174,9 @@ def test_create_window_unmaterialized_coord_resolves_primary(tmp_path: Path) -> 
     declared but the coord worktree root does NOT yet exist, the primary checkout
     stays authoritative for the create→first-write window (#1718). A regression
     that warned/fell back here (treating an unmaterialized coord as empty) would
-    break first-write on a freshly created coord mission. The surface composes the
-    coord path (the worktree will live there once materialised); the CWD-invariant
-    primary anchor remains the primary dir.
+    break first-write on a freshly created coord mission. The primary status
+    surface remains authoritative until the worktree is registered, so the
+    first write cannot create an unregistered coord husk.
     """
     _init_repo(tmp_path)
     _write_meta(
@@ -194,3 +194,4 @@ def test_create_window_unmaterialized_coord_resolves_primary(tmp_path: Path) -> 
         "create→first-write window must keep the PRIMARY checkout as the "
         "anchor — coord-empty fallback must not over-reach here"
     )
+    assert resolved.read_dir.resolve() == expected_primary

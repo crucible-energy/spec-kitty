@@ -36,8 +36,8 @@ from specify_cli.agent_tasks_ports import (
     MissionHandle,
     TasksPorts,
 )
+from specify_cli.coordination.surface_resolver import resolve_status_surface
 from specify_cli.missions._read_path_resolver import (
-    resolve_feature_dir_for_mission,
     resolve_planning_read_dir,
 )
 from specify_cli.status.models import Lane, StatusEvent
@@ -208,10 +208,8 @@ def test_auto_commit_move_is_event_only_no_primary_wp_file_commit(
     assert "wp_file_update" not in payload  # non-skip arm: no skip envelope keys
 
 
-def test_fr010_move_task_coord_status_dir_stays_on_coord_husk(tmp_path: Path) -> None:
-    """FR-010 (T027): the coord WRITE port ``move_task`` uses to resolve its shared
-    status/event-log dir (``feature_write_dir``) MUST land on the kind-blind coord
-    husk (``resolve_feature_dir_for_mission``), NEVER a primary-partition kind.
+def test_fr010_move_task_uses_the_canonical_status_dir(tmp_path: Path) -> None:
+    """The move-task WRITE port must use the canonical status surface.
 
     ``_mt_resolve_targets`` sets ``mt_feature_dir = ports.coord.feature_write_dir(...)``
     and feeds it to the pre30 guard, the authoritative event-log lane read, and the
@@ -221,20 +219,19 @@ def test_fr010_move_task_coord_status_dir_stays_on_coord_husk(tmp_path: Path) ->
     """
     _build_wp_file(tmp_path, _MISSION, "WP01")
     handle = MissionHandle(repo_root=tmp_path, mission_slug=_MISSION)
-    coord_husk = resolve_feature_dir_for_mission(tmp_path, _MISSION)
-    # The production move_task router resolves the coord husk for the shared status dir.
+    status_dir = resolve_status_surface(tmp_path, _MISSION).parent
+    # The production move_task router resolves its shared status dir through the
+    # canonical status surface, not a parallel action-context path.
     # (constructor-DI collapse: the move_task coord router is now built via
     # ``seam_coord_router(route_emit=True)`` rather than the deleted
     # ``_MoveTaskCoordRouter`` subclass.)
-    assert seam_coord_router(route_emit=True).feature_write_dir(handle) == coord_husk
-    # A PRIMARY-partition kind would resolve a DIFFERENT dir under coord topology —
-    # the status read must never be collapsed onto it (guard against a wholesale
-    # repoint). On this flat fixture the STATUS partition stays path-equal to the husk.
+    assert seam_coord_router(route_emit=True).feature_write_dir(handle) == status_dir
+    # On this flat fixture the status partition and canonical surface agree.
     assert (
         resolve_planning_read_dir(
             tmp_path, _MISSION, kind=MissionArtifactKind.STATUS_STATE
         )
-        == coord_husk
+        == status_dir
     )
 
 

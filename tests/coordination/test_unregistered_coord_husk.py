@@ -67,14 +67,17 @@ def _build_post_teardown_husk(repo_root: Path) -> tuple[Path, Path]:
 
     husk_dir = coord_feature_dir(repo_root, SLUG, MID8)
     husk_dir.mkdir(parents=True)
-    (husk_dir / "status.json").write_text("{}\n", encoding="utf-8")
+    (husk_dir / "status.events.jsonl").write_text(
+        '{"event_id":"orphaned-husk-write","to_lane":"in_progress","wp_id":"WP01"}\n',
+        encoding="utf-8",
+    )
     return primary_dir, husk_dir
 
 
 def test_unregistered_coord_husk_never_shadows_durable_primary_status(
     tmp_path: Path,
 ) -> None:
-    """A post-teardown husk must resolve to the durable primary status surface."""
+    """Even a written post-teardown husk must resolve to durable primary state."""
     primary_dir, husk_dir = _build_post_teardown_husk(tmp_path)
 
     assert (

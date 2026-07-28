@@ -89,11 +89,11 @@ def test_r4_undeclared_resolves_primary(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# R2 — declared + branch exists + worktree absent → compose-once, no raise
+# R2 — declared + branch exists + worktree absent → PRIMARY, no husk creation
 # ---------------------------------------------------------------------------
 
 
-def test_r2_declared_branch_exists_worktree_absent_composes(tmp_path: Path) -> None:
+def test_r2_declared_branch_exists_worktree_absent_uses_primary(tmp_path: Path) -> None:
     repo_root = tmp_path / "repo"
     _init_repo(repo_root)
     # The coord branch exists in git, but no coord worktree has been added.
@@ -101,15 +101,7 @@ def test_r2_declared_branch_exists_worktree_absent_composes(tmp_path: Path) -> N
     _seed_primary_meta(repo_root, coordination_branch=_COORD_BRANCH)
 
     result = resolve_status_surface(repo_root, _MISSION)
-    expected = (
-        repo_root
-        / ".worktrees"
-        / f"{_MISSION}-{_MID8}-coord"
-        / "kitty-specs"
-        / f"{_MISSION}-{_MID8}"
-        / "status.events.jsonl"
-    )
-    assert result == expected
+    assert result == repo_root / "kitty-specs" / _MISSION / "status.events.jsonl"
 
 
 # ---------------------------------------------------------------------------
