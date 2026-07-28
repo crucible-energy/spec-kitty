@@ -103,6 +103,24 @@ def _emit_ambiguous_selector_error(
     console.print(f"[red]{exc.error_code}[/red]\n{exc}")
 
 
+def _emit_mission_not_found_error(handle: str, json_output: bool) -> None:
+    """Emit a structured MISSION_NOT_FOUND error in the selected output mode."""
+    message = f"Mission not found: {handle!r}"
+    if json_output:
+        payload = {
+            "result": "error",
+            "error_code": "MISSION_NOT_FOUND",
+            "error": message,
+            "handle": handle,
+            "next_step": "Run 'spec-kitty mission list' to see available missions.",
+        }
+        sys.stdout.write(json.dumps(payload, indent=2) + "\n")
+        sys.stdout.flush()
+        return
+
+    console.print(f"[red]Error:[/red] {message}")
+
+
 def _print_dup_and_ambig(
     duplicate_prefixes: dict[str, list[IdentityState]],
     ambiguous_selectors: dict[str, list[IdentityState]],
@@ -247,7 +265,7 @@ def run_identity_audit(
             _emit_ambiguous_selector_error(exc, json_output)
             raise typer.Exit(1) from exc
         if not scoped:
-            console.print(f"[red]Error:[/red] Mission not found: {mission!r}")
+            _emit_mission_not_found_error(mission, json_output)
             raise typer.Exit(1)
         all_states = scoped
 
