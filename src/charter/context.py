@@ -83,6 +83,14 @@ MISSING_REFERENCES_MESSAGE = "  - No references manifest found."
 _MIN_EFFECTIVE_DEPTH = 2   # minimum depth for bootstrap context (full summary + references)
 _EXTENDED_CONTEXT_DEPTH = 3  # depth that includes extended styleguide/toolguide lines
 
+#: Aggregate ``section:`` selector id emitted by the WP05 token-budget
+#: substitution loop when the whole charter-selected artifact block is swapped
+#: out for its fetch stanza. It is resolved by
+#: :func:`_render_charter_selections_include` so the emitted
+#: ``--include section:charter-selections`` recovery command re-renders the
+#: selected governance instead of failing closed with "No charter section found".
+CHARTER_SELECTIONS_SELECTOR_ID = "charter-selections"
+
 
 @dataclass(frozen=True)
 class CharterContextResult:
@@ -303,6 +311,26 @@ def build_charter_context(
     )
 
 
+def _merged_include_org_roots(
+    repo_root: Path, org_root: Path | None
+) -> list[Path] | None:
+    """Merge a caller-supplied ``org_root`` with every configured org root.
+
+    The ``charter context`` CLI passes only the *first* configured root as
+    ``org_root``; wrapping that as a singleton would hide artifacts — and the
+    per-artifact fetch recovery emitted for their over-inline-limit bodies —
+    that live only in a second-or-later configured pack, so the recovery
+    command would report a catalog miss. The supplied root keeps precedence
+    (rendered first) and the remaining configured roots follow in order.
+    Returns ``None`` when no roots apply so callers stay on the built-in /
+    project fast path (byte-stable when no org packs are configured, NFR-001).
+    """
+    configured_roots = _existing_org_roots(repo_root)
+    if org_root is None:
+        return configured_roots or None
+    return [org_root, *(root for root in configured_roots if root != org_root)]
+
+
 def build_charter_context_include(
     repo_root: Path,
     selector: str,
@@ -337,21 +365,11 @@ def build_charter_context_include(
         raise ValueError("Expected --include selector in '<kind>:<id>' form.")
 
     if kind == "section":
-        canonical_root = _bundle_root_for_json(repo_root)
-        charter_path = canonical_root / CHARTER_MD
-        if not charter_path.exists():
-            raise ValueError("No charter.md found for section selector.")
-        charter_content = charter_path.read_text(encoding="utf-8")
-        section = render_critical_section_include(
-            charter_content,
-            identifier,
-            action=action.strip().lower() if action else None,
+        return _render_section_include(
+            repo_root, selector, identifier, action, org_root=org_root
         )
-        if section is None:
-            raise ValueError(f"No charter section found for selector '{selector}'.")
-        return str(section)
 
-    org_roots = [org_root] if org_root is not None else None
+    org_roots = _merged_include_org_roots(repo_root, org_root)
 
     if kind == "artifact":
         return _render_generic_artifact_selector(repo_root, identifier, org_roots)
@@ -406,6 +424,75 @@ def build_charter_context_include(
         return artifact
 
     raise ValueError(f"Unsupported --include selector kind '{kind}'.")
+
+
+def _render_section_include(
+    repo_root: Path,
+    selector: str,
+    identifier: str,
+    action: str | None,
+    *,
+    org_root: Path | None = None,
+) -> str:
+    """Resolve a ``section:<id>`` fetch selector.
+
+    ``section:charter-selections`` is the aggregate governance selector emitted
+    by the token-budget substitution loop and is handled specially; every other
+    identifier addresses a charter heading (a ``critical-<action>`` bundle or a
+    known heading slug) rendered from ``charter.md``.
+    """
+    if identifier == CHARTER_SELECTIONS_SELECTOR_ID:
+        return _render_charter_selections_include(repo_root, org_root=org_root)
+    canonical_root = _bundle_root_for_json(repo_root)
+    charter_path = canonical_root / CHARTER_MD
+    if not charter_path.exists():
+        raise ValueError("No charter.md found for section selector.")
+    charter_content = charter_path.read_text(encoding="utf-8")
+    section = render_critical_section_include(
+        charter_content,
+        identifier,
+        action=action.strip().lower() if action else None,
+    )
+    if section is None:
+        raise ValueError(f"No charter section found for selector '{selector}'.")
+    return str(section)
+
+
+def _render_charter_selections_include(
+    repo_root: Path,
+    *,
+    org_root: Path | None = None,
+) -> str:
+    """Render the aggregate ``section:charter-selections`` fetch selector.
+
+    The WP05 token-budget substitution loop (:func:`_enforce_token_budget`)
+    swaps the whole charter-selected artifact block for a single fetch stanza
+    when a compact context runs over the NFR-001 budget. That stanza points the
+    agent at ``--include section:charter-selections``; this handler re-renders
+    the selected governance (using the same org-root-aware service the compact
+    renderer used) so the recovery command resolves instead of failing closed
+    with "No charter section found". Raises when no artifacts are selected.
+
+    When the caller supplies an explicit ``org_root`` (e.g. the CLI passes the
+    first configured root, or a snapshot pack not recorded in the project
+    config) it takes precedence but is *merged* with every configured org root
+    rather than replacing them. The compact renderer builds its selection
+    service from all configured roots, so a selection deferred from the second-
+    or-later pack would otherwise degrade to a catalog miss when the recovery
+    command ran with just that singleton root.
+    """
+    doctrine_selection = _load_doctrine_selection(repo_root)
+    org_roots = _merged_include_org_roots(repo_root, org_root)
+    service = _build_doctrine_service(repo_root, org_roots=org_roots)
+    block = _render_selection_block(
+        doctrine_selection, service, repo_root=repo_root
+    )
+    if not block:
+        raise ValueError(
+            "No charter-selected artifacts found for selector "
+            f"'section:{CHARTER_SELECTIONS_SELECTOR_ID}'."
+        )
+    return block
 
 
 def _render_template_include(
@@ -1155,6 +1242,7 @@ def _render_bootstrap_text(
         action=action,
         profile_block=profile_block,
         section_block=section_block,
+        selection_block=selection_block,
     )
 
 
@@ -1164,6 +1252,7 @@ def _enforce_token_budget(
     action: str,
     profile_block: str,
     section_block: str,
+    selection_block: str = "",
     budget: int = BUDGET_DEFAULT,
 ) -> str:
     """Apply the NFR-001 token budget to *text* (WP05).
@@ -1177,6 +1266,7 @@ def _enforce_token_budget(
     Substitution preference (in order of preferred swap):
       1. action-critical section bodies (`section_block`) — largest
       2. profile-cited directives + tactics (`profile_block`)
+      3. charter-selected artifacts (`selection_block`)
 
     Authority paths and core action-doctrine sections stay inline (they
     are small + critical to the prompt's actionable surface, per
@@ -1216,6 +1306,18 @@ def _enforce_token_budget(
                 when_doing_clause=(
                     "need to consult the profile-cited directives and tactics"
                 ),
+                substitutable=True,
+                indent="  ",
+            )
+        )
+    if selection_block:
+        candidates.append(
+            RenderedSection(
+                section_id="selected-charter-artifacts",
+                header="",
+                body=selection_block,
+                selector=f"section:{CHARTER_SELECTIONS_SELECTOR_ID}",
+                when_doing_clause="need to consult the selected charter artifacts",
                 substitutable=True,
                 indent="  ",
             )
@@ -2839,9 +2941,13 @@ def _render_compact_governance(
     if section_block_str:
         augmented_blocks.append(section_block_str)
 
+    selection_service = _build_doctrine_service(
+        repo_root,
+        org_roots=_existing_org_roots(repo_root) or None,
+    )
     selection_block_str = _render_selection_block(
         doctrine_selection,
-        _build_doctrine_service(repo_root),
+        selection_service,
         repo_root=repo_root,
     )
     if selection_block_str:
@@ -2870,6 +2976,7 @@ def _render_compact_governance(
         action=action or "",
         profile_block=profile_block_str,
         section_block=section_block_str,
+        selection_block=selection_block_str,
     )
 
 

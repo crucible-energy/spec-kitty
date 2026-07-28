@@ -34,6 +34,7 @@ from ruamel.yaml.error import YAMLError
 
 import charter.context as context_module
 from charter.context import (
+    CHARTER_SELECTIONS_SELECTOR_ID,
     _PROFILE_INLINE_BODY_LIMIT_CHARS,
     _SELECTED_AGENT_PROFILES_HEADER,
     _SELECTED_MISSION_STEP_CONTRACTS_HEADER,
@@ -409,6 +410,195 @@ class TestFetchSelectorRecovery:
             context_module.build_charter_context_include(
                 tmp_path,
                 "section:regression-vigilance",
+            )
+
+    def test_charter_selections_selector_round_trips_through_context_include(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        # The token-budget loop swaps the whole selection block for a fetch
+        # stanza pointing at ``section:charter-selections``; that recovery
+        # command must re-render the selected governance rather than fail
+        # closed on an unknown charter section.
+        directive = _DummyDirective(
+            title="Security Baseline", intent="Never leak secrets."
+        )
+        service = _StubService(directives=_StubRepo(items={"DIRECTIVE_999": directive}))
+        selection = DoctrineSelectionConfig(selected_directives=["DIRECTIVE_999"])
+        monkeypatch.setattr(
+            context_module,
+            "_load_doctrine_selection",
+            lambda _repo_root: selection,
+        )
+        monkeypatch.setattr(
+            context_module,
+            "_build_doctrine_service",
+            lambda repo_root, org_roots=None: service,
+        )
+
+        text = context_module.build_charter_context_include(
+            tmp_path,
+            f"section:{CHARTER_SELECTIONS_SELECTOR_ID}",
+        )
+
+        assert "Selected directives:" in text
+        assert "DIRECTIVE_999" in text
+        assert "Never leak secrets." in text
+
+    def test_charter_selections_selector_prefers_supplied_org_root(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        # A caller-supplied org_root (e.g. a snapshot pack absent from the
+        # project config) must be threaded through to the doctrine service so
+        # an artifact living only in that pack renders instead of degrading to
+        # a catalog miss.
+        directive = _DummyDirective(
+            title="Snapshot Directive", intent="Only in the supplied pack."
+        )
+        service = _StubService(directives=_StubRepo(items={"DIRECTIVE_777": directive}))
+        selection = DoctrineSelectionConfig(selected_directives=["DIRECTIVE_777"])
+        captured: list[Any] = []
+
+        def _spy_doctrine_service(repo_root: Path, org_roots: Any = None) -> _StubService:
+            captured.append(org_roots)
+            return service
+
+        monkeypatch.setattr(
+            context_module,
+            "_load_doctrine_selection",
+            lambda _repo_root: selection,
+        )
+        monkeypatch.setattr(
+            context_module,
+            "_build_doctrine_service",
+            _spy_doctrine_service,
+        )
+
+        supplied_root = tmp_path / "snapshot-pack"
+        text = context_module.build_charter_context_include(
+            tmp_path,
+            f"section:{CHARTER_SELECTIONS_SELECTOR_ID}",
+            org_root=supplied_root,
+        )
+
+        assert captured == [[supplied_root]]
+        assert "Only in the supplied pack." in text
+
+    def test_charter_selections_selector_merges_supplied_and_configured_roots(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        # The CLI passes only the first configured root as org_root; the
+        # handler must merge it with the remaining configured roots (preserving
+        # precedence) so a selection deferred from a later pack is still
+        # reproduced rather than dropped to a catalog miss.
+        root_a = tmp_path / "pack-a"
+        root_b = tmp_path / "pack-b"
+        selection = DoctrineSelectionConfig(selected_directives=["DIRECTIVE_777"])
+        captured: list[Any] = []
+
+        def _spy_doctrine_service(repo_root: Path, org_roots: Any = None) -> _StubService:
+            captured.append(org_roots)
+            return _StubService(
+                directives=_StubRepo(
+                    items={
+                        "DIRECTIVE_777": _DummyDirective(
+                            title="Later Pack", intent="Only in pack-b."
+                        )
+                    }
+                )
+            )
+
+        monkeypatch.setattr(
+            context_module,
+            "_load_doctrine_selection",
+            lambda _repo_root: selection,
+        )
+        monkeypatch.setattr(
+            context_module,
+            "_existing_org_roots",
+            lambda _repo_root: [root_a, root_b],
+        )
+        monkeypatch.setattr(
+            context_module,
+            "_build_doctrine_service",
+            _spy_doctrine_service,
+        )
+
+        context_module.build_charter_context_include(
+            tmp_path,
+            f"section:{CHARTER_SELECTIONS_SELECTOR_ID}",
+            org_root=root_a,
+        )
+
+        # root_a stays first (precedence) and root_b is retained, not discarded.
+        assert captured == [[root_a, root_b]]
+
+    def test_doctrine_artifact_include_preserves_all_configured_roots(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        # A per-artifact fetch (e.g. directive:<id>) emitted for an
+        # over-inline-limit body must resolve against every configured org
+        # root, not just the first one the CLI supplies as org_root, so a
+        # later-pack artifact is returned instead of a catalog miss.
+        root_a = tmp_path / "pack-a"
+        root_b = tmp_path / "pack-b"
+        directive = _DummyDirective(
+            title="Later Pack Directive", intent="Only in pack-b."
+        )
+        service = _StubService(directives=_StubRepo(items={"DIRECTIVE_888": directive}))
+        captured: list[Any] = []
+
+        def _spy_doctrine_service(repo_root: Path, org_roots: Any = None) -> _StubService:
+            captured.append(org_roots)
+            return service
+
+        monkeypatch.setattr(
+            context_module,
+            "_existing_org_roots",
+            lambda _repo_root: [root_a, root_b],
+        )
+        monkeypatch.setattr(
+            context_module,
+            "_build_doctrine_service",
+            _spy_doctrine_service,
+        )
+
+        text = context_module.build_charter_context_include(
+            tmp_path,
+            "directive:DIRECTIVE_888",
+            org_root=root_a,
+        )
+
+        assert captured == [[root_a, root_b]]
+        assert "Only in pack-b." in text
+
+    def test_charter_selections_selector_fails_closed_when_empty(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        monkeypatch.setattr(
+            context_module,
+            "_load_doctrine_selection",
+            lambda _repo_root: DoctrineSelectionConfig(),
+        )
+        monkeypatch.setattr(
+            context_module,
+            "_build_doctrine_service",
+            lambda repo_root, org_roots=None: _StubService(),
+        )
+
+        with pytest.raises(ValueError, match="No charter-selected artifacts found"):
+            context_module.build_charter_context_include(
+                tmp_path,
+                f"section:{CHARTER_SELECTIONS_SELECTOR_ID}",
             )
 
     def test_selected_styleguide_include_recovers_body(self) -> None:
