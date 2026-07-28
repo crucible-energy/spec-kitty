@@ -328,19 +328,31 @@ persona automatically.
 
 ### GitHub Actions Workflow Changes
 
-If this WP adds or modifies `.github/workflows/*`, finish the mission's coherent,
-locally validated slice before opening a full, non-draft PR:
+If this WP adds or modifies `.github/workflows/*`, do **not** open a PR at the WP
+level just to exercise the workflow on a hosted runner. The mission PR is opened by
+`mission-wrap-up-sequence` only after every WP is approved and the lanes are
+consolidated, so a per-WP PR would be premature and could not be the
+full, non-draft, merge-ready slice the full-PR policy requires. Validate the
+change locally and defer the hosted Actions run to the mission PR:
 
-1. Push the WP branch.
-2. Open a full PR so the workflow runs on a real GitHub Actions runner.
-3. Iterate until the changed workflow has a successful run.
-4. Record the successful run ID or Actions URL in `kitty-specs/<mission>/workflow-evidence.md`.
-5. Only then move the WP to `for_review`.
+1. Validate the workflow change locally (static lint such as `actionlint`, plus any
+   affected unit/integration checks), then move the WP to `for_review` on that
+   basis, exactly like any other WP.
+2. In `kitty-specs/<mission>/workflow-evidence.md`, record the deferral so
+   `spec-kitty accept` recognises it before the mission PR exists: add the exact
+   line `Hosted Actions run deferred to the mission PR`, then note the local
+   validation performed. The real run ID or URL replaces this once the mission PR
+   runs (step 3).
+3. At mission close-out the wrap-up sequence opens the mission PR. Open a full PR
+   (never a draft) at that point so the workflow runs on a real GitHub Actions
+   runner, then capture the successful run ID or Actions URL in
+   `workflow-evidence.md` and resolve any failure with focused validation before
+   hand-off.
 
 Do not open a pull request solely to use a runner, and never use GitHub's draft state
 as a staging mechanism.
 
-The reviewer will then use `/ad-hoc-profile-load` with the reviewer profile and apply
+The reviewer will use `/ad-hoc-profile-load` with the reviewer profile and apply
 its self-review gates automatically.
 
 ---

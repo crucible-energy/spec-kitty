@@ -529,6 +529,112 @@ def test_changed_workflow_files_three_dot_two_arg_equivalence(tmp_path: Path) ->
     assert result == expected
 
 
+def test_changed_workflow_files_prefer_remote_base_survives_local_landing(tmp_path: Path) -> None:
+    """The final handoff gate must diff the PR branch against ``origin/<target>``.
+
+    Reproduces the publish flow: ``spec-kitty merge`` has already integrated the
+    mission into LOCAL ``main`` (which now carries the workflow change), and the
+    PR branch is cut from that same local tip. Diffing against local ``main``
+    therefore compares two identical commits and hides the change, so the
+    pre-repoint local-first base would report nothing to gate on. Diffing against
+    ``origin/<target>`` (which still lacks the change) surfaces it, which is why
+    ``prefer_remote_base=True`` is threaded from
+    ``--require-hosted-workflow-evidence``.
+    """
+    repo_root, feature_dir = _create_test_feature(tmp_path)
+    subprocess.run(["git", "-C", str(repo_root), "branch", "-M", "main"], check=True, capture_output=True)
+
+    pre_change_sha = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    # origin/main is pinned to the pre-landing tip (it still lacks the change).
+    subprocess.run(
+        ["git", "-C", str(repo_root), "update-ref", "refs/remotes/origin/main", pre_change_sha],
+        check=True,
+        capture_output=True,
+    )
+
+    # spec-kitty merge has already landed the mission (workflow change) on LOCAL main.
+    workflow_path = repo_root / ".github" / "workflows" / "ci.yml"
+    workflow_path.parent.mkdir(parents=True)
+    workflow_path.write_text("name: CI\non: [pull_request]\njobs: {}\n")
+    subprocess.run(["git", "-C", str(repo_root), "add", ".github/workflows/ci.yml"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo_root), "commit", "-m", "Land mission workflow on local main"], check=True, capture_output=True)
+
+    # The PR branch is cut from the freshly-landed local main (identical tip).
+    subprocess.run(["git", "-C", str(repo_root), "checkout", "-b", "pr/workflow-mission"], check=True, capture_output=True)
+
+    # Local-first base compares main..main (same tip) and hides the change.
+    assert _changed_workflow_files(repo_root, feature_dir, "pr/workflow-mission", prefer_remote_base=False) == []
+    # Remote-first base compares origin/main..HEAD and surfaces the change.
+    assert _changed_workflow_files(repo_root, feature_dir, "pr/workflow-mission", prefer_remote_base=True) == [
+        ".github/workflows/ci.yml"
+    ]
+
+
+def test_changed_workflow_files_prefer_remote_base_uses_upstream_tracking(tmp_path: Path) -> None:
+    """Final mode bases on the target's upstream tracking ref, not a stale fork origin.
+
+    In the fork workflow (`docs/development/onboarding-run.md`) `origin` is the
+    contributor fork and `upstream/main` is the true PR base. When the fork's
+    `origin/main` is stale and `upstream` has landed a workflow change, the mission
+    branch (cut from recent upstream) already carries that upstream-only change.
+    Hardcoding stale `origin/main` as the base would mis-attribute it to this
+    mission and demand hosted evidence; basing on the tracked `upstream/main`
+    correctly excludes it.
+    """
+    repo_root, feature_dir = _create_test_feature(tmp_path)
+    subprocess.run(["git", "-C", str(repo_root), "branch", "-M", "main"], check=True, capture_output=True)
+
+    # Fork's origin/main is stale: it pre-dates the upstream workflow change.
+    stale_origin_sha = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "HEAD"], check=True, capture_output=True, text=True
+    ).stdout.strip()
+    subprocess.run(
+        ["git", "-C", str(repo_root), "update-ref", "refs/remotes/origin/main", stale_origin_sha],
+        check=True,
+        capture_output=True,
+    )
+
+    # Upstream lands a workflow change; upstream/main is the true PR base.
+    workflow_path = repo_root / ".github" / "workflows" / "ci.yml"
+    workflow_path.parent.mkdir(parents=True)
+    workflow_path.write_text("name: CI\non: [pull_request]\njobs: {}\n")
+    subprocess.run(["git", "-C", str(repo_root), "add", ".github/workflows/ci.yml"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo_root), "commit", "-m", "Upstream workflow change"], check=True, capture_output=True)
+    upstream_sha = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "HEAD"], check=True, capture_output=True, text=True
+    ).stdout.strip()
+    # Register the upstream remote with a fetch refspec so `main@{upstream}`
+    # resolves, mirroring a fork clone, then seed its remote-tracking ref.
+    subprocess.run(
+        ["git", "-C", str(repo_root), "remote", "add", "upstream", "https://example.invalid/upstream.git"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo_root), "update-ref", "refs/remotes/upstream/main", upstream_sha],
+        check=True,
+        capture_output=True,
+    )
+    # Local main tracks upstream/main, mirroring a fork clone.
+    subprocess.run(["git", "-C", str(repo_root), "config", "branch.main.remote", "upstream"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo_root), "config", "branch.main.merge", "refs/heads/main"], check=True, capture_output=True)
+
+    # The mission branch is cut from recent upstream and touches only source.
+    subprocess.run(["git", "-C", str(repo_root), "checkout", "-b", "kitty/mission-x-lane-a"], check=True, capture_output=True)
+    (repo_root / "src" / "mission_only.py").write_text("y = 2\n")
+    subprocess.run(["git", "-C", str(repo_root), "add", "src/mission_only.py"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo_root), "commit", "-m", "Mission source change"], check=True, capture_output=True)
+
+    # upstream/main is the resolved base, so the upstream-only workflow change is
+    # NOT attributed to this mission (a naive stale-origin base would return it).
+    assert _changed_workflow_files(repo_root, feature_dir, "kitty/mission-x-lane-a", prefer_remote_base=True) == []
+
+
 @pytest.mark.parametrize(
     ("evidence", "expected"),
     [
@@ -560,6 +666,66 @@ def test_collect_feature_summary_parses_plain_workflow_run_ids(
     summary = collect_feature_summary(repo_root, _FEATURE_SLUG)
     has_issue = any("Workflow run evidence required" in issue for issue in summary.activity_issues)
     assert has_issue is not expected
+
+
+@pytest.mark.parametrize(
+    "evidence",
+    [
+        "Hosted Actions run deferred to the mission PR. Local validation: actionlint passed.\n",
+        "Local checks green.\nhosted run deferred to the mission pr\n",
+    ],
+)
+def test_collect_feature_summary_allows_workflow_changes_with_deferral_marker(
+    tmp_path: Path, evidence: str
+) -> None:
+    """The full-PR policy defers the hosted run to the mission PR; a documented
+    deferral must satisfy pre-PR ``accept`` so the close-out sequence is not
+    deadlocked before it can open the PR that produces the run."""
+    repo_root, feature_dir = _create_test_feature(tmp_path)
+    subprocess.run(["git", "-C", str(repo_root), "branch", "-M", "main"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo_root), "checkout", "-b", "kitty/mission-workflow-lane-a"], check=True, capture_output=True)
+
+    workflow_path = repo_root / ".github" / "workflows" / "ci.yml"
+    workflow_path.parent.mkdir(parents=True)
+    workflow_path.write_text("name: CI\non: [pull_request]\njobs: {}\n")
+    (feature_dir / "workflow-evidence.md").write_text(evidence)
+    subprocess.run(
+        ["git", "-C", str(repo_root), "add", ".github/workflows/ci.yml", f"kitty-specs/{_FEATURE_SLUG}/workflow-evidence.md"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(["git", "-C", str(repo_root), "commit", "-m", "Add workflow with deferral marker"], check=True, capture_output=True)
+
+    summary = collect_feature_summary(repo_root, _FEATURE_SLUG)
+    assert not any("Workflow run evidence required" in issue for issue in summary.activity_issues)
+
+
+def test_collect_feature_summary_requires_hosted_evidence_after_pr(tmp_path: Path) -> None:
+    """A pre-PR deferral cannot satisfy the final hosted-evidence validation."""
+    repo_root, feature_dir = _create_test_feature(tmp_path)
+    subprocess.run(["git", "-C", str(repo_root), "branch", "-M", "main"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo_root), "checkout", "-b", "kitty/mission-workflow-lane-a"], check=True, capture_output=True)
+
+    workflow_path = repo_root / ".github" / "workflows" / "ci.yml"
+    workflow_path.parent.mkdir(parents=True)
+    workflow_path.write_text("name: CI\non: [pull_request]\njobs: {}\n")
+    (feature_dir / "workflow-evidence.md").write_text(
+        "Hosted Actions run deferred to the mission PR. Local validation: actionlint passed.\n"
+    )
+    subprocess.run(
+        ["git", "-C", str(repo_root), "add", ".github/workflows/ci.yml", f"kitty-specs/{_FEATURE_SLUG}/workflow-evidence.md"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(["git", "-C", str(repo_root), "commit", "-m", "Add deferred workflow evidence"], check=True, capture_output=True)
+
+    summary = collect_feature_summary(
+        repo_root,
+        _FEATURE_SLUG,
+        require_hosted_workflow_evidence=True,
+    )
+
+    assert any("Workflow run evidence required" in issue for issue in summary.activity_issues)
 
 
 def test_collect_feature_summary_rejects_placeholder_workflow_evidence(tmp_path: Path) -> None:
