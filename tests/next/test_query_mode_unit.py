@@ -871,6 +871,35 @@ class TestQueryCurrentStateErrorPaths:
 
 
 class TestQueryModeErrorOutput:
+    def test_json_ambiguous_selector_returns_error_document(self, tmp_path: Path) -> None:
+        """An ambiguous Mission handle fails closed without corrupting JSON output."""
+        from specify_cli.missions._read_path_resolver import MissionSelectorAmbiguous
+
+        ambiguity = MissionSelectorAmbiguous(
+            handle="041",
+            candidates=["041-first-mission", "041-second-mission"],
+        )
+        with (
+            patch("specify_cli.cli.commands.next_cmd.locate_project_root", return_value=tmp_path),
+            patch(
+                "specify_cli.cli.commands.next_cmd._resolve_mission_slug",
+                side_effect=ambiguity,
+            ),
+            patch("runtime.next.runtime_bridge.query_current_state") as mock_query,
+        ):
+            result = runner.invoke(
+                cli_app,
+                ["next", "--mission", "041", "--json"],
+            )
+
+        assert result.exit_code == 1
+        mock_query.assert_not_called()
+        payload = json.loads(result.stdout)
+        assert payload["result"] == "error"
+        assert payload["error_code"] == "MISSION_AMBIGUOUS_SELECTOR"
+        assert payload["checked_paths"] == []
+        assert "full slug" in payload["next_step"]
+
     def test_json_query_validation_failure_returns_error_document(self, tmp_path: Path) -> None:
         from runtime.next.runtime_bridge import QueryModeValidationError
 

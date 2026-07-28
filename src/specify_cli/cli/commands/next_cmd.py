@@ -105,14 +105,15 @@ def next_step(
 
     from runtime.next.runtime_bridge import MissionNotFoundError as _MissionNotFoundError
     from specify_cli.missions._read_path_resolver import (
+        MissionSelectorAmbiguous as _MissionSelectorAmbiguous,
         StatusReadPathNotFound as _StatusReadPathNotFound,
     )
 
     try:
         mission_slug = _resolve_mission_slug(mission, repo_root)
-    except _StatusReadPathNotFound as _exc:
-        # FR-001 / C-IC02: preserve the typed read-path error (code + checked
-        # paths + read-path remediation) instead of collapsing to MISSION_NOT_FOUND.
+    except (_StatusReadPathNotFound, _MissionSelectorAmbiguous) as _exc:
+        # FR-001 / C-IC02: preserve typed resolution errors instead of collapsing
+        # an ambiguous handle into MISSION_NOT_FOUND or leaking a traceback.
         _emit_read_path_error(_exc, json_output)
         raise typer.Exit(1) from _exc
     except _MissionNotFoundError as _exc:
