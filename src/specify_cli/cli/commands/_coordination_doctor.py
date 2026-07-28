@@ -1126,27 +1126,31 @@ def _fix_stranded_reverts(
     return healed, warnings
 
 
-def _apply_never_created_fix(findings: list[DoctorFinding], repo_root: Path) -> None:
+def _apply_never_created_fix(
+    findings: list[DoctorFinding], repo_root: Path, *, json_output: bool
+) -> None:
     """Flatten missions with a stale ``coordination_branch`` key, then re-backfill topology."""
     fixable = [f for f in findings if f.error_code == "COORDINATION_WORKTREE_NEVER_CREATED"]
     if not fixable:
         return
     fixed_slugs = _fix_never_created_branches(fixable)
-    for slug in fixed_slugs:
-        console.print(
-            f"[green]Flattened:[/green] removed coordination_branch from {slug}/meta.json"
-        )
+    if not json_output:
+        for slug in fixed_slugs:
+            console.print(
+                f"[green]Flattened:[/green] removed coordination_branch from {slug}/meta.json"
+            )
     if fixed_slugs:
         from specify_cli.migration.backfill_topology import backfill_topology_repo
         backfill_topology_repo(repo_root)
-        console.print(
-            "[green]Topology backfilled.[/green] "
-            "Run `spec-kitty doctor coordination` to verify."
-        )
+        if not json_output:
+            console.print(
+                "[green]Topology backfilled.[/green] "
+                "Run `spec-kitty doctor coordination` to verify."
+            )
 
 
 def _apply_stranded_revert_fix(
-    findings: list[DoctorFinding], repo_root: Path
+    findings: list[DoctorFinding], repo_root: Path, *, json_output: bool
 ) -> list[DoctorFinding]:
     """Heal live coord strands (FR-007) via the shared repair primitive.
 
@@ -1155,16 +1159,17 @@ def _apply_stranded_revert_fix(
     post-fix findings — a safety-net fixer never silently drops a marker.
     """
     healed, warnings = _fix_stranded_reverts(findings, repo_root)
-    for slug in healed:
-        console.print(
-            f"[green]Healed:[/green] reverted the stranded coordination `done` and "
-            f"cleared the reconcile marker for {slug}."
-        )
+    if not json_output:
+        for slug in healed:
+            console.print(
+                f"[green]Healed:[/green] reverted the stranded coordination `done` and "
+                f"cleared the reconcile marker for {slug}."
+            )
     return warnings
 
 
 def _apply_coordination_fixes(
-    findings: list[DoctorFinding], repo_root: Path
+    findings: list[DoctorFinding], repo_root: Path, *, json_output: bool
 ) -> list[DoctorFinding]:
     """Run every registered ``--fix`` handler over the collected findings.
 
@@ -1181,8 +1186,8 @@ def _apply_coordination_fixes(
     step in :func:`run_coordination_health` — AFTER these idempotent,
     order-irrelevant fixers have already applied.
     """
-    _apply_never_created_fix(findings, repo_root)
-    return _apply_stranded_revert_fix(findings, repo_root)
+    _apply_never_created_fix(findings, repo_root, json_output=json_output)
+    return _apply_stranded_revert_fix(findings, repo_root, json_output=json_output)
 
 
 # ---------------------------------------------------------------------------
@@ -1247,7 +1252,7 @@ def _coord_staleness_fix_blocked_finding(
 
 
 def _fix_one_mission_coord_staleness(
-    repo_root: Path, mission_meta: dict[str, object],
+    repo_root: Path, mission_meta: dict[str, object], *, json_output: bool
 ) -> DoctorFinding | None:
     """Attempt the Gap-1 fast-forward for a single mission.
 
@@ -1300,14 +1305,17 @@ def _fix_one_mission_coord_staleness(
         ["git", "-C", str(worktree), "merge", "--ff-only", target_branch],
         check=True, capture_output=True, text=True,
     )
-    console.print(
-        f"[green]Fast-forwarded:[/green] coordination branch {coord_branch!r} "
-        f"({coord_sha[:8]} -> {target_sha[:8]}) to match target {target_branch!r}."
-    )
+    if not json_output:
+        console.print(
+            f"[green]Fast-forwarded:[/green] coordination branch {coord_branch!r} "
+            f"({coord_sha[:8]} -> {target_sha[:8]}) to match target {target_branch!r}."
+        )
     return None
 
 
-def _apply_coord_staleness_fixes(repo_root: Path) -> list[DoctorFinding]:
+def _apply_coord_staleness_fixes(
+    repo_root: Path, *, json_output: bool
+) -> list[DoctorFinding]:
     """FR-009 (Gap-1, C-003 minimized): fast-forward every coordinated mission's
     coord branch to ``target_branch`` -- and ONLY when that is unambiguously safe.
 
@@ -1329,7 +1337,7 @@ def _apply_coord_staleness_fixes(repo_root: Path) -> list[DoctorFinding]:
         meta = load_meta(mission_dir, on_malformed="none")
         if meta is None:
             continue
-        finding = _fix_one_mission_coord_staleness(repo_root, meta)
+        finding = _fix_one_mission_coord_staleness(repo_root, meta, json_output=json_output)
         if finding is not None:
             blocked.append(finding)
     return blocked
@@ -1393,12 +1401,16 @@ def run_coordination_health(
     findings = _collect_coordination_findings(repo_root, check_staleness=check_staleness)
 
     if fix:
-        fix_warnings = _apply_coordination_fixes(findings, repo_root)
+        fix_warnings = _apply_coordination_fixes(
+            findings, repo_root, json_output=json_output
+        )
         # FR-009 Gap-1: a per-mission unsafe precondition (diverged / dirty)
         # now returns a blocked-fix `error` finding (renata LOW) instead of
         # raising, so one mission's Gap-1 problem no longer aborts fixing
         # every OTHER mission processed in this run.
-        staleness_blocked = _apply_coord_staleness_fixes(repo_root)
+        staleness_blocked = _apply_coord_staleness_fixes(
+            repo_root, json_output=json_output
+        )
         # Re-collect findings after fix so the exit code reflects the new state,
         # then fold in any warnings/blocked-fix findings the fixers raised for
         # issues they could not heal (pruned worktree / unparseable /

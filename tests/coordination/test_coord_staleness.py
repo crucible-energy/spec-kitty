@@ -444,6 +444,32 @@ def test_c_dirty_worktree_fix_fails_loud(
     assert _porcelain(worktree) != ""
 
 
+@pytest.mark.git_repo
+@pytest.mark.non_sandbox
+def test_fix_json_output_is_parseable_for_flattened_mission(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``doctor coordination --fix --json`` emits only its result payload."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    mission_slug = "json-flatten-mission"
+    mission_dir = _seed_stale_meta(repo, mission_slug)
+
+    monkeypatch.setattr(cd, "locate_project_root", lambda: repo)
+    monkeypatch.setattr(cd, "_check_git_version", lambda: [])
+    monkeypatch.setattr(cd, "_check_tracked_worktrees_content", lambda _r: [])
+
+    with pytest.raises(typer.Exit) as exc:
+        cd.run_coordination_health(json_output=True, fix=True)
+
+    assert exc.value.exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == []
+    assert "coordination_branch" not in json.loads(
+        (mission_dir / "meta.json").read_text(encoding="utf-8")
+    )
+
+
 def _porcelain(worktree: Path) -> str:
     return subprocess.run(
         ["git", "-C", str(worktree), "status", "--porcelain"],
