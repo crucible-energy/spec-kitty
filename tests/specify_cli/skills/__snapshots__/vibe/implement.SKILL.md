@@ -329,9 +329,9 @@ persona automatically.
 If this WP adds or modifies `.github/workflows/*`, do **not** open a PR at the WP
 level just to exercise the workflow on a hosted runner. The mission PR is opened by
 `mission-wrap-up-sequence` only after every WP is approved and the lanes are
-consolidated, so a per-WP PR would be premature and could not be the merge-ready
-slice the full-PR policy requires. Validate the change locally and defer the hosted
-Actions run to the mission PR:
+consolidated, so a per-WP PR would be premature and could not be the
+full, non-draft, merge-ready slice the full-PR policy requires. Validate the
+change locally and defer the hosted Actions run to the mission PR:
 
 1. Validate the workflow change locally (static lint such as `actionlint`, plus any
    affected unit/integration checks), then move the WP to `for_review` on that

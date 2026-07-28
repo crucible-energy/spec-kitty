@@ -365,17 +365,18 @@ references:
   kind: directive
   title: Readable and Consistent Pull Requests
   summary: "Every mission branch and pull request an agent prepares must be readable,
-    consistent, and independently reviewed before it is handed to the operator. Concretely,
-    three properties are required and must not be traded away for speed: (1) LINEAR
-    history — the branch is rebased onto the current upstream base and carries a small
-    set of logically-sliced commits, never a tangle of merge and status commits (rebase
-    over merge); (2) CONSISTENT and COMPLETE scope — the branch finishes the work
-    it set out to do and does not defer genuinely small remaining items to a follow-up,
-    deferring only work that is genuinely high-effort or mission-sized; (3) INDEPENDENTLY
-    REVIEWED — the aggregate diff has had an independent review before, or in parallel
-    to, opening a full, non-draft PR, with real findings folded before hand-off. The
-    adversarial review squad (adversarial-squad-deployment) is the RECOMMENDED review
-    mechanism — not a mandated gate; it stays optional per its own doctrine.\n"
+    consistent, and supported by sufficient automated proof before it is handed to
+    the operator. Concretely, three properties are required and must not be traded
+    away for speed: (1) LINEAR history — the branch is rebased onto the current upstream
+    base and carries a small set of logically-sliced commits, never a tangle of merge
+    and status commits (rebase over merge); (2) CONSISTENT and COMPLETE scope — the
+    branch finishes the work it set out to do and does not defer genuinely small remaining
+    items to a follow-up, deferring only work that is genuinely high-effort or mission-sized;
+    (3) AUTOMATICALLY PROVEN — the rebased aggregate diff has passed its relevant
+    tests, type/lint checks, and applicable regression or architectural gates before
+    the agent opens a full, non-draft pull request. Draft pull requests are prohibited.
+    The adversarial review squad (adversarial-squad-deployment) may add signal, but
+    is optional and never a substitute for executable proof or a human-review gate.\n"
   source_path: ''
   local_path: _LIBRARY/directive-directive-046.md
 - id: TACTIC:acceptance-test-first
@@ -1807,13 +1808,14 @@ references:
 - id: PROCEDURE:mission-wrap-up-sequence
   kind: procedure
   title: Mission Wrap-Up Sequence
-  summary: "Drive a mission from \"all work packages approved\" to \"a clean, reviewable
-    full, non-draft pull request handed to the operator\" through one standing, repeatable close-out
-    sequence. The sequence makes the last mile deterministic: it verifies readiness,
-    resolves every tracked-issue verdict, subjects the aggregate diff to an independent
-    review, lands locally, compacts the branch into readable history, and opens a
-    full PR — so no mission ends in an ad-hoc, unreviewed, or messy state. It complements
-    (does not replace) the per-work-package implement/review loop.\n"
+  summary: "Drive a mission from \"all work packages approved\" to \"a clean, full,
+    non-draft pull request with automated evidence handed to the operator\" through
+    one standing, repeatable close-out sequence. The sequence makes the last mile deterministic:
+    it verifies readiness, resolves every tracked-issue verdict, lands the lanes locally,
+    compacts the branch into readable history, establishes aggregate automated proof
+    on the combined tree, and opens a full PR, so no mission ends in an ad-hoc, insufficiently
+    validated, or messy state. It complements (does not replace) the per-work-package
+    implement/review loop.\n"
   source_path: ''
   local_path: _LIBRARY/procedure-mission-wrap-up-sequence.md
 - id: PROCEDURE:post-merge-arch-gate-adjudication

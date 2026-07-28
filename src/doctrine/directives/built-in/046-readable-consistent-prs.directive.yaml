@@ -13,8 +13,8 @@ intent: >
   remaining items to a follow-up, deferring only work that is genuinely
   high-effort or mission-sized; (3) AUTOMATICALLY PROVEN — the rebased aggregate
   diff has passed its relevant tests, type/lint checks, and applicable regression
-  or architectural gates before the agent opens a full pull request. Draft pull
-  requests are prohibited. The adversarial review squad
+  or architectural gates before the agent opens a full, non-draft pull request.
+  Draft pull requests are prohibited. The adversarial review squad
   (adversarial-squad-deployment) may add signal, but is optional and never a
   substitute for executable proof or a human-review gate.
 enforcement: required

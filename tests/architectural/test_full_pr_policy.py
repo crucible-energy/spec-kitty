@@ -31,8 +31,8 @@ _POLICY_SOURCES: dict[str, str] = {
 # pull requests" / "MUST NOT open draft pull requests" (plural, no article),
 # "Draft pull requests are prohibited" (no leading verb), "(never draft)",
 # "non-draft PR only", and the "Draft-pull-request ... handoff" anti-pattern
-# whose body reads "Using a draft pull request ..." ("using" is not a matched
-# verb stem).
+# whose body names the prohibited practice with a gerund ("using" is not a
+# matched verb stem).
 _DRAFT_PR_OBJECT = r"draft (?:pull[ -]request|pr)s?"
 _DRAFT_PR_INSTRUCTION_VERBS = "open|create|submit|make|raise|file|start|prepare|use|push|send|publish"
 _DRAFT_PR_INSTRUCTION_PATTERNS: tuple[re.Pattern[str], ...] = (

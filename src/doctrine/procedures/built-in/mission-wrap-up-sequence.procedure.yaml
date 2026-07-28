@@ -111,9 +111,9 @@ steps:
     actor: agent
   - title: Open a full pull request and complete remote automation
     description: >
-      Push the mission branch and open a full PR against the upstream mainline only
-      after the coherent, complete slice has passed its local automated proof.
-      Draft pull requests are
+      Push the mission branch and open a full, non-draft PR against the upstream
+      mainline only after the coherent, complete slice has passed its local
+      automated proof. Draft pull requests are
       prohibited, and a PR must never be opened merely to solicit interim human feedback. The body states
       the change, exact automated-validation evidence, and any remaining merge
       blocker. Complete required remote checks and address actionable automated
@@ -159,7 +159,7 @@ anti_patterns:
       merges; the agent prepares and hands off.
   - name: Draft-pull-request or human-review handoff
     description: >
-      Using a draft pull request, opening a PR merely because a change exists, or
+      Using GitHub's draft state, opening a PR merely because a change exists, or
       treating human review as correctness evidence. A full PR follows
       sufficient automated proof for the coherent slice.
   - name: Unresolved issue verdicts at close

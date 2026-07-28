@@ -139,7 +139,8 @@ UNLOCKED — it is decided WITH the operator in step 2, not asserted here.>
 
 12. **Full PR + automated proof.** Only after the coherent, complete, rebased slice
     passes its relevant automated tests, type/lint checks, and regression/architecture
-    gates, open a full PR from the mission branch (`gh pr create`; never `--draft`).
+    gates, open a full, non-draft PR from the mission branch
+    (`gh pr create`; never `--draft`).
     Write a readable PR per DIRECTIVE_046 with the exact validation evidence and any
     remaining merge blocker. Complete required remote checks, address actionable
     automated findings, and reply to and resolve review threads whenever possible.
