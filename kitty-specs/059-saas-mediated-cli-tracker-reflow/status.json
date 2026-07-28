@@ -19,14 +19,14 @@
   "work_packages": {
     "WP01": {
       "actor": "user",
-      "force_count": 8,
+      "force_count": 9,
       "lane": "approved",
       "last_event_id": "01KN04WHFY2NHC6ZG8NCE4XRQG",
       "last_transition_at": "2026-03-30T19:52:44.798434+00:00"
     },
     "WP02": {
       "actor": "user",
-      "force_count": 4,
+      "force_count": 5,
       "lane": "approved",
       "last_event_id": "01KN042EKFTEQQNRC0QYB1S59D",
       "last_transition_at": "2026-03-30T19:38:29.871994+00:00"

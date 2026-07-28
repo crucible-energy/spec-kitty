@@ -33,21 +33,21 @@
     },
     "WP03": {
       "actor": "claude",
-      "force_count": 4,
+      "force_count": 5,
       "lane": "done",
       "last_event_id": "01KH152Y4ZFK1YX88K91CQNQNS",
       "last_transition_at": "2026-02-09T12:12:41.503655+00:00"
     },
     "WP04": {
       "actor": "codex",
-      "force_count": 3,
+      "force_count": 4,
       "lane": "done",
       "last_event_id": "01KH16A8JZ347JPAH0W144THRJ",
       "last_transition_at": "2026-02-09T12:34:10.143329+00:00"
     },
     "WP05": {
       "actor": "user",
-      "force_count": 3,
+      "force_count": 5,
       "lane": "done",
       "last_event_id": "01KH16HJD2KY198K7002PVNCZX",
       "last_transition_at": "2026-02-09T12:38:09.570595+00:00"
