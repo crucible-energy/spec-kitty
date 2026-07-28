@@ -289,6 +289,21 @@ def test_run_topology_audit_not_found(
     assert exc.value.exit_code == 1
 
 
+def test_run_topology_audit_json_not_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "kitty-specs").mkdir()
+    # JSON mode should emit a structured MISSION_NOT_FOUND payload and still exit(1).
+    _stub_placement_seam(monkeypatch, tmp_path / "nope")
+    with pytest.raises(typer.Exit) as exc:
+        ia.run_topology_audit(tmp_path, True, "999-nope")
+    assert exc.value.exit_code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["result"] == "error"
+    assert payload["error_code"] == "MISSION_NOT_FOUND"
+    assert payload["handle"] == "999-nope"
+
+
 def test_run_topology_audit_json_returns_clean(tmp_path: Path) -> None:
     specs = tmp_path / "kitty-specs"
     specs.mkdir()
