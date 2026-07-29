@@ -238,6 +238,26 @@ def test_doctor_identity_cli_json_returns_not_found_error(
     assert "mission list" in payload["next_step"].lower()
 
 
+def test_doctor_topology_cli_json_returns_ambiguous_selector_error(
+    colliding_080_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A scoped topology audit returns a JSON error for an ambiguous Mission."""
+    monkeypatch.setattr(
+        "specify_cli.cli.commands.doctor.locate_project_root",
+        lambda: colliding_080_repo,
+    )
+
+    result = CliRunner().invoke(doctor_app, ["topology", "--mission", "080", "--json"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    assert payload["result"] == "error"
+    assert payload["error_code"] == "MISSION_AMBIGUOUS_SELECTOR"
+    assert payload["handle"] == "080"
+    assert set(payload["candidates"]) == {"080-bar", "080-baz", "080-foo"}
+
+
 # ---------------------------------------------------------------------------
 # 2. Ambiguous handle — bare "080" must raise
 # ---------------------------------------------------------------------------
