@@ -374,11 +374,10 @@ def run_topology_audit(repo_root: Path, json_output: bool, mission: str | None) 
 
     *repo_root* is resolved + injected by the ``doctor.py`` command shell.
     """
-    if mission is not None and not _collect_topology_rows(repo_root, mission):
-        console.print(f"[red]Error:[/red] Mission not found: {mission!r}")
-        raise typer.Exit(1)
-
     rows = _collect_topology_rows(repo_root, mission)
+    if mission is not None and not rows:
+        _emit_mission_not_found_error(mission, json_output)
+        raise typer.Exit(1)
 
     if json_output:
         report = {"missions": rows}
