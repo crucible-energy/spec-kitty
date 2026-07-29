@@ -794,7 +794,7 @@ class TestFetchSelectorRecovery:
         assert "Styleguide caveman-comments: Caveman" in text
         assert "Prefer concrete names." in text
 
-    def test_generic_artifact_selector_recovers_project_local_directive(
+    def test_generic_artifact_selector_prefers_project_local_directive(
         self,
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
@@ -831,9 +831,45 @@ class TestFetchSelectorRecovery:
         assert "Directive DIR-014: Pull-Request Review Closure" in text
         assert "Source: project charter" in text
         assert "Reply directly on each addressed review thread." in text
-        assert doctrine_calls == [], (
-            "local directive must resolve before probing shipped doctrine"
+        assert doctrine_calls == [tmp_path]
+
+    def test_generic_artifact_selector_rejects_local_cross_kind_ambiguity(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        local_directive = SimpleNamespace(
+            title="Local directive",
+            description="Project-local authority.",
+            severity="warn",
         )
+        service = _StubService(
+            tactics=_StubRepo(
+                items={
+                    "shared-id": _DummyTactic(
+                        name="Shared tactic",
+                        purpose="A cross-kind collision.",
+                        steps=[],
+                    )
+                }
+            )
+        )
+        monkeypatch.setattr(
+            context_module,
+            "_load_local_directives",
+            lambda _repo_root: {"shared-id": local_directive},
+        )
+        monkeypatch.setattr(
+            context_module,
+            "_build_doctrine_service",
+            lambda repo_root, org_roots=None: service,
+        )
+
+        with pytest.raises(ValueError, match="Ambiguous artifact selector"):
+            context_module.build_charter_context_include(
+                tmp_path,
+                "artifact:shared-id",
+            )
 
     def test_generic_artifact_selector_fails_closed_on_ambiguous_match(
         self,
