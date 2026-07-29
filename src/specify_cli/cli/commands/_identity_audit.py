@@ -112,7 +112,10 @@ def _emit_mission_not_found_error(handle: str, json_output: bool) -> None:
             "error_code": "MISSION_NOT_FOUND",
             "error": message,
             "handle": handle,
-            "next_step": "Run 'spec-kitty mission list' to see available missions.",
+            "next_step": (
+                "Run 'spec-kitty doctor identity --json' without --mission "
+                "to list valid Mission selectors."
+            ),
         }
         sys.stdout.write(json.dumps(payload, indent=2) + "\n")
         sys.stdout.flush()

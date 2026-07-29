@@ -607,15 +607,22 @@ def _render_generic_artifact_selector(
     identifier: str,
     org_roots: list[Path] | None,
 ) -> str:
-    """Render a generic artifact selector, preferring local directives."""
+    """Render a generic artifact selector with local-directive precedence."""
     local_directive = _load_local_directives(repo_root).get(identifier)
-    if local_directive is not None:
-        return _render_local_directive_include(local_directive, identifier)
     service = _build_doctrine_service(repo_root, org_roots=org_roots)
-    return _render_generic_artifact_include(service, identifier)
+    return _render_generic_artifact_include(
+        service,
+        identifier,
+        local_directive=local_directive,
+    )
 
 
-def _render_generic_artifact_include(service: object, identifier: str) -> str:
+def _render_generic_artifact_include(
+    service: object,
+    identifier: str,
+    *,
+    local_directive: object | None = None,
+) -> str:
     """Resolve a best-effort ``artifact:<id>`` selector emitted by activations."""
 
     from doctrine.artifact_kinds import _NON_AUGMENTATION_ELIGIBLE_KINDS, ArtifactKind
@@ -629,11 +636,18 @@ def _render_generic_artifact_include(service: object, identifier: str) -> str:
     # (WP06) — no private single-member ``is not TEMPLATE`` check may be
     # re-declared here or elsewhere in the charter cascade.
     matches: list[tuple[str, str]] = []
+    if local_directive is not None:
+        matches.append(
+            ("directive", _render_local_directive_include(local_directive, identifier))
+        )
+
     for candidate_kind in (
         member.value
         for member in ArtifactKind
         if member not in _NON_AUGMENTATION_ELIGIBLE_KINDS
     ):
+        if candidate_kind == "directive" and local_directive is not None:
+            continue
         selector = f"{candidate_kind}:{identifier}"
         try:
             rendered: str | None

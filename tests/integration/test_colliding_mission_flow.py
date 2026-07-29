@@ -235,7 +235,8 @@ def test_doctor_identity_cli_json_returns_not_found_error(
     assert payload["result"] == "error"
     assert payload["error_code"] == "MISSION_NOT_FOUND"
     assert payload["handle"] == "999"
-    assert "mission list" in payload["next_step"].lower()
+    assert "doctor identity" in payload["next_step"].lower()
+    assert "without --mission" in payload["next_step"].lower()
 
 
 def test_doctor_topology_cli_json_returns_ambiguous_selector_error(
