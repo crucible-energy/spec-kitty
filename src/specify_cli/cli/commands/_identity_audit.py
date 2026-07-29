@@ -374,7 +374,11 @@ def run_topology_audit(repo_root: Path, json_output: bool, mission: str | None) 
 
     *repo_root* is resolved + injected by the ``doctor.py`` command shell.
     """
-    rows = _collect_topology_rows(repo_root, mission)
+    try:
+        rows = _collect_topology_rows(repo_root, mission)
+    except MissionSelectorAmbiguous as exc:
+        _emit_ambiguous_selector_error(exc, json_output)
+        raise typer.Exit(1) from exc
     if mission is not None and not rows:
         _emit_mission_not_found_error(mission, json_output)
         raise typer.Exit(1)
