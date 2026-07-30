@@ -342,19 +342,39 @@ def test_doctor_doctrine_human_and_json_share_one_report(
 # T038 — NFR-001: ≤2s on built-in + one project-layer profile
 # ---------------------------------------------------------------------------
 
+# Wall-clock gate for one report build, held at the 2s figure NFR-001 states:
+# the gate is the product requirement, so it is not widened to absorb runner
+# noise. This test takes a single cold ``perf_counter`` sample, and a shared CI
+# runner measured 2.026s for it inside the ``fast-tests-core-misc`` shard (run
+# 30476344385) on a diff touching only the upgrade migrations, with the same
+# shard green on the three preceding runs including the merge base. That shard
+# runs ``-n auto --dist loadfile``, so a co-scheduled worker's CPU contention
+# lands directly in the measurement. The fix is to remove the contention at the
+# root rather than to raise the number: the test carries ``@pytest.mark.timing``
+# and runs in the serial ``timing-nfr-serial`` job (``-m timing -n0``, in
+# ``quality-gate.needs``, so it still blocks merge), exactly as #2032 did for
+# the NFR-002 prompt-build latency gate.
+_REPORT_BUDGET_SECONDS = 2.0
 
+
+@pytest.mark.timing
 def test_doctor_doctrine_within_two_second_budget(
     repo_with_invalid_project_profile: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """NFR-001: report build stays well under the 2s budget (generous margin)."""
+    """NFR-001: report build stays well inside the wall-clock budget."""
     from specify_cli.cli.commands.doctor import _collect_profile_health
 
     monkeypatch.chdir(repo_with_invalid_project_profile)
     start = time.perf_counter()
     _collect_profile_health(repo_with_invalid_project_profile)
     elapsed = time.perf_counter() - start
-    assert elapsed < 2.0, f"report build exceeded 2s budget: {elapsed:.3f}s"
+    assert elapsed < _REPORT_BUDGET_SECONDS, (
+        f"report build took {elapsed:.3f}s, exceeding the "
+        f"{_REPORT_BUDGET_SECONDS:.1f}s NFR-001 budget. Investigate before "
+        "raising the budget — a contention-inflated sample is flat, a real "
+        "regression is consistent and a multiple."
+    )
 
 
 # ---------------------------------------------------------------------------

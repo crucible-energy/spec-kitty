@@ -47,6 +47,17 @@ class BaseMigration(ABC):
     # when the upgrade runner is invoked with include_worktrees=True.
     runs_on_worktrees: bool = True
 
+    # Worktree failures are normally advisory so an independent lane does not
+    # block a whole-project upgrade. Privacy or data-integrity migrations may
+    # opt in when reporting success while their required work remains would be
+    # misleading to operators.
+    worktree_failure_is_fatal: bool = False
+
+    # Re-run a recorded migration when its detector finds the legacy state
+    # again. This is reserved for cleanups that must remediate data written by
+    # an older executable with the same project schema version.
+    reapply_when_detected: bool = False
+
     @abstractmethod
     def detect(self, project_path: Path) -> bool:
         """Detect if this migration is needed based on project state.

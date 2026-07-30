@@ -2,7 +2,7 @@
 title: Trail Model
 description: 'Operator reference for the Phase 4 trail model: how every standalone spec-kitty dispatch writes an auditable JSONL trail for accountability, SaaS coherence, and provenance.'
 doc_status: active
-updated: '2026-06-15'
+updated: '2026-07-29'
 related:
 - docs/host-surface-parity.md
 ---
@@ -80,10 +80,13 @@ same Tier 1 JSONL file, immediately after the `started` event.
 **Clean invocations produce NO `glossary_checked` line.** This keeps Tier 1
 files minimal when there are no glossary issues to report.
 
+The event retains only aggregate diagnostics. Request-derived term surfaces,
+candidate definitions, and scanner error text are not written to the trail.
+
 Example `glossary_checked` event line:
 
 ```json
-{"event": "glossary_checked", "invocation_id": "01HXYZ...", "matched_urns": ["glossary:d93244e7"], "high_severity": [{"term": "lane", "conflict_type": "ambiguous_scope", "severity": "HIGH", "candidate_senses": ["execution lane (WP routing)", "git branch lane (worktree)"]}], "all_conflicts": [...], "tokens_checked": 8, "duration_ms": 2.7, "error_msg": null}
+{"event": "glossary_checked", "invocation_id": "01HXYZ...", "matched_urns": ["glossary:d93244e7"], "conflict_count": 1, "high_severity_count": 1, "tokens_checked": 8, "duration_ms": 2.7, "error_present": false}
 ```
 
 Readers that encounter `"event": "glossary_checked"` and do not recognise this
@@ -133,14 +136,14 @@ Tier 1 always written
 
 Projection is conditional on `CheckoutSyncRouting.effective_sync_enabled`. When sync is disabled for a checkout, no events are emitted — even if the user is authenticated. When sync is enabled and the user is authenticated, Spec Kitty consults `src/specify_cli/invocation/projection_policy.py::POLICY_TABLE` to decide per `(mode_of_work, event)` what to project.
 
-| mode_of_work | event | project | include_request_text | include_evidence_ref |
-|--------------|-------|---------|----------------------|----------------------|
+| mode_of_work | event | project | include_request_provenance | include_evidence_ref |
+|--------------|-------|---------|----------------------------|----------------------|
 | task_execution | started | yes | yes | no |
-| task_execution | completed | yes | yes | yes |
+| task_execution | completed | yes | no | yes |
 | task_execution | artifact_link | yes | no | no |
 | task_execution | commit_link | yes | no | no |
 | mission_step | started | yes | yes | no |
-| mission_step | completed | yes | yes | yes |
+| mission_step | completed | yes | no | yes |
 | mission_step | artifact_link | yes | no | no |
 | mission_step | commit_link | yes | no | no |
 | query | any | no | — | — |
@@ -166,7 +169,8 @@ Projection is additive. Events accumulate; there is no deletion, replay-based ov
 
 | Field | Treatment |
 |-------|-----------|
-| `request_text` | Retained as-written in local JSONL. No automatic redaction in 3.2. |
+| `request_summary` / `request_digest` | Newly emitted records retain only fixed wording and a SHA-256 correlation digest; raw request text is never written or projected. Historical raw v2 records remain readable for compatibility but are not re-emitted, and the Op-record migration rewrites them when it runs. |
+| Glossary term candidates | The dispatch chokepoint scans the request but emits no `TermCandidateObserved` event: an unknown surface is a verbatim request token, so persisting it would rebuild the raw-request trail in `.kittify/events/glossary/profile-invocation-*.events.jsonl`. The same migration redacts `term` in existing invocation-scoped events. Mission-scoped term harvesting is unaffected — its input is authored mission text. |
 | `governance_context_hash` | First 16 hex chars of SHA-256 only. Full governance context is never persisted. |
 | JSONL files | Persist indefinitely unless the operator purges `kitty-ops/`. |
 | SaaS propagation | Additive. No delete-on-disable in 3.2. |

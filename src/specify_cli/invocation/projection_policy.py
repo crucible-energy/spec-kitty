@@ -29,7 +29,7 @@ class EventKind(str, Enum):
 @dataclass(frozen=True)
 class ProjectionRule:
     project: bool
-    include_request_text: bool
+    include_request_provenance: bool
     include_evidence_ref: bool
 
 
@@ -42,13 +42,13 @@ POLICY_TABLE: dict[tuple[ModeOfWork, EventKind], ProjectionRule] = {
 
     # Task execution — full bodies projected; correlation events projected without bodies.
     (ModeOfWork.TASK_EXECUTION, EventKind.STARTED):       ProjectionRule(True, True,  False),
-    (ModeOfWork.TASK_EXECUTION, EventKind.COMPLETED):     ProjectionRule(True, True,  True),
+    (ModeOfWork.TASK_EXECUTION, EventKind.COMPLETED):     ProjectionRule(True, False, True),
     (ModeOfWork.TASK_EXECUTION, EventKind.ARTIFACT_LINK): ProjectionRule(True, False, False),
     (ModeOfWork.TASK_EXECUTION, EventKind.COMMIT_LINK):   ProjectionRule(True, False, False),
 
     # Mission step — same projection behaviour as task_execution.
     (ModeOfWork.MISSION_STEP, EventKind.STARTED):       ProjectionRule(True, True,  False),
-    (ModeOfWork.MISSION_STEP, EventKind.COMPLETED):     ProjectionRule(True, True,  True),
+    (ModeOfWork.MISSION_STEP, EventKind.COMPLETED):     ProjectionRule(True, False, True),
     (ModeOfWork.MISSION_STEP, EventKind.ARTIFACT_LINK): ProjectionRule(True, False, False),
     (ModeOfWork.MISSION_STEP, EventKind.COMMIT_LINK):   ProjectionRule(True, False, False),
 
@@ -60,7 +60,7 @@ POLICY_TABLE: dict[tuple[ModeOfWork, EventKind], ProjectionRule] = {
 }
 
 
-_DEFAULT_RULE = ProjectionRule(project=True, include_request_text=True, include_evidence_ref=True)
+_DEFAULT_RULE = ProjectionRule(project=True, include_request_provenance=True, include_evidence_ref=True)
 
 
 def resolve_projection(

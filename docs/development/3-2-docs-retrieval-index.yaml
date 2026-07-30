@@ -4489,7 +4489,7 @@ pages:
     divio_type: "none"
     abstract: "Canonical changelog for the Spec Kitty CLI and templates, following Keep a Changelog and Semantic Versioning, with added, breaking, and fixed entries per release."
     anchors:
-    - {slug: "unreleased-3-2-6", text: "[Unreleased] - 3.2.6", level: 2}
+    - {slug: "unreleased-3-2-7", text: "[Unreleased] - 3.2.7", level: 2}
     - {slug: "added", text: "✨ Added", level: 3}
     - {slug: "fixed", text: "🐛 Fixed", level: 3}
     - {slug: "changed", text: "♻️ Changed", level: 3}

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import sys
@@ -163,10 +164,11 @@ def _read_op_record(project: Path, invocation_id: str) -> list[dict[str, Any]]:
 
 def test_dispatch_with_profile_opens_task_execution_op(tmp_path: Path) -> None:
     project = _setup_project(tmp_path)
+    request = "implement the module"
 
     envelope = _invoke_json(
         project,
-        ["dispatch", "implement the feature", "--profile", "implementer-fixture", "--json"],
+        ["dispatch", request, "--profile", "implementer-fixture", "--json"],
     )
 
     record = _read_op_record(project, str(envelope["invocation_id"]))[0]
@@ -175,7 +177,9 @@ def test_dispatch_with_profile_opens_task_execution_op(tmp_path: Path) -> None:
     assert envelope["close_contract"]["evidence_flag"] == "--evidence"
     assert record["mode_of_work"] == "task_execution"
     assert record["profile_id"] == "implementer-fixture"
-    assert record["request_text"] == "implement the feature"
+    assert record["request_summary"] == "Request content withheld by local trail policy."
+    assert record["request_digest"] == f"sha256:{hashlib.sha256(request.encode()).hexdigest()}"  # noqa: TID251 - request digest is the contract under test
+    assert "request_text" not in record
 
 
 def test_dispatch_auto_routes_and_writes_single_started_record(tmp_path: Path) -> None:

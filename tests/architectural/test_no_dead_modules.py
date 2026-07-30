@@ -233,6 +233,14 @@ _CATEGORY_1_AUTO_DISCOVERED_MIGRATIONS: frozenset[str] = frozenset(
         # imported by runtime code. Test-exercised by
         # tests/upgrade/test_op_record_schema_v2_migration.py.
         "specify_cli.upgrade.migrations.m_3_3_0_op_record_schema_v2",
+        # 3.2.7 raw-request redaction pass for kitty-ops Op records: the sibling
+        # v2 schema migration above is pinned at target_version 3.2.0rc41 and is
+        # therefore unreachable for checkouts already upgraded past rc41, so the
+        # redaction ships as its own migration ID at the current version. Same
+        # sibling shape: auto-discovered via pkgutil.iter_modules +
+        # @MigrationRegistry.register, never statically imported by runtime code.
+        # Test-exercised by tests/upgrade/test_op_record_request_redaction_migration.py.
+        "specify_cli.upgrade.migrations.m_3_2_7_redact_op_requests",
         # 3.2.0rc45 standalone governance skill retirement migration:
         # auto-discovered via pkgutil.iter_modules in migrations/__init__.py.
         "specify_cli.upgrade.migrations.m_3_2_0rc45_retire_standalone_skill_surface",

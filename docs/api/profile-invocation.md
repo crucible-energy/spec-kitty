@@ -88,7 +88,8 @@ contain additional append-only events such as `glossary_checked`,
 | `event` | string | `started` |
 | `profile_id` | string | Resolved profile identifier |
 | `action` | string | Action token resolved for governance context |
-| `request_text` | string | Natural-language request supplied to `dispatch` |
+| `request_summary` | string | Fixed local-trail wording; never a copy of the supplied request |
+| `request_digest` | string | SHA-256 correlation digest of the supplied request |
 | `governance_context_hash` | string | First 16 hex characters of the rendered Charter context SHA-256 |
 | `governance_context_available` | boolean | Whether Charter context was available when the record was opened |
 | `actor` | string | Caller identity such as `operator`, `claude`, or `codex` |
@@ -151,7 +152,7 @@ record results in `InvalidModeForEvidenceError`, and no write occurs. Re-run
 ## Example Trail Record
 
 ```jsonl
-{"event":"started","invocation_id":"01KQA1B2C3D4E5F6G7H8J9K0","profile_id":"implementer-ivan","action":"implement","request_text":"Implement token validation","governance_context_hash":"0123abcd4567ef89","governance_context_available":true,"actor":"operator","started_at":"2026-04-29T10:00:00Z","mode_of_work":"task_execution"}
+{"event":"started","invocation_id":"01KQA1B2C3D4E5F6G7H8J9K0","profile_id":"implementer-ivan","action":"implement","request_summary":"Request content withheld by local trail policy.","request_digest":"sha256:ee911e91294ac748ee224b1d91bde10aec7999d958ea3e6ac68c6e86e1dea567","governance_context_hash":"0123abcd4567ef89","governance_context_available":true,"actor":"operator","started_at":"2026-04-29T10:00:00Z","mode_of_work":"task_execution"}
 {"event":"completed","invocation_id":"01KQA1B2C3D4E5F6G7H8J9K0","completed_at":"2026-04-29T10:45:00Z","outcome":"done","closed_by":"agent"}
 {"event":"artifact_link","invocation_id":"01KQA1B2C3D4E5F6G7H8J9K0","kind":"artifact","ref":"src/auth/token.py","at":"2026-04-29T10:45:02Z"}
 {"event":"commit_link","invocation_id":"01KQA1B2C3D4E5F6G7H8J9K0","sha":"abc123def456789","at":"2026-04-29T10:45:03Z"}

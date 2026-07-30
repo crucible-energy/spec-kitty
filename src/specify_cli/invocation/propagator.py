@@ -18,10 +18,25 @@
 #   Envelope dicts are rebuilt 1:1 from the v2 Op event models
 #   (contracts/op-record-events.md):
 #   ProfileInvocationStarted:   event_type + all OpStartedEvent fields
-#                               (None fields omitted; request_text policy-gated)
+#                               (None fields omitted; request provenance policy-gated)
 #   ProfileInvocationCompleted: event_type + all OpCompletedEvent fields incl.
 #                               closed_by (evidence_ref omitted when None and
 #                               policy-gated)
+#
+# OUTSTANDING SaaS-REPO CONTRACT UPDATE (charter: Central CLI-SaaS API Contract)
+# Verified 2026-07-29: `../spec-kitty-saas/contracts/cli-saas-current-api.yaml`
+# is still not reachable from this checkout (the sibling repo is absent and the
+# remote is not readable), so the authoritative contract cannot be edited in
+# this change.  The ProfileInvocationStarted envelope changed shape here:
+#   removed: request_text (raw prompt; never projected again)
+#   added:   request_summary (fixed REDACTED_REQUEST_SUMMARY wording) and
+#            request_digest (SHA-256 correlation digest), both policy-gated on
+#            projection_policy.include_request_provenance
+# A same-named update to that contract file, plus its consumer validation, MUST
+# land in spec-kitty-saas before hosted ingestion is enabled for these events;
+# until then a generated consumer pinned to the old envelope can reject them.
+# SaaS-side handlers are still unimplemented (#1720/#1693), so nothing consumes
+# the new shape today.
 
 from __future__ import annotations
 
@@ -162,14 +177,18 @@ def _build_started_event_dict(
     No wire-compat with the pre-mission envelope (decision
     01KTSJEQANMNEV16WMSAJP6FR1). Optional fields (router_confidence,
     mission_id, wp_id, model_id) are omitted when absent, mirroring the on-disk
-    JSONL shape. request_text is policy-gated
-    (projection_policy.include_request_text).
+    JSONL shape. Raw request text is never projected. Safe request provenance
+    is policy-gated (projection_policy.include_request_provenance).
     """
     event_dict: dict[str, object] = record.model_dump(exclude_none=True)
+    # Defense in depth for historical models or a future serialization change:
+    # raw prompts never leave the process through a SaaS projection.
+    event_dict.pop("request_text", None)
     del event_dict["event"]
     event_dict["event_type"] = "ProfileInvocationStarted"
-    if not rule.include_request_text:
-        event_dict.pop("request_text", None)
+    if not rule.include_request_provenance:
+        event_dict.pop("request_summary", None)
+        event_dict.pop("request_digest", None)
     return event_dict
 
 

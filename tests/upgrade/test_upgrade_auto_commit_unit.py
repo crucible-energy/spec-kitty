@@ -1145,6 +1145,53 @@ def test_upgrade_rejects_downgrade_target_in_json_mode(
     assert data["errors"] == ["Refusing to downgrade project metadata from 1.0.0a1 to 0.9.0"]
 
 
+def test_upgrade_json_exits_one_when_runner_reports_a_fatal_failure(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    project_path = _setup_upgrade_project(tmp_path)
+    monkeypatch.setattr(Path, "cwd", lambda: project_path)
+    monkeypatch.setattr(autocommit, "git_status_paths", lambda _rp: set())
+
+    fake_migration = MagicMock(
+        migration_id="3.2.7_redact_op_record_requests",
+        description="Redact request-derived data",
+        target_version="3.2.7",
+    )
+    monkeypatch.setattr(
+        "specify_cli.upgrade.registry.MigrationRegistry.get_applicable",
+        lambda *_args, **_kwargs: [fake_migration],
+    )
+    monkeypatch.setattr(
+        "specify_cli.upgrade.runner.MigrationRunner.upgrade",
+        lambda self, *args, **kwargs: UpgradeResult(
+            success=False,
+            from_version="1.0.0a1",
+            to_version="3.2.7",
+            errors=["Worktree lane-a: request-derived data may remain"],
+        ),
+    )
+
+    with pytest.raises(typer.Exit) as exc:
+        _run_upgrade(
+            dry_run=False,
+            force=True,
+            target="3.2.7",
+            json_output=True,
+            verbose=False,
+            no_worktrees=False,
+            cli=False,
+            project=False,
+        )
+
+    data = json.loads(capsys.readouterr().out.strip())
+    assert exc.value.exit_code == 1
+    assert data["status"] == "failed"
+    assert data["success"] is False
+    assert data["errors"] == ["Worktree lane-a: request-derived data may remain"]
+
+
 def test_upgrade_suppresses_auto_commit_when_manual_review_required(
     tmp_path: Path,
     monkeypatch,

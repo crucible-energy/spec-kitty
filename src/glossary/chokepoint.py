@@ -29,9 +29,7 @@ _logger = logging.getLogger(__name__)
 # Default applicable scopes (T009)
 # ---------------------------------------------------------------------------
 
-DEFAULT_APPLICABLE_SCOPES: frozenset[GlossaryScope] = frozenset(
-    {GlossaryScope.SPEC_KITTY_CORE, GlossaryScope.TEAM_DOMAIN}
-)
+DEFAULT_APPLICABLE_SCOPES: frozenset[GlossaryScope] = frozenset({GlossaryScope.SPEC_KITTY_CORE, GlossaryScope.TEAM_DOMAIN})
 
 # Tokeniser: split on whitespace and non-word characters
 _TOKEN_RE = re.compile(r"[\s\W]+")
@@ -86,16 +84,6 @@ class GlossaryObservationBundle:
         }
 
 
-@dataclass(frozen=True)
-class _InvocationGlossaryEventContext:
-    """Minimal context shim for glossary event emission from profile invocations."""
-
-    step_id: str
-    mission_id: str
-    run_id: str
-    actor_id: str
-
-
 # ---------------------------------------------------------------------------
 # GlossaryChokepoint (T009 / T010 / T011)
 # ---------------------------------------------------------------------------
@@ -121,9 +109,7 @@ class GlossaryChokepoint:
         applicable_scopes: frozenset[GlossaryScope] | None = None,
     ) -> None:
         self._repo_root = repo_root
-        self._applicable_scopes: frozenset[GlossaryScope] = (
-            applicable_scopes if applicable_scopes is not None else DEFAULT_APPLICABLE_SCOPES
-        )
+        self._applicable_scopes: frozenset[GlossaryScope] = applicable_scopes if applicable_scopes is not None else DEFAULT_APPLICABLE_SCOPES
         self._index: GlossaryTermIndex | None = None
 
     # ------------------------------------------------------------------
@@ -163,8 +149,7 @@ class GlossaryChokepoint:
             self._index = build_index(store, scope_values)
             if self._index.term_count == 0:
                 _logger.debug(
-                    "GlossaryChokepoint: term index is empty for scopes %s "
-                    "(no .kittify/glossaries/*.yaml seed files found?)",
+                    "GlossaryChokepoint: term index is empty for scopes %s (no .kittify/glossaries/*.yaml seed files found?)",
                     scope_values,
                 )
         return self._index
@@ -177,7 +162,7 @@ class GlossaryChokepoint:
         self,
         request_text: str,
         invocation_id: str = "",  # noqa: ARG002  (reserved for future telemetry)
-        actor_id: str = "unknown",
+        actor_id: str = "unknown",  # noqa: ARG002  (reserved for future telemetry)
     ) -> GlossaryObservationBundle:
         """Scan *request_text* for glossary conflicts and return a bundle.
 
@@ -185,20 +170,21 @@ class GlossaryChokepoint:
         caught and returned as an error-bundle with ``error_msg`` populated and
         all collection fields empty.
 
+        The scan is read-only with respect to the trail: scanning a dispatched
+        request must not persist any part of that request, so no invocation-scoped
+        glossary event is emitted from here (see :meth:`_run_inner`).
+
         Args:
             request_text: The text to scan (e.g. a step description).
             invocation_id: Optional caller-supplied correlation ID (reserved).
+            actor_id: Optional caller-supplied actor ID (reserved).
 
         Returns:
             A :class:`GlossaryObservationBundle` with scan results.
         """
         t0 = time.monotonic()
         try:
-            bundle = self._run_inner(
-                request_text,
-                invocation_id=invocation_id,
-                actor_id=actor_id,
-            )
+            bundle = self._run_inner(request_text)
             return bundle
         except Exception as exc:  # noqa: BLE001
             duration_ms = (time.monotonic() - t0) * 1000.0
@@ -211,52 +197,20 @@ class GlossaryChokepoint:
                 error_msg=str(exc),
             )
 
-    def _build_event_context(
-        self,
-        *,
-        invocation_id: str,
-        actor_id: str,
-    ) -> _InvocationGlossaryEventContext | None:
-        """Return a minimal event context for invocation-scoped glossary events."""
-        if not invocation_id:
-            return None
-        mission_id = f"profile-invocation-{invocation_id}"
-        return _InvocationGlossaryEventContext(
-            step_id=f"profile-invocation:{invocation_id}",
-            mission_id=mission_id,
-            run_id=invocation_id,
-            actor_id=actor_id,
-        )
-
-    def _emit_unknown_term_candidate(
-        self,
-        extracted_term: ExtractedTerm,
-        *,
-        event_context: _InvocationGlossaryEventContext | None,
-    ) -> None:
-        """Best-effort emission of unknown glossary term candidates."""
-        if event_context is None:
-            return
-        from .events import emit_term_candidate_observed
-
-        emit_term_candidate_observed(
-            extracted_term,
-            event_context,
-            repo_root=self._repo_root,
-        )
-
-    def _run_inner(
-        self,
-        request_text: str,
-        *,
-        invocation_id: str,
-        actor_id: str,
-    ) -> GlossaryObservationBundle:
+    def _run_inner(self, request_text: str) -> GlossaryObservationBundle:
         """Core scan logic (called inside the try/except in :meth:`run`).
 
         Tokenises *request_text*, filters common words, normalises via
         :func:`_normalize`, looks each token up in the index, then runs the
         existing conflict classifiers (T011) for matched tokens.
+
+        Tokens that miss the index are deliberately *not* emitted as
+        ``TermCandidateObserved`` candidates. Those surfaces are verbatim
+        fragments of the dispatched request, so persisting them would rebuild
+        the raw-request trail that ``request_provenance`` exists to prevent, in
+        a second durable log (and in the SaaS queue behind it). Term harvesting
+        still happens in the mission-scoped middleware, whose input is authored
+        mission text rather than an operator's request.
 
         Returns:
             A populated :class:`GlossaryObservationBundle`.
@@ -265,10 +219,6 @@ class GlossaryChokepoint:
 
         t0 = time.monotonic()
         index = self._load_index()
-        event_context = self._build_event_context(
-            invocation_id=invocation_id,
-            actor_id=actor_id,
-        )
 
         # --- tokenise ---
         raw_tokens = _TOKEN_RE.split(request_text.lower())
@@ -306,12 +256,9 @@ class GlossaryChokepoint:
                 senses = index.surface_to_senses[normalized]
                 urn = index.surface_to_urn[normalized]
                 matched_urns.append(urn)
-            # If no match, skip conflict classification for this token
+            # If no match, skip conflict classification for this token. The
+            # unknown surface is request content and is never persisted.
             if not senses:
-                self._emit_unknown_term_candidate(
-                    extracted_term,
-                    event_context=event_context,
-                )
                 continue
 
             conflict_type = classify_conflict(

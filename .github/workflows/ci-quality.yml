@@ -1546,12 +1546,17 @@ jobs:
       # by the ignore-mirror architectural invariant (FR-012 /
       # test_catch_all_ignore_lists_mirror_owned_roots_live): drift between this
       # list and the shard-owned roots fails tests/architectural/.
+      # ``not timing`` matches the integration and arch-adversarial selectors:
+      # this job runs ``-n auto --dist loadfile``, so a co-scheduled worker's CPU
+      # contention lands inside a wall-clock NFR sample. Those gates belong to
+      # the serial ``timing-nfr-serial`` job (``-m timing -n0``), which is in
+      # ``quality-gate.needs`` and so still blocks merge.
       - name: "Run fast tests — core misc"
         run: |
           uv run python -m pytest \
             ${{ matrix.paths }} \
             ${{ matrix.ignore_args }} \
-            -m "fast and not windows_ci" -q --tb=short \
+            -m "fast and not windows_ci and not timing" -q --tb=short \
             -n auto --dist loadfile \
             --durations=50 \
             --cov=src/specify_cli \

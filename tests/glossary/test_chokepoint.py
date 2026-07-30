@@ -227,24 +227,27 @@ def test_clean_request_returns_noerror_bundle():
     assert isinstance(bundle.duration_ms, float)
 
 
-def test_unknown_term_emits_candidate_event_for_profile_invocation(tmp_path: Path) -> None:
-    """Unknown invocation terms should emit TermCandidateObserved without failing the scan."""
+def test_unknown_invocation_term_is_never_persisted(tmp_path: Path) -> None:
+    """Unknown request tokens must not reach the glossary trail.
+
+    An unknown surface is a verbatim fragment of the dispatched request, so
+    emitting it would rebuild the raw-request trail that request redaction
+    removes from the Op record, in a second durable log.
+    """
     cp = _chokepoint_with_store(_make_store(), repo_root=tmp_path)
 
     with patch("glossary.events.emit_term_candidate_observed") as emit_mock:
         bundle = cp.run(
-            "frobnicator",
+            "frobnicator ghp-supersecrettoken",
             invocation_id="01HXYZ1234567890ABCDEFGHJK",
             actor_id="codex",
         )
 
     assert bundle.error_msg is None
-    emit_mock.assert_called_once()
-    extracted_term, context = emit_mock.call_args.args[:2]
-    assert extracted_term.surface == "frobnicator"
-    assert context.actor_id == "codex"
-    assert context.run_id == "01HXYZ1234567890ABCDEFGHJK"
-    assert emit_mock.call_args.kwargs["repo_root"] == tmp_path
+    assert bundle.tokens_checked >= 2
+    emit_mock.assert_not_called()
+    written = list((tmp_path / ".kittify" / "events" / "glossary").glob("*.jsonl"))
+    assert written == []
 
 
 # ---------------------------------------------------------------------------
