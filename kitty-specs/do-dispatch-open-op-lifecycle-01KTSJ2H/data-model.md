@@ -10,7 +10,8 @@
 | `invocation_id` | str (ULID, 26) | yes | identity; filename stem |
 | `profile_id` | str | yes | resolved agent profile |
 | `action` | str | yes | canonical action token; non-empty |
-| `request_text` | str | yes | verbatim user request (may be empty only for query mode) |
+| `request_summary` | str | yes | fixed local-trail wording; raw request content is not persisted |
+| `request_digest` | str | yes for newly emitted records | SHA-256 correlation digest of the supplied request |
 | `actor` | str | yes | "claude" \| "codex" \| "operator" \| … (detected, never silently "unknown" when detectable) |
 | `mode_of_work` | str | yes | task_execution \| advisory \| mission_step \| query |
 | `governance_context_hash` | str | yes | 16 hex chars; empty string only when `governance_context_available=false` |

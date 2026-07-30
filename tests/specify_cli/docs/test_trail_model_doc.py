@@ -27,7 +27,7 @@ def test_trail_model_has_saas_read_model_policy_section() -> None:
 def test_trail_model_has_saas_policy_table_header() -> None:
     """The 16-row policy table must be present in operator doc."""
     content = TRAIL.read_text()
-    assert "| mode_of_work | event | project | include_request_text | include_evidence_ref |" in content
+    assert "| mode_of_work | event | project | include_request_provenance | include_evidence_ref |" in content
 
 
 def test_trail_model_has_tier2_deferral_subsection() -> None:

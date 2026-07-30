@@ -106,7 +106,8 @@ Key fields on the `started` event:
 |---|---|---|
 | `profile_id` | string | Resolved profile identifier |
 | `action` | string | Resolved action token |
-| `request_text` | string | Request supplied to `dispatch` |
+| `request_summary` | string | Fixed local-trail wording; never the request supplied to `dispatch` |
+| `request_digest` | string | SHA-256 correlation digest of the supplied request |
 | `governance_context_hash` | string | Hash of the rendered Charter context |
 | `governance_context_available` | boolean | Whether Charter context was available |
 | `started_at` | ISO timestamp | When the invocation was opened |

@@ -17,6 +17,7 @@ Validation rules:
 from __future__ import annotations
 
 import datetime as _dt
+import hashlib
 import json
 import re
 from dataclasses import dataclass, field
@@ -28,6 +29,33 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 from specify_cli.invocation.errors import LegacyRecordError
 
 _ULID_RE = re.compile(r"^[0-9A-HJKMNP-TV-Z]{26}$")
+_REQUEST_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+REDACTED_REQUEST_SUMMARY = "Request content withheld by local trail policy."
+
+
+def request_provenance(request_text: str) -> tuple[str, str]:
+    """Return durable correlation provenance for an invocation request.
+
+    The dispatcher needs the supplied request while it routes and loads
+    governance, but the local trail must not retain that raw input.  A fixed
+    summary preserves the privacy boundary and the digest lets operators
+    correlate a known request without storing it in the Op record.
+
+    The digest is deterministic and unsalted so that correlation works from a
+    candidate request alone. It therefore is not an anonymization boundary: a
+    short or enumerable request can be recovered by hashing candidates, and an
+    identical request yields an identical digest across checkouts. Deriving it
+    from an installation-scoped key instead would close both, at the cost of
+    key management and cross-installation correlation, and is a contract-level
+    decision for ``contracts/op-record-events.md`` rather than a local change.
+    """
+    # ``surrogatepass`` keeps this total over every ``str``. A request can carry
+    # a lone surrogate, from ``surrogateescape`` argv decoding or a historical
+    # JSON escape, and strict encoding would raise here: that would cost the
+    # dispatch its whole audit record and abort the migration that rewrites such
+    # a record. Well-formed text hashes identically either way.
+    digest = hashlib.sha256(request_text.encode("utf-8", errors="surrogatepass")).hexdigest()  # noqa: TID251 - intentional local correlation digest
+    return REDACTED_REQUEST_SUMMARY, f"sha256:{digest}"
 
 
 def validate_invocation_id(value: str) -> str:
@@ -49,7 +77,11 @@ class OpStartedEvent(BaseModel):
     invocation_id: str  # ULID (26 chars)
     profile_id: str = Field(min_length=1)
     action: str = Field(min_length=1)  # canonical action token; non-empty
-    request_text: str  # may be empty only in query mode (executor enforces)
+    # Transient routing input. It remains parseable for historical v2 records,
+    # but cannot be emitted by model_dump() or the JSONL writer.
+    request_text: str = Field(default="", exclude=True, repr=False)
+    request_summary: str = Field(default=REDACTED_REQUEST_SUMMARY, min_length=1)
+    request_digest: str | None = Field(default=None, min_length=8)
     actor: str = Field(min_length=1)  # "claude" | "codex" | "operator" | …
     mode_of_work: Literal["task_execution", "advisory", "mission_step", "query"]  # task_execution | advisory | mission_step | query
     governance_context_hash: str  # first 16 hex chars of SHA-256
@@ -64,9 +96,25 @@ class OpStartedEvent(BaseModel):
 
     _ulid = field_validator("invocation_id")(validate_invocation_id)
 
+    @field_validator("request_summary")
+    @classmethod
+    def _validate_request_summary(cls, value: str) -> str:
+        if value != REDACTED_REQUEST_SUMMARY:
+            raise ValueError("request_summary must use the local trail policy wording")
+        return value
+
+    @field_validator("request_digest")
+    @classmethod
+    def _validate_request_digest(cls, value: str | None) -> str | None:
+        if value is not None and not _REQUEST_DIGEST_RE.fullmatch(value):
+            raise ValueError("request_digest must be a sha256 digest")
+        return value
+
     def to_jsonl_line(self) -> str:
-        """Serialise to a single JSON line, omitting None fields."""
-        return json.dumps(self.model_dump(exclude_none=True))
+        """Serialise to a raw-request-free JSON line, omitting None fields."""
+        payload = self.model_dump(exclude_none=True)
+        payload.pop("request_text", None)
+        return json.dumps(payload)
 
 
 class OpCompletedEvent(BaseModel):

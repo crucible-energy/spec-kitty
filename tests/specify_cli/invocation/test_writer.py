@@ -188,6 +188,25 @@ class TestWriteCompletedAppendsLine:
         rows = target.read_text(encoding="utf-8").splitlines()
         assert len(rows) == 1  # golden-count: cardinality-is-contract
 
+    def test_write_completed_rejects_preplanted_lock_symlink(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        writer = InvocationWriter(tmp_path)
+        record_path = writer.write_started(_make_started())
+        outside = tmp_path / "outside-lock-target"
+        outside.write_text("KEEP\n", encoding="utf-8")
+        lock_path = record_path.with_name(f".{record_path.name}.lock")
+        try:
+            lock_path.symlink_to(outside)
+        except OSError as exc:  # pragma: no cover - platform privilege dependent
+            pytest.skip(f"symlinks unavailable: {exc}")
+
+        with pytest.raises(InvocationWriteError, match="symbolic-link invocation lock"):
+            writer.write_completed(_make_completed())
+
+        assert outside.read_text(encoding="utf-8") == "KEEP\n"
+
     def test_write_completed_rejects_embedded_started_id_mismatch(
         self,
         tmp_path: Path,

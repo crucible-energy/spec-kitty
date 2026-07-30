@@ -311,8 +311,8 @@ _CATEGORY_B_GRANDFATHERED_LEGACY: frozenset[SymbolKey] = frozenset(
         SymbolKey("CrossFilesystemWriteError", "acd6ef68ddf571b5d10e060705595ec6757064a9fc4fcb8999cb7e359b61dc7d"),
         SymbolKey("atomic_write_bytes", "299f9a2ce9d0680ea41a791fc5817f56818ace58c9e90d841230f2fed65d2db1"),  # specify_cli.intake.brief_writer::atomic_write_bytes
         SymbolKey("atomic_write_text", "4338782faca587ec7cc4c907a9680bcf0fb2f6f01d920dae26adb3497fd7c46a"),  # specify_cli.intake.brief_writer::atomic_write_text
-        SymbolKey("POLICY_TABLE", "6b1740b1daf02057f8a6eb6e475fbec6dd706b69f41184b4e74067d2cfc169eb"),  # specify_cli.invocation.projection_policy::POLICY_TABLE
-        SymbolKey("ProjectionRule", "3582715cd23856b1d0e2cf14293fef2a71b5b8a7b8b178b018f33b08638b3982"),  # specify_cli.invocation.projection_policy::ProjectionRule
+        SymbolKey("POLICY_TABLE", "03abf61510b691f0c3df1b30ae2cabaafcc5f134f1f23a02adc192fb222976e9"),  # specify_cli.invocation.projection_policy::POLICY_TABLE
+        SymbolKey("ProjectionRule", "068955d789fd3e398b97bade57567fff244e6ae711a1eb54d7618054fb72d586"),  # specify_cli.invocation.projection_policy::ProjectionRule
         # specify_cli.lanes.lifecycle_sync::LANE_AUTO_REBASE_FAILED
         SymbolKey("LANE_AUTO_REBASE_FAILED", "ac422fb0845653d0bab1cb2449584a37ca13c9b89e1bdb6170893aa23a810630"),
         SymbolKey("ClassifierRule", "e4253249c186c97ce24d24d459a758fe02f4b3ebc7f94e62d0a000edf743755f"),  # specify_cli.merge.conflict_classifier::ClassifierRule

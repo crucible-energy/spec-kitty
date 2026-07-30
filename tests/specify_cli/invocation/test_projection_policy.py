@@ -46,30 +46,30 @@ def test_every_row_returns_a_projection_rule(mode: ModeOfWork, event: EventKind)
 # ---------------------------------------------------------------------------
 
 
-def test_task_execution_started_projects_with_body() -> None:
-    """TASK_EXECUTION/STARTED projects with request_text included."""
+def test_task_execution_started_projects_with_request_provenance() -> None:
+    """TASK_EXECUTION/STARTED projects safe request provenance."""
     rule = resolve_projection(ModeOfWork.TASK_EXECUTION, EventKind.STARTED)
     assert rule == ProjectionRule(True, True, False)
 
 
 def test_task_execution_completed_includes_evidence() -> None:
-    """TASK_EXECUTION/COMPLETED projects with both body and evidence_ref."""
+    """TASK_EXECUTION/COMPLETED projects with evidence, not request provenance."""
     rule = resolve_projection(ModeOfWork.TASK_EXECUTION, EventKind.COMPLETED)
-    assert rule == ProjectionRule(True, True, True)
+    assert rule == ProjectionRule(True, False, True)
 
 
 def test_mission_step_completed_includes_evidence() -> None:
-    """MISSION_STEP/COMPLETED projects with both body and evidence_ref."""
+    """MISSION_STEP/COMPLETED projects with evidence, not request provenance."""
     rule = resolve_projection(ModeOfWork.MISSION_STEP, EventKind.COMPLETED)
-    assert rule == ProjectionRule(True, True, True)
+    assert rule == ProjectionRule(True, False, True)
 
 
-def test_advisory_events_omit_body() -> None:
-    """All ADVISORY events project without request_text or evidence_ref."""
+def test_advisory_events_omit_request_provenance() -> None:
+    """All ADVISORY events project without request provenance or evidence_ref."""
     for event in EventKind:
         rule = resolve_projection(ModeOfWork.ADVISORY, event)
-        assert not rule.include_request_text, (
-            f"ADVISORY/{event} should not include request_text"
+        assert not rule.include_request_provenance, (
+            f"ADVISORY/{event} should not include request provenance"
         )
         assert not rule.include_evidence_ref, (
             f"ADVISORY/{event} should not include evidence_ref"
@@ -92,13 +92,13 @@ def test_correlation_events_on_advisory_do_not_project() -> None:
         )
 
 
-def test_correlation_events_on_task_execution_project_without_body() -> None:
-    """TASK_EXECUTION correlation events project but without request_text."""
+def test_correlation_events_on_task_execution_project_without_request_provenance() -> None:
+    """TASK_EXECUTION correlation events project without request provenance."""
     for event in (EventKind.ARTIFACT_LINK, EventKind.COMMIT_LINK):
         rule = resolve_projection(ModeOfWork.TASK_EXECUTION, event)
         assert rule.project, f"TASK_EXECUTION/{event} should project"
-        assert not rule.include_request_text, (
-            f"TASK_EXECUTION/{event} should not include request_text"
+        assert not rule.include_request_provenance, (
+            f"TASK_EXECUTION/{event} should not include request provenance"
         )
 
 
@@ -119,10 +119,10 @@ def test_null_mode_falls_back_to_task_execution() -> None:
 
 
 def test_golden_path_task_execution_started() -> None:
-    """task_execution/started MUST project with request_text (3.2.0a5 behaviour)."""
+    """task_execution/started MUST project safe request provenance."""
     rule = resolve_projection(ModeOfWork.TASK_EXECUTION, EventKind.STARTED)
     assert rule.project is True
-    assert rule.include_request_text is True
+    assert rule.include_request_provenance is True
 
 
 def test_golden_path_mission_step_completed() -> None:
@@ -136,4 +136,4 @@ def test_golden_path_null_mode_preserves_unconditional_projection() -> None:
     """Pre-WP06 records (no mode_of_work) project as before — same as TASK_EXECUTION/STARTED."""
     rule = resolve_projection(None, EventKind.STARTED)
     assert rule.project is True
-    assert rule.include_request_text is True
+    assert rule.include_request_provenance is True

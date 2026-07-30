@@ -3,7 +3,7 @@
 Verifies:
 1. Sync-disabled checkouts never call send_event (across all modes × events).
 2. Policy correctly gates projection per (mode, event).
-3. Envelope fields respect include_request_text / include_evidence_ref.
+3. Envelope fields respect safe request provenance / include_evidence_ref.
 4. NFR-007 / SC-008: propagation-errors.jsonl stays empty under sync-disabled.
 
 Updated for Leak #3 fix (WP01 integration-boundary mission): propagator now
@@ -21,7 +21,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from specify_cli.invocation.propagator import PROPAGATION_ERRORS_PATH, _propagate_one
-from specify_cli.invocation.record import OpCompletedEvent, OpStartedEvent
+from specify_cli.invocation.record import OpCompletedEvent, OpStartedEvent, request_provenance
 
 
 # ---------------------------------------------------------------------------
@@ -35,11 +35,14 @@ pytestmark = [pytest.mark.unit, pytest.mark.fast]
 def _make_started_record(mode: str | None, invocation_id: str = "01KPQRX2EVGMRVB4Q1JQBAZJV3") -> OpStartedEvent:
     # Schema v2: mode_of_work is required; ``None`` callers map to the
     # task_execution default (mirrors the executor / WP05 migration default).
+    request_summary, request_digest = request_provenance("the request text")
     return OpStartedEvent(
         invocation_id=invocation_id,
         profile_id="implementer-fixture",
         action="implement",
         request_text="the request text",
+        request_summary=request_summary,
+        request_digest=request_digest,
         governance_context_hash="abc123",
         governance_context_available=True,
         actor="claude",
@@ -106,8 +109,8 @@ def test_sync_disabled_never_calls_send(tmp_path: Path, mode: str, event_name: s
 # ---------------------------------------------------------------------------
 
 
-def test_task_execution_started_includes_request_text(tmp_path: Path) -> None:
-    """TASK_EXECUTION/started sends envelope with request_text included."""
+def test_task_execution_started_includes_request_provenance(tmp_path: Path) -> None:
+    """TASK_EXECUTION/started sends safe request provenance, never raw input."""
     record = _make_started_record("task_execution")
     mock_client = _make_mock_client()
 
@@ -124,13 +127,14 @@ def test_task_execution_started_includes_request_text(tmp_path: Path) -> None:
     assert len(mock_client._captured) == 1
     envelope = mock_client._captured[0]
     assert envelope["event_type"] == "ProfileInvocationStarted"
-    assert "request_text" in envelope, "TASK_EXECUTION/started envelope must include request_text"
-    assert envelope["request_text"] == "the request text"
+    assert "request_text" not in envelope
+    assert envelope["request_summary"] == "Request content withheld by local trail policy."
+    assert envelope["request_digest"].startswith("sha256:")
     assert envelope["mode_of_work"] == "task_execution"
 
 
-def test_advisory_started_omits_request_text(tmp_path: Path) -> None:
-    """ADVISORY/started projects but without request_text key in envelope."""
+def test_advisory_started_omits_request_provenance(tmp_path: Path) -> None:
+    """ADVISORY/started projects without raw input or request provenance."""
     record = _make_started_record("advisory")
     mock_client = _make_mock_client()
 
@@ -147,9 +151,9 @@ def test_advisory_started_omits_request_text(tmp_path: Path) -> None:
     assert len(mock_client._captured) == 1, "ADVISORY/started should produce one send_event call"
     envelope = mock_client._captured[0]
     assert envelope["event_type"] == "ProfileInvocationStarted"
-    assert "request_text" not in envelope, (
-        "ADVISORY/started must omit request_text key entirely (not empty string)"
-    )
+    assert "request_text" not in envelope
+    assert "request_summary" not in envelope
+    assert "request_digest" not in envelope
 
 
 def test_query_started_does_not_project(tmp_path: Path) -> None:
@@ -218,8 +222,8 @@ def test_completed_event_resolves_policy_without_mode(tmp_path: Path) -> None:
     assert envelope["evidence_ref"] == "kitty-specs/001/evidence.md"
 
 
-def test_mission_step_started_includes_request_text(tmp_path: Path) -> None:
-    """MISSION_STEP/started behaves same as TASK_EXECUTION/started."""
+def test_mission_step_started_includes_request_provenance(tmp_path: Path) -> None:
+    """MISSION_STEP/started behaves the same as TASK_EXECUTION/started."""
     record = _make_started_record("mission_step")
     mock_client = _make_mock_client()
 
@@ -235,7 +239,8 @@ def test_mission_step_started_includes_request_text(tmp_path: Path) -> None:
 
     assert len(mock_client._captured) == 1
     envelope = mock_client._captured[0]
-    assert "request_text" in envelope
+    assert "request_text" not in envelope
+    assert "request_summary" in envelope
     assert envelope["mode_of_work"] == "mission_step"
 
 
@@ -257,7 +262,8 @@ def test_null_mode_projects_like_task_execution(tmp_path: Path) -> None:
     # Should have exactly one send_event call (like task_execution)
     assert len(mock_client_null._captured) == 1
     envelope = mock_client_null._captured[0]
-    assert "request_text" in envelope, "Null mode should include request_text (TASK_EXECUTION fallback)"
+    assert "request_text" not in envelope
+    assert "request_summary" in envelope, "Null mode should include request provenance"
 
 
 # ---------------------------------------------------------------------------

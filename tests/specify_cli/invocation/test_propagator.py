@@ -24,7 +24,7 @@ from specify_cli.invocation.propagator import (
     _log_propagation_error,
     _propagate_one,
 )
-from specify_cli.invocation.record import OpCompletedEvent, OpStartedEvent
+from specify_cli.invocation.record import OpCompletedEvent, OpStartedEvent, request_provenance
 
 
 # ---------------------------------------------------------------------------
@@ -34,11 +34,14 @@ from specify_cli.invocation.record import OpCompletedEvent, OpStartedEvent
 
 pytestmark = [pytest.mark.unit, pytest.mark.fast]
 def make_started_record() -> OpStartedEvent:
+    request_summary, request_digest = request_provenance("implement the feature")
     return OpStartedEvent(
         invocation_id="01KPQRX2EVGMRVB4Q1JQBAZJV3",
         profile_id="implementer-fixture",
         action="implement",
         request_text="implement the feature",
+        request_summary=request_summary,
+        request_digest=request_digest,
         actor="claude",
         mode_of_work="task_execution",
         governance_context_hash="abcdef0123456789",
@@ -160,7 +163,8 @@ def test_started_envelope_field_set_follows_v2_contract(tmp_path: pytest.TempPat
         "invocation_id": record.invocation_id,
         "profile_id": "implementer-fixture",
         "action": "implement",
-        "request_text": "implement the feature",
+        "request_summary": "Request content withheld by local trail policy.",
+        "request_digest": "sha256:0b5640125c7dfcfba84b640ed9b31c2bfefb8408cc55efdd87e509171b918078",
         "actor": "claude",
         "mode_of_work": "task_execution",
         "governance_context_hash": "abcdef0123456789",

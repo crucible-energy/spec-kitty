@@ -19,6 +19,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from glossary.chokepoint import GlossaryObservationBundle
+from glossary.models import ConflictType, SemanticConflict, SenseRef, Severity, TermSurface
 from specify_cli.invocation.executor import InvocationPayload, ProfileInvocationExecutor
 from specify_cli.invocation.writer import EVENTS_DIR
 
@@ -89,31 +90,55 @@ def _error_bundle() -> GlossaryObservationBundle:
     )
 
 
+def _sensitive_conflict_bundle() -> GlossaryObservationBundle:
+    conflict = SemanticConflict(
+        term=TermSurface("supersecret"),
+        conflict_type=ConflictType.AMBIGUOUS,
+        severity=Severity.HIGH,
+        confidence=1.0,
+        candidate_senses=[
+            SenseRef(
+                surface="supersecret",
+                scope="team_domain",
+                definition="request-derived secret",
+                confidence=1.0,
+            )
+        ],
+        context="request_text",
+    )
+    return GlossaryObservationBundle(
+        matched_urns=("glossary:d93244e7",),
+        high_severity=(conflict,),
+        all_conflicts=(conflict,),
+        tokens_checked=1,
+        duration_ms=1.0,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Test 1: invoke() returns payload with glossary_observations present
 # ---------------------------------------------------------------------------
 
 
 class TestInvokeReturnsGlossaryObservations:
-    def test_invoke_payload_has_glossary_observations_attribute(
-        self, tmp_path: Path
-    ) -> None:
+    def test_invoke_payload_has_glossary_observations_attribute(self, tmp_path: Path) -> None:
         """invoke() must attach glossary_observations to the returned InvocationPayload."""
         _setup_fixture_profiles(tmp_path)
-        with patch(
-            "specify_cli.invocation.executor.build_charter_context",
-            return_value=_COMPACT_CTX,
-        ), patch(
-            "glossary.chokepoint.GlossaryChokepoint.run",
-            return_value=_clean_bundle(),
+        with (
+            patch(
+                "specify_cli.invocation.executor.build_charter_context",
+                return_value=_COMPACT_CTX,
+            ),
+            patch(
+                "glossary.chokepoint.GlossaryChokepoint.run",
+                return_value=_clean_bundle(),
+            ),
         ):
             executor = ProfileInvocationExecutor(tmp_path)
             payload = executor.invoke("implement the login feature", profile_hint="implementer-fixture")
 
         assert isinstance(payload, InvocationPayload)
-        assert hasattr(payload, "glossary_observations"), (
-            "InvocationPayload must have a glossary_observations attribute"
-        )
+        assert hasattr(payload, "glossary_observations"), "InvocationPayload must have a glossary_observations attribute"
         assert isinstance(payload.glossary_observations, GlossaryObservationBundle)
 
 
@@ -123,30 +148,27 @@ class TestInvokeReturnsGlossaryObservations:
 
 
 class TestToDictIncludesGlossaryObservations:
-    def test_to_dict_contains_glossary_observations_key(
-        self, tmp_path: Path
-    ) -> None:
+    def test_to_dict_contains_glossary_observations_key(self, tmp_path: Path) -> None:
         """to_dict() must include 'glossary_observations' and it must be JSON-serialisable."""
         _setup_fixture_profiles(tmp_path)
-        with patch(
-            "specify_cli.invocation.executor.build_charter_context",
-            return_value=_COMPACT_CTX,
-        ), patch(
-            "glossary.chokepoint.GlossaryChokepoint.run",
-            return_value=_clean_bundle(),
+        with (
+            patch(
+                "specify_cli.invocation.executor.build_charter_context",
+                return_value=_COMPACT_CTX,
+            ),
+            patch(
+                "glossary.chokepoint.GlossaryChokepoint.run",
+                return_value=_clean_bundle(),
+            ),
         ):
             executor = ProfileInvocationExecutor(tmp_path)
             payload = executor.invoke("plan the sprint", profile_hint="implementer-fixture")
 
         d = payload.to_dict()
-        assert "glossary_observations" in d, (
-            "'glossary_observations' key must be present in to_dict() output"
-        )
+        assert "glossary_observations" in d, "'glossary_observations' key must be present in to_dict() output"
         # The value must be a plain dict (JSON-serialisable), not the dataclass object.
         obs = d["glossary_observations"]
-        assert isinstance(obs, dict), (
-            "to_dict() must convert GlossaryObservationBundle to a plain dict"
-        )
+        assert isinstance(obs, dict), "to_dict() must convert GlossaryObservationBundle to a plain dict"
         # Verify round-trippable through json.dumps (no TypeError)
         serialised = json.dumps(d)
         assert "glossary_observations" in json.loads(serialised)
@@ -158,17 +180,18 @@ class TestToDictIncludesGlossaryObservations:
 
 
 class TestChokepointExceptionHandled:
-    def test_chokepoint_exception_returns_error_bundle_and_completes(
-        self, tmp_path: Path
-    ) -> None:
+    def test_chokepoint_exception_returns_error_bundle_and_completes(self, tmp_path: Path) -> None:
         """When the chokepoint raises, an error-bundle is produced and invoke() still returns."""
         _setup_fixture_profiles(tmp_path)
-        with patch(
-            "specify_cli.invocation.executor.build_charter_context",
-            return_value=_COMPACT_CTX,
-        ), patch(
-            "glossary.chokepoint.GlossaryChokepoint.run",
-            side_effect=RuntimeError("chokepoint exploded"),
+        with (
+            patch(
+                "specify_cli.invocation.executor.build_charter_context",
+                return_value=_COMPACT_CTX,
+            ),
+            patch(
+                "glossary.chokepoint.GlossaryChokepoint.run",
+                side_effect=RuntimeError("chokepoint exploded"),
+            ),
         ):
             executor = ProfileInvocationExecutor(tmp_path)
             # Must NOT raise — exceptions are swallowed and converted to error-bundles.
@@ -191,18 +214,19 @@ class TestChokepointExceptionHandled:
 
 
 class TestCleanInvocationNoGlossaryCheckedEvent:
-    def test_clean_invocation_produces_no_glossary_checked_line(
-        self, tmp_path: Path
-    ) -> None:
+    def test_clean_invocation_produces_no_glossary_checked_line(self, tmp_path: Path) -> None:
         """When the bundle is clean (no conflicts, no error), no glossary_checked event
         is written to the Tier 1 JSONL trail file."""
         _setup_fixture_profiles(tmp_path)
-        with patch(
-            "specify_cli.invocation.executor.build_charter_context",
-            return_value=_COMPACT_CTX,
-        ), patch(
-            "glossary.chokepoint.GlossaryChokepoint.run",
-            return_value=_clean_bundle(),
+        with (
+            patch(
+                "specify_cli.invocation.executor.build_charter_context",
+                return_value=_COMPACT_CTX,
+            ),
+            patch(
+                "glossary.chokepoint.GlossaryChokepoint.run",
+                return_value=_clean_bundle(),
+            ),
         ):
             executor = ProfileInvocationExecutor(tmp_path)
             payload = executor.invoke("review the code", profile_hint="implementer-fixture")
@@ -214,9 +238,7 @@ class TestCleanInvocationNoGlossaryCheckedEvent:
         lines = [line.strip() for line in jsonl_file.read_text().splitlines() if line.strip()]
         event_types = [json.loads(line).get("event") for line in lines]
 
-        assert "glossary_checked" not in event_types, (
-            "Clean invocations must NOT write a glossary_checked event to the trail"
-        )
+        assert "glossary_checked" not in event_types, "Clean invocations must NOT write a glossary_checked event to the trail"
         assert "started" in event_types, "started event must always be present"
 
 
@@ -226,18 +248,19 @@ class TestCleanInvocationNoGlossaryCheckedEvent:
 
 
 class TestConflictInvocationWritesGlossaryCheckedEvent:
-    def test_conflict_invocation_writes_glossary_checked_event(
-        self, tmp_path: Path
-    ) -> None:
+    def test_conflict_invocation_writes_glossary_checked_event(self, tmp_path: Path) -> None:
         """When the bundle is non-clean (error_msg set or all_conflicts non-empty),
         a glossary_checked event is appended to the Tier 1 JSONL trail file."""
         _setup_fixture_profiles(tmp_path)
-        with patch(
-            "specify_cli.invocation.executor.build_charter_context",
-            return_value=_COMPACT_CTX,
-        ), patch(
-            "glossary.chokepoint.GlossaryChokepoint.run",
-            return_value=_conflict_bundle(),
+        with (
+            patch(
+                "specify_cli.invocation.executor.build_charter_context",
+                return_value=_COMPACT_CTX,
+            ),
+            patch(
+                "glossary.chokepoint.GlossaryChokepoint.run",
+                return_value=_conflict_bundle(),
+            ),
         ):
             executor = ProfileInvocationExecutor(tmp_path)
             payload = executor.invoke("implement the feature", profile_hint="implementer-fixture")
@@ -250,9 +273,7 @@ class TestConflictInvocationWritesGlossaryCheckedEvent:
         parsed = [json.loads(line) for line in lines]
         event_types = [p.get("event") for p in parsed]
 
-        assert "glossary_checked" in event_types, (
-            "Conflict invocations must write a glossary_checked event to the trail"
-        )
+        assert "glossary_checked" in event_types, "Conflict invocations must write a glossary_checked event to the trail"
 
         # Find and validate the glossary_checked event content.
         gc_events = [p for p in parsed if p.get("event") == "glossary_checked"]
@@ -260,9 +281,32 @@ class TestConflictInvocationWritesGlossaryCheckedEvent:
         gc = gc_events[0]
 
         assert gc["invocation_id"] == payload.invocation_id
-        # The bundle has error_msg set (the trigger condition) — verify it's present.
-        assert "error_msg" in gc
-        assert gc["error_msg"] is not None, "error_msg must be present in the trail event"
+        # The bundle has error_msg set (the trigger condition), but durable
+        # files retain only that an error occurred—not its request-adjacent text.
+        assert gc["error_present"] is True
+        assert "error_msg" not in gc
         assert "matched_urns" in gc
         assert "tokens_checked" in gc
         assert "duration_ms" in gc
+
+
+def test_glossary_checked_event_never_persists_conflict_term_text(tmp_path: Path) -> None:
+    _setup_fixture_profiles(tmp_path)
+    with (
+        patch(
+            "specify_cli.invocation.executor.build_charter_context",
+            return_value=_COMPACT_CTX,
+        ),
+        patch(
+            "glossary.chokepoint.GlossaryChokepoint.run",
+            return_value=_sensitive_conflict_bundle(),
+        ),
+    ):
+        payload = ProfileInvocationExecutor(tmp_path).invoke("implement the feature", profile_hint="implementer-fixture")
+
+    content = (tmp_path / EVENTS_DIR / f"{payload.invocation_id}.jsonl").read_text(encoding="utf-8")
+    assert "supersecret" not in content
+    event = next(json.loads(line) for line in content.splitlines() if '"glossary_checked"' in line)
+    assert event["conflict_count"] == 1
+    assert event["high_severity_count"] == 1
+    assert "all_conflicts" not in event

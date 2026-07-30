@@ -59,6 +59,45 @@ class _FailingMigration(BaseMigration):
         return MigrationResult(success=False, errors=["boom"])
 
 
+class _RequiredWorktreeMigration(BaseMigration):
+    migration_id = "10.0.0_required_worktree"
+    description = "Required worktree migration for status classification tests"
+    target_version = "10.0.0"
+    worktree_failure_is_fatal = True
+
+    def detect(self, project_path: Path) -> bool:  # noqa: ARG002
+        return True
+
+    def can_apply(self, project_path: Path) -> tuple[bool, str]:  # noqa: ARG002
+        return True, ""
+
+    def apply(self, project_path: Path, dry_run: bool = False) -> MigrationResult:  # noqa: ARG002
+        if project_path.name == "lane-a":
+            return MigrationResult(success=False, errors=["request-derived data may remain"])
+        return MigrationResult(success=True)
+
+
+class _TrailRepairMigration(BaseMigration):
+    """Records every checkout a trail repair was handed."""
+
+    migration_id = "10.0.0_trail_repair"
+    description = "Trail repair migration for worktree discovery tests"
+    target_version = "10.0.0"
+
+    def __init__(self) -> None:
+        self.applied_to: list[Path] = []
+
+    def detect(self, project_path: Path) -> bool:  # noqa: ARG002
+        return True
+
+    def can_apply(self, project_path: Path) -> tuple[bool, str]:  # noqa: ARG002
+        return True, ""
+
+    def apply(self, project_path: Path, dry_run: bool = False) -> MigrationResult:  # noqa: ARG002
+        self.applied_to.append(project_path)
+        return MigrationResult(success=True, changes_made=["redacted trail"])
+
+
 def _setup_project(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -143,6 +182,39 @@ def test_upgrade_creates_worktree_metadata_when_only_kitty_specs_exists(
     assert worktree_metadata_path.exists()
     worktree_metadata = yaml.safe_load(worktree_metadata_path.read_text(encoding="utf-8"))
     assert worktree_metadata["spec_kitty"]["schema_version"] == REQUIRED_SCHEMA_VERSION
+
+
+def test_upgrade_repairs_a_worktree_holding_only_trail_records(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """An audit-only lane carrying just kitty-ops records is still repaired.
+
+    A trail migration only rewrites the checkout it is handed, so a lane skipped
+    by the discovery guard keeps its request-derived records while the upgrade
+    reports success.
+    """
+    project_path = _setup_project(tmp_path)
+    worktree = project_path / ".worktrees" / "001-feature-lane-a"
+    (worktree / "kitty-ops").mkdir(parents=True)
+    (worktree / "kitty-ops" / "01ARZ3NDEKTSV4RRFFQ69G5FAV.jsonl").write_text(
+        '{"event": "started"}\n',
+        encoding="utf-8",
+    )
+
+    runner = MigrationRunner(project_path)
+    migration = _TrailRepairMigration()
+
+    monkeypatch.setattr(runner.detector, "detect_version", lambda: "1.0.0")
+    monkeypatch.setattr(
+        "specify_cli.upgrade.runner.MigrationRegistry.get_applicable",
+        lambda _from, _to, project_path=None: [migration],  # noqa: ARG005
+    )
+
+    result = runner.upgrade("10.0.0", include_worktrees=True)
+
+    assert result.success is True
+    assert worktree in migration.applied_to
 
 
 def test_worktree_upgrade_stamps_schema_version_after_metadata_save(
@@ -252,6 +324,152 @@ def test_upgrade_persists_successful_migrations_before_later_failure(
     assert metadata is not None
     assert metadata.has_migration(first.migration_id)
     assert any(record.id == second.migration_id and record.result == "failed" for record in metadata.applied_migrations)
+
+
+def test_upgrade_fails_when_a_required_worktree_migration_fails(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    project_path = _setup_project(tmp_path)
+    (project_path / ".worktrees" / "lane-a" / ".kittify").mkdir(parents=True)
+    runner = MigrationRunner(project_path)
+    migration = _RequiredWorktreeMigration()
+
+    monkeypatch.setattr(runner.detector, "detect_version", lambda: "1.0.0")
+    monkeypatch.setattr(
+        "specify_cli.upgrade.runner.MigrationRegistry.get_applicable",
+        lambda _from, _to, project_path=None: [migration],  # noqa: ARG005
+    )
+
+    result = runner.upgrade("10.0.0", include_worktrees=True)
+
+    assert result.success is False
+    assert result.errors == ["Worktree lane-a: request-derived data may remain"]
+
+
+def test_worktree_version_is_not_advanced_after_a_fatal_migration_failure(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """Stamping the target would advertise a cleanup that never ran.
+
+    The failing lane keeps its old version so version-scoped selection still
+    offers the migration, while the healthy lane advances as usual.
+    """
+    project_path = _setup_project(tmp_path)
+    for lane in ("lane-a", "lane-b"):
+        lane_kittify = project_path / ".worktrees" / lane / ".kittify"
+        lane_kittify.mkdir(parents=True)
+        ProjectMetadata(version="1.0.0", initialized_at=datetime.now()).save(lane_kittify)
+
+    runner = MigrationRunner(project_path)
+    migration = _RequiredWorktreeMigration()
+
+    monkeypatch.setattr(runner.detector, "detect_version", lambda: "1.0.0")
+    monkeypatch.setattr(
+        "specify_cli.upgrade.runner.MigrationRegistry.get_applicable",
+        lambda _from, _to, project_path=None: [migration],  # noqa: ARG005
+    )
+
+    runner.upgrade("10.0.0", include_worktrees=True)
+
+    failed = ProjectMetadata.load(project_path / ".worktrees" / "lane-a" / ".kittify")
+    healthy = ProjectMetadata.load(project_path / ".worktrees" / "lane-b" / ".kittify")
+    assert failed is not None and healthy is not None
+    assert failed.version == "1.0.0"
+    assert healthy.version == "10.0.0"
+
+
+def test_fatal_worktree_failure_does_not_stamp_schema_version(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """The compatibility gate must remain closed until required cleanup completes."""
+    project_path = _setup_project(tmp_path)
+    lane_kittify = project_path / ".worktrees" / "lane-a" / ".kittify"
+    lane_kittify.mkdir(parents=True)
+    ProjectMetadata(version="1.0.0", initialized_at=datetime.now()).save(lane_kittify)
+    runner = MigrationRunner(project_path)
+    migration = _RequiredWorktreeMigration()
+
+    monkeypatch.setattr(runner.detector, "detect_version", lambda: "1.0.0")
+    monkeypatch.setattr(
+        "specify_cli.upgrade.runner.MigrationRegistry.get_applicable",
+        lambda _from, _to, project_path=None: [migration],  # noqa: ARG005
+    )
+
+    result = runner.upgrade("10.0.0", include_worktrees=True)
+
+    assert result.success is False
+    metadata = yaml.safe_load((lane_kittify / "metadata.yaml").read_text(encoding="utf-8"))
+    assert "schema_version" not in metadata["spec_kitty"]
+
+
+def test_worktree_version_is_not_advanced_when_a_required_migration_cannot_apply(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """A fatal ``can_apply`` refusal is the same unfinished cleanup."""
+
+    class _UnapplicableRequiredMigration(_RequiredWorktreeMigration):
+        migration_id = "10.0.0_required_worktree_blocked"
+
+        def can_apply(self, project_path: Path) -> tuple[bool, str]:
+            return (False, "kitty-ops/ is unreadable") if project_path.name == "lane-a" else (True, "")
+
+    project_path = _setup_project(tmp_path)
+    lane_kittify = project_path / ".worktrees" / "lane-a" / ".kittify"
+    lane_kittify.mkdir(parents=True)
+    ProjectMetadata(version="1.0.0", initialized_at=datetime.now()).save(lane_kittify)
+
+    runner = MigrationRunner(project_path)
+    migration = _UnapplicableRequiredMigration()
+
+    monkeypatch.setattr(runner.detector, "detect_version", lambda: "1.0.0")
+    monkeypatch.setattr(
+        "specify_cli.upgrade.runner.MigrationRegistry.get_applicable",
+        lambda _from, _to, project_path=None: [migration],  # noqa: ARG005
+    )
+
+    result = runner.upgrade("10.0.0", include_worktrees=True)
+    metadata = ProjectMetadata.load(lane_kittify)
+
+    assert result.success is False
+    assert metadata is not None
+    assert metadata.version == "1.0.0"
+
+
+def test_upgrade_ignores_a_symlinked_worktree(tmp_path: Path) -> None:
+    project_path = _setup_project(tmp_path)
+    outside = tmp_path / "outside-checkout"
+    (outside / ".kittify").mkdir(parents=True)
+    worktrees = project_path / ".worktrees"
+    worktrees.mkdir()
+    try:
+        (worktrees / "outside").symlink_to(outside, target_is_directory=True)
+    except OSError as exc:  # pragma: no cover - platform privilege dependent
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    result = MigrationRunner(project_path)._upgrade_worktrees("9.9.9", [_AppliedMigration()], dry_run=False)
+
+    assert result == {"warnings": [], "errors": []}
+    assert not (outside / ".kittify" / "metadata.yaml").exists()
+
+
+def test_upgrade_ignores_a_symlinked_worktrees_root(tmp_path: Path) -> None:
+    """A symlinked ``.worktrees`` exposes lanes whose own children look ordinary."""
+    project_path = _setup_project(tmp_path)
+    outside_lane = tmp_path / "outside-worktrees" / "lane-a"
+    (outside_lane / ".kittify").mkdir(parents=True)
+    try:
+        (project_path / ".worktrees").symlink_to(outside_lane.parent, target_is_directory=True)
+    except OSError as exc:  # pragma: no cover - platform privilege dependent
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    result = MigrationRunner(project_path)._upgrade_worktrees("9.9.9", [_AppliedMigration()], dry_run=False)
+
+    assert result == {"warnings": [], "errors": []}
+    assert not (outside_lane / ".kittify" / "metadata.yaml").exists()
 
 
 # ---------------------------------------------------------------------------

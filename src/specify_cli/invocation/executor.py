@@ -35,7 +35,12 @@ from specify_cli.git import safe_commit
 from specify_cli.invocation.errors import InvalidModeForEvidenceError, InvocationError
 from specify_cli.invocation.modes import ModeOfWork
 from specify_cli.invocation.propagator import InvocationSaaSPropagator
-from specify_cli.invocation.record import OpCompletedEvent, OpStartedEvent, promote_to_evidence
+from specify_cli.invocation.record import (
+    OpCompletedEvent,
+    OpStartedEvent,
+    promote_to_evidence,
+    request_provenance,
+)
 from specify_cli.invocation.registry import ProfileRegistry
 from specify_cli.invocation.router import ActionRouter, RouterDecision  # WP02: router implemented
 from specify_cli.invocation.task_class_map import task_type_for_verb
@@ -263,12 +268,8 @@ class ProfileInvocationExecutor:
 
         # FR-004: advisory model-routing recommendation, non-fatal (NFR-002/C-001).
         recommendation = _compute_recommendation(profile, action)
-        catalog_candidate = (
-            recommendation.catalog_candidate if recommendation is not None else None
-        )
-        durable_model_id = (
-            catalog_candidate.model_id if catalog_candidate is not None else None
-        )
+        catalog_candidate = recommendation.catalog_candidate if recommendation is not None else None
+        durable_model_id = catalog_candidate.model_id if catalog_candidate is not None else None
 
         # 2. Assemble governance context (mark_loaded=False — critical)
         # NEVER pass mark_loaded=True here — would corrupt context-state.json
@@ -304,11 +305,14 @@ class ProfileInvocationExecutor:
 
         # 3. Write started record (raises InvocationWriteError on fs failure)
         started_at = datetime.datetime.now(datetime.UTC).isoformat()
+        request_summary, request_digest = request_provenance(request_text)
         record = OpStartedEvent(
             invocation_id=invocation_id,
             profile_id=profile.profile_id,
             action=action,
             request_text=request_text,
+            request_summary=request_summary,
+            request_digest=request_digest,
             governance_context_hash=ctx_hash,
             governance_context_available=ctx_available,
             actor=actor,
