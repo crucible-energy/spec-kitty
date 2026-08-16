@@ -15,7 +15,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, TextIO
+from typing import Any, TextIO, cast
 
 from filelock import Timeout
 
@@ -280,7 +280,7 @@ def _drain_late_appends(source: TextIO, path: Path, redactors: tuple[LineRedacto
     instead of letting them die with the old inode. The settle protocol is
     shared with the schema migration; see :mod:`._late_append_drain`.
     """
-    return drain_late_appends(source, path, lambda late: _append_redacted(path, late, redactors))
+    return cast(str | None, drain_late_appends(source, path, lambda late: _append_redacted(path, late, redactors)))
 
 
 def _install_redacted(
