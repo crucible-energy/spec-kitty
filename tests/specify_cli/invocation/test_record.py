@@ -107,6 +107,13 @@ class TestOpStartedEvent:
         with pytest.raises(ValidationError):
             OpStartedEvent(**_started_kwargs(request_summary="fix that bug"))  # type: ignore[arg-type]
 
+    def test_request_provenance_handles_unpaired_surrogate(self) -> None:
+        request = "repair \ud800"
+        summary, digest = request_provenance(request)
+
+        assert summary == "Request content withheld by local trail policy."
+        assert digest == "sha256:6e14c53048aedbf474035ab34fb1c1587144d2d77cf853ef9b2529511d67f38e"
+
     def test_missing_action_raises(self) -> None:
         kwargs = _started_kwargs()
         kwargs.pop("action")
