@@ -165,7 +165,7 @@ def test_plan_file_preserves_start_event_extension_fields(tmp_path: Path) -> Non
 
     plan = migration._plan_file(path)
     assert plan.action == "rewrite"
-    assert plan.source_lines and len(plan.source_lines) == 1
+    assert plan.source_lines == [path.read_text(encoding="utf-8").strip()]
     migrated = json.loads(plan.new_lines[0])
 
     assert migrated["trace_id"] == "keep-me"
