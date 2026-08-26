@@ -26,6 +26,7 @@ from specify_cli.invocation.record import (
     TierPolicy,
     parse_op_event,
     promote_to_evidence,
+    request_provenance,
     tier_eligible,
 )
 
@@ -39,7 +40,8 @@ CONTRACT_STARTED = {
     "invocation_id": _CONTRACT_ULID,
     "profile_id": "implementer-iris",
     "action": "implement",
-    "request_text": "fix that bug",
+    "request_summary": "Request content withheld by local trail policy.",
+    "request_digest": "sha256:fd83b145f6d219e0a53de996e82f68acd3f8fb1bfc554357c412fbdb376e21cf",
     "actor": "claude",
     "mode_of_work": "task_execution",
     "governance_context_hash": "d5ccab5678dcc4c8",
@@ -76,10 +78,41 @@ def _completed_kwargs(**overrides: object) -> dict[str, object]:
 # ---------------------------------------------------------------------------
 
 
+class TestRequestProvenance:
+    def test_lone_surrogate_request_still_yields_a_digest(self) -> None:
+        """Argv ``surrogateescape`` and JSON escapes both produce lone surrogates."""
+        summary, digest = request_provenance("rotate \udcff")
+
+        assert summary == "Request content withheld by local trail policy."
+        assert digest is not None
+        assert digest.startswith("sha256:")
+
+    def test_well_formed_text_digest_is_unchanged_by_the_encoding_fallback(self) -> None:
+        """The published contract example pins the digest for ordinary text."""
+        assert request_provenance("fix that bug")[1] == CONTRACT_STARTED["request_digest"]
+
+
 class TestOpStartedEvent:
     def test_contract_example_round_trips(self) -> None:
         event = OpStartedEvent.model_validate(CONTRACT_STARTED)
         assert json.loads(event.to_jsonl_line()) == CONTRACT_STARTED
+
+    def test_historical_raw_request_is_never_reemitted(self) -> None:
+        event = OpStartedEvent(**_started_kwargs(request_text="fix that bug"))  # type: ignore[arg-type]
+        data = json.loads(event.to_jsonl_line())
+        assert "request_text" not in data
+        assert data["request_summary"] == "Request content withheld by local trail policy."
+
+    def test_request_provenance_cannot_carry_free_text(self) -> None:
+        with pytest.raises(ValidationError):
+            OpStartedEvent(**_started_kwargs(request_summary="fix that bug"))  # type: ignore[arg-type]
+
+    def test_request_provenance_handles_unpaired_surrogate(self) -> None:
+        request = "repair \ud800"
+        summary, digest = request_provenance(request)
+
+        assert summary == "Request content withheld by local trail policy."
+        assert digest == "sha256:6e14c53048aedbf474035ab34fb1c1587144d2d77cf853ef9b2529511d67f38e"
 
     def test_missing_action_raises(self) -> None:
         kwargs = _started_kwargs()
@@ -125,7 +158,7 @@ class TestOpStartedEvent:
         assert data["wp_id"] == "WP01"
         assert data["model_id"] == "claude-opus-4-6"
 
-    def test_request_text_may_be_empty(self) -> None:
+    def test_request_text_is_transient(self) -> None:
         # Empty only legitimate for query mode — no model-level gate (executor enforces).
         event = OpStartedEvent(**_started_kwargs(request_text="", mode_of_work="query"))  # type: ignore[arg-type]
         assert event.request_text == ""

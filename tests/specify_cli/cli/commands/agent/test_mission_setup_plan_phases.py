@@ -767,6 +767,7 @@ def test_commit_plan_substantive_routes_plan_completed_event_with_plan(
     """The plan commit owns its durable PlanCompleted lifecycle evidence."""
     from specify_cli.cli.commands.agent import mission as mission_mod
     from specify_cli.status import PLAN_COMPLETED
+    from spec_kitty_events.project_lifecycle import PlanCompletedPayload
 
     plan_file = tmp_path / "plan.md"
     plan_file.write_text("## Technical Context\n**Language/Version**: Python 3.12\n**Primary Dependencies**: typer\n")
@@ -776,10 +777,10 @@ def test_commit_plan_substantive_routes_plan_completed_event_with_plan(
 
     monkeypatch.setattr("specify_cli.missions._substantive.is_substantive", lambda *a, **k: True)
 
-    def _emit_artifact_phase(feature_dir: Path, *, event_type: str, **_kwargs: object) -> dict[str, object]:
+    def _emit_artifact_phase(mission_dir: Path, *, event_type: str, **_kwargs: object) -> PlanCompletedPayload:
         emitted_events.append(event_type)
-        (feature_dir / "status.events.jsonl").write_text('{"event_type":"PlanCompleted"}\n', encoding="utf-8")
-        return {"event_type": event_type}
+        (mission_dir / "status.events.jsonl").write_text('{"event_type":"PlanCompleted"}\n', encoding="utf-8")
+        return PlanCompletedPayload(mission_slug="001-demo", actor="test", artifact_path="plan.md")
 
     def _commit(*_args: object, **kwargs: object) -> seam.CommitToBranchResult:
         commit_kwargs.append(kwargs)

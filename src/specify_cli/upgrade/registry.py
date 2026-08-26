@@ -88,8 +88,12 @@ class MigrationRegistry:
             # Include if target is > from_version AND <= to_version
             if from_v < target <= to_v:
                 applicable.append(migration)
-            # ALSO include migrations at current version if detect() returns True
-            elif target == from_v and project_path is not None:  # noqa: SIM102
+            # ALSO include migrations at (or behind) the current version if
+            # detect() returns True. A detection-based repeatable cleanup must
+            # stay selectable after the project version advances past its
+            # target, because a stale executable can rewrite the legacy state
+            # into a newer checkout at any time.
+            elif project_path is not None and (target == from_v or (migration.reapply_when_detected and target < from_v)):  # noqa: SIM102
                 if migration.detect(Path(project_path) if isinstance(project_path, str) else project_path):
                     applicable.append(migration)
 

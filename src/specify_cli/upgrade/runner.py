@@ -21,6 +21,7 @@ from . import autocommit
 from .detector import VersionDetector
 from .metadata import ProjectMetadata
 from .migrations.base import BaseMigration, MigrationResult
+from .path_containment import contained_subdir
 from .registry import MigrationRegistry
 
 logger = logging.getLogger(__name__)
@@ -139,7 +140,11 @@ class MigrationRunner:
                 result.warnings.extend(worktrees_result.get("warnings", []))
                 if worktrees_result.get("errors"):
                     result.errors.extend(worktrees_result["errors"])
-                    result.warnings.append("Some worktrees had issues - check errors above")
+                    if worktrees_result.get("fatal_errors"):
+                        result.success = False
+                        result.warnings.append("A required worktree migration failed - check errors above")
+                    else:
+                        result.warnings.append("Some worktrees had issues - check errors above")
 
             result.warnings.append(f"No migrations needed from {from_version} to {target_version}")
             return result
@@ -195,8 +200,12 @@ class MigrationRunner:
             result.warnings.extend(worktrees_result.get("warnings", []))
             if worktrees_result.get("errors"):
                 result.errors.extend(worktrees_result["errors"])
-                # Don't fail the whole upgrade for worktree issues
-                result.warnings.append("Some worktrees had issues - check errors above")
+                if worktrees_result.get("fatal_errors"):
+                    result.success = False
+                    result.warnings.append("A required worktree migration failed - check errors above")
+                else:
+                    # Independent worktree failures remain advisory by default.
+                    result.warnings.append("Some worktrees had issues - check errors above")
 
         return result
 
@@ -242,8 +251,11 @@ class MigrationRunner:
             Tuple of (MigrationResult, status) where status is one of
             ``applied``, ``skipped``, or ``failed``.
         """
-        # Skip if already applied
-        if metadata.has_migration(migration.migration_id):
+        already_applied = metadata.has_migration(migration.migration_id)
+        # Most migrations are one-shot. Cleanup migrations that can be made
+        # necessary again by a stale same-version executable opt in to a fresh
+        # detector pass instead.
+        if already_applied and not migration.reapply_when_detected:
             return (
                 MigrationResult(
                     success=True,
@@ -255,7 +267,7 @@ class MigrationRunner:
         # Check if migration is needed via detection
         if not migration.detect(self.project_path):
             # Migration not needed - project doesn't have old state
-            if not dry_run:
+            if not dry_run and not already_applied:
                 self._record_migration_result(
                     metadata,
                     self.kittify_dir,
@@ -263,9 +275,15 @@ class MigrationRunner:
                     "skipped",
                     "Not applicable",
                 )
-            return (MigrationResult(
-                success=True,
-                warnings=[f"Migration {migration.migration_id} not needed (project already in target state)"],),
+            return (
+                MigrationResult(
+                    success=True,
+                    warnings=[
+                        f"Migration {migration.migration_id} already applied and remains current"
+                        if already_applied
+                        else f"Migration {migration.migration_id} not needed (project already in target state)"
+                    ],
+                ),
                 "skipped",
             )
 
@@ -317,25 +335,38 @@ class MigrationRunner:
         Returns:
             Dict with warnings and errors lists
         """
+        # Imported here, not at module scope: this module is on the
+        # ``spec-kitty next`` import path, whose cold start is gated by NFR-003,
+        # and the invocation package pulls pydantic models plus filelock.
+        from specify_cli.invocation.writer import EVENTS_DIR as OPS_TRAIL_DIR
+
         result: dict[str, Any] = {"warnings": [], "errors": []}
         worktree_migrations = [migration for migration in migrations if migration.runs_on_worktrees]
 
         if migrations and not worktree_migrations:
             return result
 
-        worktrees_dir = self.project_path / WORKTREES_DIR
-        if not worktrees_dir.exists():
+        # A symlinked ``.worktrees`` points at another checkout's lanes, whose
+        # own children are ordinary directories the per-child guard accepts.
+        worktrees_dir = contained_subdir(self.project_path, WORKTREES_DIR)
+        if worktrees_dir is None:
             return result
 
         # Use deterministic ordering so migrations and logs are reproducible.
         for worktree in sorted(worktrees_dir.iterdir(), key=lambda p: p.name):
-            if not worktree.is_dir():
+            if not worktree.is_dir() or worktree.is_symlink():
                 continue
 
             wt_kittify = worktree / KITTIFY_DIR
+            # A lane can hold request-derived trail records under ``kitty-ops/``
+            # without carrying any other project state. Each trail migration
+            # only rewrites the checkout it is handed, so skipping such a lane
+            # would leave those records raw while the upgrade reports success.
+            # The glossary trail lives under ``.kittify/``, so the probe below
+            # already covers it.
             has_upgradeable_state = wt_kittify.exists() or (
                 bool(worktree_migrations)
-                and ((worktree / KITTY_SPECS_DIR).exists() or (worktree / ".specify").exists())
+                and any((worktree / state).exists() for state in (KITTY_SPECS_DIR, ".specify", OPS_TRAIL_DIR))
             )
             if not has_upgradeable_state:
                 continue
@@ -359,13 +390,17 @@ class MigrationRunner:
             # self-healing path silently regresses (#1873, regression of #1857).
             worktree_metadata_dirty = wt_metadata_synthesized
             worktree_manual_review = False
+            worktree_fatal_failure = False
 
             # Apply migrations to worktree
             for migration in worktree_migrations:
-                if wt_metadata.has_migration(migration.migration_id):
+                already_applied = wt_metadata.has_migration(migration.migration_id)
+                if already_applied and not migration.reapply_when_detected:
                     continue
 
                 if not migration.detect(worktree):
+                    if already_applied:
+                        continue
                     # Only mark dirty when a NEW record was written; an
                     # already-recorded "skipped" migration is a no-op and must
                     # not bump last_upgraded_at on every re-run (issue #1872).
@@ -381,9 +416,13 @@ class MigrationRunner:
 
                 can_apply, reason = migration.can_apply(worktree)
                 if not can_apply:
-                    result["warnings"].append(
-                        f"Worktree {worktree.name}: Cannot apply {migration.migration_id}: {reason}"
-                    )
+                    message = f"Worktree {worktree.name}: Cannot apply {migration.migration_id}: {reason}"
+                    if migration.worktree_failure_is_fatal:
+                        result["errors"].append(message)
+                        result.setdefault("fatal_errors", []).append(message)
+                        worktree_fatal_failure = True
+                    else:
+                        result["warnings"].append(message)
                     continue
 
                 migration_result = migration.apply(worktree, dry_run=dry_run)
@@ -413,14 +452,22 @@ class MigrationRunner:
                         # failed migration is not an upgrade, so it must not
                         # bump last_upgraded_at. The failure record itself is
                         # already persisted by _record_migration_result.
-                    result["errors"].extend([f"Worktree {worktree.name}: {e}" for e in migration_result.errors])
+                    errors = [f"Worktree {worktree.name}: {e}" for e in migration_result.errors]
+                    result["errors"].extend(errors)
+                    if migration.worktree_failure_is_fatal:
+                        result.setdefault("fatal_errors", []).extend(errors)
+                        worktree_fatal_failure = True
 
             # Save worktree metadata only when something material changed
             # (a migration record was written, metadata was synthesized fresh,
             # or the version advanced); a no-op upgrade must not rewrite
             # last_upgraded_at (issue #1838).
             if not dry_run:
-                if wt_metadata.version != target_version:
+                # A worktree that failed a required migration must keep its old
+                # version: stamping the target advertises work that never
+                # happened, and version-scoped migration selection would then
+                # skip the still-owed cleanup on the next upgrade.
+                if wt_metadata.version != target_version and not worktree_fatal_failure:
                     wt_metadata.version = target_version
                     worktree_metadata_dirty = True
 
@@ -429,7 +476,7 @@ class MigrationRunner:
                     wt_metadata.save(wt_kittify)
                 # ProjectMetadata.save() rewrites metadata.yaml from its fixed
                 # model, so stamp after save just like the main project path.
-                if REQUIRED_SCHEMA_VERSION is not None:
+                if REQUIRED_SCHEMA_VERSION is not None and not worktree_fatal_failure:
                     self._stamp_schema_version(wt_kittify, REQUIRED_SCHEMA_VERSION)
 
                 # Commit this worktree's upgrade churn on its own branch
@@ -487,7 +534,7 @@ class MigrationRunner:
         recorded = metadata.record_migration(migration_id, result, notes)
         if recorded:
             metadata.save(metadata_dir)
-        return recorded
+        return bool(recorded)
 
     @staticmethod
     def _stamp_schema_version(kittify_dir: Path, schema_version: int) -> None:
@@ -513,9 +560,7 @@ class MigrationRunner:
             # branch is unreachable in normal operation. Log instead of raising
             # so a corrupted dev environment surfaces a diagnostic. See FU-4 in
             # kitty-specs/release-3-2-0a5-tranche-1-01KQ7YXH/follow-ups.md.
-            logger.warning(
-                "schema_version stamp skipped: %s does not exist", metadata_path
-            )
+            logger.warning("schema_version stamp skipped: %s does not exist", metadata_path)
             return
 
         try:
@@ -541,11 +586,7 @@ class MigrationRunner:
 
         data["spec_kitty"]["schema_version"] = schema_version
 
-        header = (
-            "# Spec Kitty Project Metadata\n"
-            "# Auto-generated by spec-kitty init/upgrade\n"
-            "# DO NOT EDIT MANUALLY\n\n"
-        )
+        header = "# Spec Kitty Project Metadata\n# Auto-generated by spec-kitty init/upgrade\n# DO NOT EDIT MANUALLY\n\n"
         buf = io.StringIO()
         buf.write(header)
         yaml.dump(data, buf, default_flow_style=False, sort_keys=False)

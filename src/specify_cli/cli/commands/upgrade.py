@@ -959,7 +959,7 @@ def upgrade(  # noqa: C901
             "surface_repair": _surface_repair_payload(surface_repair_summary),
         }
         print(json.dumps(output))
-        if surface_drift_failed:
+        if not success:
             raise typer.Exit(1)
         return
 

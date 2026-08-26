@@ -24,6 +24,7 @@ Event log format: .kittify/events/glossary/{mission_id}.events.jsonl
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import re
@@ -33,6 +34,8 @@ from pathlib import Path
 from typing import Any
 from collections.abc import Iterator
 
+from filelock import FileLock
+
 from glossary.semantic_events import (
     EVT_GLOSSARY_CLARIFICATION_REQUESTED,
     EVT_GLOSSARY_CLARIFICATION_RESOLVED,
@@ -41,6 +44,8 @@ from glossary.semantic_events import (
 )
 
 logger = logging.getLogger(__name__)
+
+_GLOSSARY_EVENT_LOCK_TIMEOUT_SECONDS = 30
 
 
 # ---------------------------------------------------------------------------
@@ -127,6 +132,16 @@ def get_event_log_path(
 # ---------------------------------------------------------------------------
 
 
+@contextlib.contextmanager
+def glossary_event_lock(event_log_path: Path) -> Iterator[None]:
+    """Serialize append and rewrite access to one glossary JSONL trail."""
+    lock_path = event_log_path.with_name(f".{event_log_path.name}.lock")
+    if lock_path.is_symlink():
+        raise OSError(f"Refusing symbolic-link glossary event lock: {lock_path}")
+    with FileLock(str(lock_path), timeout=_GLOSSARY_EVENT_LOCK_TIMEOUT_SECONDS):
+        yield
+
+
 def append_event(event_dict: dict[str, Any], event_log_path: Path) -> None:
     """Append a single event dict to a JSONL event log.
 
@@ -138,19 +153,19 @@ def append_event(event_dict: dict[str, Any], event_log_path: Path) -> None:
         event_dict: JSON-serializable event payload
         event_log_path: Path to the .events.jsonl file
     """
-    if EVENTS_AVAILABLE and _pkg_append_event is not None:
-        try:
-            _pkg_append_event(event_dict, event_log_path)
-            return
-        except Exception as exc:
-            logger.warning(
-                "Canonical append failed for %s, using local JSONL fallback: %s",
-                event_dict.get("event_type", "UnknownEvent"),
-                exc,
-            )
-
     try:
-        _local_append_event(event_dict, event_log_path)
+        with glossary_event_lock(event_log_path):
+            if EVENTS_AVAILABLE and _pkg_append_event is not None:
+                try:
+                    _pkg_append_event(event_dict, event_log_path)
+                    return
+                except Exception as exc:
+                    logger.warning(
+                        "Canonical append failed for %s, using local JSONL fallback: %s",
+                        event_dict.get("event_type", "UnknownEvent"),
+                        exc,
+                    )
+            _local_append_event_unlocked(event_dict, event_log_path)
     except Exception as exc:
         logger.error(
             "Local append failed for %s: %s",
@@ -168,6 +183,12 @@ def _local_append_event(event_dict: dict[str, Any], event_log_path: Path) -> Non
         event_dict: JSON-serializable event payload
         event_log_path: Path to the .events.jsonl file
     """
+    with glossary_event_lock(event_log_path):
+        _local_append_event_unlocked(event_dict, event_log_path)
+
+
+def _local_append_event_unlocked(event_dict: dict[str, Any], event_log_path: Path) -> None:
+    """Append one JSONL event while the caller holds ``glossary_event_lock``."""
     event_log_path.parent.mkdir(parents=True, exist_ok=True)
     with event_log_path.open("a") as f:
         f.write(json.dumps(event_dict, sort_keys=True, default=str) + "\n")
@@ -569,20 +590,20 @@ def _persist_event(
         return
     event_dict.setdefault("event_id", str(uuid.uuid4()))
 
-    if EVENTS_AVAILABLE and _pkg_append_event is not None and canonical_cls is not None:
-        try:
-            canonical_instance = canonical_cls(**event_dict)
-            _pkg_append_event(canonical_instance, event_log_path)
-            return
-        except Exception as exc:
-            logger.warning(
-                "Canonical persistence failed for %s, using local JSONL fallback: %s",
-                event_dict.get("event_type", "UnknownEvent"),
-                exc,
-            )
-
     try:
-        _local_append_event(event_dict, event_log_path)
+        with glossary_event_lock(event_log_path):
+            if EVENTS_AVAILABLE and _pkg_append_event is not None and canonical_cls is not None:
+                try:
+                    canonical_instance = canonical_cls(**event_dict)
+                    _pkg_append_event(canonical_instance, event_log_path)
+                    return
+                except Exception as exc:
+                    logger.warning(
+                        "Canonical persistence failed for %s, using local JSONL fallback: %s",
+                        event_dict.get("event_type", "UnknownEvent"),
+                        exc,
+                    )
+            _local_append_event_unlocked(event_dict, event_log_path)
     except Exception as exc:
         logger.error(
             "Local persistence failed for %s: %s",

@@ -10,6 +10,8 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, TextIO
 
+from filelock import FileLock, Timeout
+
 from specify_cli.core.utils import ensure_within_any
 from specify_cli.invocation.errors import AlreadyClosedError, InvocationError, InvocationWriteError
 from specify_cli.invocation.record import (
@@ -23,6 +25,26 @@ if TYPE_CHECKING:
 
 EVENTS_DIR = "kitty-ops"
 INDEX_PATH = "kitty-ops/ops-index.jsonl"
+_INVOCATION_LOCK_TIMEOUT_SECONDS = 30
+
+
+@contextlib.contextmanager
+def invocation_record_lock(path: Path) -> Iterator[None]:
+    """Serialize mutation of one invocation record across writers and upgrades.
+
+    The lock is deliberately adjacent to the JSONL record and shared with the
+    redaction migration.  Holding it across an atomic replacement prevents an
+    append that began before the replacement from being written to the old,
+    unlinked inode and silently lost.
+    """
+    lock_path = path.with_name(f".{path.name}.lock")
+    # FileLock uses O_NOFOLLOW where the platform supports it.  Reject a
+    # pre-existing link before it reaches FileLock's truncating open so the
+    # fallback platform path is safe too.
+    if lock_path.is_symlink():
+        raise OSError(f"Refusing symbolic-link invocation lock: {lock_path}")
+    with FileLock(str(lock_path), timeout=_INVOCATION_LOCK_TIMEOUT_SECONDS):
+        yield
 
 
 def normalise_ref(ref: str, repo_root: Path) -> str:
@@ -76,9 +98,7 @@ class InvocationWriter:
         candidate = self._dir / f"{validated_id}.jsonl"
         ensure_within_any(candidate, roots=[self._dir])
         if candidate.is_symlink():
-            raise ValueError(
-                f"Invocation record must not be a symbolic link: {candidate}"
-            )
+            raise ValueError(f"Invocation record must not be a symbolic link: {candidate}")
         return candidate
 
     @contextlib.contextmanager
@@ -88,42 +108,31 @@ class InvocationWriter:
         invocation_id: str,
     ) -> Iterator[TextIO]:
         """Open one existing trail inode and verify its started-event identity."""
-        no_follow = getattr(os, "O_NOFOLLOW", 0)
-        if no_follow == 0 and path.is_symlink():
-            raise InvocationError(f"Refusing symbolic-link invocation record: {path}")
         try:
-            fd = os.open(path, os.O_RDWR | os.O_APPEND | no_follow)
-        except FileNotFoundError as exc:
-            raise InvocationError(
-                f"Invocation record not found: {invocation_id}"
-            ) from exc
-        except OSError as exc:
-            raise InvocationWriteError(
-                f"Failed to open invocation record safely: {exc}"
-            ) from exc
-        with os.fdopen(fd, "a+", encoding="utf-8") as handle:
-            handle.seek(0)
-            try:
-                rows = [
-                    json.loads(line)
-                    for line in handle.read().splitlines()
-                    if line.strip()
-                ]
-            except (json.JSONDecodeError, OSError) as exc:
-                raise InvocationError(
-                    f"Invocation record is unreadable: {invocation_id}"
-                ) from exc
-            if not rows or rows[0].get("event") != "started":
-                raise InvocationError(
-                    f"Invocation record has no started event: {invocation_id}"
-                )
-            embedded_id = rows[0].get("invocation_id")
-            if embedded_id != invocation_id:
-                raise InvocationError(
-                    "Invocation record identity mismatch: "
-                    f"requested={invocation_id!r}, embedded={embedded_id!r}"
-                )
-            yield handle
+            with invocation_record_lock(path):
+                no_follow = getattr(os, "O_NOFOLLOW", 0)
+                if no_follow == 0 and path.is_symlink():
+                    raise InvocationError(f"Refusing symbolic-link invocation record: {path}")
+                try:
+                    fd = os.open(path, os.O_RDWR | os.O_APPEND | no_follow)
+                except FileNotFoundError as exc:
+                    raise InvocationError(f"Invocation record not found: {invocation_id}") from exc
+                except OSError as exc:
+                    raise InvocationWriteError(f"Failed to open invocation record safely: {exc}") from exc
+                with os.fdopen(fd, "a+", encoding="utf-8") as handle:
+                    handle.seek(0)
+                    try:
+                        rows = [json.loads(line) for line in handle.read().splitlines() if line.strip()]
+                    except (json.JSONDecodeError, OSError) as exc:
+                        raise InvocationError(f"Invocation record is unreadable: {invocation_id}") from exc
+                    if not rows or rows[0].get("event") != "started":
+                        raise InvocationError(f"Invocation record has no started event: {invocation_id}")
+                    embedded_id = rows[0].get("invocation_id")
+                    if embedded_id != invocation_id:
+                        raise InvocationError(f"Invocation record identity mismatch: requested={invocation_id!r}, embedded={embedded_id!r}")
+                    yield handle
+        except Timeout as exc:
+            raise InvocationWriteError(f"Timed out waiting to append invocation record: {invocation_id}") from exc
 
     @staticmethod
     def _append_line_no_follow(path: Path, line: str) -> None:
@@ -178,15 +187,16 @@ class InvocationWriter:
         self._ensure_dir()
         path = self.invocation_path(record.invocation_id)
         try:
+            # Creation participates in the same per-record protocol as every
+            # append and migration rewrite. Without this lock, a migration can
+            # inspect the just-created but still-empty inode and delete it.
             # Use "x" mode (exclusive create) to detect ULID collision (extremely rare).
             # Optional fields (router_confidence, mission_id, wp_id, model_id)
             # are omitted when None.
-            with path.open("x", encoding="utf-8") as f:
+            with invocation_record_lock(path), path.open("x", encoding="utf-8") as f:
                 f.write(record.to_jsonl_line() + "\n")
         except FileExistsError:
-            raise InvocationWriteError(
-                f"ULID collision on {path} — retry with a new invocation_id"
-            )
+            raise InvocationWriteError(f"ULID collision on {path} — retry with a new invocation_id")
         except OSError as e:
             raise InvocationWriteError(f"Failed to write invocation record: {e}") from e
         self._append_to_index(record)
@@ -203,11 +213,7 @@ class InvocationWriter:
         try:
             with self._validated_append_handle(path, record.invocation_id) as handle:
                 handle.seek(0)
-                existing = [
-                    json.loads(line)
-                    for line in handle.read().splitlines()
-                    if line.strip()
-                ]
+                existing = [json.loads(line) for line in handle.read().splitlines() if line.strip()]
                 if any(entry.get("event") == "completed" for entry in existing):
                     raise AlreadyClosedError(record.invocation_id)
                 handle.write(record.to_jsonl_line() + "\n")
@@ -257,19 +263,17 @@ class InvocationWriter:
         except (InvocationError, InvocationWriteError):
             raise
         except OSError as e:
-            raise InvocationWriteError(
-                f"Failed to append correlation event: {e}"
-            ) from e
+            raise InvocationWriteError(f"Failed to append correlation event: {e}") from e
 
-    def write_glossary_observation(
-        self, invocation_id: str, bundle: GlossaryObservationBundle
-    ) -> None:
+    def write_glossary_observation(self, invocation_id: str, bundle: GlossaryObservationBundle) -> None:
         """Append glossary_checked event to invocation file. Best-effort only.
 
         This event is ONLY written when ``all_conflicts`` is non-empty OR
         ``error_msg`` is set. Clean invocations (no conflicts, no error) produce
         NO ``glossary_checked`` line in the trail — keeping Tier 1 files minimal.
 
+        Conflict term text and error strings are intentionally absent: both can
+        be derived from the request, which is not durable local-trail data.
         Readers that encounter an unknown event type may safely skip this line.
         """
         # Skip clean invocations (no conflicts and no error)
@@ -280,8 +284,13 @@ class InvocationWriter:
             entry: dict[str, object] = {
                 "event": "glossary_checked",
                 "invocation_id": invocation_id,
+                "matched_urns": list(bundle.matched_urns),
+                "conflict_count": len(bundle.all_conflicts),
+                "high_severity_count": len(bundle.high_severity),
+                "tokens_checked": bundle.tokens_checked,
+                "duration_ms": bundle.duration_ms,
+                "error_present": bundle.error_msg is not None,
             }
-            entry.update(bundle.to_dict())
             with self._validated_append_handle(path, invocation_id) as handle:
                 handle.write(json.dumps(entry) + "\n")
         except (OSError, InvocationError, InvocationWriteError, ValueError):
