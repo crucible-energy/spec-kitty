@@ -26,6 +26,8 @@ from specify_cli.upgrade.migrations.m_3_2_7_redact_op_requests import (
 from specify_cli.upgrade.registry import MigrationRegistry
 from specify_cli.upgrade.runner import MigrationRunner
 
+pytestmark = [pytest.mark.integration]
+
 ULID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 
 
