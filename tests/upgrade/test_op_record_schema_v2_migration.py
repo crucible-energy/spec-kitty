@@ -359,7 +359,10 @@ class TestIdempotencyAndAtomicity:
         path = _write(project, f"{ULID}.jsonl", [_legacy_started()])
         outside = project / "outside.txt"
         outside.write_text("leave untouched", encoding="utf-8")
-        path.with_name(path.name + ".tmp").symlink_to(outside)
+        try:
+            path.with_name(path.name + ".tmp").symlink_to(outside)
+        except OSError as exc:  # pragma: no cover - platform privilege dependent
+            pytest.skip(f"symlinks unavailable: {exc}")
 
         result = migration.apply(project)
 
@@ -1000,7 +1003,10 @@ class TestDetectMatrix:
         outside.mkdir(parents=True)
         outside_record = outside / f"{ULID}.jsonl"
         outside_record.write_text(_legacy_started() + "\n", encoding="utf-8")
-        (checkout / "kitty-ops").symlink_to(outside, target_is_directory=True)
+        try:
+            (checkout / "kitty-ops").symlink_to(outside, target_is_directory=True)
+        except OSError as exc:  # pragma: no cover - platform privilege dependent
+            pytest.skip(f"symlinks unavailable: {exc}")
 
         assert migration.detect(checkout) is False
         ok, _reason = migration.can_apply(checkout)
@@ -1021,7 +1027,10 @@ class TestDetectMatrix:
         outside_record = outside_worktrees / "lane-a" / "kitty-ops" / f"{ULID}.jsonl"
         outside_record.parent.mkdir(parents=True)
         outside_record.write_text(_legacy_started() + "\n", encoding="utf-8")
-        (checkout / ".worktrees").symlink_to(outside_worktrees, target_is_directory=True)
+        try:
+            (checkout / ".worktrees").symlink_to(outside_worktrees, target_is_directory=True)
+        except OSError as exc:  # pragma: no cover - platform privilege dependent
+            pytest.skip(f"symlinks unavailable: {exc}")
 
         assert migration.detect(checkout) is False
         assert migration.apply(checkout).success
@@ -1031,7 +1040,10 @@ class TestDetectMatrix:
         """A symlinked record resolves outside the checkout the same way."""
         outside = project.parent / "outside.jsonl"
         outside.write_text(_legacy_started() + "\n", encoding="utf-8")
-        (project / "kitty-ops" / f"{ULID}.jsonl").symlink_to(outside)
+        try:
+            (project / "kitty-ops" / f"{ULID}.jsonl").symlink_to(outside)
+        except OSError as exc:  # pragma: no cover - platform privilege dependent
+            pytest.skip(f"symlinks unavailable: {exc}")
 
         assert migration.detect(project) is False
         assert migration.apply(project).success

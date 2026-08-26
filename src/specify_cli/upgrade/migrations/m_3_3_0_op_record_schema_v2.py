@@ -99,11 +99,10 @@ def _eligible_files(root: Path) -> list[Path]:
     ops_dir = contained_subdir(root, _OPS_DIR)
     if ops_dir is None:
         return []
-    return sorted(
-        p
-        for p in ops_dir.glob(f"*{_RECORD_SUFFIX}")
-        if p.name not in EXCLUDED_FILES and _is_op_record(p) and not p.is_symlink()
-    )
+    try:
+        return sorted(p for p in ops_dir.glob(f"*{_RECORD_SUFFIX}") if p.name not in EXCLUDED_FILES and _is_op_record(p) and not p.is_symlink())
+    except OSError:
+        return []
 
 
 def _checkout_roots(project_path: Path) -> list[Path]:
@@ -111,7 +110,10 @@ def _checkout_roots(project_path: Path) -> list[Path]:
     roots = [project_path]
     worktrees_dir = contained_subdir(project_path, _WORKTREES_DIR)
     if worktrees_dir is not None:
-        roots.extend(sorted(child for child in worktrees_dir.iterdir() if child.is_dir() and not child.is_symlink()))
+        try:
+            roots.extend(sorted(child for child in worktrees_dir.iterdir() if child.is_dir() and not child.is_symlink()))
+        except OSError:
+            return roots
     return roots
 
 
@@ -398,13 +400,30 @@ def _swap_and_carry(path: Path, tmp_path: Path, source_lines: list[str]) -> bool
                 return False
             if DRAIN_SUPPORTED:
                 os.replace(tmp_path, path)
+                _fsync_dir(path.parent)
                 return not _carry_late_appends(source, path)
         os.replace(tmp_path, path)
+        _fsync_dir(path.parent)
         return True
     except UnicodeDecodeError:
         # A late append of invalid UTF-8 is a changed snapshot, classified by
         # the replan exactly as it would be had it landed before this pass.
         return False
+
+
+def _fsync_dir(directory: Path) -> None:
+    """Request durable metadata for a completed atomic rename when supported."""
+    try:
+        descriptor = os.open(directory, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(descriptor)
+    except OSError:
+        return
+    finally:
+        with contextlib.suppress(OSError):
+            os.close(descriptor)
 
 
 def _atomic_rewrite(path: Path, lines: list[str], source_lines: list[str]) -> bool:
@@ -531,7 +550,15 @@ def _quarantined_files(root: Path) -> list[Path]:
     ops_dir = contained_subdir(root, _OPS_DIR)
     if ops_dir is None:
         return []
-    return sorted(p for p in ops_dir.glob(f".*{_QUARANTINE_SUFFIX}") if _is_record_quarantine(p) and not p.is_symlink())
+    try:
+        return sorted(p for p in ops_dir.glob(f".*{_QUARANTINE_SUFFIX}") if _is_record_quarantine(p) and not p.is_symlink())
+    except OSError:
+        return []
+
+
+def _needs_repair(root: Path) -> bool:
+    """Whether a checkout still holds a record the schema migration must repair."""
+    return bool(_quarantined_files(root)) or any(_plan_file(path).action != "skip" for path in _eligible_files(root))
 
 
 def _quarantine_origin(quarantined: Path) -> Path:
@@ -695,12 +722,7 @@ class OpRecordSchemaV2Migration(BaseMigration):
         ``_eligible_files`` cannot match, so it has to be reported here too or
         this repeatable migration would go quiet with those bytes still parked.
         """
-        for root in _checkout_roots(project_path):
-            if _quarantined_files(root):
-                return True
-            if any(_plan_file(path).action != "skip" for path in _eligible_files(root)):
-                return True
-        return False
+        return any(_needs_repair(root) for root in _checkout_roots(project_path))
 
     def can_apply(self, project_path: Path) -> tuple[bool, str]:
         """The migration needs a readable ``kitty-ops/`` inside the checkout."""
@@ -766,5 +788,11 @@ class OpRecordSchemaV2Migration(BaseMigration):
 
         if deleted:
             warnings.append(f"Deleted {len(deleted)} unsalvageable Op record file(s): " + ", ".join(deleted))
+
+        warnings.extend(
+            f"Legacy Op records remain in {_WORKTREES_DIR}/{lane.name}; they are migrated when that lane is upgraded"
+            for lane in _checkout_roots(project_path)[1:]
+            if _needs_repair(lane)
+        )
 
         return MigrationResult(success=not errors, changes_made=changes, errors=errors, warnings=warnings)

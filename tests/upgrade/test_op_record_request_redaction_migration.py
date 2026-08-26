@@ -26,8 +26,6 @@ from specify_cli.upgrade.migrations.m_3_2_7_redact_op_requests import (
 from specify_cli.upgrade.registry import MigrationRegistry
 from specify_cli.upgrade.runner import MigrationRunner
 
-pytestmark = pytest.mark.fast
-
 ULID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 
 
@@ -363,7 +361,10 @@ def test_symlinked_trail_directory_is_not_rewritten(tmp_path: Path, trail: str) 
     outside_record.write_text((_raw_candidate_event() if is_glossary else _raw_v2_started()) + "\n", encoding="utf-8")
     link = project / trail
     link.parent.mkdir(parents=True, exist_ok=True)
-    link.symlink_to(outside, target_is_directory=True)
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError as exc:  # pragma: no cover - platform privilege dependent
+        pytest.skip(f"symlinks unavailable: {exc}")
     migration = OpRecordRequestRedactionMigration()
 
     assert migration.detect(project) is False
@@ -566,7 +567,10 @@ def test_migration_does_not_follow_a_precreated_temporary_symlink(project: Path)
     path = _write(project, f"{ULID}.jsonl", [_raw_v2_started()])
     outside = project / "outside.txt"
     outside.write_text("leave untouched", encoding="utf-8")
-    path.with_name(path.name + ".tmp").symlink_to(outside)
+    try:
+        path.with_name(path.name + ".tmp").symlink_to(outside)
+    except OSError as exc:  # pragma: no cover - platform privilege dependent
+        pytest.skip(f"symlinks unavailable: {exc}")
 
     result = OpRecordRequestRedactionMigration().apply(project)
 
@@ -608,6 +612,7 @@ def test_append_landing_after_the_snapshot_check_survives_the_swap(
     assert not OpRecordRequestRedactionMigration().detect(project)
 
 
+@pytest.mark.timing
 def test_drain_waits_for_a_writer_that_had_not_written_by_the_first_read(
     project: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -692,6 +697,7 @@ def test_swap_holds_no_handle_on_the_record_where_the_inode_cannot_be_drained(
     assert not OpRecordRequestRedactionMigration().detect(project)
 
 
+@pytest.mark.timing
 def test_drain_waits_out_a_writer_descheduled_past_a_single_settle_interval(
     project: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -785,6 +791,7 @@ def test_symlinked_record_lock_is_reported_rather_than_raised(project: Path) -> 
     assert "request_text" in path.read_text(encoding="utf-8")
 
 
+@pytest.mark.timing
 def test_migration_does_not_drop_an_append_started_during_atomic_rewrite(project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The migration and normal writer share one lock for an Op JSONL file."""
     path = _write(project, f"{ULID}.jsonl", [_raw_v2_started()])
@@ -819,6 +826,7 @@ def test_migration_does_not_drop_an_append_started_during_atomic_rewrite(project
     assert lines[-1]["event"] == "artifact_link"
 
 
+@pytest.mark.timing
 def test_migration_does_not_drop_a_glossary_event_appended_during_rewrite(
     project: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1089,6 +1097,7 @@ def test_dry_run_takes_neither_rewrite_lock(project: Path, monkeypatch: pytest.M
     assert taken == []
 
 
+@pytest.mark.timing
 def test_dry_run_does_not_wait_on_a_held_record_lock(project: Path) -> None:
     """A preview must not stall on a live writer's lock timeout."""
     path = _write(project, f"{ULID}.jsonl", [_raw_v2_started()])

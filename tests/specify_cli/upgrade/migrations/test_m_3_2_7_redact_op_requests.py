@@ -10,15 +10,9 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import json
-import sys
 from pathlib import Path
 
 import pytest
-
-# Ensure worktree src/ shadows any installed package version.
-_WORKTREE_SRC = Path(__file__).resolve().parents[5] / "src"
-if str(_WORKTREE_SRC) not in sys.path:
-    sys.path.insert(0, str(_WORKTREE_SRC))
 
 import specify_cli.upgrade.migrations.m_3_2_7_redact_op_requests as migration
 from specify_cli.invocation.record import REDACTED_REQUEST_SUMMARY
