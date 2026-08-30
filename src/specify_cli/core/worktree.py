@@ -22,9 +22,13 @@ import warnings
 from pathlib import Path
 from typing import Any
 
-from .constants import KITTIFY_DIR, KITTY_SPECS_DIR, WORKTREES_DIR
+from .constants import KITTIFY_DIR, KITTY_SPECS_DIR
 from .git_preflight import GitPreflightError
 from .vcs import get_vcs
+from .workspace_paths import (
+    canonical_worktree_root as _canonical_worktree_root,
+    validate_canonical_workspace_path as _validate_canonical_workspace_path,
+)
 from specify_cli.ownership.models import ExecutionMode
 from specify_cli.ownership.workspace_strategy import create_planning_workspace
 from specify_cli.status import WPMetadata
@@ -160,24 +164,6 @@ def _exclude_from_git(worktree_path: Path, patterns: list[str]) -> None:
         except OSError:
             # If we can't write, just skip - not critical
             pass
-
-
-def _canonical_worktree_root(repo_root: Path) -> Path:
-    """Resolve the only permitted physical root for code-change worktrees."""
-    resolved_repo_root = repo_root.resolve()
-    canonical_root = (resolved_repo_root / WORKTREES_DIR).resolve()
-    if canonical_root.parent != resolved_repo_root:
-        raise ValueError(f"canonical worktree root must be a direct child of the repository root; refusing escaped root: {canonical_root}")
-    return Path(canonical_root)
-
-
-def _validate_canonical_workspace_path(repo_root: Path, workspace_path: Path) -> Path:
-    """Require a code-change workspace to be directly below ``.worktrees``."""
-    canonical_root = _canonical_worktree_root(repo_root)
-    resolved_workspace_path = workspace_path.resolve()
-    if resolved_workspace_path.parent != canonical_root:
-        raise ValueError(f"code-change workspace must be directly inside the canonical worktree root; expected parent: {canonical_root}")
-    return Path(resolved_workspace_path)
 
 
 def create_wp_workspace(
@@ -421,7 +407,10 @@ def create_feature_worktree(
     # Create worktree at .worktrees/<human-slug>-<mid8>. Resolve and validate
     # the physical canonical root first so a symlink cannot redirect persistent
     # execution workspaces outside the repository.
-    worktree_path = _canonical_worktree_root(repo_root) / branch_name
+    worktree_path = _validate_canonical_workspace_path(
+        repo_root,
+        _canonical_worktree_root(repo_root) / branch_name,
+    )
 
     # Ensure .worktrees directory exists
     worktree_path.parent.mkdir(parents=True, exist_ok=True)

@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from specify_cli.core.atomic import atomic_write
+from specify_cli.core.workspace_paths import validate_canonical_workspace_path
 from specify_cli.lanes.branch_naming import worktree_dir_name, worktree_path as _seam_worktree_path
 from mission_runtime import MissionArtifactKind, placement_seam
 from specify_cli.missions._read_path_resolver import (
@@ -32,6 +33,7 @@ from specify_cli.missions._read_path_resolver import (
 from specify_cli.ownership.inference import infer_execution_mode, score_execution_mode_signals
 from specify_cli.ownership.models import ExecutionMode
 from specify_cli.ownership.workspace_strategy import create_planning_workspace
+
 # Deep import: status.emit imports this module during status/__init__ execution,
 # so the status facade is not yet initialized here — importing from it would cycle.
 from specify_cli.status.wp_metadata import WPMetadata, read_authored_wp_frontmatter
@@ -311,6 +313,10 @@ def save_context(repo_root: Path, context: WorkspaceContext) -> Path:
     Returns:
         Path to saved context file
     """
+    # Persisted workspace paths are later treated as execution authority by
+    # implement/review. Reject an unsafe path before it can become durable state.
+    validate_canonical_workspace_path(repo_root, repo_root / context.worktree_path)
+
     # The context-JSON filename is keyed to the on-disk lane-worktree dir name;
     # compose it through the seam (emit-don't-guess, FR-005). Legacy grammar
     # ({slug}-{lane}, no mid8) ⇒ mission_id=None reproduces it byte-identically.
@@ -792,7 +798,10 @@ def resolve_workspace_for_wp(
 
     context = find_context_for_wp(repo_root, mission_slug, wp_id)
     if context is not None:
-        worktree_path = repo_root / context.worktree_path
+        worktree_path = validate_canonical_workspace_path(
+            repo_root,
+            repo_root / context.worktree_path,
+        )
         return ResolvedWorkspace(
             mission_slug=mission_slug,
             wp_id=wp_id,
@@ -850,8 +859,11 @@ def resolve_workspace_for_wp(
         mode_source=normalized_wp.mode_source,
         resolution_kind="lane_workspace",
         workspace_name=workspace_name,
-        worktree_path=_seam_worktree_path(
-            repo_root, mission_slug, mission_id=None, lane_id=lane.lane_id
+        worktree_path=validate_canonical_workspace_path(
+            repo_root,
+            _seam_worktree_path(
+                repo_root, mission_slug, mission_id=None, lane_id=lane.lane_id
+            ),
         ),
         branch_name=lane_branch_name(mission_slug, lane.lane_id),
         lane_id=lane.lane_id,
@@ -869,7 +881,10 @@ def resolve_feature_worktree(repo_root: Path, mission_slug: str) -> Path | None:
     for context in list_contexts(repo_root):
         if context.mission_slug != mission_slug:
             continue
-        candidate = repo_root / context.worktree_path
+        candidate = validate_canonical_workspace_path(
+            repo_root,
+            repo_root / context.worktree_path,
+        )
         if candidate.is_dir():
             return candidate
 
@@ -883,8 +898,11 @@ def resolve_feature_worktree(repo_root: Path, mission_slug: str) -> Path | None:
 
     if lanes_manifest is not None:
         for lane in lanes_manifest.lanes:
-            lane_candidate: Path = _seam_worktree_path(
-                repo_root, mission_slug, mission_id=None, lane_id=lane.lane_id
+            lane_candidate: Path = validate_canonical_workspace_path(
+                repo_root,
+                _seam_worktree_path(
+                    repo_root, mission_slug, mission_id=None, lane_id=lane.lane_id
+                ),
             )
             if lane_candidate.is_dir():
                 return lane_candidate
