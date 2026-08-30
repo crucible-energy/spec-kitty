@@ -110,6 +110,24 @@ class TestPlanningArtifactWorkspace:
 class TestCodeChangeWorkspace:
     """code_change WPs must create standard full-checkout worktrees."""
 
+    def test_rejects_workspace_outside_canonical_root(self, tmp_path: Path) -> None:
+        """A caller cannot redirect code-change worktrees outside ``.worktrees``."""
+        workspace_path = tmp_path / "unmanaged-workspaces" / "test-mission-lane-a"
+
+        with (
+            patch("specify_cli.core.worktree.get_vcs") as mock_get_vcs,
+            pytest.raises(ValueError, match="canonical worktree root"),
+        ):
+            create_wp_workspace(
+                repo_root=tmp_path,
+                workspace_path=workspace_path,
+                workspace_name="kitty/mission-test-mission-lane-a",
+                wp_frontmatter=_make_frontmatter(execution_mode="code_change"),
+            )
+
+        mock_get_vcs.assert_not_called()
+        assert not workspace_path.parent.exists()
+
     def test_calls_vcs_create_workspace(self, tmp_path: Path) -> None:
         """code_change WP delegates to vcs.create_workspace() when workspace does not exist."""
         workspace_path = tmp_path / ".worktrees" / "test-feature-lane-a"
