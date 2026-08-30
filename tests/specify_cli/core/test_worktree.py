@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from specify_cli.core.constants import WORKTREES_DIR
 from specify_cli.core.worktree import _existing_worktree_is_valid, create_wp_workspace
 
 
@@ -127,6 +128,26 @@ class TestCodeChangeWorkspace:
 
         mock_get_vcs.assert_not_called()
         assert not workspace_path.parent.exists()
+
+    def test_rejects_canonical_root_symlinked_outside_repository(self, tmp_path: Path) -> None:
+        """The canonical worktree root cannot itself escape the repository."""
+        escaped_root = tmp_path / "unmanaged-workspaces"
+        escaped_root.mkdir()
+        (tmp_path / WORKTREES_DIR).symlink_to(escaped_root, target_is_directory=True)
+        workspace_path = tmp_path / WORKTREES_DIR / "test-mission-lane-a"
+
+        with (
+            patch("specify_cli.core.worktree.get_vcs") as mock_get_vcs,
+            pytest.raises(ValueError, match="canonical worktree root"),
+        ):
+            create_wp_workspace(
+                repo_root=tmp_path,
+                workspace_path=workspace_path,
+                workspace_name="kitty/mission-test-mission-lane-a",
+                wp_frontmatter=_make_frontmatter(execution_mode="code_change"),
+            )
+
+        mock_get_vcs.assert_not_called()
 
     def test_calls_vcs_create_workspace(self, tmp_path: Path) -> None:
         """code_change WP delegates to vcs.create_workspace() when workspace does not exist."""
