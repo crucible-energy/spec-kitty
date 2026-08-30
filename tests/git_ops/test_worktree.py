@@ -69,6 +69,28 @@ class TestAssignNextMissionNumber:
 class TestCreateFeatureWorktree:
     """Tests for create_feature_worktree function."""
 
+    @pytest.mark.parametrize("mission_slug", ["../escaped", "nested/mission"])
+    def test_rejects_mission_slug_that_escapes_direct_worktree_child(
+        self,
+        tmp_path: Path,
+        mission_slug: str,
+    ) -> None:
+        """The composed worktree target must remain one direct ``.worktrees`` child."""
+        with (
+            patch("specify_cli.core.worktree.get_vcs") as mock_get_vcs,
+            patch("specify_cli.core.worktree._ensure_spec_kitty_exclude"),
+            patch("specify_cli.core.worktree.setup_feature_directory"),
+            pytest.raises(ValueError, match="directly inside the canonical worktree root"),
+        ):
+            create_feature_worktree(
+                tmp_path,
+                mission_slug,
+                mission_id=TEST_MISSION_ID,
+            )
+
+        mock_get_vcs.assert_not_called()
+        assert not (tmp_path / ".worktrees").exists()
+
     def test_creates_worktree_with_branch(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Should create git worktree with proper branch name."""
         # Setup: Git repo

@@ -22,9 +22,13 @@ import warnings
 from pathlib import Path
 from typing import Any
 
-from .constants import KITTIFY_DIR, KITTY_SPECS_DIR, WORKTREES_DIR
+from .constants import KITTIFY_DIR, KITTY_SPECS_DIR
 from .git_preflight import GitPreflightError
 from .vcs import get_vcs
+from .workspace_paths import (
+    canonical_worktree_root as _canonical_worktree_root,
+    validate_canonical_workspace_path as _validate_canonical_workspace_path,
+)
 from specify_cli.ownership.models import ExecutionMode
 from specify_cli.ownership.workspace_strategy import create_planning_workspace
 from specify_cli.status import WPMetadata
@@ -211,7 +215,10 @@ def create_wp_workspace(
         )
         return Path(result_path)
 
-    # code_change: create a standard git worktree (full checkout)
+    # code_change: create a standard git worktree (full checkout). Validate
+    # before creating a parent directory so a caller cannot retain a worktree
+    # under a temporary or otherwise unmanaged source root.
+    workspace_path = _validate_canonical_workspace_path(repo_root, workspace_path)
     workspace_path.parent.mkdir(parents=True, exist_ok=True)
 
     if workspace_path.exists():
@@ -261,9 +268,7 @@ def _existing_worktree_is_valid(worktree_path: Path) -> bool:
     return is_valid_workspace
 
 
-def _create_workspace_with_fallback(
-    repo_root: Path, worktree_path: Path, branch_name: str
-) -> None:
+def _create_workspace_with_fallback(repo_root: Path, worktree_path: Path, branch_name: str) -> None:
     """Create the worktree via the VCS abstraction, falling back to direct git.
 
     Get VCS implementation and create the workspace (full checkout, no sparse
@@ -399,8 +404,13 @@ def create_feature_worktree(
         mid8=resolve_mid8("", mission_id=mission_id),
     )
 
-    # Create worktree at .worktrees/<human-slug>-<mid8>
-    worktree_path = repo_root / WORKTREES_DIR / branch_name
+    # Create worktree at .worktrees/<human-slug>-<mid8>. Resolve and validate
+    # the physical canonical root first so a symlink cannot redirect persistent
+    # execution workspaces outside the repository.
+    worktree_path = _validate_canonical_workspace_path(
+        repo_root,
+        _canonical_worktree_root(repo_root) / branch_name,
+    )
 
     # Ensure .worktrees directory exists
     worktree_path.parent.mkdir(parents=True, exist_ok=True)

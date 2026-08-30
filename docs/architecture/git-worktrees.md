@@ -152,6 +152,14 @@ This means Agent A can have uncommitted changes to `config.py` without affecting
 git worktree list
 ```
 
+Spec Kitty creates and resolves code-change worktrees only as direct children of
+the repository's `.worktrees/` directory. The allocator and persisted
+workspace-context resolver reject caller-supplied relative or absolute paths
+outside that root, and reject a `.worktrees/` symlink that resolves outside the
+repository. This keeps execution workspaces visible to the repository's
+lifecycle controls instead of allowing a temporary-directory checkout to become
+unbounded persistent state.
+
 Example output:
 ```
 /path/to/my-repo               abc1234 [main]

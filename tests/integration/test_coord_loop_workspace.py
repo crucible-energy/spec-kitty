@@ -486,6 +486,37 @@ class TestResolveWorkspaceForWpLanesFromPrimary:
         )
         assert result.mission_slug == ctx.slug
 
+    def test_rejects_context_path_outside_canonical_worktree_root(
+        self,
+        coord_topology_mission: CoordTopologyContext,
+    ) -> None:
+        """A persisted context cannot redirect implement/review to an external checkout."""
+        from specify_cli.workspace.context import (
+            clear_workspace_resolution_caches,
+            resolve_workspace_for_wp,
+        )
+
+        ctx = coord_topology_mission
+        _write_explicit_code_change_wp(ctx.primary_feature_dir)
+        _write_complete_lanes_json(ctx.primary_feature_dir, slug=ctx.slug, mission_id=ctx.mission_id)
+        lane_branch = f"kitty/mission-{ctx.slug}-lane-a"
+        workspace_name = f"{ctx.slug}-lane-a"
+        context_data = _make_workspace_context_json(
+            slug=ctx.slug,
+            lane_branch=lane_branch,
+            worktree_path="../escaped-worktree",
+        )
+        workspaces_dir = ctx.repo / ".kittify" / "workspaces"
+        workspaces_dir.mkdir(parents=True, exist_ok=True)
+        (workspaces_dir / f"{workspace_name}.json").write_text(
+            json.dumps(context_data, indent=2),
+            encoding="utf-8",
+        )
+        clear_workspace_resolution_caches()
+
+        with pytest.raises(ValueError, match="directly inside the canonical worktree root"):
+            resolve_workspace_for_wp(ctx.repo, ctx.slug, "WP01")
+
     def test_require_lanes_json_fail_closed_semantics_preserved(
         self,
         coord_topology_mission: CoordTopologyContext,

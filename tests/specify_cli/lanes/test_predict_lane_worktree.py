@@ -47,3 +47,13 @@ def test_predict_is_read_only(tmp_path: Path) -> None:
     predict_lane_worktree(tmp_path, MISSION_SLUG, "lane-b")
     assert sorted(tmp_path.rglob("*")) == before
     assert not (tmp_path / ".worktrees").exists()
+
+
+def test_predict_rejects_symlinked_worktree_root(tmp_path: Path) -> None:
+    """Every allocator consumer, including orchestrator start, fails closed."""
+    external_root = tmp_path.parent / f"{tmp_path.name}-external-worktrees"
+    external_root.mkdir()
+    (tmp_path / ".worktrees").symlink_to(external_root, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="canonical worktree root"):
+        predict_lane_worktree(tmp_path, MISSION_SLUG, "lane-a")
