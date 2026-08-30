@@ -25,6 +25,8 @@ from specify_cli.core.worktree import _existing_worktree_is_valid, create_wp_wor
 
 
 pytestmark = [pytest.mark.unit, pytest.mark.fast]
+
+
 def _make_frontmatter(
     execution_mode: str = "code_change",
     wp_id: str = "WP01",
@@ -131,7 +133,7 @@ class TestCodeChangeWorkspace:
 
     def test_rejects_canonical_root_symlinked_outside_repository(self, tmp_path: Path) -> None:
         """The canonical worktree root cannot itself escape the repository."""
-        escaped_root = tmp_path / "unmanaged-workspaces"
+        escaped_root = tmp_path.parent / f"{tmp_path.name}-unmanaged-workspaces"
         escaped_root.mkdir()
         (tmp_path / WORKTREES_DIR).symlink_to(escaped_root, target_is_directory=True)
         workspace_path = tmp_path / WORKTREES_DIR / "test-mission-lane-a"
@@ -452,9 +454,7 @@ def _make_failed_vcs_result(error: str, error_code: str | None) -> MagicMock:
 class TestWorktreePreflightTypedException:
     """``create_feature_worktree`` routes deterministic preflight failures by type."""
 
-    def test_deterministic_preflight_raises_typed_error_without_fallback(
-        self, tmp_path: Path
-    ) -> None:
+    def test_deterministic_preflight_raises_typed_error_without_fallback(self, tmp_path: Path) -> None:
         """A deterministic preflight code raises GitPreflightError and skips legacy git.
 
         The message text is deliberately mutated (no "Git repository check

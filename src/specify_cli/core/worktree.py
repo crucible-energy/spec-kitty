@@ -162,6 +162,24 @@ def _exclude_from_git(worktree_path: Path, patterns: list[str]) -> None:
             pass
 
 
+def _canonical_worktree_root(repo_root: Path) -> Path:
+    """Resolve the only permitted physical root for code-change worktrees."""
+    resolved_repo_root = repo_root.resolve()
+    canonical_root = (resolved_repo_root / WORKTREES_DIR).resolve()
+    if canonical_root.parent != resolved_repo_root:
+        raise ValueError(f"canonical worktree root must be a direct child of the repository root; refusing escaped root: {canonical_root}")
+    return Path(canonical_root)
+
+
+def _validate_canonical_workspace_path(repo_root: Path, workspace_path: Path) -> Path:
+    """Require a code-change workspace to be directly below ``.worktrees``."""
+    canonical_root = _canonical_worktree_root(repo_root)
+    resolved_workspace_path = workspace_path.resolve()
+    if resolved_workspace_path.parent != canonical_root:
+        raise ValueError(f"code-change workspace must be directly inside the canonical worktree root; expected parent: {canonical_root}")
+    return Path(resolved_workspace_path)
+
+
 def create_wp_workspace(
     repo_root: Path,
     workspace_path: Path,
@@ -211,7 +229,10 @@ def create_wp_workspace(
         )
         return Path(result_path)
 
-    # code_change: create a standard git worktree (full checkout)
+    # code_change: create a standard git worktree (full checkout). Validate
+    # before creating a parent directory so a caller cannot retain a worktree
+    # under a temporary or otherwise unmanaged source root.
+    workspace_path = _validate_canonical_workspace_path(repo_root, workspace_path)
     workspace_path.parent.mkdir(parents=True, exist_ok=True)
 
     if workspace_path.exists():
@@ -261,9 +282,7 @@ def _existing_worktree_is_valid(worktree_path: Path) -> bool:
     return is_valid_workspace
 
 
-def _create_workspace_with_fallback(
-    repo_root: Path, worktree_path: Path, branch_name: str
-) -> None:
+def _create_workspace_with_fallback(repo_root: Path, worktree_path: Path, branch_name: str) -> None:
     """Create the worktree via the VCS abstraction, falling back to direct git.
 
     Get VCS implementation and create the workspace (full checkout, no sparse
@@ -399,8 +418,10 @@ def create_feature_worktree(
         mid8=resolve_mid8("", mission_id=mission_id),
     )
 
-    # Create worktree at .worktrees/<human-slug>-<mid8>
-    worktree_path = repo_root / WORKTREES_DIR / branch_name
+    # Create worktree at .worktrees/<human-slug>-<mid8>. Resolve and validate
+    # the physical canonical root first so a symlink cannot redirect persistent
+    # execution workspaces outside the repository.
+    worktree_path = _canonical_worktree_root(repo_root) / branch_name
 
     # Ensure .worktrees directory exists
     worktree_path.parent.mkdir(parents=True, exist_ok=True)
