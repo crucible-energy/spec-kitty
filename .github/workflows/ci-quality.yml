@@ -2608,7 +2608,7 @@ jobs:
       - name: "Run integration tests — upgrade"
         run: |
           uv run python -m pytest tests/upgrade/ \
-            -m 'not windows_ci and (git_repo or integration)' \
+            -m 'not windows_ci and (git_repo or integration) and not timing' \
             -q --tb=short \
             -n auto --dist loadfile -p no:cacheprovider \
             --cov=src/specify_cli/upgrade \

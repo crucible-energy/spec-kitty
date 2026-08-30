@@ -336,6 +336,20 @@ def test_windows_gate_models_windows_ci_marker(gates: list[gc.Gate]) -> None:
         )
 
 
+def test_upgrade_integration_gate_excludes_timing_tests(gates: list[gc.Gate]) -> None:
+    """Timing-marked upgrade tests run only in the serial timing NFR gate."""
+    upgrade_gate = next(
+        gate
+        for gate in gates
+        if gate.workflow == "ci-quality.yml" and gate.job == "integration-tests-upgrade"
+    )
+    compiled = gc.CompiledGate(upgrade_gate)
+    path = "tests/upgrade/test_op_record_request_redaction_migration.py"
+
+    assert compiled.selects(path, f"{path}::test_regular", {"integration"})
+    assert not compiled.selects(path, f"{path}::test_timing", {"integration", "timing"})
+
+
 # ---------------------------------------------------------------------------
 # Selection-logic unit guards (no collection)
 # ---------------------------------------------------------------------------
