@@ -24,6 +24,7 @@ from pathlib import Path
 
 from specify_cli.coordination import register_lane_sparse_checkout
 from specify_cli.core.errors import StructuredError
+from specify_cli.core.workspace_paths import validate_canonical_workspace_path
 from specify_cli.lanes._git import branch_exists as _branch_exists
 from specify_cli.lanes.branch_naming import lane_branch_name, resolve_mid8, worktree_path as _worktree_path
 from specify_cli.lanes.models import ExecutionLane, LanesManifest
@@ -90,8 +91,9 @@ def predict_lane_worktree(
     would append ``-{mid8}`` and rename every existing lane worktree.
     """
     branch = lane_branch_name(mission_slug, lane_id)
-    worktree_path = _worktree_path(
-        repo_root, mission_slug, mission_id=None, lane_id=lane_id
+    worktree_path = validate_canonical_workspace_path(
+        repo_root,
+        _worktree_path(repo_root, mission_slug, mission_id=None, lane_id=lane_id),
     )
     return worktree_path, branch
 
