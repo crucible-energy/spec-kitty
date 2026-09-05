@@ -148,6 +148,10 @@ For the dated agent-experience audit, measured local observations, and proposed
 improvement sequence, see the
 [agent ergonomics rundown](docs/plans/research/2026-09-05-agent-ergonomics-rundown.md).
 This is research, not an implemented capability or a comparative benchmark.
+For a standalone assessment of current upstream source and maintainer-facing
+recommendations, see the
+[upstream-audience report](docs/plans/research/2026-09-05-agent-ergonomics-upstream.md).
+Its publication and PR destination remain this Crucible fork only.
 
 Start here:
 

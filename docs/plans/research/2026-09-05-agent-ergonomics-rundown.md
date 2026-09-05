@@ -15,6 +15,11 @@ cleaner experience.
 a new governing policy, an implemented improvement, or a comparative benchmark.
 “Draft” is this document's research status, not a GitHub draft-PR instruction.
 
+A separate [upstream-audience report](2026-09-05-agent-ergonomics-upstream.md)
+rechecks current upstream source and makes standalone maintainer recommendations.
+This original fork snapshot and its measurements remain unchanged; they are not
+an upstream benchmark. Both reports are published in the Crucible fork only.
+
 ## Executive recommendation
 
 Make Spec Kitty's existing deterministic runtime the agent's small, dependable
