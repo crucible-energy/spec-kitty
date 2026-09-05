@@ -144,6 +144,11 @@ For the full walkthrough, see [Your First Mission](docs/guides/your-first-missio
 
 ## Documentation
 
+For the dated agent-experience audit, measured local observations, and proposed
+improvement sequence, see the
+[agent ergonomics rundown](docs/plans/research/2026-09-05-agent-ergonomics-rundown.md).
+This is research, not an implemented capability or a comparative benchmark.
+
 Start here:
 
 - [Getting Started](docs/guides/getting-started.md)
