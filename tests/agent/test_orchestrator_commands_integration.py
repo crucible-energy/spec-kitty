@@ -1986,6 +1986,35 @@ class TestResolveWorkspace:
         assert payload["error_code"] == "WP_NOT_FOUND"
 
 
+class TestWorkspaceContainmentFailures:
+    """External orchestrators receive JSON when workspace admission fails."""
+
+    @pytest.mark.parametrize("command", ["resolve-workspace", "start-implementation"])
+    def test_legacy_workspace_escape_is_a_json_refusal(self, tmp_path, command):
+        """A symlinked worktree root never leaks an external workspace path."""
+        repo_root, _ = _make_mission(tmp_path)
+        external_root = tmp_path / "external-worktrees"
+        external_root.mkdir()
+        (repo_root / ".worktrees").symlink_to(external_root, target_is_directory=True)
+
+        args = [command, "--mission", "099-test-mission", "--wp", "WP01"]
+        if command == "start-implementation":
+            args.extend(["--actor", "test-agent", "--policy", _valid_policy_json()])
+
+        with patch(
+            "specify_cli.orchestrator_api.commands._get_main_repo_root",
+            return_value=repo_root,
+        ):
+            result = runner.invoke(app, args)
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["success"] is False
+        assert payload["error_code"] == "WORKSPACE_CONTAINMENT_FAILED"
+        assert payload["data"]["wp_id"] == "WP01"
+        assert list(external_root.iterdir()) == []
+
+
 class TestLaneAssignmentOrLegacy:
     """The shared resolver prologue: ONE lane-vs-legacy decision for the surface."""
 

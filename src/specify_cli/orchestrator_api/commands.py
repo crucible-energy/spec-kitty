@@ -13,6 +13,7 @@ Error codes used:
   WP_NOT_FOUND                -- WP ID does not exist in the mission
   TRANSITION_REJECTED         -- transition not allowed by state machine
   WP_ALREADY_CLAIMED          -- WP claimed by a different actor
+  WORKSPACE_CONTAINMENT_FAILED -- workspace path escaped the canonical worktree root
   MISSION_NOT_READY           -- not all WPs approved/done (for accept-mission)
   HISTORY_COMMIT_FAILED       -- append-history could not create its commit
   PLACEMENT_RESOLUTION_REQUIRED -- append-history's write placement could not be
@@ -43,6 +44,7 @@ import typer
 from mission_runtime import CommitTarget
 from specify_cli.core.contract_gate import validate_outbound_payload
 from specify_cli.core.errors import PlacementResolutionRequired
+from specify_cli.core.workspace_paths import validate_canonical_workspace_path
 from specify_cli.mission_metadata import resolve_mission_identity
 from specify_cli.status import wp_state_for
 from specify_cli.status import Lane
@@ -886,10 +888,26 @@ def _lane_assignment_or_legacy(
     manifest = read_lanes_json(_planning_read_dir(main_repo_root, mission))
     lane = manifest.lane_for_wp(wp) if manifest is not None else None
     if manifest is None or lane is None:
+        legacy_workspace = validate_canonical_workspace_path(
+            main_repo_root,
+            _wt_path(main_repo_root, mission, mission_id=None, lane_id=wp),
+        )
         return _StartWorkspace(
-            workspace_path=str(_wt_path(main_repo_root, mission, mission_id=None, lane_id=wp))
+            workspace_path=str(legacy_workspace)
         )
     return manifest, lane
+
+
+def _fail_workspace_containment(
+    cmd: str, mission_dir: Path, wp: str, error: ValueError
+) -> NoReturn:
+    """Emit the canonical JSON refusal for an unsafe workspace path."""
+    _fail(
+        cmd,
+        "WORKSPACE_CONTAINMENT_FAILED",
+        str(error),
+        {**_mission_identity_payload(mission_dir), "wp_id": wp, "reason": str(error)},
+    )
 
 
 def _resolve_start_workspace(
@@ -913,7 +931,10 @@ def _resolve_start_workspace(
     A genuine allocation failure for a lane WP (dirty reuse, dependency-merge
     conflict) fails closed with ``LANE_ALLOCATION_FAILED``.
     """
-    assignment = _lane_assignment_or_legacy(main_repo_root, mission, wp)
+    try:
+        assignment = _lane_assignment_or_legacy(main_repo_root, mission, wp)
+    except ValueError as exc:
+        _fail_workspace_containment(cmd, mission_dir, wp, exc)
     if isinstance(assignment, _StartWorkspace):
         return assignment
     manifest, lane = assignment
@@ -932,6 +953,8 @@ def _resolve_start_workspace(
             wp_id=wp,
             lanes_manifest=manifest,
         )
+    except ValueError as exc:
+        _fail_workspace_containment(cmd, mission_dir, wp, exc)
     except (
         LaneNotFoundError,
         DirtyWorktreeError,
@@ -1013,7 +1036,10 @@ def resolve_workspace(
         _fail_wp_not_found(cmd, wp, mission)
         return
 
-    ws = _resolve_existing_workspace(main_repo_root, mission, wp)
+    try:
+        ws = _resolve_existing_workspace(main_repo_root, mission, wp)
+    except ValueError as exc:
+        _fail_workspace_containment(cmd, mission_dir, wp, exc)
     # --mission accepts mission_id / mid8 / slug; the payload's mission_slug is
     # the RESOLVED identity, never the raw selector echoed back.
     data: dict = {
