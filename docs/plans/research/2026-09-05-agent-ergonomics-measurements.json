@@ -1,0 +1,410 @@
+{
+  "observed_at": "2026-09-05",
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "source_sha": "50207b4333fdc886ed67fb27757dfb75e5b3b153",
+  "entrypoint": "<installed-spec-kitty>",
+  "environment": "installed 3.2.6 interpreter dependencies, PYTHONPATH pinned to fork source 3.2.7",
+  "tokenizer_used": false,
+  "runs_per_command": 3,
+  "commands": [
+    {
+      "argv": [
+        "spec-kitty",
+        "--version"
+      ],
+      "runs": [
+        {
+          "seconds": 0.9299,
+          "exit_code": 0,
+          "stdout_bytes": 2775,
+          "stderr_bytes": 0,
+          "stdout_words": 98,
+          "stdout_lines": 29,
+          "stdout_is_json": false
+        },
+        {
+          "seconds": 0.841,
+          "exit_code": 0,
+          "stdout_bytes": 2775,
+          "stderr_bytes": 0,
+          "stdout_words": 98,
+          "stdout_lines": 29,
+          "stdout_is_json": false
+        },
+        {
+          "seconds": 0.8106,
+          "exit_code": 0,
+          "stdout_bytes": 2775,
+          "stderr_bytes": 0,
+          "stdout_words": 98,
+          "stdout_lines": 29,
+          "stdout_is_json": false
+        }
+      ],
+      "median_seconds": 0.841
+    },
+    {
+      "argv": [
+        "spec-kitty",
+        "--help"
+      ],
+      "runs": [
+        {
+          "seconds": 0.8027,
+          "exit_code": 0,
+          "stdout_bytes": 2957,
+          "stderr_bytes": 0,
+          "stdout_words": 315,
+          "stdout_lines": 56,
+          "stdout_is_json": false
+        },
+        {
+          "seconds": 0.8003,
+          "exit_code": 0,
+          "stdout_bytes": 2957,
+          "stderr_bytes": 0,
+          "stdout_words": 315,
+          "stdout_lines": 56,
+          "stdout_is_json": false
+        },
+        {
+          "seconds": 0.8045,
+          "exit_code": 0,
+          "stdout_bytes": 2957,
+          "stderr_bytes": 0,
+          "stdout_words": 315,
+          "stdout_lines": 56,
+          "stdout_is_json": false
+        }
+      ],
+      "median_seconds": 0.8027
+    },
+    {
+      "argv": [
+        "spec-kitty",
+        "next",
+        "--help"
+      ],
+      "runs": [
+        {
+          "seconds": 0.4716,
+          "exit_code": 0,
+          "stdout_bytes": 3012,
+          "stderr_bytes": 0,
+          "stdout_words": 176,
+          "stdout_lines": 34,
+          "stdout_is_json": false
+        },
+        {
+          "seconds": 0.4989,
+          "exit_code": 0,
+          "stdout_bytes": 3012,
+          "stderr_bytes": 0,
+          "stdout_words": 176,
+          "stdout_lines": 34,
+          "stdout_is_json": false
+        },
+        {
+          "seconds": 0.4847,
+          "exit_code": 0,
+          "stdout_bytes": 3012,
+          "stderr_bytes": 0,
+          "stdout_words": 176,
+          "stdout_lines": 34,
+          "stdout_is_json": false
+        }
+      ],
+      "median_seconds": 0.4847
+    },
+    {
+      "argv": [
+        "spec-kitty",
+        "agent",
+        "--help"
+      ],
+      "runs": [
+        {
+          "seconds": 0.9277,
+          "exit_code": 0,
+          "stdout_bytes": 2352,
+          "stderr_bytes": 0,
+          "stdout_words": 123,
+          "stdout_lines": 22,
+          "stdout_is_json": false
+        },
+        {
+          "seconds": 0.8743,
+          "exit_code": 0,
+          "stdout_bytes": 2352,
+          "stderr_bytes": 0,
+          "stdout_words": 123,
+          "stdout_lines": 22,
+          "stdout_is_json": false
+        },
+        {
+          "seconds": 0.8662,
+          "exit_code": 0,
+          "stdout_bytes": 2352,
+          "stderr_bytes": 0,
+          "stdout_words": 123,
+          "stdout_lines": 22,
+          "stdout_is_json": false
+        }
+      ],
+      "median_seconds": 0.8743
+    },
+    {
+      "argv": [
+        "spec-kitty",
+        "agent",
+        "profile",
+        "show",
+        "researcher-robbie",
+        "--json"
+      ],
+      "runs": [
+        {
+          "seconds": 1.2228,
+          "exit_code": 0,
+          "stdout_bytes": 2491,
+          "stderr_bytes": 0,
+          "stdout_words": 255,
+          "stdout_lines": 60,
+          "stdout_is_json": true
+        },
+        {
+          "seconds": 1.2349,
+          "exit_code": 0,
+          "stdout_bytes": 2491,
+          "stderr_bytes": 0,
+          "stdout_words": 255,
+          "stdout_lines": 60,
+          "stdout_is_json": true
+        },
+        {
+          "seconds": 1.2005,
+          "exit_code": 0,
+          "stdout_bytes": 2491,
+          "stderr_bytes": 0,
+          "stdout_words": 255,
+          "stdout_lines": 60,
+          "stdout_is_json": true
+        }
+      ],
+      "median_seconds": 1.2228,
+      "json_keys": [
+        "collaboration",
+        "directive_references",
+        "initialization_declaration",
+        "mode_defaults",
+        "name",
+        "profile_id",
+        "role",
+        "source_layer",
+        "specialization",
+        "tactic_references",
+        "warnings"
+      ],
+      "duplicate_context_text": false,
+      "duplicate_context_bytes": 0
+    },
+    {
+      "argv": [
+        "spec-kitty",
+        "charter",
+        "context",
+        "--action",
+        "implement",
+        "--no-mark-loaded",
+        "--json"
+      ],
+      "runs": [
+        {
+          "seconds": 3.8632,
+          "exit_code": 0,
+          "stdout_bytes": 21442,
+          "stderr_bytes": 0,
+          "stdout_words": 2785,
+          "stdout_lines": 120,
+          "stdout_is_json": true
+        },
+        {
+          "seconds": 3.8096,
+          "exit_code": 0,
+          "stdout_bytes": 21442,
+          "stderr_bytes": 0,
+          "stdout_words": 2785,
+          "stdout_lines": 120,
+          "stdout_is_json": true
+        },
+        {
+          "seconds": 3.9035,
+          "exit_code": 0,
+          "stdout_bytes": 21442,
+          "stderr_bytes": 0,
+          "stdout_words": 2785,
+          "stdout_lines": 120,
+          "stdout_is_json": true
+        }
+      ],
+      "median_seconds": 3.8632,
+      "json_keys": [
+        "action",
+        "all_directives",
+        "context",
+        "directives",
+        "first_load",
+        "governance_references",
+        "mode",
+        "org_charter",
+        "project_charter",
+        "references_count",
+        "result",
+        "styleguides",
+        "success",
+        "tactics",
+        "text",
+        "toolguides"
+      ],
+      "duplicate_context_text": true,
+      "duplicate_context_bytes": 7623
+    },
+    {
+      "argv": [
+        "spec-kitty",
+        "charter",
+        "context",
+        "--action",
+        "implement",
+        "--mission-type",
+        "software-dev",
+        "--no-mark-loaded",
+        "--json"
+      ],
+      "runs": [
+        {
+          "seconds": 3.9505,
+          "exit_code": 0,
+          "stdout_bytes": 21442,
+          "stderr_bytes": 0,
+          "stdout_words": 2785,
+          "stdout_lines": 120,
+          "stdout_is_json": true
+        },
+        {
+          "seconds": 5.8564,
+          "exit_code": 0,
+          "stdout_bytes": 21442,
+          "stderr_bytes": 0,
+          "stdout_words": 2785,
+          "stdout_lines": 120,
+          "stdout_is_json": true
+        },
+        {
+          "seconds": 4.0132,
+          "exit_code": 0,
+          "stdout_bytes": 21442,
+          "stderr_bytes": 0,
+          "stdout_words": 2785,
+          "stdout_lines": 120,
+          "stdout_is_json": true
+        }
+      ],
+      "median_seconds": 4.0132,
+      "json_keys": [
+        "action",
+        "all_directives",
+        "context",
+        "directives",
+        "first_load",
+        "governance_references",
+        "mode",
+        "org_charter",
+        "project_charter",
+        "references_count",
+        "result",
+        "styleguides",
+        "success",
+        "tactics",
+        "text",
+        "toolguides"
+      ],
+      "duplicate_context_text": true,
+      "duplicate_context_bytes": 7623
+    },
+    {
+      "argv": [
+        "spec-kitty",
+        "orchestrator-api",
+        "contract-version"
+      ],
+      "runs": [
+        {
+          "seconds": 0.8593,
+          "exit_code": 0,
+          "stdout_bytes": 300,
+          "stderr_bytes": 0,
+          "stdout_words": 17,
+          "stdout_lines": 1,
+          "stdout_is_json": true
+        },
+        {
+          "seconds": 0.8422,
+          "exit_code": 0,
+          "stdout_bytes": 300,
+          "stderr_bytes": 0,
+          "stdout_words": 17,
+          "stdout_lines": 1,
+          "stdout_is_json": true
+        },
+        {
+          "seconds": 0.8683,
+          "exit_code": 0,
+          "stdout_bytes": 300,
+          "stderr_bytes": 0,
+          "stdout_words": 17,
+          "stdout_lines": 1,
+          "stdout_is_json": true
+        }
+      ],
+      "median_seconds": 0.8593,
+      "json_keys": [
+        "command",
+        "contract_version",
+        "correlation_id",
+        "data",
+        "error_code",
+        "success",
+        "timestamp"
+      ],
+      "duplicate_context_text": false,
+      "duplicate_context_bytes": 0
+    }
+  ],
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 37402,
+      "words": 4544,
+      "lines": 650,
+      "sha256": "e76a7204ed44754f5e8e48474f2c739d8a04fa0f688ad81b12e6d5d6cf8a9d33"
+    },
+    {
+      "path": ".kittify/charter/charter.md",
+      "bytes": 31745,
+      "words": 4351,
+      "lines": 535,
+      "sha256": "d6fafe7bd52825c86f72b4bf67a5cc7429a256e5c52dbbcafc5311d308a7cb8e"
+    }
+  ],
+  "methodology": {
+    "scope": "Local command-surface micro-observations; not model benchmarks or clean release performance",
+    "source_version": "3.2.7",
+    "installed_distribution_version": "3.2.6",
+    "subprocesses": "Three sequential fresh processes per command, one machine; OS/dependency caches uncontrolled",
+    "context_state": "first_load=false on both context commands; this final pass uses --no-mark-loaded. An earlier exploratory pass used the default mark-loaded behavior.",
+    "output": "Captured UTF-8 stdout/stderr, NO_COLOR=1 and TERM=dumb; words use whitespace split; no tokenizer",
+    "statistical_limit": "n=3 is descriptive only; not p95, confidence interval, causal attribution or relative-harness result",
+    "action_limit": "No Mission advance, implementation, model inference, provider spend or remote publication"
+  }
+}
