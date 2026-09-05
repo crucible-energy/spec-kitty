@@ -62,6 +62,19 @@ src/doctrine/missions/mission-steps/{mission_type}/{step_id}/prompt.md  (SOURCE)
 
 **Why:** The workflow is predicated on pull requests for review, CI gating, and audit trail. Direct pushes to origin/main bypass all of these.
 
+### Fork Publication Boundary
+
+**NEVER publish to `upstream` without the operator's explicit permission.**
+
+- `origin` is this fork's publication target. Do not push branches to, open pull
+  requests against, or otherwise publish changes to `upstream` unless the
+  operator explicitly authorizes that specific publication.
+- When a defect affects both this fork and the core project, identify it and
+  offer the operator a focused core-project contribution. Do not publish that
+  contribution upstream without explicit permission.
+- Fork-specific or customized changes — including `AGENTS.md` instructions —
+  stay on this fork and must not create unsolicited upstream noise.
+
 ### Pull-Request Creation
 
 - Open a **full, non-draft** pull request only for a coherent, locally validated
