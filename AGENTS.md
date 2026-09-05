@@ -2,6 +2,8 @@
 
 **Spec Kitty** is a toolkit for Spec-Driven Development (SDD) — clear, actionable specifications ahead of implementation, inspired by GitHub's [Spec Kit](https://github.com/github/spec-kit). **Spec Kitty CLI** bootstraps projects with the framework: directory structures, templates, and AI agent integrations. Every command template leads with a discovery interview; the CLI refuses to create specs or plans until the question set is answered.
 
+Make code easy to follow. Make the job look easy.
+
 ---
 
 ## ⚠️ CRITICAL: Load the Project Charter First
@@ -59,6 +61,19 @@ src/doctrine/missions/mission-steps/{mission_type}/{step_id}/prompt.md  (SOURCE)
 - Distinguish **local main** (your checkout) vs **origin/main** (the remote); qualify which branch you mean (see the `primary`/`merge` footgun note under Terminology Canon).
 
 **Why:** The workflow is predicated on pull requests for review, CI gating, and audit trail. Direct pushes to origin/main bypass all of these.
+
+### Fork Publication Boundary
+
+**NEVER publish to `upstream` without the operator's explicit permission.**
+
+- `origin` is this fork's publication target. Do not push branches to, open pull
+  requests against, or otherwise publish changes to `upstream` unless the
+  operator explicitly authorizes that specific publication.
+- When a defect affects both this fork and the core project, identify it and
+  offer the operator a focused core-project contribution. Do not publish that
+  contribution upstream without explicit permission.
+- Fork-specific or customized changes — including `AGENTS.md` instructions —
+  stay on this fork and must not create unsolicited upstream noise.
 
 ### Pull-Request Creation
 
