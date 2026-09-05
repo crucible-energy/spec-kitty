@@ -2014,6 +2014,65 @@ class TestWorkspaceContainmentFailures:
         assert payload["data"]["wp_id"] == "WP01"
         assert list(external_root.iterdir()) == []
 
+    def test_lane_allocation_containment_is_a_json_refusal(self, tmp_path):
+        """The lane-allocation containment guard uses the same stable envelope."""
+        from specify_cli.lanes.models import ExecutionLane, LanesManifest
+
+        repo_root, _ = _make_mission(tmp_path)
+        lane = ExecutionLane(
+            lane_id="lane-a",
+            wp_ids=("WP01",),
+            write_scope=(),
+            predicted_surfaces=(),
+            depends_on_lanes=(),
+            parallel_group=0,
+        )
+        manifest = LanesManifest(
+            version=1,
+            mission_slug="099-test-mission",
+            mission_id=None,
+            mission_branch="kitty/mission-099-test-mission",
+            target_branch="main",
+            lanes=[lane],
+            computed_at="2026-07-04T00:00:00+00:00",
+            computed_from="test",
+        )
+
+        with (
+            patch(
+                "specify_cli.orchestrator_api.commands._get_main_repo_root",
+                return_value=repo_root,
+            ),
+            patch(
+                "specify_cli.lanes.persistence.read_lanes_json",
+                return_value=manifest,
+            ),
+            patch(
+                "specify_cli.lanes.worktree_allocator.allocate_lane_worktree",
+                side_effect=ValueError("workspace escaped the canonical worktree root"),
+            ),
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "start-implementation",
+                    "--mission",
+                    "099-test-mission",
+                    "--wp",
+                    "WP01",
+                    "--actor",
+                    "test-agent",
+                    "--policy",
+                    _valid_policy_json(),
+                ],
+            )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["success"] is False
+        assert payload["error_code"] == "WORKSPACE_CONTAINMENT_FAILED"
+        assert payload["data"]["wp_id"] == "WP01"
+
 
 class TestLaneAssignmentOrLegacy:
     """The shared resolver prologue: ONE lane-vs-legacy decision for the surface."""
