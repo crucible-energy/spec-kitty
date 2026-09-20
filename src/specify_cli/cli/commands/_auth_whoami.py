@@ -13,10 +13,13 @@ prints it — both commands print it via the shared
 
 from __future__ import annotations
 
+import sys
+
 import typer
 
 from specify_cli.auth import get_token_manager
 from specify_cli.cli.commands._auth_saas_target import print_saas_target
+from specify_cli.cli.console import sanitize_terminal_text
 
 
 def whoami_impl() -> None:
@@ -24,7 +27,32 @@ def whoami_impl() -> None:
     tm = get_token_manager()
     session = tm.get_current_session()
 
-    if session is None or session.is_refresh_token_expired():
+    if session is None:
+        # #4761: when storage failed closed (e.g. unsafe session-file
+        # permissions), say so on stderr so the cause is distinguishable from
+        # a plain logged-out state. stdout stays empty and the exit code stays
+        # 1 per the documented machine contract — the storage message itself
+        # carries the remedy (chmod 600), not "run auth login", which would
+        # overwrite the file storage refused to read.
+        assessment = getattr(tm, "session_assessment", None)
+        detail = getattr(assessment, "detail", None)
+        # stderr is a human-facing surface, so the detail goes through the
+        # terminal-hygiene rule's control-sequence half (#4761 squad NOTE):
+        # a plain ``print`` bypasses ``CliConsole.render_str``'s
+        # sanitisation, so ``sanitize_terminal_text`` is load-bearing here.
+        # ``escape`` is deliberately NOT applied — this sink is a plain
+        # print, not a Rich console, so nothing ever parses the markup and
+        # the escape would only leak a literal backslash into the path
+        # (#4761 squad pass 2 MINOR). stdout stays bare by the machine
+        # contract above.
+        if detail:
+            print(
+                f"spec-kitty auth whoami: {sanitize_terminal_text(detail)}",
+                file=sys.stderr,
+            )
+        raise typer.Exit(1)
+
+    if session.is_refresh_token_expired():
         raise typer.Exit(1)
 
     # Bare print on purpose: the first non-empty line must stay a plain,
