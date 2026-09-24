@@ -1,3 +1,10 @@
+---
+title: Owned-checkout charter resolution repair
+description: How mission creation resolves activation and specification templates from a validated owned checkout, with regression evidence and qualification limits.
+doc_status: reference
+updated: 2026-09-24
+---
+
 # Owned-checkout charter resolution repair
 
 An explicitly validated `--owned-checkout` selects the mission write surface.
