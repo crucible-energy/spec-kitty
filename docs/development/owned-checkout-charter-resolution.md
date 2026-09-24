@@ -15,6 +15,13 @@ without an owned checkout it remains the primary root.
 - Regression reproduced both incorrect outcomes before the implementation:
   two failing cases in `tests/core/test_mission_creation_owned_charter.py`.
 - After repair, owned-charter, unborn-HEAD and topology tests: 15 passed.
+- Required `make test-fast`: 2,043 passed, 5 skipped, 4 failed. All four
+  failures reproduce with the changed source restored to upstream `d6533ea41`:
+  retired ignored cache directories and three charter JSON tests that reject
+  execution from a linked checkout. Baseline rerun: 8 passed, same 4 failed.
+- Explicit checkout CLI successfully created Filament mission
+  `01M38TT2CK60FXADS9WXBT6TKF` in its owned worktree while primary remained
+  inactive. No global installed package was changed.
 - User experience finding: the old error recommended activating a charter that
   was already active in the caller's explicitly selected checkout.
 - Decision: resolve all three configuration/template reads consistently; do not
