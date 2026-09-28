@@ -173,16 +173,21 @@ def test_commit_to_branch_routes_additional_lifecycle_evidence(
 
 
 def test_commit_hook_failure_is_not_classified_as_an_empty_changeset(tmp_path: Path) -> None:
-    """A real hook refusal remains an error and preserves its diagnostic."""
+    """A real hook refusal preserves diagnostics from stdout and stderr."""
     _init_repo(tmp_path)
     plan_file = tmp_path / "plan.md"
     plan_file.write_text("# Plan\n\nUpdated.\n")
 
     hook = tmp_path / ".git" / "hooks" / "pre-commit"
-    hook.write_text('#!/bin/sh\necho "pre-commit diagnostic sentinel" >&2\nexit 1\n')
+    hook.write_text(
+        '#!/bin/sh\n'
+        'printf "pre-commit stdout diagnostic sentinel\\n"\n'
+        'printf "pre-commit stderr diagnostic sentinel\\n" >&2\n'
+        "exit 1\n"
+    )
     hook.chmod(0o755)
 
-    with pytest.raises(RuntimeError, match="pre-commit diagnostic sentinel"):
+    with pytest.raises(RuntimeError) as exc_info:
         _commit_to_branch(
             plan_file,
             "001-demo",
@@ -192,5 +197,36 @@ def test_commit_hook_failure_is_not_classified_as_an_empty_changeset(tmp_path: P
             json_output=True,
         )
 
+    assert "pre-commit stdout diagnostic sentinel" in str(exc_info.value)
+    assert "pre-commit stderr diagnostic sentinel" in str(exc_info.value)
     # The failed commit preserves the requested changes for recovery.
+    assert _run_git(tmp_path, "status", "--porcelain", "--", "plan.md") == "M plan.md"
+
+
+def test_hook_cannot_impersonate_an_empty_changeset(tmp_path: Path) -> None:
+    """An exit-1 hook saying 'nothing to commit' is still a commit failure."""
+    _init_repo(tmp_path)
+    plan_file = tmp_path / "plan.md"
+    plan_file.write_text("# Plan\n\nUpdated.\n")
+    head_before = _run_git(tmp_path, "rev-parse", "HEAD")
+
+    hook = tmp_path / ".git" / "hooks" / "pre-commit"
+    hook.write_text(
+        '#!/bin/sh\n'
+        'printf "nothing to commit, working tree clean\\n"\n'
+        "exit 1\n"
+    )
+    hook.chmod(0o755)
+
+    with pytest.raises(RuntimeError, match="nothing to commit, working tree clean"):
+        _commit_to_branch(
+            plan_file,
+            "001-demo",
+            "plan",
+            tmp_path,
+            "mission/work",
+            json_output=True,
+        )
+
+    assert _run_git(tmp_path, "rev-parse", "HEAD") == head_before
     assert _run_git(tmp_path, "status", "--porcelain", "--", "plan.md") == "M plan.md"

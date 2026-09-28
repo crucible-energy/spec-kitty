@@ -187,6 +187,81 @@ def test_safe_commit_preserves_unrelated_staged_files(git_repo: Path):
     assert "Update WP01 status to doing" in log_result.stdout
 
 
+def test_run_commit_capture_sha_preserves_both_failure_streams(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed commit diagnostic retains both stdout and stderr."""
+    def fake_run(args: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args,
+            1,
+            stdout="hook rejected the commit\n",
+            stderr="hook validation warning\n",
+        )
+
+    monkeypatch.setattr(commit_helpers.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        commit_helpers._run_commit_capture_sha(tmp_path, "test failure")
+
+    assert "hook rejected the commit" in str(exc_info.value)
+    assert "hook validation warning" in str(exc_info.value)
+
+
+def test_run_commit_capture_sha_does_not_trust_empty_message_with_staged_diff(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hook cannot turn a non-empty staged tree into a benign empty result."""
+    calls: list[list[str]] = []
+
+    def fake_run(args: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        if args[1:4] == ["-c", "commit.gpgsign=false", "commit"]:
+            return subprocess.CompletedProcess(
+                args,
+                1,
+                stdout="nothing to commit, working tree clean\n",
+                stderr="",
+            )
+        if args == ["git", "diff", "--cached", "--quiet"]:
+            return subprocess.CompletedProcess(args, 1, stdout="", stderr="")
+        raise AssertionError(f"unexpected Git command: {args!r}")
+
+    monkeypatch.setattr(commit_helpers.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="nothing to commit, working tree clean"):
+        commit_helpers._run_commit_capture_sha(tmp_path, "test hook rejection")
+
+    assert calls == [
+        ["git", "-c", "commit.gpgsign=false", "commit", "-m", "test hook rejection"],
+        ["git", "diff", "--cached", "--quiet"],
+    ]
+
+
+def test_run_commit_capture_sha_accepts_empty_index_with_empty_message(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Git's empty-commit diagnostic is benign only when the index is empty."""
+    def fake_run(args: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        if args[1:4] == ["-c", "commit.gpgsign=false", "commit"]:
+            return subprocess.CompletedProcess(
+                args,
+                1,
+                stdout="nothing to commit, working tree clean\n",
+                stderr="",
+            )
+        if args == ["git", "diff", "--cached", "--quiet"]:
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+        raise AssertionError(f"unexpected Git command: {args!r}")
+
+    monkeypatch.setattr(commit_helpers.subprocess, "run", fake_run)
+
+    assert commit_helpers._run_commit_capture_sha(tmp_path, "already committed") is None
+
+
 def test_safe_commit_blocks_spec_kitty_status_commit_on_protected_branch(git_repo: Path):
     """Spec Kitty status commits must fail loudly before polluting local main."""
     subprocess.run(["git", "branch", "-M", "main"], cwd=git_repo, check=True)

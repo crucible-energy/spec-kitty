@@ -791,6 +791,16 @@ def _restore_staged_patch(
         )
 
 
+def _process_output_summary(result: subprocess.CompletedProcess[str]) -> str:
+    """Return all non-empty captured process output with its stream labeled."""
+    output = []
+    for stream_name, stream_value in (("stderr", result.stderr), ("stdout", result.stdout)):
+        detail = (stream_value or "").strip()
+        if detail:
+            output.append(f"{stream_name}: {detail}")
+    return "\n".join(output)
+
+
 def _run_commit_capture_sha(repo_path: Path, commit_message: str) -> str | None:
     """Return the commit SHA; return ``None`` only for Git's explicit empty case.
 
@@ -807,10 +817,32 @@ def _run_commit_capture_sha(repo_path: Path, commit_message: str) -> str | None:
         check=False,
     )
     if commit_result.returncode != 0:
-        detail = (commit_result.stderr or commit_result.stdout).strip()
+        detail = _process_output_summary(commit_result)
         normalized_detail = detail.lower()
         if "nothing to commit" in normalized_detail or "nothing added to commit" in normalized_detail:
-            return None
+            staged_diff_result = subprocess.run(
+                ["git", "diff", "--cached", "--quiet"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+            if staged_diff_result.returncode == 0:
+                return None
+            if staged_diff_result.returncode != 1:
+                verification_detail = _process_output_summary(staged_diff_result)
+                suffix = (
+                    f": {verification_detail}"
+                    if verification_detail
+                    else " with no diagnostic"
+                )
+                raise RuntimeError(
+                    f"safe_commit: failed to verify the staged changeset in {repo_path} "
+                    f"after git commit exited {commit_result.returncode}{suffix}. "
+                    f"Original commit output: {detail or 'git returned no diagnostic'}"
+                )
         diagnostic = detail or "git returned no diagnostic"
         raise RuntimeError(
             f"safe_commit: git commit failed in {repo_path} "
