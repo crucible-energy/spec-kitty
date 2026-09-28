@@ -71,7 +71,10 @@ try:
         click.UsageError,
         _typer_click_module.exceptions.UsageError,
     )
-    _CLICK_ABORTS: tuple[type, ...] = (click.Abort, _typer_click_module.exceptions.Abort)
+    _CLICK_ABORTS: tuple[type, ...] = (
+        click.Abort,
+        getattr(_typer_click_module.exceptions, "Abort", click.Abort),
+    )
 except ImportError:
     _CLICK_USAGE_ERRORS = (click.UsageError,)
     _CLICK_ABORTS = (click.Abort,)
@@ -79,8 +82,8 @@ except ImportError:
 
 _CLICK = typer_core._click if hasattr(typer_core, "_click") else typer_core.click
 _USAGE_ERROR = getattr(_CLICK, "UsageError", _CLICK.exceptions.UsageError)
-_ABORT = getattr(_CLICK, "Abort", _CLICK.exceptions.Abort)
-_EXIT = getattr(_CLICK, "Exit", _CLICK.exceptions.Exit)
+_ABORT = getattr(_CLICK, "Abort", getattr(typer_core, "Abort", click.Abort))
+_EXIT = getattr(_CLICK, "Exit", typer.Exit)
 
 
 class _JSONErrorGroup(TyperGroup):

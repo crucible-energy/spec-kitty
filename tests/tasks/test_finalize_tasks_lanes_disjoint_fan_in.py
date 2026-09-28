@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from specify_cli.lanes.compute import compute_lanes
+from specify_cli.lanes.compute import compute_lanes, is_planning_lane
 from specify_cli.ownership.models import ExecutionMode, OwnershipManifest
 
 pytestmark = pytest.mark.fast
@@ -58,3 +58,79 @@ def test_overlapping_upstreams_still_collapse() -> None:
     assert {"WP03"} in lane_sets
     assert result.collapse_report is not None
     assert result.collapse_report.events[0].rule == "write_scope_overlap"
+
+
+def test_planning_artifacts_before_and_after_code_use_dependency_ordered_lanes() -> None:
+    graph = {"WP01": [], "WP02": ["WP01"], "WP03": ["WP02"]}
+    manifests = {
+        "WP01": OwnershipManifest(
+            execution_mode=ExecutionMode.PLANNING_ARTIFACT,
+            owned_files=("kitty-specs/demo/spec.md",),
+            authoritative_surface="kitty-specs/demo/",
+        ),
+        "WP02": _manifest("src/demo.py"),
+        "WP03": OwnershipManifest(
+            execution_mode=ExecutionMode.PLANNING_ARTIFACT,
+            owned_files=("kitty-specs/demo/acceptance.md",),
+            authoritative_surface="kitty-specs/demo/",
+        ),
+    }
+
+    result = compute_lanes(graph, manifests, "planning-phase-demo", target_branch="main")
+    before = result.lane_for_wp("WP01")
+    implementation = result.lane_for_wp("WP02")
+    after = result.lane_for_wp("WP03")
+
+    assert before is not None and is_planning_lane(before)
+    assert implementation is not None and not is_planning_lane(implementation)
+    assert after is not None and is_planning_lane(after)
+    assert before.lane_id != after.lane_id
+    assert before.lane_id in implementation.depends_on_lanes
+    assert implementation.lane_id in after.depends_on_lanes
+    assert before.parallel_group < implementation.parallel_group < after.parallel_group
+
+
+def test_cross_phase_write_conflicts_are_serialized() -> None:
+    graph = {
+        "WP01": [],
+        "WP02": [],
+        "WP03": ["WP02"],
+        "WP04": ["WP03"],
+    }
+    manifests = {
+        "WP01": _manifest("src/shared/**"),
+        "WP02": _manifest("src/foundation/**"),
+        "WP03": OwnershipManifest(
+            execution_mode=ExecutionMode.PLANNING_ARTIFACT,
+            owned_files=("kitty-specs/demo/review.md",),
+            authoritative_surface="kitty-specs/demo/",
+        ),
+        "WP04": _manifest("src/shared/api/**"),
+    }
+
+    result = compute_lanes(graph, manifests, "planning-phase-conflict-demo")
+    by_wp = {wp_id: result.lane_for_wp(wp_id) for wp_id in graph}
+    earlier = by_wp["WP01"]
+    later = by_wp["WP04"]
+
+    assert earlier is not None and later is not None
+    assert earlier.lane_id in later.depends_on_lanes
+
+
+def test_overlapping_non_adjacent_wps_do_not_make_a_valid_dependency_chain_cyclic() -> None:
+    graph = {"WP01": [], "WP02": ["WP01"], "WP03": ["WP02"]}
+    manifests = {
+        "WP01": _manifest("src/shared/**"),
+        "WP02": _manifest("src/middle/**"),
+        "WP03": _manifest("src/shared/api/**"),
+    }
+
+    result = compute_lanes(graph, manifests, "convex-lane-demo")
+    by_wp = {wp_id: result.lane_for_wp(wp_id) for wp_id in graph}
+    first, middle, last = by_wp["WP01"], by_wp["WP02"], by_wp["WP03"]
+
+    assert first is not None and middle is not None and last is not None
+    assert first.lane_id != last.lane_id
+    assert first.lane_id in middle.depends_on_lanes
+    assert middle.lane_id in last.depends_on_lanes
+    assert first.parallel_group < middle.parallel_group < last.parallel_group

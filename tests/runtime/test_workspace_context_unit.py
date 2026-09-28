@@ -488,6 +488,56 @@ class TestContextIndexAndResolution:
         assert resolved.lane_id == "lane-planning"
         assert resolved.lane_wp_ids == []
 
+    def test_later_planning_phase_resolves_to_root_with_its_lane_identity(self, kittify_project: Path) -> None:
+        feature_dir = _seed_mission(kittify_project)
+        tasks_dir = feature_dir / "tasks"
+        _write_wp(
+            tasks_dir,
+            "WP03",
+            "Post-implementation review",
+            "Review kitty-specs/001-feature/acceptance.md after implementation.",
+            execution_mode="planning_artifact",
+            owned_files=["kitty-specs/001-feature/acceptance.md"],
+        )
+        manifest = _lane_manifest()
+        manifest.lanes = [
+            ExecutionLane(
+                lane_id="lane-planning",
+                wp_ids=("WP01",),
+                write_scope=("kitty-specs/001-feature/spec.md",),
+                predicted_surfaces=("planning",),
+                depends_on_lanes=(),
+                parallel_group=0,
+            ),
+            ExecutionLane(
+                lane_id="lane-a",
+                wp_ids=("WP02",),
+                write_scope=("src/**",),
+                predicted_surfaces=("core",),
+                depends_on_lanes=("lane-planning",),
+                parallel_group=1,
+            ),
+            ExecutionLane(
+                lane_id="lane-planning-phase-2",
+                wp_ids=("WP03",),
+                write_scope=("kitty-specs/001-feature/acceptance.md",),
+                predicted_surfaces=("planning",),
+                depends_on_lanes=("lane-a",),
+                parallel_group=2,
+            ),
+        ]
+        write_lanes_json(feature_dir, manifest)
+
+        resolved = resolve_workspace_for_wp(kittify_project, "001-feature", "WP03")
+
+        assert resolved.execution_mode == "planning_artifact"
+        assert resolved.resolution_kind == "repo_root"
+        assert resolved.worktree_path == kittify_project
+        assert resolved.branch_name is None
+        assert resolved.workspace_name == "001-feature-lane-planning-phase-2"
+        assert resolved.lane_id == "lane-planning-phase-2"
+        assert resolved.lane_wp_ids == ["WP03"]
+
     def test_resolve_workspace_for_wp_is_deterministic_across_working_directories(self, kittify_project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         feature_dir = _seed_mission(kittify_project)
         tasks_dir = feature_dir / "tasks"

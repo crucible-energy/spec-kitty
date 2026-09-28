@@ -34,6 +34,20 @@ class TestLaneBranchNamePlanningLane:
         result = lane_branch_name("079-test", "lane-planning", planning_base_branch="release/3.x")
         assert result == "release/3.x"
 
+    def test_later_planning_phase_uses_planning_base_branch(self):
+        result = lane_branch_name(
+            "079-test",
+            "lane-planning-phase-2",
+            planning_base_branch="release/3.x",
+        )
+        assert result == "release/3.x"
+
+    @pytest.mark.parametrize("lane_id", ["lane-planning-phase-typo", "lane-planning-phase-02"])
+    def test_malformed_planning_phase_id_is_not_a_root_branch(self, lane_id: str):
+        assert lane_branch_name("079-test", lane_id, planning_base_branch="release/3.x") == (
+            f"kitty/mission-079-test-{lane_id}"
+        )
+
     def test_lane_branch_name_planning_constant(self):
         """PLANNING_LANE_ID resolves to 'main' without a planning_base_branch."""
         result = lane_branch_name("079-test", PLANNING_LANE_ID)

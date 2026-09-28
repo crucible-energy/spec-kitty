@@ -757,10 +757,9 @@ def resolve_workspace_for_wp(
     execution_mode = ExecutionMode(normalized_wp.metadata.execution_mode or ExecutionMode.CODE_CHANGE)
 
     if execution_mode == ExecutionMode.PLANNING_ARTIFACT:
-        # planning_artifact WPs are first-class lane-owned entities assigned to
-        # "lane-planning".  That lane resolves to the main repository checkout.
-        # We still call create_planning_workspace() for the path, but we now
-        # populate lane_id so the ResolvedWorkspace contract is uniform.
+        # Planning phases are first-class lane-owned entities, each resolving
+        # to the repository-root checkout. Multiple phase IDs serialize those
+        # root operations around code lanes without allocating a worktree.
         from specify_cli.lanes.compute import PLANNING_LANE_ID
         from specify_cli.lanes.persistence import read_lanes_json
 
@@ -773,6 +772,7 @@ def resolve_workspace_for_wp(
         # Try to populate lane_wp_ids from lanes.json if available.
         # lanes.json is a PRIMARY-partition artifact (LANE_STATE kind).
         lane_wp_ids: list[str] = []
+        planning_lane_id = PLANNING_LANE_ID
         lanes_read_dir = resolve_planning_read_dir(
             repo_root, mission_slug, kind=MissionArtifactKind.LANE_STATE
         )
@@ -781,6 +781,7 @@ def resolve_workspace_for_wp(
             planning_lane = lanes_manifest.lane_for_wp(wp_id)
             if planning_lane is not None:
                 lane_wp_ids = list(planning_lane.wp_ids)
+                planning_lane_id = planning_lane.lane_id
 
         return ResolvedWorkspace(
             mission_slug=mission_slug,
@@ -788,10 +789,10 @@ def resolve_workspace_for_wp(
             execution_mode=execution_mode.value,
             mode_source=normalized_wp.mode_source,
             resolution_kind="repo_root",
-            workspace_name=f"{mission_slug}-{PLANNING_LANE_ID}",
+            workspace_name=f"{mission_slug}-{planning_lane_id}",
             worktree_path=planning_workspace,
             branch_name=None,
-            lane_id=PLANNING_LANE_ID,
+            lane_id=planning_lane_id,
             lane_wp_ids=lane_wp_ids,
             context=None,
         )
@@ -838,10 +839,10 @@ def resolve_workspace_for_wp(
             execution_mode=execution_mode.value,
             mode_source=normalized_wp.mode_source,
             resolution_kind="repo_root",
-            workspace_name=f"{mission_slug}-{PLANNING_LANE_ID}",
+            workspace_name=f"{mission_slug}-{lane.lane_id}",
             worktree_path=repo_root,
-            branch_name=lane_branch_name(mission_slug, PLANNING_LANE_ID, planning_base_branch=target_branch),
-            lane_id=PLANNING_LANE_ID,
+            branch_name=lane_branch_name(mission_slug, lane.lane_id, planning_base_branch=target_branch),
+            lane_id=lane.lane_id,
             lane_wp_ids=list(lane.wp_ids),
             context=None,
         )

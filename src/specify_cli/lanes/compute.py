@@ -13,28 +13,28 @@ fan-in WPs become the synchronization point.
 
 from __future__ import annotations
 
-from itertools import combinations
+from itertools import combinations, pairwise
 
 from specify_cli.core.dependency_graph import topological_sort
 from specify_cli.core.time_utils import now_utc_iso
-from specify_cli.lanes.branch_naming import mission_branch_name
+from specify_cli.lanes.branch_naming import _PLANNING_LANE_ID, _is_planning_lane_id, mission_branch_name
 from specify_cli.lanes.models import CollapseEvent, CollapseReport, ExecutionLane, LanesManifest
 from specify_cli.ownership.models import ExecutionMode, OwnershipManifest
 from specify_cli.ownership.validation import _globs_overlap
 
 
-# Canonical lane-id for all planning-artifact WPs.
-# Planning-artifact WPs are first-class lane-owned entities; they share one
-# canonical lane that resolves to the main repository checkout (never a worktree).
-PLANNING_LANE_ID = "lane-planning"
+# Canonical lane-id for the first planning-artifact phase. Later planning phases
+# use ``lane-planning-phase-N`` and resolve to the same repository-root checkout
+# after their declared implementation dependencies complete.
+PLANNING_LANE_ID = _PLANNING_LANE_ID
 
 
 def is_planning_lane(lane: object) -> bool:
-    """Return True when *lane* is the canonical planning-artifact lane.
+    """Return True when *lane* is a repository-root planning-artifact phase.
 
     This is the single seam where "what counts as a planning lane" is decided.
-    Today the backing is the static ``PLANNING_LANE_ID`` constant; that constant
-    is intentionally an internal implementation detail of this predicate. The
+    Today the backing is the lane-ID grammar in ``branch_naming``; the predicate
+    keeps that grammar behind the semantic question. The
     classification is expected to become charter / mission-type-derived and
     surfaced via the shared context objects (domain epic #1666); when that lands
     only the body of this predicate (and :func:`is_planning_artifact_only`) needs
@@ -45,7 +45,7 @@ def is_planning_lane(lane: object) -> bool:
     # predicate's BACKING (and possibly its signature → context-aware) changes
     # here; callers must keep asking the semantic question via this seam.
     """
-    return getattr(lane, "lane_id", None) == PLANNING_LANE_ID
+    return _is_planning_lane_id(getattr(lane, "lane_id", None))
 
 
 def is_planning_artifact_only(lanes_manifest: object) -> bool:
@@ -194,6 +194,48 @@ def _are_disjoint(
     return True
 
 
+def _is_dependency_convex(
+    group: set[str],
+    all_wp_ids: set[str],
+    transitive_dependencies: dict[str, set[str]],
+    transitive_dependents: dict[str, set[str]],
+) -> bool:
+    """Return whether every dependency path between group members stays inside.
+
+    Contracting a non-convex set of vertices in a DAG can create a cycle: an
+    outside WP between two grouped WPs becomes both an upstream and downstream
+    lane dependency. Convex lane groups preserve the acyclic WP ordering.
+    """
+    for middle in all_wp_ids - group:
+        has_group_ancestor = bool(transitive_dependencies.get(middle, set()) & group)
+        has_group_descendant = bool(transitive_dependents.get(middle, set()) & group)
+        if has_group_ancestor and has_group_descendant:
+            return False
+    return True
+
+
+def _merge_preserves_dependency_convexity(
+    union_find: _UnionFind,
+    wp_a: str,
+    wp_b: str,
+    all_wp_ids: set[str],
+    transitive_dependencies: dict[str, set[str]],
+    transitive_dependents: dict[str, set[str]],
+) -> bool:
+    """Check that merging two code lanes cannot create a quotient-graph cycle."""
+    root_a, root_b = union_find.find(wp_a), union_find.find(wp_b)
+    if root_a == root_b:
+        return True
+    groups = union_find.groups()
+    candidate = set(groups[root_a]) | set(groups[root_b])
+    return _is_dependency_convex(
+        candidate,
+        all_wp_ids,
+        transitive_dependencies,
+        transitive_dependents,
+    )
+
+
 def _transitive_deps(
     dependency_graph: dict[str, list[str]],
 ) -> dict[str, set[str]]:
@@ -273,6 +315,35 @@ def find_overlap_pairs(
 
 
 # ---------------------------------------------------------------------------
+# Execution phases
+# ---------------------------------------------------------------------------
+
+def _compute_execution_phases(
+    dependency_graph: dict[str, list[str]],
+    planning_artifact_wp_ids: set[str],
+) -> tuple[list[str], dict[str, int]]:
+    """Assign monotonic phases across planning/code boundaries.
+
+    WPs with the same execution mode remain in the same phase unless a
+    dependency path crosses the other mode. Planning artifacts in different
+    phases must use distinct, sequential root-checkout lanes; otherwise one
+    canonical planning lane can be both an ancestor and a descendant of a code
+    lane.
+    """
+    order = topological_sort(dependency_graph)
+    phase_by_wp: dict[str, int] = {}
+    for wp_id in order:
+        is_planning = wp_id in planning_artifact_wp_ids
+        candidates = [
+            phase_by_wp[dependency] + int((dependency in planning_artifact_wp_ids) != is_planning)
+            for dependency in dependency_graph.get(wp_id, [])
+            if dependency in phase_by_wp
+        ]
+        phase_by_wp[wp_id] = max(candidates, default=0)
+    return order, phase_by_wp
+
+
+# ---------------------------------------------------------------------------
 # Main computation
 # ---------------------------------------------------------------------------
 
@@ -294,11 +365,13 @@ def compute_lanes(
     4. Preserve dependency edges as lane-level dependencies.
     5. Build ExecutionLane per disjoint set, sorted internally by topo order.
     6. Compute lane-level dependencies and parallel groups.
-    7. Collect all planning_artifact WPs into a single ``lane-planning`` lane.
+    7. Group planning_artifact WPs by dependency phase into serialized
+       repository-root lanes.
 
-    Planning-artifact WPs are first-class lane-owned entities assigned to the
-    canonical ``PLANNING_LANE_ID`` (``"lane-planning"``).  That lane resolves to
-    the main repository checkout, never a ``.worktrees/`` directory.
+    Planning-artifact WPs are first-class lane-owned entities assigned to one
+    lane per phase. The first phase retains the canonical ``PLANNING_LANE_ID``;
+    later phases use ``lane-planning-phase-N``. Every planning phase resolves to
+    the repository-root checkout, never a ``.worktrees/`` directory.
 
     Args:
         dependency_graph: WP ID → list of dependency WP IDs.
@@ -317,10 +390,8 @@ def compute_lanes(
     if not all_wp_ids:
         return _empty_manifest(mission_slug, target_branch, resolved_mission_id, planning_artifact_wps=[])
 
-    # Separate planning_artifact WPs from code WPs.
-    # Both sets receive lane assignments:
-    # - code WPs → lane-a, lane-b, … (computed below via union-find)
-    # - planning_artifact WPs → single canonical PLANNING_LANE_ID lane
+    # Separate planning_artifact WPs from code WPs. Planning artifacts at
+    # different dependency phases receive distinct serialized root lanes.
     code_wp_ids: list[str] = []
     planning_artifact_wp_ids: list[str] = []
     for wp_id in all_wp_ids:
@@ -339,20 +410,25 @@ def compute_lanes(
     if not code_wp_ids and not planning_artifact_wp_ids:
         return _empty_manifest(mission_slug, target_branch, resolved_mission_id, planning_artifact_wps=[])
 
-    if not code_wp_ids:
-        # Only planning-artifact WPs — build the lane-planning lane and return.
-        planning_lane = _build_planning_lane(planning_artifact_wp_ids, ownership_manifests)
-        return LanesManifest(
-            version=1,
-            mission_slug=mission_slug,
-            mission_id=resolved_mission_id,
-            mission_branch=mission_branch_name(mission_slug, mission_id=mission_id),
-            target_branch=target_branch,
-            lanes=[planning_lane],
-            computed_at=now_utc_iso(),
-            computed_from="dependency_graph+ownership",
-            planning_artifact_wps=list(planning_lane.wp_ids),
-        )
+    planning_wp_set = set(planning_artifact_wp_ids)
+    all_wp_set = set(all_wp_ids)
+    transitive_dependencies = _transitive_deps(dependency_graph)
+    transitive_dependents: dict[str, set[str]] = {wp_id: set() for wp_id in all_wp_ids}
+    for wp_id, dependencies in transitive_dependencies.items():
+        for dependency in dependencies:
+            transitive_dependents.setdefault(dependency, set()).add(wp_id)
+    if planning_wp_set:
+        try:
+            wp_order, phase_by_wp = _compute_execution_phases(dependency_graph, planning_wp_set)
+        except ValueError as exc:
+            raise LaneComputationError(
+                f"Cannot order planning phases because the WP dependency graph contains a cycle: {exc}"
+            ) from exc
+    else:
+        # Preserve the historical best-effort cycle handling for code-only
+        # manifests. No execution-mode boundaries need phase ordering here.
+        wp_order = all_wp_ids
+        phase_by_wp = dict.fromkeys(all_wp_ids, 0)
 
     # Build union-find over code WPs.
     uf = _UnionFind(code_wp_ids)
@@ -365,7 +441,20 @@ def compute_lanes(
         if wp in ownership_manifests
     }
     for wp_a, wp_b in find_overlap_pairs(code_manifests):
+        # Overlapping code from different phases cannot share a lane: a
+        # repository-root planning phase may need to run between them.
+        if phase_by_wp[wp_a] != phase_by_wp[wp_b]:
+            continue
         if uf.find(wp_a) != uf.find(wp_b):
+            if not _merge_preserves_dependency_convexity(
+                uf,
+                wp_a,
+                wp_b,
+                all_wp_set,
+                transitive_dependencies,
+                transitive_dependents,
+            ):
+                continue
             overlap = _describe_overlap(code_manifests[wp_a], code_manifests[wp_b])
             dep_evidence = _dependency_relationship_evidence(wp_a, wp_b, dependency_graph)
             evidence = f"{overlap}; {dep_evidence}" if dep_evidence else overlap
@@ -388,6 +477,8 @@ def compute_lanes(
             wp_surfaces[wp_id] = infer_surfaces(body)
 
         for wp_a, wp_b in combinations(code_wp_ids, 2):
+            if phase_by_wp[wp_a] != phase_by_wp[wp_b]:
+                continue
             surfaces_a = set(wp_surfaces.get(wp_a, []))
             surfaces_b = set(wp_surfaces.get(wp_b, []))
             if surfaces_a & surfaces_b:
@@ -399,6 +490,15 @@ def compute_lanes(
                     continue  # Disjoint ownership — surface match is not enough
                 shared = sorted(surfaces_a & surfaces_b)
                 if uf.find(wp_a) != uf.find(wp_b):
+                    if not _merge_preserves_dependency_convexity(
+                        uf,
+                        wp_a,
+                        wp_b,
+                        all_wp_set,
+                        transitive_dependencies,
+                        transitive_dependents,
+                    ):
+                        continue
                     collapse_events.append(CollapseEvent(
                         wp_a=wp_a,
                         wp_b=wp_b,
@@ -425,10 +525,14 @@ def compute_lanes(
 
     # Order WPs within each lane by topological sort.
     lanes: list[ExecutionLane] = []
+    code_lane_by_wp: dict[str, str] = {}
     lane_letter = ord("a")
 
     # Sort groups deterministically by lowest WP ID in each group.
-    sorted_groups = sorted(raw_groups.values(), key=lambda g: min(g))
+    sorted_groups = sorted(
+        raw_groups.values(),
+        key=lambda group: (phase_by_wp[min(group)], min(group)),
+    )
 
     # Build a sub-graph for each group to topologically sort within it.
     for group_wps in sorted_groups:
@@ -462,97 +566,81 @@ def compute_lanes(
                 parallel_group=0,  # Filled in below.
             )
         )
+        for wp_id in ordered_wps:
+            code_lane_by_wp[wp_id] = lane_id
 
-    # Compute lane-level dependencies.
-    # Lane B depends on lane A if any WP in B depends on any WP in A
-    # (and they are in different lanes).
-    #
-    # P2.7 fix: planning-artifact WPs participate in this calculation.
-    # A code WP that depends on a planning-artifact WP must have a lane
-    # edge to PLANNING_LANE_ID, and a planning-artifact WP that depends
-    # on a code WP must put PLANNING_LANE_ID downstream of that code
-    # lane. Without this, the lane planner happily fan-outs lanes that
-    # should be sequential, and the merge order silently violates the
-    # declared dependency graph.
-    wp_to_lane: dict[str, str] = {}
-    for lane in lanes:
-        for wp_id in lane.wp_ids:
-            wp_to_lane[wp_id] = lane.lane_id
-    # Map every planning-artifact WP to the canonical lane id so
-    # cross-mode deps (code -> planning, planning -> code) resolve.
-    for planning_wp_id in planning_artifact_wp_ids:
-        wp_to_lane[planning_wp_id] = PLANNING_LANE_ID
+    # Assign planning-artifact WPs to one repository-root lane per dependency
+    # phase. A single planning lane cannot represent a valid sequence such as
+    # planning -> implementation -> post-implementation review.
+    planning_phases = sorted({phase_by_wp[wp_id] for wp_id in planning_artifact_wp_ids})
+    planning_lane_by_phase = {
+        phase: PLANNING_LANE_ID if index == 0 else f"{PLANNING_LANE_ID}-phase-{phase}"
+        for index, phase in enumerate(planning_phases)
+    }
+    planning_lanes: list[ExecutionLane] = []
+    planning_lane_by_wp: dict[str, str] = {}
+    for phase in planning_phases:
+        phase_wp_ids = [
+            wp_id for wp_id in wp_order
+            if wp_id in planning_wp_set and phase_by_wp[wp_id] == phase
+        ]
+        lane_id = planning_lane_by_phase[phase]
+        planning_lanes.append(_build_planning_lane(phase_wp_ids, ownership_manifests, lane_id=lane_id))
+        for wp_id in phase_wp_ids:
+            planning_lane_by_wp[wp_id] = lane_id
 
-    # Seed lane_deps for every lane we know about — including
-    # PLANNING_LANE_ID when the mission has any planning-artifact WPs.
+    # Lane B depends on lane A when any WP in B depends on any WP in A.
+    wp_to_lane: dict[str, str] = {**code_lane_by_wp, **planning_lane_by_wp}
+    lanes.extend(planning_lanes)
     lane_deps: dict[str, set[str]] = {lane.lane_id: set() for lane in lanes}
-    if planning_artifact_wp_ids:
-        lane_deps[PLANNING_LANE_ID] = set()
-
-    # Iterate every WP (code AND planning) so cross-mode dependency
-    # edges are captured.
-    for wp_id in code_wp_ids + planning_artifact_wp_ids:
-        my_lane = wp_to_lane.get(wp_id)
-        if not my_lane:
-            continue
+    for wp_id in wp_order:
+        my_lane = wp_to_lane[wp_id]
         for dep in dependency_graph.get(wp_id, []):
             dep_lane = wp_to_lane.get(dep)
             if dep_lane and dep_lane != my_lane:
                 lane_deps[my_lane].add(dep_lane)
 
-    # Assign parallel groups via topological sort of lane DAG.
-    # Lanes at the same depth in the DAG can run in parallel.
-    # The planning lane participates in the depth calculation when
-    # the mission has any planning-artifact WPs so its parallel_group
-    # honours upstream code-lane dependencies (P2.7).
-    depth_input_lanes = list(lanes)
-    if planning_artifact_wp_ids:
-        # Synthesise a placeholder ExecutionLane for the depth calc.
-        # The real planning lane is constructed below; this stand-in
-        # exists only so PLANNING_LANE_ID appears in the topo input.
-        depth_input_lanes.append(
-            ExecutionLane(
-                lane_id=PLANNING_LANE_ID,
-                wp_ids=tuple(sorted(planning_artifact_wp_ids)),
-                write_scope=(),
-                predicted_surfaces=("planning",),
-                depends_on_lanes=tuple(sorted(lane_deps[PLANNING_LANE_ID])),
-                parallel_group=0,
-            )
-        )
-    lane_depth = _compute_lane_depths(depth_input_lanes, lane_deps)
+    # Planning phases share the repository-root checkout, so serialize them
+    # even when their WP-level prerequisites happen to be independent.
+    ordered_planning_lane_ids = [planning_lane_by_phase[phase] for phase in planning_phases]
+    for previous, current in pairwise(ordered_planning_lane_ids):
+        lane_deps[current].add(previous)
 
-    # Rebuild lanes with depends_on_lanes and parallel_group.
-    final_lanes: list[ExecutionLane] = []
-    for lane in lanes:
-        final_lanes.append(
-            ExecutionLane(
-                lane_id=lane.lane_id,
-                wp_ids=lane.wp_ids,
-                write_scope=lane.write_scope,
-                predicted_surfaces=lane.predicted_surfaces,
-                depends_on_lanes=tuple(sorted(lane_deps[lane.lane_id])),
-                parallel_group=lane_depth[lane.lane_id],
-            )
-        )
+    # Code WPs from different phases cannot share a lane. If their file/surface
+    # ownership conflicts, preserve a deterministic phase-order dependency.
+    code_surfaces = {
+        wp_id: set(infer_surfaces(wp_bodies.get(wp_id, ""))) if wp_bodies else set()
+        for wp_id in code_wp_ids
+    }
+    for wp_a, wp_b in combinations(code_wp_ids, 2):
+        phase_a, phase_b = phase_by_wp[wp_a], phase_by_wp[wp_b]
+        if phase_a == phase_b:
+            continue
+        manifest_a = ownership_manifests.get(wp_a)
+        manifest_b = ownership_manifests.get(wp_b)
+        disjoint = bool(manifest_a and manifest_b and _are_disjoint(manifest_a, manifest_b))
+        write_conflict = bool(manifest_a and manifest_b and not _are_disjoint(manifest_a, manifest_b))
+        surface_conflict = bool(code_surfaces[wp_a] & code_surfaces[wp_b]) and not disjoint
+        if write_conflict or surface_conflict:
+            earlier_wp, later_wp = (wp_a, wp_b) if phase_a < phase_b else (wp_b, wp_a)
+            earlier_lane, later_lane = wp_to_lane[earlier_wp], wp_to_lane[later_wp]
+            if earlier_lane != later_lane:
+                lane_deps[later_lane].add(earlier_lane)
 
+    lane_depth = _compute_lane_depths(lanes, lane_deps)
+    final_lanes = [
+        ExecutionLane(
+            lane_id=lane.lane_id,
+            wp_ids=lane.wp_ids,
+            write_scope=lane.write_scope,
+            predicted_surfaces=lane.predicted_surfaces,
+            depends_on_lanes=tuple(sorted(lane_deps[lane.lane_id])),
+            parallel_group=lane_depth[lane.lane_id],
+        )
+        for lane in lanes
+    ]
+    all_lanes = sorted(final_lanes, key=lambda lane: (lane.parallel_group, lane.lane_id))
     mission_branch = mission_branch_name(mission_slug, mission_id=mission_id)
-
-    # Assign planning-artifact WPs to a single canonical lane-planning lane.
-    # This lane resolves to the main repository checkout, not a .worktrees/ directory.
-    all_lanes = list(final_lanes)
-    if planning_artifact_wp_ids:
-        planning_lane = _build_planning_lane(
-            planning_artifact_wp_ids,
-            ownership_manifests,
-            depends_on_lanes=tuple(sorted(lane_deps[PLANNING_LANE_ID])),
-            parallel_group=lane_depth.get(PLANNING_LANE_ID, 0),
-        )
-        all_lanes.append(planning_lane)
-    all_lanes = sorted(all_lanes, key=lambda lane: (lane.parallel_group, lane.lane_id))
-
-    # planning_artifact_wps is a derived view populated from lane-planning's wp_ids
-    # for backward compatibility — do NOT use it as the authoritative source.
     derived_planning_artifact_wps: list[str] = list(planning_artifact_wp_ids)
 
     # Build the collapse report with independent-WP collapse count.
@@ -580,21 +668,17 @@ def _build_planning_lane(
     planning_artifact_wp_ids: list[str],
     ownership_manifests: dict[str, OwnershipManifest],
     *,
+    lane_id: str = PLANNING_LANE_ID,
     depends_on_lanes: tuple[str, ...] = (),
     parallel_group: int = 0,
 ) -> ExecutionLane:
-    """Build the canonical lane-planning ExecutionLane for all planning-artifact WPs.
-
-    All planning-artifact WPs in a mission are grouped into one lane with
-    ``lane_id == PLANNING_LANE_ID``.  This lane resolves to the main repository
-    checkout at runtime (see ``resolve_workspace_for_wp``).
+    """Build a serialized repository-root lane for one planning phase.
 
     P2.7: ``depends_on_lanes`` and ``parallel_group`` come from the lane
     DAG calculation in ``compute_lanes`` so cross-mode dependencies
-    (code WP → planning WP, or planning WP → code WP) are honoured at
-    lane scheduling time. Defaults to no upstream lanes / parallel
-    group 0 for backwards compatibility with the all-planning-only
-    short-circuit.
+    (code WP → planning WP, or planning WP → code WP) are honoured at lane
+    scheduling time. ``lane-planning`` is retained for the first phase; later
+    phases use distinct IDs but the same repository-root workspace.
     """
     write_scope: set[str] = set()
     for wp_id in planning_artifact_wp_ids:
@@ -603,8 +687,8 @@ def _build_planning_lane(
             write_scope.update(m.owned_files)
 
     return ExecutionLane(
-        lane_id=PLANNING_LANE_ID,
-        wp_ids=tuple(sorted(planning_artifact_wp_ids)),
+        lane_id=lane_id,
+        wp_ids=tuple(planning_artifact_wp_ids),
         write_scope=tuple(sorted(write_scope)),
         predicted_surfaces=("planning",),
         depends_on_lanes=depends_on_lanes,
@@ -636,9 +720,9 @@ def _compute_lane_depths(
             return depths[lane_id]
         if lane_id in in_progress:
             # Cycle (or self-loop) detected: break the recursion by treating
-            # the current lane as a depth-0 anchor. The cycle is logged via
-            # ``compute_lanes``'s validation; here we just stop the infinite
-            # recursion so the caller can surface a clean diagnostic.
+            # the current lane as a depth-0 anchor. This helper has no cycle
+            # diagnostic side channel; callers that require cycle-accurate
+            # depths must validate the graph before invoking it.
             return 0
         in_progress.add(lane_id)
         try:
