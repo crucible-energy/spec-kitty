@@ -792,7 +792,11 @@ def _restore_staged_patch(
 
 
 def _run_commit_capture_sha(repo_path: Path, commit_message: str) -> str | None:
-    """Run ``git commit`` and return the new commit SHA, or ``None`` on failure."""
+    """Return the commit SHA; return ``None`` only for Git's explicit empty case.
+
+    Other commit failures raise with the original Git/hook diagnostic so callers
+    cannot mistake a rejected commit for an unchanged artifact.
+    """
     commit_result = subprocess.run(
         ["git", "-c", "commit.gpgsign=false", "commit", "-m", commit_message],
         cwd=repo_path,
@@ -803,7 +807,15 @@ def _run_commit_capture_sha(repo_path: Path, commit_message: str) -> str | None:
         check=False,
     )
     if commit_result.returncode != 0:
-        return None
+        detail = (commit_result.stderr or commit_result.stdout).strip()
+        normalized_detail = detail.lower()
+        if "nothing to commit" in normalized_detail or "nothing added to commit" in normalized_detail:
+            return None
+        diagnostic = detail or "git returned no diagnostic"
+        raise RuntimeError(
+            f"safe_commit: git commit failed in {repo_path} "
+            f"(exit code {commit_result.returncode}): {diagnostic}"
+        )
     sha = _run_git_text(repo_path, ["rev-parse", "HEAD"])
     return sha
 
@@ -1072,10 +1084,7 @@ def safe_commit(  # noqa: C901 -- sequential validation gates; splitting harms r
             new_sha = _run_commit_capture_sha(worktree_root, message)
             commit_created = new_sha is not None
             if not commit_created:
-                raise RuntimeError(
-                    f"safe_commit: git commit failed in {worktree_root} for "
-                    f"destination_ref={destination_ref!r}"
-                )
+                raise RuntimeError(f"safe_commit: nothing to commit in {worktree_root}")
     finally:
         recovery_messages: list[str] = []
         orphan_stash_ref: str | None = None
