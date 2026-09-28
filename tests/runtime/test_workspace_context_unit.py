@@ -538,6 +538,25 @@ class TestContextIndexAndResolution:
         assert resolved.lane_id == "lane-planning-phase-2"
         assert resolved.lane_wp_ids == ["WP03"]
 
+    def test_planning_wp_missing_from_persisted_manifest_fails_closed(self, kittify_project: Path) -> None:
+        feature_dir = _seed_mission(kittify_project)
+        tasks_dir = feature_dir / "tasks"
+        _write_wp(
+            tasks_dir,
+            "WP04",
+            "Later planning phase",
+            "Update kitty-specs/001-feature/acceptance.md.",
+            execution_mode="planning_artifact",
+            owned_files=["kitty-specs/001-feature/acceptance.md"],
+        )
+        write_lanes_json(feature_dir, _lane_manifest())
+
+        with pytest.raises(
+            ValueError,
+            match="Planning-artifact WP WP04 is absent from persisted lanes.json",
+        ):
+            resolve_workspace_for_wp(kittify_project, "001-feature", "WP04")
+
     def test_resolve_workspace_for_wp_is_deterministic_across_working_directories(self, kittify_project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         feature_dir = _seed_mission(kittify_project)
         tasks_dir = feature_dir / "tasks"

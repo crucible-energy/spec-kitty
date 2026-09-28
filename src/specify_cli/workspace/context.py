@@ -779,9 +779,14 @@ def resolve_workspace_for_wp(
         lanes_manifest = read_lanes_json(lanes_read_dir)
         if lanes_manifest is not None:
             planning_lane = lanes_manifest.lane_for_wp(wp_id)
-            if planning_lane is not None:
-                lane_wp_ids = list(planning_lane.wp_ids)
-                planning_lane_id = planning_lane.lane_id
+            if planning_lane is None:
+                raise ValueError(
+                    f"Planning-artifact WP {wp_id} is absent from persisted lanes.json "
+                    f"for mission {mission_slug}. Run `spec-kitty agent tasks "
+                    f"finalize-tasks --mission {mission_slug}` to recompute execution lanes."
+                )
+            lane_wp_ids = list(planning_lane.wp_ids)
+            planning_lane_id = planning_lane.lane_id
 
         return ResolvedWorkspace(
             mission_slug=mission_slug,
