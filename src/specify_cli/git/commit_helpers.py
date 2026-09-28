@@ -791,8 +791,22 @@ def _restore_staged_patch(
         )
 
 
+def _process_output_summary(result: subprocess.CompletedProcess[str]) -> str:
+    """Return all non-empty captured process output with its stream labeled."""
+    output = []
+    for stream_name, stream_value in (("stderr", result.stderr), ("stdout", result.stdout)):
+        detail = (stream_value or "").strip()
+        if detail:
+            output.append(f"{stream_name}: {detail}")
+    return "\n".join(output)
+
+
 def _run_commit_capture_sha(repo_path: Path, commit_message: str) -> str | None:
-    """Run ``git commit`` and return the new commit SHA, or ``None`` on failure."""
+    """Return the commit SHA; return ``None`` only for Git's explicit empty case.
+
+    Other commit failures raise with the original Git/hook diagnostic so callers
+    cannot mistake a rejected commit for an unchanged artifact.
+    """
     commit_result = subprocess.run(
         ["git", "-c", "commit.gpgsign=false", "commit", "-m", commit_message],
         cwd=repo_path,
@@ -803,7 +817,37 @@ def _run_commit_capture_sha(repo_path: Path, commit_message: str) -> str | None:
         check=False,
     )
     if commit_result.returncode != 0:
-        return None
+        detail = _process_output_summary(commit_result)
+        normalized_detail = detail.lower()
+        if "nothing to commit" in normalized_detail or "nothing added to commit" in normalized_detail:
+            staged_diff_result = subprocess.run(
+                ["git", "diff", "--cached", "--quiet"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+            if staged_diff_result.returncode == 0:
+                return None
+            if staged_diff_result.returncode != 1:
+                verification_detail = _process_output_summary(staged_diff_result)
+                suffix = (
+                    f": {verification_detail}"
+                    if verification_detail
+                    else " with no diagnostic"
+                )
+                raise RuntimeError(
+                    f"safe_commit: failed to verify the staged changeset in {repo_path} "
+                    f"after git commit exited {commit_result.returncode}{suffix}. "
+                    f"Original commit output: {detail or 'git returned no diagnostic'}"
+                )
+        diagnostic = detail or "git returned no diagnostic"
+        raise RuntimeError(
+            f"safe_commit: git commit failed in {repo_path} "
+            f"(exit code {commit_result.returncode}): {diagnostic}"
+        )
     sha = _run_git_text(repo_path, ["rev-parse", "HEAD"])
     return sha
 
@@ -1072,10 +1116,7 @@ def safe_commit(  # noqa: C901 -- sequential validation gates; splitting harms r
             new_sha = _run_commit_capture_sha(worktree_root, message)
             commit_created = new_sha is not None
             if not commit_created:
-                raise RuntimeError(
-                    f"safe_commit: git commit failed in {worktree_root} for "
-                    f"destination_ref={destination_ref!r}"
-                )
+                raise RuntimeError(f"safe_commit: nothing to commit in {worktree_root}")
     finally:
         recovery_messages: list[str] = []
         orphan_stash_ref: str | None = None

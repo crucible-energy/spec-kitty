@@ -62,6 +62,8 @@ _MISSION_PREFIX = "kitty/mission-"
 _COORD_DIR_SUFFIX = "-coord"
 # Root directory (relative to repo root) under which lane/coord worktrees live.
 _WORKTREES_DIRNAME = ".worktrees"
+_PLANNING_LANE_ID = "lane-planning"
+_PLANNING_LANE_PHASE_RE = re.compile(rf"^{re.escape(_PLANNING_LANE_ID)}-phase-[1-9][0-9]*$")
 
 # Env var that suppresses the one-shot legacy-failover deprecation warning,
 # mirroring the project's selector_resolution suppress-env pattern.
@@ -117,6 +119,13 @@ def strip_numeric_prefix(slug: str) -> str:
         if remainder:  # only strip if remainder is non-empty
             return remainder
     return slug
+
+
+def _is_planning_lane_id(lane_id: object) -> bool:
+    """Recognize only generated planning lane IDs, rejecting malformed suffixes."""
+    return lane_id == _PLANNING_LANE_ID or (
+        isinstance(lane_id, str) and _PLANNING_LANE_PHASE_RE.fullmatch(lane_id) is not None
+    )
 
 
 def _mid8(mission_id: str) -> str:
@@ -446,9 +455,9 @@ def lane_branch_name(
 ) -> str:
     """Return a lane branch name.
 
-    For the canonical ``lane-planning`` lane, returns the planning base branch
-    rather than a ``kitty/mission-…`` branch name, because planning-artifact WPs
-    live in the main repository checkout on the target branch (typically ``main``).
+    For a ``lane-planning`` phase, returns the planning base branch rather than
+    a ``kitty/mission-…`` branch name, because planning-artifact WPs live in the
+    repository-root checkout on the target branch (typically ``main``).
 
     When ``mission_id`` is provided, uses the new ``<human-slug>-<mid8>`` format
     (FR-032).  When ``mission_id`` is ``None``, falls back to the legacy format.
@@ -458,8 +467,9 @@ def lane_branch_name(
         lane_id: Lane identifier (e.g. ``"lane-a"`` or ``"lane-planning"``).
         planning_base_branch: The branch that planning-artifact work targets
             (typically the value of ``target_branch`` from ``meta.json``).
-            Defaults to ``"main"`` when ``lane_id == "lane-planning"`` and this
-            argument is omitted.  Ignored for all other lane IDs.
+            Defaults to ``"main"`` when *lane_id* is ``lane-planning`` or a
+            dependency-phase variant and this argument is omitted. Ignored for
+            code-lane IDs.
         mission_id: Optional ULID. When present, the new ``<human-slug>-<mid8>``
             naming format is used. When ``None``, the legacy format is preserved.
 
@@ -473,7 +483,7 @@ def lane_branch_name(
         lane_branch_name("083-my-feature", "lane-planning", planning_base_branch="release/3.x")
           -> "release/3.x"
     """
-    if lane_id == "lane-planning":
+    if _is_planning_lane_id(lane_id):
         return planning_base_branch if planning_base_branch is not None else "main"
     if mission_id is not None:
         human_slug = _human_slug_for_mid8_branch(mission_slug, mission_id)

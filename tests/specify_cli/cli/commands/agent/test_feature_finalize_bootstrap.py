@@ -1190,6 +1190,7 @@ def _write_overlap_feature(
     wps: list[tuple[str, list[str], str, list[str], str | None]],
     tasks_md: str,
     mission_slug: str = "060-test-feature",
+    execution_modes: dict[str, str] | None = None,
 ) -> None:
     """Write a feature whose WP files carry explicit (overlapping) ownership.
 
@@ -1212,7 +1213,7 @@ def _write_overlap_feature(
             f'title: "Test {wp_id}"',
             "requirement_refs:",
             "  - FR-001",
-            "execution_mode: code_change",
+            f"execution_mode: {(execution_modes or {}).get(wp_id, 'code_change')}",
             "owned_files:",
             *[f"  - {p}" for p in owned],
             f'authoritative_surface: "{surface}"',
@@ -1337,3 +1338,48 @@ class TestOwnershipOverlapAcceptance:
         results = _run_finalize_validate_only(tmp_path, capsys)
         assert not [r for r in results if r.get("error") == "Ownership validation failed"], f"codebase-wide WP must be exempt from overlap; got {results}"
         assert any(r.get("result") == "validation_passed" for r in results), f"expected validation_passed; got {results}"
+
+
+class TestPlanningPhaseLaneFinalization:
+    def test_validate_only_reports_acyclic_planning_code_planning_lanes(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        mission_slug = "060-test-feature"
+        _write_overlap_feature(
+            tmp_path,
+            wps=[
+                ("WP01", ["docs/plan.md"], "docs/", [], None),
+                ("WP02", ["src/middle.py"], "src/middle.py", ["WP01"], None),
+                ("WP03", ["docs/review.md"], "docs/", ["WP02"], None),
+            ],
+            tasks_md=(
+                "# Tasks\n\n## WP01\n\nNo dependencies.\n\n"
+                "## WP02\n\nDepends on WP01.\n\n"
+                "## WP03\n\nDepends on WP02.\n"
+            ),
+            execution_modes={
+                "WP01": "planning_artifact",
+                "WP03": "planning_artifact",
+            },
+        )
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "middle.py").write_text("# implementation\n", encoding="utf-8")
+        (tmp_path / "docs").mkdir()
+        (tmp_path / "docs" / "plan.md").write_text("# Plan\n", encoding="utf-8")
+        (tmp_path / "docs" / "review.md").write_text("# Review\n", encoding="utf-8")
+
+        results = _run_finalize_validate_only(tmp_path, capsys, mission_slug)
+
+        passed = [result for result in results if result.get("result") == "validation_passed"]
+        assert passed, f"expected validation_passed, got {results}"
+        validation = passed[0].get("validation")
+        assert isinstance(validation, dict)
+        lanes_preview = validation.get("lanes_preview")
+        assert isinstance(lanes_preview, dict)
+        assert lanes_preview.get("lane_ids") == [
+            "lane-planning",
+            "lane-a",
+            "lane-planning-phase-2",
+        ]

@@ -33,6 +33,13 @@ class TestIsPlanningLane:
     def test_planning_lane_id_is_planning(self) -> None:
         assert is_planning_lane(_lane(PLANNING_LANE_ID)) is True
 
+    def test_later_planning_phase_id_is_planning(self) -> None:
+        assert is_planning_lane(_lane("lane-planning-phase-2")) is True
+
+    @pytest.mark.parametrize("lane_id", ["lane-planning-phase-typo", "lane-planning-phase-02"])
+    def test_malformed_planning_phase_id_is_not_planning(self, lane_id: str) -> None:
+        assert is_planning_lane(_lane(lane_id)) is False
+
     def test_code_lane_is_not_planning(self) -> None:
         assert is_planning_lane(_lane("lane-a")) is False
 

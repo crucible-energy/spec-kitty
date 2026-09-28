@@ -16,6 +16,7 @@ WP01 additions (T009):
 
 from __future__ import annotations
 
+from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
 
@@ -48,7 +49,9 @@ def _committed_router_result(*, commit_success: bool = True) -> CommitRouterResu
             commit_hashes=(("main", _FAKE_SHA),),
         )
     return CommitRouterResult(
-        status="error", placement_ref="main", diagnostic="safe_commit: git commit failed"
+        status="error",
+        placement_ref="main",
+        diagnostic="safe_commit: git commit failed: pre-commit capability mismatch",
     )
 
 
@@ -286,6 +289,28 @@ class TestFinalizeTasks:
         lines = [l for l in result.stdout.splitlines() if l.strip().startswith("{")]
         payload = json.loads(lines[-1])
         assert payload["commit_created"] is False
+
+    def test_json_output_reports_commit_failure_instead_of_success(self, tmp_path: Path) -> None:
+        """A rejected Git commit must not become a successful finalize result."""
+        feature_dir, _ = _build_feature(tmp_path)
+        with ExitStack() as stack:
+            for patcher in _patch_context(
+                tmp_path,
+                feature_dir,
+                commit_success=False,
+                git_status_out="M tasks.md",
+            ):
+                stack.enter_context(patcher)
+            result = runner.invoke(app, ["finalize-tasks", "--json"])
+
+        assert result.exit_code != 0
+        import json
+
+        lines = [line for line in result.stdout.splitlines() if line.strip().startswith("{")]
+        payload = json.loads(lines[-1])
+        assert "error" in payload
+        assert "pre-commit capability mismatch" in payload["error"]
+        assert payload.get("result") != "success"
 
     def test_json_output_files_committed_includes_tasks_and_wp_files(self, tmp_path: Path) -> None:
         """files_committed should list tasks.md and all WP file paths."""

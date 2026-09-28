@@ -904,7 +904,8 @@ def _any_path_absent(paths: tuple[Path, ...]) -> bool:
 
 
 def _is_empty_changeset_error(exc: RuntimeError) -> bool:
-    return str(exc).startswith("safe_commit: git commit failed")
+    message = str(exc).lower()
+    return "safe_commit: nothing to commit" in message
 
 
 def _try_advance_ref(
