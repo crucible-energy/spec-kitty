@@ -40,6 +40,12 @@ _The 3.2.7 development cycle is open. Entries land here as missions merge._
   their descriptor copies without unlocking the parent and refuse writes until
   a fresh interpreter; normal parent/thread reentrance remains unchanged.
 
+  Upstream-protocol correction delegates modern filelock native transitions and
+  fork cleanup to its public API, eliminating overlapping before-fork mutexes.
+  The causal acquire/fork deadlock regression is retained, and native ownership
+  tests accept safe upstream fork refusal while checking parent lock preservation
+  and cleanup. Older supported backends retain the legacy guarded protocol.
+
 - **Fork packaging hooks (entry-point plugins + `DistributionProfile`).**
   Renamed / private-index forks can customize CLI package identity, upgrade
   providers (including built-in PEP 503 `SimpleIndexProvider`), remediation

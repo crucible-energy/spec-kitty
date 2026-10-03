@@ -23,6 +23,10 @@ _process_id = os.getpid()
 _fork_refused = False
 _fork_guard = threading.RLock()
 _active_locks: dict[int, FileLock] = {}
+# Modern filelock owns descriptor fork transitions and inherited-instance PID
+# checks. Detect that bounded capability rather than pinning dependency versions.
+# Our protocol remains only for older supported backends without those hooks.
+_UPSTREAM_FORK_PROTOCOL = callable(getattr(FileLock, "_acquire_with_fork_tracking", None)) and callable(getattr(FileLock, "_raise_if_inherited", None))
 
 
 class FeatureStatusLockTimeoutError(RuntimeError):
@@ -44,9 +48,10 @@ def _discard_inherited_state() -> None:
         return  # This is not a public reset seam in the owning parent process.
     inherited = list(_active_locks.values())
     _fork_refused = _fork_refused or bool(inherited)
-    for lock in inherited:
-        # Canonical instances use non-thread-local backend contexts: descriptors
-        # owned by OTHER parent threads are visible and detached in the child too.
+    for lock in inherited if not _UPSTREAM_FORK_PROTOCOL else ():
+        # Legacy-only: modern filelock's earlier child hook has already detached
+        # its owned descriptors with inode/PID safeguards. Do not close them twice
+        # or modify its private transition/context bookkeeping.
         fd = lock._context.lock_file_fd
         lock._context.lock_file_fd = None
         lock._context.lock_counter = 0
@@ -103,11 +108,13 @@ class _ProcessFileLock(FileLock):
 
 
 def _before_fork() -> None:
-    _fork_guard.acquire()
+    if not _UPSTREAM_FORK_PROTOCOL:
+        _fork_guard.acquire()
 
 
 def _after_fork_parent() -> None:
-    _fork_guard.release()  # No parent tables, fences or native descriptors reset.
+    if not _UPSTREAM_FORK_PROTOCOL:
+        _fork_guard.release()  # No parent tables, fences or native descriptors reset.
 
 
 if hasattr(os, "register_at_fork"):
@@ -215,10 +222,17 @@ def feature_status_lock(
                 held_locks[lock_key] = (lock, depth - 1)
         return
 
-    # There is still one distinct instance per thread/key. A non-thread-local
-    # backend context is solely for child cleanup of descriptors from all threads.
-    lock = _ProcessFileLock(str(lock_path), timeout=timeout, thread_local=False)
-    lock.owner_pid = owner_pid
+    # There is still one distinct instance per thread/key. Only legacy cleanup
+    # needs a non-thread-local backend context; upstream tracks its own threads.
+    if _UPSTREAM_FORK_PROTOCOL:
+        # Use the supported public API unwrapped. Its native transition protocol
+        # must never wait for a mutex held by our before-fork callback.
+        lock = FileLock(str(lock_path), timeout=timeout)
+    else:
+        lock = _ProcessFileLock(str(lock_path), timeout=timeout, thread_local=False)
+        lock.owner_pid = owner_pid
+    if owner_pid != os.getpid():
+        raise StatusLockForkRefused("Fork interrupted canonical status lock construction")
     with _fork_guard:
         _active_locks[id(lock)] = lock  # Includes acquisition and cleanup windows.
     try:
@@ -226,6 +240,10 @@ def feature_status_lock(
             lock.acquire()
         except Timeout as exc:
             raise FeatureStatusLockTimeoutError(f"Timed out acquiring feature status lock for {mission_slug}: {lock_path}") from exc
+        except RuntimeError as exc:
+            if owner_pid != os.getpid():
+                raise StatusLockForkRefused("Native status lock acquisition refused in fork child") from exc
+            raise
         _check_process()
         held_locks[lock_key] = (lock, 1)
         try:
@@ -235,10 +253,14 @@ def feature_status_lock(
                 del held_locks[lock_key]
     finally:
         if owner_pid == os.getpid():
-            with _fork_guard:
-                try:
+            try:
+                if _UPSTREAM_FORK_PROTOCOL:
                     lock.release()
-                finally:
+                else:
+                    with _fork_guard:
+                        lock.release()
+            finally:
+                with _fork_guard:
                     _active_locks.pop(id(lock), None)
 
 

@@ -109,9 +109,20 @@ refuses canonical status writes until it executes a fresh interpreter. Child
 cleanup never calls `LOCK_UN`, unlinks the parent's lock file, or runs the parent's
 release/fence-finally logic. The parent keeps its original state and native lock.
 Idle forks and fresh-interpreter processes acquire their own native locks normally.
-Native acquire/release bookkeeping is coordinated by `os.register_at_fork` where
-available, with a PID check fallback. Soft-lock backend downgrades are refused
-rather than bypassing that native-descriptor contract.
+Modern filelock owns its native descriptor transitions, PID checks, and at-fork
+cleanup. The CLI uses that public lock API unwrapped and never holds its own
+mutex in a before-fork callback or across upstream acquire/release. Only the
+CLI's process-local held-lock/fence state and explicit inherited-operation refusal
+are maintained above it. This avoids reversed before-hook ordering deadlocking
+an upstream transition that needs the CLI mutex.
+
+For older supported filelock backends without the native fork/PID protocol, the
+legacy descriptor guard and child-only close remain in use; native-to-soft backend
+downgrades refuse rather than bypass that instrumentation. Protocol selection is
+a bounded capability check, not a dependency pin. A PID fallback remains available
+where `os.register_at_fork` is absent. Upstream may safely refuse `os.fork()` during
+a native ownership change; that refusal must not be mistaken for a successful
+fork or weakened to make a test pass.
 
 Files are replaced atomically individually. An ordinary installation exception
 rolls back only unchanged inodes installed by recovery; a later append/edit is

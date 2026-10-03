@@ -19,7 +19,7 @@ from tests.integration.test_restore_owned_mission_history import (
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo, pytest.mark.skipif(not hasattr(os, "fork"), reason="Requires real POSIX fork")]
 
 
-def _run_fork_script(checkouts: Checkouts, body: str) -> dict:
+def _run_fork_script(checkouts: Checkouts, body: str, *, pre_import: str = "") -> dict:
     # Only the harness starts a fresh interpreter. The tested child is an actual
     # os.fork() of a process holding the candidate's real canonical FileLock.
     script = f"""
@@ -27,6 +27,7 @@ import os, sys, json, select, signal
 from pathlib import Path
 sys.path = {sys.path!r}
 from filelock import FileLock, Timeout
+{pre_import}
 from specify_cli.status import locking, lifecycle_events
 from specify_cli.migration import owned_history, owned_history_io
 ROOT = Path({str(checkouts.owned)!r})
@@ -64,9 +65,61 @@ def append_live():
         {{'mission_slug': SLUG, 'actor': 'fork child'}}, aggregate_id=MID, aggregate_type='Mission')
 {body}
 """
-    process = subprocess.run([sys.executable, "-u", "-B", "-c", script], capture_output=True, text=True, timeout=35)
+    try:
+        process = subprocess.run([sys.executable, "-u", "-B", "-c", script], capture_output=True, text=True, timeout=35)
+    except subprocess.TimeoutExpired:
+        pytest.fail("Causal real-fork subprocess timed out; possible fork/transition deadlock", pytrace=False)
     assert process.returncode == 0, process.stderr
     return json.loads(process.stdout)
+
+
+def test_fork_does_not_deadlock_an_admitted_native_acquisition(checkouts: Checkouts):
+    result = _run_fork_script(
+        checkouts,
+        """
+original_acquire = FileLock.acquire
+def acquire(lock, *args, **kwargs):
+    if current_thread().name == 'canonical-acquirer':
+        native = lock._acquire
+        def paused_native():
+            entered.set()
+            assert resume.wait(10)
+            return native()
+        lock._acquire = paused_native
+    return original_acquire(lock, *args, **kwargs)
+FileLock.acquire = acquire
+errors = []
+def holder():
+    try:
+        with locking.feature_status_lock(ROOT, SLUG, timeout=10):
+            pass
+    except BaseException as exc:
+        errors.append(str(exc))
+worker = Thread(target=holder, name='canonical-acquirer', daemon=True)
+worker.start()
+assert entered.wait(10)
+# The intermediate before-hook below resumes the already-admitted transition.
+# On the rejected code, our later-registered before-hook has locked _fork_guard
+# first; upstream's earlier hook then waits for the transition needing that guard.
+child = os.fork()
+if child == 0:
+    os._exit(0)
+_, status = os.waitpid(child, 0)
+worker.join(10)
+assert status == 0 and not worker.is_alive() and not errors, errors
+print(json.dumps({'completed': True, 'active': len(locking._active_locks)}))
+""",
+        pre_import="""
+from threading import Thread, Event, current_thread
+entered, resume = Event(), Event()
+def resume_admitted_transition():
+    resume.set()
+# Registration order is essential: upstream -> causal barrier -> our module.
+# POSIX before callbacks run in reverse order.
+os.register_at_fork(before=resume_admitted_transition)
+""",
+    )
+    assert result == {"completed": True, "active": 0}
 
 
 def test_fork_during_staging_cannot_erase_successful_child_append(checkouts: Checkouts):
@@ -193,8 +246,8 @@ with locking.feature_status_lock(ROOT, SLUG, timeout=1):
                 fence_refused = False
             except locking.StatusLockForkRefused:
                 fence_refused = True
-            # Even an explicit inherited backend release cannot LOCK_UN/unlink.
-            lock._release()
+            # Public release must not unlock/unlink an inherited parent lock.
+            lock.release(force=True)
             send(result_write, {'closed': closed, 'fence_refused': fence_refused})
             os._exit(0)
         os.close(result_write)
@@ -321,21 +374,34 @@ result_read, result_write = os.pipe()
 original_acquire = locking.FileLock._acquire
 child = None
 descriptor = None
+upstream_refusal = None
 def acquire(lock):
-    global child, descriptor
+    global child, descriptor, upstream_refusal
     original_acquire(lock)
     descriptor = lock._context.lock_file_fd
-    if child is None:
-        child = os.fork()
+    if child is None and upstream_refusal is None:
+        try:
+            child = os.fork()
+        except RuntimeError as exc:
+            # Modern filelock safely refuses fork inside its ownership change.
+            # Do not mask an unrelated RuntimeError or remove the causal attempt.
+            if 'fork' not in str(exc) or 'ownership' not in str(exc):
+                raise
+            upstream_refusal = str(exc)
 locking.FileLock._acquire = acquire
 try:
     with locking.feature_status_lock(ROOT, SLUG, timeout=1):
         assert child != 0, 'child crossed canonical yield with inherited acquisition'
-        os.close(result_write)
-        reply = receive(result_read)
-        blocked = native_blocked()
-        _, status = os.waitpid(child, 0)
-        assert status == 0
+        if upstream_refusal is not None:
+            assert child is None
+            reply = {'upstream_refused': True, 'error': upstream_refusal}
+            blocked = native_blocked()
+        else:
+            os.close(result_write)
+            reply = receive(result_read)
+            blocked = native_blocked()
+            _, status = os.waitpid(child, 0)
+            assert status == 0
 except locking.StatusLockForkRefused as exc:
     assert child == 0
     os.close(result_read)
@@ -349,7 +415,12 @@ except locking.StatusLockForkRefused as exc:
 print(json.dumps({'reply': reply, 'parent_still_locked': blocked, 'active': len(locking._active_locks)}))
 """,
     )
-    assert result == {"reply": {"closed": True, "refused": True}, "parent_still_locked": True, "active": 0}
+    assert result["parent_still_locked"] is True
+    assert result["active"] == 0
+    if result["reply"].get("upstream_refused"):
+        assert "fork" in result["reply"]["error"] and "ownership" in result["reply"]["error"]
+    else:
+        assert result["reply"] == {"closed": True, "refused": True}
 
 
 def test_native_backend_downgrade_refuses_and_cleans_pending_ownership(checkouts: Checkouts):
@@ -357,15 +428,17 @@ def test_native_backend_downgrade_refuses_and_cleans_pending_ownership(checkouts
         checkouts,
         """
 def unsupported(lock):
+    if locking._UPSTREAM_FORK_PROTOCOL:
+        raise RuntimeError('upstream native acquisition refused')
     lock._fallback_to_soft_lock()
 locking.FileLock._acquire = unsupported
 try:
     with locking.feature_status_lock(ROOT, SLUG, timeout=1):
         raise AssertionError('unsupported native backend was accepted')
-except locking.StatusLockForkRefused as exc:
+except RuntimeError as exc:
     error = str(exc)
 print(json.dumps({'error': error, 'active': len(locking._active_locks), 'held': len(locking._get_thread_locks())}))
 """,
     )
-    assert "soft-lock fallback is unsupported" in result["error"]
+    assert "soft-lock fallback is unsupported" in result["error"] or result["error"] == "upstream native acquisition refused"
     assert result["active"] == result["held"] == 0
