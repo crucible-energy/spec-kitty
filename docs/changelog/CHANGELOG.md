@@ -35,6 +35,11 @@ _The 3.2.7 development cycle is open. Entries land here as missions merge._
   preserves later edits. Apply explicitly refuses platforms lacking the required
   fd-relative primitives.
 
+  Fork-boundary correction makes canonical held locks and replacement fences
+  process-owned. Fork children with inherited active status operations close
+  their descriptor copies without unlocking the parent and refuse writes until
+  a fresh interpreter; normal parent/thread reentrance remains unchanged.
+
 - **Fork packaging hooks (entry-point plugins + `DistributionProfile`).**
   Renamed / private-index forks can customize CLI package identity, upgrade
   providers (including built-in PEP 503 `SimpleIndexProvider`), remediation

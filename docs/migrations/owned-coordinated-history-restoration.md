@@ -101,6 +101,18 @@ without losing that record. During the short install/rollback phase, reentrant
 writes raise a locking conflict instead of deadlocking or returning false success;
 that conflict is latched even if an intermediate caller catches it.
 
+POSIX `fork()` is a separate ownership boundary, not ordinary reentrance. A
+child forked while any canonical status lock is active (including another parent
+thread's lock or an acquisition/cleanup window) closes only its inherited native
+descriptor copies, clears its copied thread/fence bookkeeping, and explicitly
+refuses canonical status writes until it executes a fresh interpreter. Child
+cleanup never calls `LOCK_UN`, unlinks the parent's lock file, or runs the parent's
+release/fence-finally logic. The parent keeps its original state and native lock.
+Idle forks and fresh-interpreter processes acquire their own native locks normally.
+Native acquire/release bookkeeping is coordinated by `os.register_at_fork` where
+available, with a PID check fallback. Soft-lock backend downgrades are refused
+rather than bypassing that native-descriptor contract.
+
 Files are replaced atomically individually. An ordinary installation exception
 rolls back only unchanged inodes installed by recovery; a later append/edit is
 preserved and reported for inspection, never overwritten with the old snapshot.

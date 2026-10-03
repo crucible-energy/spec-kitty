@@ -10,14 +10,19 @@ from __future__ import annotations
 
 import subprocess
 import threading
-from dataclasses import dataclass
-from contextlib import contextmanager
+import os
+from dataclasses import dataclass, field
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from collections.abc import Iterator
 
 from filelock import FileLock, Timeout
 
 _thread_state = threading.local()
+_process_id = os.getpid()
+_fork_refused = False
+_fork_guard = threading.RLock()
+_active_locks: dict[int, FileLock] = {}
 
 
 class FeatureStatusLockTimeoutError(RuntimeError):
@@ -28,18 +33,103 @@ class StatusReplacementConflict(RuntimeError):
     """A reentrant writer attempted to append during an exclusive replacement."""
 
 
+class StatusLockForkRefused(RuntimeError):
+    """A fork child inherited active status operations; use a fresh interpreter."""
+
+
+def _discard_inherited_state() -> None:
+    """Child-only detach/close, NEVER release(), LOCK_UN or unlink a parent lock."""
+    global _thread_state, _process_id, _fork_refused, _fork_guard, _active_locks
+    if _process_id == os.getpid():
+        return  # This is not a public reset seam in the owning parent process.
+    inherited = list(_active_locks.values())
+    _fork_refused = _fork_refused or bool(inherited)
+    for lock in inherited:
+        # Canonical instances use non-thread-local backend contexts: descriptors
+        # owned by OTHER parent threads are visible and detached in the child too.
+        fd = lock._context.lock_file_fd
+        lock._context.lock_file_fd = None
+        lock._context.lock_counter = 0
+        if fd is not None:
+            with suppress(OSError):
+                os.close(fd)  # close duplicate only; flock ownership stays with parent
+    _active_locks = {}
+    _thread_state = threading.local()
+    _process_id = os.getpid()
+    _fork_guard = threading.RLock()
+
+
+def _check_process() -> None:
+    _discard_inherited_state()  # PID fallback for hosts without register_at_fork
+    if _fork_refused:
+        raise StatusLockForkRefused("Status writes refused in fork child with inherited active locks; exec a fresh interpreter")
+
+
+class _ProcessFileLock(FileLock):
+    """Track each NONBLOCKING native acquire/release under the at-fork guard."""
+
+    owner_pid: int = 0
+
+    def _acquire(self) -> None:
+        if self.owner_pid != os.getpid():
+            raise StatusLockForkRefused("Cannot acquire an inherited native status lock")
+        # Do not hold this guard across FileLock.acquire()'s wait/poll loop: a
+        # parent thread must remain able to release the competing native lock.
+        with _fork_guard:
+            super()._acquire()
+            if self.owner_pid != os.getpid():
+                # Also cover a reentrant fork/signal hook inside the native
+                # attempt, before the backend published its newly opened fd.
+                fd = self._context.lock_file_fd
+                self._context.lock_file_fd = None
+                if fd is not None:
+                    with suppress(OSError):
+                        os.close(fd)
+                raise StatusLockForkRefused("Fork interrupted a native status lock acquisition")
+
+    def _release(self) -> None:
+        if self.owner_pid != os.getpid():
+            _discard_inherited_state()
+            self._context.lock_file_fd = None
+            self._context.lock_counter = 0
+            return
+        with _fork_guard:
+            super()._release()
+
+    def _fallback_to_soft_lock(self) -> None:
+        # A backend class mutation would bypass the native acquisition/fork
+        # instrumentation. Refuse it rather than weaken this ownership contract.
+        raise StatusLockForkRefused("Canonical status locks require a native backend; soft-lock fallback is unsupported")
+
+
+def _before_fork() -> None:
+    _fork_guard.acquire()
+
+
+def _after_fork_parent() -> None:
+    _fork_guard.release()  # No parent tables, fences or native descriptors reset.
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(before=_before_fork, after_in_parent=_after_fork_parent, after_in_child=_discard_inherited_state)
+
+
 @dataclass
 class StatusReplacementFence:
     """Same-lock reentrancy guard; never a second lock or status authority."""
 
     conflicted: bool = False
+    owner_pid: int = field(default_factory=os.getpid)
 
     def check(self) -> None:
+        if self.owner_pid != os.getpid():
+            raise StatusLockForkRefused("Cannot use an inherited replacement fence in a fork child")
         if self.conflicted:
             raise StatusReplacementConflict("Status writer attempted a reentrant append during history installation")
 
 
 def _replacement_fences() -> dict[str, StatusReplacementFence]:
+    _check_process()
     fences = getattr(_thread_state, "replacement_fences", None)
     if fences is None:
         fences = {}
@@ -49,6 +139,7 @@ def _replacement_fences() -> dict[str, StatusReplacementFence]:
 
 def _get_thread_locks() -> dict[str, tuple[FileLock, int]]:
     """Return per-thread lock bookkeeping for re-entrant acquisitions."""
+    _check_process()
     locks = getattr(_thread_state, "locks", None)
     if locks is None:
         locks = {}
@@ -105,6 +196,8 @@ def feature_status_lock(
     same lock file. Locking is re-entrant within a single thread so callers can
     safely wrap a larger transaction around helpers that also acquire the lock.
     """
+    _check_process()
+    owner_pid = os.getpid()
     lock_path = feature_status_lock_path(repo_root, mission_slug)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -117,22 +210,36 @@ def feature_status_lock(
         try:
             yield lock_path
         finally:
-            lock, depth = held_locks[lock_key]
-            held_locks[lock_key] = (lock, depth - 1)
+            if owner_pid == os.getpid():
+                lock, depth = held_locks[lock_key]
+                held_locks[lock_key] = (lock, depth - 1)
         return
 
-    lock = FileLock(str(lock_path), timeout=timeout)
+    # There is still one distinct instance per thread/key. A non-thread-local
+    # backend context is solely for child cleanup of descriptors from all threads.
+    lock = _ProcessFileLock(str(lock_path), timeout=timeout, thread_local=False)
+    lock.owner_pid = owner_pid
+    with _fork_guard:
+        _active_locks[id(lock)] = lock  # Includes acquisition and cleanup windows.
     try:
-        lock.acquire()
-    except Timeout as exc:
-        raise FeatureStatusLockTimeoutError(f"Timed out acquiring feature status lock for {mission_slug}: {lock_path}") from exc
-
-    held_locks[lock_key] = (lock, 1)
-    try:
-        yield lock_path
+        try:
+            lock.acquire()
+        except Timeout as exc:
+            raise FeatureStatusLockTimeoutError(f"Timed out acquiring feature status lock for {mission_slug}: {lock_path}") from exc
+        _check_process()
+        held_locks[lock_key] = (lock, 1)
+        try:
+            yield lock_path
+        finally:
+            if owner_pid == os.getpid():
+                del held_locks[lock_key]
     finally:
-        del held_locks[lock_key]
-        lock.release()
+        if owner_pid == os.getpid():
+            with _fork_guard:
+                try:
+                    lock.release()
+                finally:
+                    _active_locks.pop(id(lock), None)
 
 
 @contextmanager
@@ -157,6 +264,8 @@ def status_log_write_lock(feature_dir: Path) -> Iterator[Path]:
 @contextmanager
 def status_replacement_fence(root: Path, mission_slug: str) -> Iterator[StatusReplacementFence]:
     """Prevent reentrant appends while installing/rolling back under the same lock."""
+    _check_process()
+    owner_pid = os.getpid()
     key = str(feature_status_lock_path(root, mission_slug))
     if key not in _get_thread_locks():
         raise StatusReplacementConflict("History installation requires the canonical mission lock")
@@ -168,4 +277,5 @@ def status_replacement_fence(root: Path, mission_slug: str) -> Iterator[StatusRe
     try:
         yield fence
     finally:
-        del fences[key]
+        if owner_pid == os.getpid():
+            del fences[key]
