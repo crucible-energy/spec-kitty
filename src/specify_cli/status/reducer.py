@@ -52,6 +52,7 @@ _RUNTIME_SLOTS: tuple[str, ...] = (
     "agent",
     "assignee",
     "review",
+    "review_result",
     "role",
     "agent_profile",
     "agent_profile_version",
@@ -108,10 +109,10 @@ def _wp_state_from_event(
     silently erases ``shell_pid``/``subtasks``/``notes``/``tracker_refs``/…
     (the reducer replace-dict hazard).
 
-    The ``planned -> claimed`` transition is the only transition that writes a
-    runtime slot: it extracts ``shell_pid``/``shell_pid_created_at``/``agent``
-    from its ``policy_metadata`` sidecar into the snapshot slots (FR-004 claim
-    path). ``policy_metadata`` may be ``None`` — read defensively.
+    The ``planned -> claimed`` transition writes the claim slots from its
+    ``policy_metadata`` sidecar (FR-004). A recorded structured review verdict
+    replaces the review_result projection; missing verdicts carry it forward.
+    ``policy_metadata`` may be ``None`` — read defensively.
     """
     prior_force_count = 0
     if previous is not None:
@@ -136,7 +137,12 @@ def _wp_state_from_event(
             if slot in previous:
                 state[slot] = previous[slot]
 
-    # Claim exception (FR-004): the only transition that writes a runtime slot.
+    # Structured verdicts are historical authority too: preserve them through
+    # later transitions, replacing only when an actual new verdict is recorded.
+    if event.review_result is not None:
+        state["review_result"] = event.review_result.to_dict()
+
+    # Claim exception (FR-004): the only transition that writes claim slots.
     if event.from_lane == Lane.PLANNED and event.to_lane == Lane.CLAIMED:
         meta = event.policy_metadata or {}
         shell_pid = meta.get("shell_pid")
@@ -454,6 +460,7 @@ def _reduce_retrospective(raw_events: list[dict[str, Any]]) -> RetrospectiveSnap
         if mode_data is not None:
             try:
                 from specify_cli.retrospective.schema import Mode
+
                 mode = Mode.model_validate(mode_data)
             except Exception:
                 mode = None
@@ -482,15 +489,9 @@ def _reduce_retrospective(raw_events: list[dict[str, Any]]) -> RetrospectiveSnap
         record_path = None
 
     # Proposal counts
-    proposals_total = sum(
-        1 for e in retro_events if e.get("event_name") == "retrospective.proposal.generated"
-    )
-    proposals_applied = sum(
-        1 for e in retro_events if e.get("event_name") == "retrospective.proposal.applied"
-    )
-    proposals_rejected = sum(
-        1 for e in retro_events if e.get("event_name") == "retrospective.proposal.rejected"
-    )
+    proposals_total = sum(1 for e in retro_events if e.get("event_name") == "retrospective.proposal.generated")
+    proposals_applied = sum(1 for e in retro_events if e.get("event_name") == "retrospective.proposal.applied")
+    proposals_rejected = sum(1 for e in retro_events if e.get("event_name") == "retrospective.proposal.rejected")
     proposals_pending = max(0, proposals_total - proposals_applied - proposals_rejected)
 
     return RetrospectiveSnapshot(
@@ -535,11 +536,7 @@ def materialize_snapshot(feature_dir: Path) -> StatusSnapshot:
     stream = read_event_stream(feature_dir)
     snapshot = reduce(stream.transitions, stream.annotations)
     identity = resolve_mission_identity(feature_dir)
-    snapshot.mission_number = (
-        str(identity.mission_number)
-        if identity.mission_number is not None
-        else None
-    )
+    snapshot.mission_number = str(identity.mission_number) if identity.mission_number is not None else None
     snapshot.mission_type = identity.mission_type
 
     # Additive WP03: compute RetrospectiveSnapshot from raw events (includes

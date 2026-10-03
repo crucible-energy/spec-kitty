@@ -19,6 +19,15 @@ _The 3.2.7 development cycle is open. Entries land here as missions merge._
 
 ### ✨ Added
 
+- **Fork owned coordinated-history restoration (#60).**
+  `migrate restore-owned-mission-history` previews or applies a verified union
+  of immutable status-log pins in an explicitly Git-registered target checkout.
+  It preserves original structured actors, null metadata, review evidence and
+  lifecycle records, refuses conflicts and divergent owned work, and writes a
+  pinned provenance receipt. Retained approvals remain historical. The reducer
+  now carries recorded `review_result` values into the derived snapshot.
+  See [the recovery guide](../migrations/owned-coordinated-history-restoration.md).
+
 - **Fork packaging hooks (entry-point plugins + `DistributionProfile`).**
   Renamed / private-index forks can customize CLI package identity, upgrade
   providers (including built-in PEP 503 `SimpleIndexProvider`), remediation
