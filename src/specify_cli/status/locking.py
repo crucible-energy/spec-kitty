@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import subprocess
 import threading
+from dataclasses import dataclass
 from contextlib import contextmanager
 from pathlib import Path
 from collections.abc import Iterator
@@ -23,6 +24,29 @@ class FeatureStatusLockTimeoutError(RuntimeError):
     """Raised when the feature status lock cannot be acquired."""
 
 
+class StatusReplacementConflict(RuntimeError):
+    """A reentrant writer attempted to append during an exclusive replacement."""
+
+
+@dataclass
+class StatusReplacementFence:
+    """Same-lock reentrancy guard; never a second lock or status authority."""
+
+    conflicted: bool = False
+
+    def check(self) -> None:
+        if self.conflicted:
+            raise StatusReplacementConflict("Status writer attempted a reentrant append during history installation")
+
+
+def _replacement_fences() -> dict[str, StatusReplacementFence]:
+    fences = getattr(_thread_state, "replacement_fences", None)
+    if fences is None:
+        fences = {}
+        _thread_state.replacement_fences = fences
+    return fences
+
+
 def _get_thread_locks() -> dict[str, tuple[FileLock, int]]:
     """Return per-thread lock bookkeeping for re-entrant acquisitions."""
     locks = getattr(_thread_state, "locks", None)
@@ -34,9 +58,15 @@ def _get_thread_locks() -> dict[str, tuple[FileLock, int]]:
 
 def _git_common_dir(repo_root: Path) -> Path:
     """Resolve the git common dir shared by the repo and its worktrees."""
+    # First append may start from a missing directory. Probe Git from its nearest
+    # existing parent so the canonical common-dir key remains identical before
+    # and after mkdir. Non-Git callers keep the same original .git fallback.
+    probe = repo_root
+    while not probe.is_dir() and probe.parent != probe:
+        probe = probe.parent
     result = subprocess.run(
         ["git", "rev-parse", "--git-common-dir"],
-        cwd=repo_root,
+        cwd=probe,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -52,7 +82,7 @@ def _git_common_dir(repo_root: Path) -> Path:
 
     resolved = Path(common_dir)
     if not resolved.is_absolute():
-        resolved = (repo_root / resolved).resolve()
+        resolved = (probe / resolved).resolve()
     return resolved
 
 
@@ -95,9 +125,7 @@ def feature_status_lock(
     try:
         lock.acquire()
     except Timeout as exc:
-        raise FeatureStatusLockTimeoutError(
-            f"Timed out acquiring feature status lock for {mission_slug}: {lock_path}"
-        ) from exc
+        raise FeatureStatusLockTimeoutError(f"Timed out acquiring feature status lock for {mission_slug}: {lock_path}") from exc
 
     held_locks[lock_key] = (lock, 1)
     try:
@@ -105,3 +133,39 @@ def feature_status_lock(
     finally:
         del held_locks[lock_key]
         lock.release()
+
+
+@contextmanager
+def status_log_write_lock(feature_dir: Path) -> Iterator[Path]:
+    """Serialize supported low-level appenders on the canonical mission key.
+
+    Ordinary nested writes remain reentrant. During a replacement's install or
+    rollback phase, a same-thread append refuses instead of deadlocking or being
+    overwritten; other threads/processes wait on the existing FileLock.
+    """
+    from specify_cli.workspace.root_resolver import resolve_status_lock_root
+
+    root = resolve_status_lock_root(feature_dir)
+    with feature_status_lock(root, feature_dir.name) as lock_path:
+        fence = _replacement_fences().get(str(lock_path))
+        if fence is not None:
+            fence.conflicted = True
+            fence.check()
+        yield lock_path
+
+
+@contextmanager
+def status_replacement_fence(root: Path, mission_slug: str) -> Iterator[StatusReplacementFence]:
+    """Prevent reentrant appends while installing/rolling back under the same lock."""
+    key = str(feature_status_lock_path(root, mission_slug))
+    if key not in _get_thread_locks():
+        raise StatusReplacementConflict("History installation requires the canonical mission lock")
+    fences = _replacement_fences()
+    if key in fences:
+        raise StatusReplacementConflict("Nested history installation is unsupported")
+    fence = StatusReplacementFence()
+    fences[key] = fence
+    try:
+        yield fence
+    finally:
+        del fences[key]

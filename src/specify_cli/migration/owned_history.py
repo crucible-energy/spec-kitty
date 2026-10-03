@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -17,7 +16,7 @@ from typing import Any
 from specify_cli.context.mission_resolver import AmbiguousHandleError, MissionNotFoundError, resolve_mission
 from specify_cli.core.paths import assert_safe_path_segment
 from specify_cli.git.protection_policy import ProtectionPolicy
-from specify_cli.status.locking import feature_status_lock
+from specify_cli.status.locking import feature_status_lock, status_replacement_fence
 from specify_cli.status.reducer import materialize_to_json
 
 from .owned_history_sources import (
@@ -30,6 +29,7 @@ from .owned_history_sources import (
     sha256,
     validate_meta,
 )
+from .owned_history_io import BoundHistoryDirectory, FileImage
 
 __all__ = ["restore_owned_mission_history"]
 
@@ -185,43 +185,32 @@ def _plan(ownership: CheckoutOwnership, directory: Path, meta: dict[str, Any], p
     return outputs, report
 
 
-def _replace_batch(outputs: dict[Path, bytes]) -> None:
-    """Stage the whole validated batch, replace atomically per file, rollback on error.
-
-    The event log is installed last: it remains the authority if a process dies
-    mid-install. Snapshot/receipt hashes expose an interrupted batch. No claim of
-    a filesystem-wide multi-file atomic transaction is made.
-    """
-    staged: dict[Path, Path] = {}
-    originals = {path: path.read_bytes() if path.exists() else None for path in outputs}
-    modes = {path: path.stat().st_mode & 0o777 for path in outputs if path.exists()}
-    installed: list[Path] = []
-    try:
-        for path, raw in outputs.items():
-            fd, name = tempfile.mkstemp(prefix=".history-", dir=path.parent)
-            staged[path] = Path(name)
-            with os.fdopen(fd, "wb") as file:
-                os.chmod(name, path.stat().st_mode & 0o777 if path.exists() else 0o644)
-                file.write(raw)
-                file.flush()
-                os.fsync(file.fileno())
-        for path in sorted(outputs, key=lambda path: path.name == "status.events.jsonl"):
-            os.replace(staged[path], path)
-            installed.append(path)
-    except BaseException:
-        from specify_cli.core.atomic import atomic_write
-
-        for path in reversed(installed):
-            original = originals[path]
-            if original is None:
-                path.unlink()
-            else:
-                atomic_write(path, original)
-                os.chmod(path, modes[path])
-        raise
-    finally:
-        for temporary in staged.values():
-            temporary.unlink(missing_ok=True)
+def _replace_batch(outputs: dict[Path, bytes], bound: BoundHistoryDirectory, originals: dict[str, FileImage], mission_slug: str) -> None:
+    """Stage on the pinned descriptor, then install under the canonical write fence."""
+    staged = {path.name: bound.stage(raw, originals[path.name].mode) for path, raw in outputs.items()}
+    expected = dict(originals)
+    bound.verify(expected)  # A same-thread live append during staging must survive.
+    attempted: dict[str, tuple[str, FileImage]] = {}
+    installed_images: dict[str, FileImage] = {}
+    with status_replacement_fence(bound.root, mission_slug) as fence:
+        try:
+            for name in sorted(staged, key=lambda name: name == "status.events.jsonl"):
+                fence.check()
+                bound.verify(expected)
+                temporary, image = staged[name]
+                attempted[name] = staged[name]
+                bound.replace(temporary, name)
+                installed = bound.read(name)
+                if not installed.is_installed(image):
+                    raise HistoryRestoreError(f"Installed history artifact changed concurrently: {name}")
+                installed_images[name] = installed
+                expected[name] = installed
+                fence.check()
+                bound.verify(expected)
+            os.fsync(bound.fd)
+        except BaseException:
+            bound.rollback(attempted, originals, installed_images)
+            raise
 
 
 def restore_owned_mission_history(repository: Path, checkout: Path, handle: str, pins: list[str], *, apply: bool = False) -> dict[str, Any]:
@@ -230,12 +219,18 @@ def restore_owned_mission_history(repository: Path, checkout: Path, handle: str,
     outputs, report = _plan(ownership, directory, meta, pins)
     if apply and report["changed"]:
         with feature_status_lock(ownership.root, meta["mission_slug"], timeout=10):
-            # Revalidate identity, branch, HEAD, dirty state and every output under the canonical lock.
-            current, current_dir, current_meta = _target(repository, checkout, handle)
-            if current != ownership or current_dir != directory or current_meta != meta:
-                raise HistoryRestoreError("Owned checkout changed during recovery planning")
-            locked_outputs, locked_report = _plan(current, current_dir, current_meta, pins)
-            if locked_outputs != outputs or locked_report != report:
-                raise HistoryRestoreError("History changed during recovery planning")
-            _replace_batch(outputs)
+            bound = BoundHistoryDirectory(ownership.root, directory)
+            try:
+                originals = bound.capture(("meta.json", *_OUTPUT_NAMES))
+                # Pin directory identities BEFORE the final locked plan, not at first staging.
+                current, current_dir, current_meta = _target(repository, checkout, handle)
+                if current != ownership or current_dir != directory or current_meta != meta:
+                    raise HistoryRestoreError("Owned checkout changed during recovery planning")
+                locked_outputs, locked_report = _plan(current, current_dir, current_meta, pins)
+                if locked_outputs != outputs or locked_report != report:
+                    raise HistoryRestoreError("History changed during recovery planning")
+                bound.verify(originals)
+                _replace_batch(outputs, bound, originals, meta["mission_slug"])
+            finally:
+                bound.close()
     return {**report, "dry_run": not apply, "applied": bool(apply and report["changed"])}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -186,6 +187,7 @@ def test_default_preview_restores_real_history_without_effects(checkouts: Checko
     assert not (checkouts.primary / ".git/spec-kitty-locks").exists()
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Apply requires POSIX fd-relative no-follow IO")
 def test_apply_preserves_records_and_is_idempotent(checkouts: Checkouts):
     primary, sibling = tree(checkouts.primary), tree(checkouts.sibling)
     lanes = (checkouts.directory / "lanes.json").read_bytes()
@@ -370,18 +372,19 @@ def test_conflicting_valid_branch_chains_refuse(checkouts: Checkouts):
     assert "lane chain" in json.loads(result.stdout)["error"]
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Install rollback requires POSIX fd-relative no-follow IO")
 def test_install_failure_rolls_back_complete_owned_batch(checkouts: Checkouts, monkeypatch: pytest.MonkeyPatch):
     from specify_cli.migration import owned_history
 
     original_replace = owned_history.os.replace
     calls = 0
 
-    def fail_once(source, destination):
+    def fail_once(source, destination, **kwargs):
         nonlocal calls
         calls += 1
         if calls == 3:
             raise OSError("injected event-log replacement failure")
-        original_replace(source, destination)
+        original_replace(source, destination, **kwargs)
 
     monkeypatch.setattr(owned_history.os, "replace", fail_once)
     before = tree(checkouts.owned)

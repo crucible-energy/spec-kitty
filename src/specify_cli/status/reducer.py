@@ -32,6 +32,7 @@ from .models import (
     actor_identity_str,
 )
 from .store import read_event_stream, read_events_raw
+from .locking import status_log_write_lock
 
 #: Per-WP runtime slots carried forward across lane transitions (per-field
 #: independence, FR-002). A transition updates ``lane``/``actor``/… and MUST
@@ -564,6 +565,12 @@ def materialize(feature_dir: Path) -> StatusSnapshot:
 
     Returns the materialized snapshot.
     """
+    with status_log_write_lock(feature_dir):
+        return _materialize_locked(feature_dir)
+
+
+def _materialize_locked(feature_dir: Path) -> StatusSnapshot:
+    """Keep snapshot read/write serialized with event append and restoration."""
     snapshot = materialize_snapshot(feature_dir)
     json_str = materialize_to_json(snapshot)
 

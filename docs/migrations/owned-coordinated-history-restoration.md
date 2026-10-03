@@ -79,13 +79,39 @@ The receipt pins the original blobs so exact old log bytes remain independently
 retrievable with `git cat-file blob <blob-id>`.
 
 Preview creates no lock or temporary files. Apply uses the canonical per-mission
-status lock shared across Git worktrees, revalidates checkout identity and inputs
-under that lock, and stages the complete validated batch before replacement.
-Files are replaced atomically individually; an ordinary installation exception
-rolls back the replaced artifacts. The event log is installed last. This is not
-a filesystem-wide crash-atomic three-file transaction: a process/host interruption
-can leave a stale snapshot or receipt, which their hashes expose. Preserve that
-state for inspection; do not force past the dirty-checkout refusal.
+status lock shared across Git worktrees and pins the checkout/ancestor/dossier
+directory identities **before** its final locked plan. Staging, replacement,
+rollback and cleanup all operate relative to the pinned dossier descriptor;
+reopening the directory chain uses the existing coordination no-follow opener.
+Every install step checks directory identity and destination bytes/inode metadata
+before and after replacement. A late parent symlink cannot redirect writes into
+another checkout.
+
+Apply requires fd-relative `open`, `stat`, `rename` and `unlink`, `O_DIRECTORY`,
+`O_NOFOLLOW`, and `fchmod` support (qualified on POSIX). Unsupported platforms,
+including current Windows implementations, refuse apply before staging; there
+is no pathname fallback. Read-only preview remains available.
+
+Supported lane, annotation, lifecycle, decision and retrospective appenders, and
+snapshot materialization, acquire the **same existing mission lock/key**. Another
+thread/process waits until installation finishes, then appends against the new
+log. Ordinary nested operations remain reentrant. A same-thread append during
+staging may succeed, but destination-change detection then refuses restoration
+without losing that record. During the short install/rollback phase, reentrant
+writes raise a locking conflict instead of deadlocking or returning false success;
+that conflict is latched even if an intermediate caller catches it.
+
+Files are replaced atomically individually. An ordinary installation exception
+rolls back only unchanged inodes installed by recovery; a later append/edit is
+preserved and reported for inspection, never overwritten with the old snapshot.
+Legacy bulk rewrites and raw file writes must not run concurrently with recovery:
+the shared-lock serialization contract belongs to the supported writers listed
+above, not arbitrary filesystem mutation.
+
+The event log is installed last. This is not a filesystem-wide crash-atomic
+three-file transaction: a process/host interruption can leave a stale snapshot
+or receipt, which their hashes expose. Preserve that state for inspection; do
+not force past the dirty-checkout refusal.
 
 ## Using this fork slice before release
 

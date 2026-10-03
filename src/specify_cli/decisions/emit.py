@@ -28,12 +28,13 @@ from specify_cli.missions._read_path_resolver import resolve_feature_dir_for_mis
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 import ulid as _ulid_mod
 
 from specify_cli.decisions.models import IndexEntry
 from specify_cli.events import sanitize_event_for_log
+from specify_cli.status.locking import status_log_write_lock
 from spec_kitty_events.decisionpoint import (
     DECISION_POINT_OPENED,
     DECISION_POINT_RESOLVED,
@@ -68,7 +69,7 @@ def _now_utc() -> datetime:
 
 def _mission_dir(repo_root: Path, mission_slug: str) -> Path:
     """Return ``kitty-specs/<mission_slug>/``."""
-    return resolve_feature_dir_for_mission(repo_root, mission_slug)
+    return cast(Path, resolve_feature_dir_for_mission(repo_root, mission_slug))
 
 
 def _events_path(repo_root: Path, mission_slug: str) -> Path:
@@ -83,14 +84,15 @@ def _append_raw_event(events_path: Path, event_dict: dict) -> int:  # type: igno
     PII fields are stripped via :func:`sanitize_event_for_log` before serialization.
     Returns the 1-based line count after the append (lamport proxy).
     """
-    events_path.parent.mkdir(parents=True, exist_ok=True)
     sanitized = sanitize_event_for_log(event_dict)
     line = json.dumps(sanitized, sort_keys=True)
-    with events_path.open("a", encoding="utf-8") as fh:
-        fh.write(line + "\n")
-    # Count non-empty lines (proxy for Lamport clock value)
-    with events_path.open("r", encoding="utf-8") as fh:
-        return sum(1 for ln in fh if ln.strip())
+    with status_log_write_lock(events_path.parent):
+        events_path.parent.mkdir(parents=True, exist_ok=True)
+        with events_path.open("a", encoding="utf-8") as fh:
+            fh.write(line + "\n")
+        # Count under the same lock as persistence (proxy for Lamport clock).
+        with events_path.open("r", encoding="utf-8") as fh:
+            return sum(1 for ln in fh if ln.strip())
 
 
 # ---------------------------------------------------------------------------

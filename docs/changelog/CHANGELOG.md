@@ -28,6 +28,13 @@ _The 3.2.7 development cycle is open. Entries land here as missions merge._
   now carries recorded `review_result` values into the derived snapshot.
   See [the recovery guide](../migrations/owned-coordinated-history-restoration.md).
 
+  Independent-review corrections bind staging/install/rollback to validated
+  no-follow directory descriptors and serialize supported status/lifecycle
+  appenders on the existing shared mission lock. Late namespace substitutions
+  and destination changes refuse without erasing live records; rollback
+  preserves later edits. Apply explicitly refuses platforms lacking the required
+  fd-relative primitives.
+
 - **Fork packaging hooks (entry-point plugins + `DistributionProfile`).**
   Renamed / private-index forks can customize CLI package identity, upgrade
   providers (including built-in PEP 503 `SimpleIndexProvider`), remediation

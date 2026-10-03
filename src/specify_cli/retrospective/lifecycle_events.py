@@ -35,6 +35,7 @@ from typing import Any, Literal
 import ulid as _ulid_mod
 
 from specify_cli.core.time_utils import now_utc_iso
+from specify_cli.status.locking import status_log_write_lock
 from specify_cli.retrospective.schema import (
     GenRetrospectiveRecord,
     ProvenanceKind,
@@ -76,9 +77,9 @@ class RetrospectiveCaptured:
 
     # Common envelope fields
     schema_version: int = 1
-    event_id: str = field(default_factory=str)          # ULID, set by emit helper
+    event_id: str = field(default_factory=str)  # ULID, set by emit helper
     lamport: int = 0
-    at: str = field(default_factory=str)                 # RFC 3339, set by emit helper
+    at: str = field(default_factory=str)  # RFC 3339, set by emit helper
     actor: Actor = field(default_factory=lambda: Actor(kind="runtime", id="unknown"))
     mission_id: str = ""
     mission_slug: str = ""
@@ -204,10 +205,8 @@ class RetrospectiveSkipped:
     execution_mode: Literal["worktree", "main"] = "main"
 
     # Event-specific fields
-    skip_reason: str = ""                                # MUST be non-empty
-    skip_reason_source: Literal[
-        "cli_flag", "config_flag", "ci_environment"
-    ] = "cli_flag"
+    skip_reason: str = ""  # MUST be non-empty
+    skip_reason_source: Literal["cli_flag", "config_flag", "ci_environment"] = "cli_flag"
     policy_source: dict[str, str] = field(default_factory=dict)
     bypassed_provenance_kind: Literal["runtime_strict_gate"] = "runtime_strict_gate"
     would_have_attempted: bool = True
@@ -250,10 +249,11 @@ def _generate_ulid() -> str:
 def _append_retro_lifecycle_event(feature_dir: Path, event_dict: dict[str, Any]) -> None:
     """Append a retrospective lifecycle event line to status.events.jsonl."""
     events_path = feature_dir / "status.events.jsonl"
-    events_path.parent.mkdir(parents=True, exist_ok=True)
     line = json.dumps(event_dict, sort_keys=True)
-    with events_path.open("a", encoding="utf-8") as fh:
-        fh.write(line + "\n")
+    with status_log_write_lock(feature_dir):
+        events_path.parent.mkdir(parents=True, exist_ok=True)
+        with events_path.open("a", encoding="utf-8") as fh:
+            fh.write(line + "\n")
     logger.debug(
         "Appended %s (event_id=%s) to %s",
         event_dict.get("type"),

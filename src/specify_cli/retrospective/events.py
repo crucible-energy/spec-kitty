@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict
 
 from specify_cli.core.time_utils import now_utc_iso
 from specify_cli.retrospective.schema import ActorRef, Mode
+from specify_cli.status.locking import status_log_write_lock
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +51,7 @@ _LOCAL_RETROSPECTIVE_EVENT_NAMES: frozenset[str] = frozenset(
     ]
 )
 
-RETROSPECTIVE_EVENT_NAMES: frozenset[str] = (
-    _UPSTREAM_RETROSPECTIVE_EVENT_NAMES or _LOCAL_RETROSPECTIVE_EVENT_NAMES
-)
+RETROSPECTIVE_EVENT_NAMES: frozenset[str] = _UPSTREAM_RETROSPECTIVE_EVENT_NAMES or _LOCAL_RETROSPECTIVE_EVENT_NAMES
 
 # ---------------------------------------------------------------------------
 # Payload models
@@ -187,10 +186,7 @@ def emit_retrospective_event(
         ValueError: If event_name is not in RETROSPECTIVE_EVENT_NAMES.
     """
     if event_name not in RETROSPECTIVE_EVENT_NAMES:
-        raise ValueError(
-            f"Unknown retrospective event name {event_name!r}. "
-            f"Must be one of: {sorted(RETROSPECTIVE_EVENT_NAMES)}"
-        )
+        raise ValueError(f"Unknown retrospective event name {event_name!r}. Must be one of: {sorted(RETROSPECTIVE_EVENT_NAMES)}")
 
     event_id = _generate_ulid()
     at = now_utc_iso()
@@ -207,22 +203,22 @@ def emit_retrospective_event(
     }
 
     events_path = feature_dir / "status.events.jsonl"
-    events_path.parent.mkdir(parents=True, exist_ok=True)
-
     line = json.dumps(envelope, sort_keys=True)
-    with events_path.open("a", encoding="utf-8") as fh:
-        fh.write(line + "\n")
+    with status_log_write_lock(feature_dir):
+        events_path.parent.mkdir(parents=True, exist_ok=True)
+        with events_path.open("a", encoding="utf-8") as fh:
+            fh.write(line + "\n")
 
-    logger.debug("Appended retrospective event %s (%s) to %s", event_id, event_name, events_path)
-    try:
-        from specify_cli.status import materialize
+        logger.debug("Appended retrospective event %s (%s) to %s", event_id, event_name, events_path)
+        try:
+            from specify_cli.status import materialize
 
-        materialize(feature_dir)
-    except Exception as exc:  # noqa: BLE001 - append succeeded; keep event durable
-        logger.warning(
-            "Retrospective event %s was appended, but status.json materialization failed: %s",
-            event_id,
-            exc,
-        )
+            materialize(feature_dir)
+        except Exception as exc:  # noqa: BLE001 - append succeeded; keep event durable
+            logger.warning(
+                "Retrospective event %s was appended, but status.json materialization failed: %s",
+                event_id,
+                exc,
+            )
 
     return event_id
