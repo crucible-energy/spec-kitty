@@ -14,6 +14,7 @@ from tests.integration.test_restore_owned_mission_history import (
     SLUG,
     Checkouts,
     checkouts as checkouts,
+    tree,
 )
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo, pytest.mark.skipif(not hasattr(os, "fork"), reason="Requires real POSIX fork")]
@@ -442,3 +443,87 @@ print(json.dumps({'error': error, 'active': len(locking._active_locks), 'held': 
     )
     assert "soft-lock fallback is unsupported" in result["error"] or result["error"] == "upstream native acquisition refused"
     assert result["active"] == result["held"] == 0
+
+
+@pytest.mark.parametrize("installed_artifact", ["status.json", "history-restoration.json"])
+@pytest.mark.parametrize("exceptional", [False, True])
+def test_forked_install_frame_unwinds_without_parent_rollback_or_temp_cleanup(checkouts: Checkouts, installed_artifact: str, exceptional: bool):
+    """Fork after installed-image capture; let the copied restore frame fully unwind."""
+    before_primary = tree(checkouts.primary)
+    result = _run_fork_script(
+        checkouts,
+        f"""
+import errno
+result_read, result_write = os.pipe()
+parent_pid = os.getpid()
+child = None
+reply = None
+descriptors = []
+stable = None
+original_verify = owned_history_io.BoundHistoryDirectory.verify
+def verify(bound, expected):
+    global child, reply, descriptors, stable
+    original_verify(bound, expected)
+    # The chosen artifact must be installed, and _replace_batch must already
+    # have recorded its image. The first existing snapshot tests restoration;
+    # the new receipt also tests inherited rollback's unlink branch.
+    selected = {installed_artifact!r}
+    original = original_outputs[selected]
+    if child is not None or bound.read(selected).data == original:
+        return
+    descriptors = list(bound.parents.values())
+    names = ('status.json', 'status.events.jsonl', 'history-restoration.json')
+    images = bound.capture(names)
+    temps = {{name: bound.read(name) for name in bound.temporary if bound.read(name).data is not None}}
+    assert temps, 'fork must occur while uninstalled parent staging files remain'
+    child = os.fork()
+    if child == 0:
+        os.close(result_read)
+        if {exceptional!r}:
+            raise ValueError('child-only install-frame exception')
+        # Continue the COPIED _replace_batch frame. Its inherited fence fails,
+        # then rollback, directory close and lock finally blocks must all run.
+        return
+    os.close(result_write)
+    reply = receive(result_read)
+    _, status = os.waitpid(child, 0)
+    assert status == 0
+    stable = {{
+        'outputs': bound.capture(names) == images,
+        'temps': all(bound.read(name) == image for name, image in temps.items()),
+        'descriptors': all(os.fstat(fd).st_ino > 0 for fd in descriptors),
+        'lock': native_blocked(),
+    }}
+original_outputs = {{name: (DIRECTORY / name).read_bytes() if (DIRECTORY / name).exists() else None
+                    for name in ('status.json', 'status.events.jsonl', 'history-restoration.json')}}
+owned_history_io.BoundHistoryDirectory.verify = verify
+report = {{'applied': False}}
+parent_error = None
+try:
+    report = owned_history.restore_owned_mission_history(PRIMARY, ROOT, SLUG, PINS, apply=True)
+except BaseException as exc:
+    if os.getpid() == parent_pid:
+        parent_error = str(exc)
+    else:
+        # This handler is OUTSIDE restoration: rollback/close/lock context exit
+        # have already unwound. Do not os._exit from the interception point.
+        closed = []
+        for fd in descriptors:
+            try:
+                os.fstat(fd)
+                closed.append(False)
+            except OSError as error:
+                closed.append(error.errno == errno.EBADF)
+        send(result_write, {{'refused': True, 'error': str(exc), 'descriptors_closed': all(closed)}})
+        os.close(result_write)
+        os._exit(0)
+assert os.getpid() == parent_pid and child is not None
+print(json.dumps({{'stable': stable, 'child': reply, 'applied': report['applied'],
+                  'parent_error': parent_error,
+                  'temps_cleaned_by_parent': not list(DIRECTORY.glob('.history-*.tmp'))}}))
+""",
+    )
+    assert result["stable"] == {"outputs": True, "temps": True, "descriptors": True, "lock": True}, result
+    assert result["child"]["refused"] and result["child"]["descriptors_closed"]
+    assert result["applied"] and result["temps_cleaned_by_parent"]
+    assert tree(checkouts.primary) == before_primary
