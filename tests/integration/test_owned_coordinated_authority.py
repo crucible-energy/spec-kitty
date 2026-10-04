@@ -229,6 +229,7 @@ def test_supported_placement_reuses_checkout_then_query_is_pure(authority: Autho
     assert result.exit_code == 0, result.output
     data = json.loads(result.stdout)
     assert data["applied"]
+    assert git(authority.owned, "rev-list", "--parents", "-n", "1", "HEAD").split() == [data["head"], authority.target_pin, authority.coord_pin]
     assert git(authority.owned, "symbolic-ref", "--short", "HEAD") == COORD
     assert git(authority.owned, "rev-parse", f"refs/heads/{TARGET}") == authority.target_pin
     assert git(authority.owned, "rev-parse", "HEAD^{tree}") == git(authority.owned, "rev-parse", f"{authority.target_pin}^{{tree}}")
@@ -279,6 +280,64 @@ def test_bad_placement_refuses_all_effects(authority: Authority, fault: str):
     result = authority.placement("--apply", pins=pins)
     assert result.exit_code == 1, result.output
     assert "code" in json.loads(result.stdout)
+    assert authority.snapshot() == before
+
+
+@pytest.mark.parametrize("mode", ["--dry-run", "--apply"])
+def test_equal_pins_refuse_before_any_mutation(authority: Authority, monkeypatch: pytest.MonkeyPatch, mode: str):
+    """Duplicate parent pins must refuse before Git object/ref or checkout writes."""
+    from specify_cli.migration import owned_coordination
+
+    original = owned_coordination.git_operation
+    writes = []
+
+    def track(root, args, **kw):
+        if "commit-tree" in args or "update-ref" in args:
+            writes.append(args)
+        return original(root, ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", *args], **kw)
+
+    monkeypatch.setattr(owned_coordination, "git_operation", track)
+    before = authority.snapshot()
+    objects_before = git(authority.owned, "cat-file", "--batch-all-objects", "--batch-check=%(objectname)")
+    result = authority.placement(mode, pins=(authority.target_pin, authority.target_pin))
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.stdout)["code"] == "COORD_EQUAL_PINS_REFUSED"
+    assert not json.loads(result.stdout)["applied"] and not writes
+    assert authority.snapshot() == before
+    assert git(authority.owned, "cat-file", "--batch-all-objects", "--batch-check=%(objectname)") == objects_before
+
+
+@pytest.mark.parametrize("fault", ["one-parent", "reversed-parents", "extra-parent", "wrong-tree"])
+def test_generated_anchor_is_verified_before_ref_or_head_activation(authority: Authority, monkeypatch: pytest.MonkeyPatch, fault: str):
+    """Reject a malformed real commit-tree result before activating any authority."""
+    from specify_cli.migration import owned_coordination
+
+    original = owned_coordination.git_operation
+    commits = []
+    activations = []
+
+    def malformed(root, args, **kw):
+        args = ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", *args]
+        if "commit-tree" in args:
+            if fault == "one-parent":
+                args = args[:-2]
+            elif fault == "reversed-parents":
+                args[-3], args[-1] = args[-1], args[-3]
+            elif fault == "extra-parent":
+                args.extend(["-p", git(authority.primary, "rev-parse", "HEAD")])
+            else:
+                args[args.index("commit-tree") + 1] = git(authority.primary, "rev-parse", "HEAD^{tree}")
+            commits.append(args)
+        if "update-ref" in args:
+            activations.append(args)
+        return original(root, args, **kw)
+
+    monkeypatch.setattr(owned_coordination, "git_operation", malformed)
+    before = authority.snapshot()
+    result = authority.placement("--apply")
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.stdout)["code"] == "COORD_AUTHORITY_BINDING_CONFLICT"
+    assert commits and not activations
     assert authority.snapshot() == before
 
 
