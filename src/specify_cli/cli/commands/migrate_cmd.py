@@ -714,6 +714,63 @@ def backfill_runtime_state_cmd(
         raise typer.Exit(1)
 
 
+@app.command(name="refresh-owned-review-projection")
+def refresh_owned_review_projection_cmd(
+    mission: Annotated[str, typer.Option("--mission", help="Existing coordinated mission.")],
+    owned_checkout: Annotated[Path, typer.Option("--owned-checkout", help="Registered checkout on its declared coordination ref.")],
+    apply: Annotated[bool, typer.Option("--apply", help="Migrate the derived review-result projection only.")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Structured projection migration report.")] = False,
+) -> None:
+    """Explicit projection migration; immutable events and unrelated fields stay intact."""
+    from specify_cli.coordination.owned import OwnedCoordinationError
+    from specify_cli.coordination.owned_status import refresh_owned_projection
+
+    try:
+        repository = locate_project_root()
+        if repository is None:
+            raise ValueError("Could not locate the invoking repository")
+        report = refresh_owned_projection(repository, owned_checkout, mission, apply=apply)
+    except (ValueError, RuntimeError, OSError) as exc:
+        data = exc.to_dict() if isinstance(exc, OwnedCoordinationError) else {"code": "OWNED_COORD_VALIDATION_REFUSED", "error": str(exc), "applied": False}
+        if json_output:
+            print(json.dumps(data))
+        else:
+            _error(str(exc))
+        raise typer.Exit(1) from exc
+    print(json.dumps(report, indent=2) if json_output else f"Owned projection migration; applied={report['applied']}")
+
+
+@app.command(name="restore-owned-coordination")
+def restore_owned_coordination_cmd(
+    mission: Annotated[str, typer.Option("--mission", help="Existing coordinated mission identity.")],
+    owned_checkout: Annotated[Path, typer.Option("--owned-checkout", help="Registered inactive target checkout to reuse.")],
+    target_commit: Annotated[str, typer.Option("--target-commit", help="Immutable published target commit carrying restored history.")],
+    coord_commit: Annotated[str, typer.Option("--coord-commit", help="Immutable original coordination commit with matching planning.")],
+    apply: Annotated[bool, typer.Option("--apply", help="Atomically recover the declared ref and bind this checkout to it.")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Read-only placement preview (default).")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Structured authority placement report.")] = False,
+) -> None:
+    """Recover declared coordination authority without another workspace or DAG events."""
+    from specify_cli.coordination.owned import OwnedCoordinationError
+    from specify_cli.migration.owned_coordination import restore_owned_coordination
+
+    try:
+        if apply and dry_run:
+            raise ValueError("Choose --apply or --dry-run, not both")
+        repository = locate_project_root()
+        if repository is None:
+            raise ValueError("Could not locate the invoking repository")
+        report = restore_owned_coordination(repository, owned_checkout, mission, target_commit, coord_commit, apply=apply)
+    except (ValueError, RuntimeError, OSError) as exc:
+        data = exc.to_dict() if isinstance(exc, OwnedCoordinationError) else {"code": "OWNED_COORD_VALIDATION_REFUSED", "error": str(exc), "applied": False}
+        if json_output:
+            print(json.dumps(data))
+        else:
+            _error(str(exc))
+        raise typer.Exit(1) from exc
+    print(json.dumps(report, indent=2) if json_output else f"Coordinated authority: {report['destination_ref']}; applied={report['applied']}")
+
+
 @app.command(name="restore-owned-mission-history")
 def restore_owned_mission_history_cmd(
     mission: Annotated[str, typer.Option("--mission", help="Existing mission_id, mid8 or slug.")],

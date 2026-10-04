@@ -158,6 +158,9 @@ line requires a different events-package contract.
 
 ## Observed Subsequent intake boundary
 
+The next explicit authority/query and real-review boundary is documented in
+[owned coordinated authority](owned-coordinated-authority.md).
+
 On 2026-10-03, the pinned target/coordination/lane histories for
 `subsequent-progress-intake-01M204R7` reconstruct 53 records: 22 transitions,
 21 annotations, and 10 lifecycle envelopes. Historical lanes are WP01 approved,

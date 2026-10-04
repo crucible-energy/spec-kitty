@@ -19,6 +19,15 @@ _The 3.2.7 development cycle is open. Entries land here as missions merge._
 
 ### ✨ Added
 
+- **Fork explicit coordinated authority/query routing (#60).**
+  `migrate restore-owned-coordination` validates immutable planning/status pins
+  and atomically binds a reused registered linked checkout to the missing declared
+  coordination ref without another workspace or DAG events. `next --owned-checkout`
+  queries that genuine authority read-only and refuses unregistered husks. Scoped
+  projection migration and `agent status review-owned` share the validated roots;
+  real-review recording uses canonical FSM/evidence guards and performs no claim,
+  lane allocation or runtime advancement. See [the authority guide](../migrations/owned-coordinated-authority.md).
+
 - **Fork owned coordinated-history restoration (#60).**
   `migrate restore-owned-mission-history` previews or applies a verified union
   of immutable status-log pins in an explicitly Git-registered target checkout.

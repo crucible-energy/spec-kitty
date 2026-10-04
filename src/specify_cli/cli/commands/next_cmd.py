@@ -30,6 +30,10 @@ import io
 import importlib
 import json
 import sys
+import functools
+import inspect
+from collections.abc import Callable
+from typing import Any
 from pathlib import Path
 
 import typer
@@ -52,13 +56,63 @@ def decide_next(agent: str, mission_slug: str, result: str, repo_root):
 
 def _runtime_bridge_module():
     """Return the patched bridge when tests/consumers installed one."""
-    return sys.modules.get("runtime.next.runtime_bridge") or importlib.import_module(
-        "runtime.next.runtime_bridge"
-    )
+    return sys.modules.get("runtime.next.runtime_bridge") or importlib.import_module("runtime.next.runtime_bridge")
 
 
-@require_main_repo
+def _default_main_guard(function: Callable[..., None]) -> Callable[..., None]:
+    """Keep the original public main-checkout guard unless ownership is explicit."""
+    guarded = require_main_repo(function)
+    signature = inspect.signature(function)
+
+    @functools.wraps(function)
+    def dispatch(*args: Any, **kwargs: Any) -> None:
+        if signature.bind_partial(*args, **kwargs).arguments.get("owned_checkout") is not None:
+            function(*args, **kwargs)
+        else:
+            guarded(*args, **kwargs)
+
+    return dispatch
+
+
+@_default_main_guard
 def next_step(
+    agent: Annotated[str | None, typer.Option("--agent", help="Agent name (required for advancing mode)")] = None,
+    result: Annotated[
+        str | None,
+        typer.Option("--result", help="Result of previous step: success|failed|blocked. If omitted, returns current state without advancing (query mode)."),
+    ] = None,
+    mission: Annotated[str | None, typer.Option("--mission", help="Mission slug")] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON decision only")] = False,
+    answer: Annotated[str | None, typer.Option("--answer", help="Answer to a pending decision")] = None,
+    decision_id: Annotated[str | None, typer.Option("--decision-id", help="Decision ID (required if multiple pending)")] = None,
+    owned_checkout: Annotated[Path | None, typer.Option("--owned-checkout", help="Explicit registered coordination checkout; QUERY ONLY.")] = None,
+) -> None:
+    """Query genuine owned coordinated authority, or use the unchanged default runtime."""
+    if owned_checkout is None:
+        _default_next_step(agent, result, mission, json_output, answer, decision_id)
+        return
+    from specify_cli.coordination.owned import OwnedCoordinationError, query_owned_coordination
+
+    try:
+        if result is not None or answer is not None or decision_id is not None:
+            raise OwnedCoordinationError("OWNED_COORD_QUERY_ONLY", "Owned coordinated next does not advance or answer a DAG")
+        if mission is None:
+            raise OwnedCoordinationError("OWNED_MISSION_REQUIRED", "--owned-checkout requires explicit --mission")
+        repository = locate_project_root()
+        if repository is None:
+            raise ValueError("Could not locate the invoking repository")
+        decision = query_owned_coordination(repository, owned_checkout, mission)
+    except (ValueError, RuntimeError, OSError) as exc:
+        data = exc.to_dict() if isinstance(exc, OwnedCoordinationError) else {"code": "OWNED_COORD_VALIDATION_REFUSED", "error": str(exc), "applied": False}
+        if json_output:
+            print(json.dumps(data))
+        else:
+            print(str(exc), file=sys.stderr)
+        raise typer.Exit(1) from exc
+    print(json.dumps(decision, indent=2) if json_output else f"Owned coordination query: {decision['lanes']}; {decision['reason']}")
+
+
+def _default_next_step(
     agent: Annotated[str | None, typer.Option("--agent", help="Agent name (required for advancing mode)")] = None,
     result: Annotated[
         str | None,
@@ -375,9 +429,7 @@ def _resolve_mission_slug(mission: str | None, repo_root: Path) -> str:
     from specify_cli.missions._read_path_resolver import StatusReadPathNotFound
 
     try:
-        candidate = candidate_feature_dir_for_mission(
-            get_main_repo_root(repo_root), raw_handle
-        )
+        candidate = candidate_feature_dir_for_mission(get_main_repo_root(repo_root), raw_handle)
     except StatusReadPathNotFound:
         # FR-001 / C-IC02: the read resolver produced a precise typed error
         # (e.g. COORDINATION_BRANCH_DELETED / STATUS_READ_PATH_NOT_FOUND) with the
@@ -399,9 +451,7 @@ def _print_error(message: str, json_output: bool) -> None:
         print(message, file=sys.stderr)
 
 
-def _emit_mission_not_found_error(
-    handle: str, json_output: bool, next_step: str | None = None
-) -> None:
+def _emit_mission_not_found_error(handle: str, json_output: bool, next_step: str | None = None) -> None:
     """Emit a structured MISSION_NOT_FOUND error in the appropriate format.
 
     Human mode writes to stderr; JSON mode writes a structured envelope to
@@ -429,8 +479,7 @@ def _emit_mission_not_found_error(
         print(json.dumps(payload, indent=2))
     else:
         print(
-            f"Error: Mission not found: '{handle}'\n"
-            f"No mission matching '{handle}' exists in this repository.",
+            f"Error: Mission not found: '{handle}'\nNo mission matching '{handle}' exists in this repository.",
             file=sys.stderr,
         )
         print(f"  Next: {remediation}", file=sys.stderr)
@@ -567,9 +616,7 @@ def _run_query_mode(
         _emit_read_path_error(exc, json_output)
         raise typer.Exit(1) from exc
     except MissionNotFoundError as exc:
-        _emit_mission_not_found_error(
-            exc.handle, json_output, next_step=getattr(exc, "next_step", None)
-        )
+        _emit_mission_not_found_error(exc.handle, json_output, next_step=getattr(exc, "next_step", None))
         raise typer.Exit(1) from exc
     except QueryModeValidationError as exc:
         # C-ERR-1 / FR-003: emit a structured payload (error_code + next_step)
@@ -602,9 +649,7 @@ def _emit_mission_next_invoked(agent: str, result: str, mission_slug: str, repo_
     from mission_runtime import MissionArtifactKind, placement_seam
 
     try:
-        feature_dir = placement_seam(repo_root, mission_slug).read_dir(
-            MissionArtifactKind.STATUS_STATE
-        )
+        feature_dir = placement_seam(repo_root, mission_slug).read_dir(MissionArtifactKind.STATUS_STATE)
     except Exception:
         feature_dir = None
     emit_event(
