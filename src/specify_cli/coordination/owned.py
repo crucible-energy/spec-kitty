@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import psutil
 
@@ -47,7 +47,7 @@ class OwnedCoordinationError(ValueError):
 
 
 def _git(root: Path, *args: str) -> str:
-    return cast(bytes, git_bytes(root, *args)).decode("utf-8").strip()
+    return git_bytes(root, *args).decode("utf-8").strip()
 
 
 def branch_oid(root: Path, branch: str) -> str | None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 import fnmatch
 
 from specify_cli.coordination.owned import OwnedCoordinationError, resolve_owned_coordination
@@ -35,7 +35,7 @@ class OwnedReviewRequest:
 
     def key(self, mission_id: str) -> str:
         """Bind an idempotent recorded-review request to the mission and all supplied facts."""
-        return cast(str, sha256(json.dumps({"mission_id": mission_id, **self.__dict__}, sort_keys=True).encode()))
+        return sha256(json.dumps({"mission_id": mission_id, **self.__dict__}, sort_keys=True).encode())
 
 
 def _review_plan(repository: Path, checkout: Path, handle: str, request: OwnedReviewRequest) -> tuple[dict[Path, bytes], dict[str, Any]]:
@@ -76,7 +76,7 @@ def _review_plan(repository: Path, checkout: Path, handle: str, request: OwnedRe
     selected = next((wp for wp in manifest.work_packages if wp.id == request.wp_id), None) if manifest is not None else None
     if selected is None or not selected.owned_files:
         raise OwnedCoordinationError("OWNED_REVIEW_CODE_REFUSED", "Selected WP requires its authored code ownership declaration")
-    files = cast(bytes, git_bytes(context.root, "ls-tree", "-r", "--name-only", request.reviewed_commit)).decode().splitlines()
+    files = git_bytes(context.root, "ls-tree", "-r", "--name-only", request.reviewed_commit).decode().splitlines()
     for pattern in selected.owned_files:
         matches = [name for name in files if fnmatch.fnmatchcase(name, pattern)]
         if not matches or pattern.startswith("/") or ".." in Path(pattern).parts:

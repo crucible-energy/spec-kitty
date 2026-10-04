@@ -62,7 +62,8 @@ def resolve_status_lock_root(feature_dir: Path, repo_root: Path | None = None) -
         # behaviour for this case.
         return feature_dir
     try:
-        return resolve_canonical_root(feature_dir)
+        canonical_root: Path = resolve_canonical_root(feature_dir)
+        return canonical_root
     except WorkspaceRootNotFound:
         # Non-git tree (e.g. ad-hoc test dirs that have a kitty-specs/ ancestor
         # but no actual git repo): fall back to the historical parent.parent shape
@@ -134,7 +135,7 @@ def canonicalize_feature_dir(feature_dir: Path) -> Path:
     except WorkspaceRootNotFound:
         return feature_dir
 
-    canonical_feature_dir = canonical_root / KITTY_SPECS_DIR / feature_dir.name
+    canonical_feature_dir: Path = canonical_root / KITTY_SPECS_DIR / feature_dir.name
     # Only redirect when the canonical path actually exists; this keeps
     # tests that build ad-hoc feature dirs outside a git repo working.
     if canonical_feature_dir.exists():
