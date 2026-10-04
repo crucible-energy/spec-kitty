@@ -36,8 +36,8 @@ __all__ = [
 def resolve_status_lock_root(feature_dir: Path, repo_root: Path | None = None) -> Path:
     """Resolve the repo root used for per-feature status locking.
 
-    Single shared implementation for both write-side lock sites
-    (``status.emit`` and ``status.work_package_lifecycle``).
+    Single shared implementation for status orchestration and low-level mission
+    appenders (lane, annotation, lifecycle, decision and retrospective writes).
 
     Mis-routing a status *lock* root is a concurrency defect: two processes
     anchored on the same mission via different worktrees would acquire

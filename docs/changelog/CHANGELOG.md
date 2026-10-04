@@ -19,6 +19,33 @@ _The 3.2.7 development cycle is open. Entries land here as missions merge._
 
 ### ✨ Added
 
+- **Fork owned coordinated-history restoration (#60).**
+  `migrate restore-owned-mission-history` previews or applies a verified union
+  of immutable status-log pins in an explicitly Git-registered target checkout.
+  It preserves original structured actors, null metadata, review evidence and
+  lifecycle records, refuses conflicts and divergent owned work, and writes a
+  pinned provenance receipt. Retained approvals remain historical. The reducer
+  now carries recorded `review_result` values into the derived snapshot.
+  See [the recovery guide](../migrations/owned-coordinated-history-restoration.md).
+
+  Independent-review corrections bind staging/install/rollback to validated
+  no-follow directory descriptors and serialize supported status/lifecycle
+  appenders on the existing shared mission lock. Late namespace substitutions
+  and destination changes refuse without erasing live records; rollback
+  preserves later edits. Apply explicitly refuses platforms lacking the required
+  fd-relative primitives.
+
+  Fork-boundary correction makes canonical held locks and replacement fences
+  process-owned. Fork children with inherited active status operations close
+  their descriptor copies without unlocking the parent and refuse writes until
+  a fresh interpreter; normal parent/thread reentrance remains unchanged.
+
+  Upstream-protocol correction delegates modern filelock native transitions and
+  fork cleanup to its public API, eliminating overlapping before-fork mutexes.
+  The causal acquire/fork deadlock regression is retained, and native ownership
+  tests accept safe upstream fork refusal while checking parent lock preservation
+  and cleanup. Older supported backends retain the legacy guarded protocol.
+
 - **Fork packaging hooks (entry-point plugins + `DistributionProfile`).**
   Renamed / private-index forks can customize CLI package identity, upgrade
   providers (including built-in PEP 503 `SimpleIndexProvider`), remediation
