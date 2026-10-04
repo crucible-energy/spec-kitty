@@ -38,7 +38,10 @@ spec-kitty migrate restore-owned-coordination \
   --dry-run --json
 ```
 
-Both pins must be full immutable commit SHAs in the same repository. The declared
+Both pins must be **distinct**, full immutable commit SHAs in the same repository.
+Equal pins refuse with `COORD_EQUAL_PINS_REFUSED` before any lock, commit-object,
+ref or checkout mutation. Git deduplicates identical commit parents; they cannot
+represent the required two-parent recovery anchor. The declared
 coordination head must be absent and not occupied by another checkout. Existing
 refs are never overwritten. The owned checkout must be exact, Git-registered,
 clean, on the pinned target branch, and inactive: live recorded process leases
@@ -63,6 +66,11 @@ It constructs a provenance recovery commit with:
 - first parent: the published restored target;
 - second parent: the original coordination pin;
 - an immutable coordination-binding message, not a source/WP approval event.
+
+Before activating any ref or symbolic HEAD, the generated immutable commit is
+checked for **exactly two parents in target/coordination order** and the exact
+target tree. Placement and later owned query use the same structural predicate;
+a one-parent, reordered, extra-parent or wrong-tree result refuses activation.
 
 The existing per-mission lock serializes supported owners. The command revalidates
 directory/data/ref state, then atomically creates the missing coordination ref and

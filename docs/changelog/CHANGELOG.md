@@ -28,6 +28,12 @@ _The 3.2.7 development cycle is open. Entries land here as missions merge._
   real-review recording uses canonical FSM/evidence guards and performs no claim,
   lane allocation or runtime advancement. See [the authority guide](../migrations/owned-coordinated-authority.md).
 
+  Recovery-anchor correction refuses equal target/coordination pins before any
+  mutation and verifies the generated commit's exact ordered parents and target
+  tree before ref/HEAD activation. Placement and query share the same structural
+  check; causal preview/apply and malformed-commit regressions preserve distinct-pin
+  roundtrips and reject unusable authority without changing checkout state.
+
 - **Fork owned coordinated-history restoration (#60).**
   `migrate restore-owned-mission-history` previews or applies a verified union
   of immutable status-log pins in an explicitly Git-registered target checkout.

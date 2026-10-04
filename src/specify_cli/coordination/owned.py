@@ -19,7 +19,15 @@ from specify_cli.migration.owned_history_sources import _blob, git_bytes, json_o
 from specify_cli.status.models import StatusSnapshot
 from specify_cli.status.reducer import materialize_snapshot
 
-__all__ = ["OwnedCoordinationError", "OwnedCoordinationContext", "owned_base", "validate_pins", "resolve_owned_coordination", "query_owned_coordination"]
+__all__ = [
+    "OwnedCoordinationError",
+    "OwnedCoordinationContext",
+    "owned_base",
+    "validate_pins",
+    "validate_anchor_shape",
+    "resolve_owned_coordination",
+    "query_owned_coordination",
+]
 
 PLANNING_FILES = ("meta.json", "spec.md", "plan.md", "tasks.md", "wps.yaml", "lanes.json")
 AUTHORITY_MARKER = "Spec-Kitty-Owned-Coordination: v1"
@@ -210,6 +218,13 @@ def validate_pins(root: Path, directory: Path, meta: dict[str, Any], target: str
     }
 
 
+def validate_anchor_shape(root: Path, anchor: str, target: str, coord: str) -> None:
+    """Require exact ordered recovery parents and the target tree before activation/read."""
+    parents = _git(root, "rev-list", "--parents", "-n", "1", anchor).split()
+    if parents != [anchor, target, coord] or _git(root, "rev-parse", f"{anchor}^{{tree}}") != _git(root, "rev-parse", f"{target}^{{tree}}"):
+        raise OwnedCoordinationError("COORD_AUTHORITY_BINDING_CONFLICT", "Recovery anchor must preserve both parents and the target tree")
+
+
 def _anchor(root: Path, meta: dict[str, Any]) -> tuple[str, str, str]:
     candidates = _git(root, "log", "--first-parent", "--format=%H", "--fixed-strings", f"--grep={AUTHORITY_MARKER} {meta['mission_id']}", "-n", "2").splitlines()
     if len(candidates) != 1:
@@ -220,9 +235,7 @@ def _anchor(root: Path, meta: dict[str, Any]) -> tuple[str, str, str]:
     if data.get("mission_id") != meta["mission_id"] or data.get("coordination_branch") != meta["coordination_branch"]:
         raise OwnedCoordinationError("COORD_AUTHORITY_BINDING_CONFLICT", "Recovery anchor identity differs from the dossier")
     target, coord = str(data.get("target_commit", "")), str(data.get("coord_commit", ""))
-    parents = _git(root, "rev-list", "--parents", "-n", "1", anchor).split()
-    if parents != [anchor, target, coord] or _git(root, "rev-parse", f"{anchor}^{{tree}}") != _git(root, "rev-parse", f"{target}^{{tree}}"):
-        raise OwnedCoordinationError("COORD_AUTHORITY_BINDING_CONFLICT", "Recovery anchor must preserve both parents and the target tree")
+    validate_anchor_shape(root, anchor, target, coord)
     return anchor, target, coord
 
 

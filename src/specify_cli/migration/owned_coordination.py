@@ -9,7 +9,15 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from specify_cli.coordination.owned import AUTHORITY_MARKER, OwnedCoordinationError, branch_oid, owned_base, resolve_owned_coordination, validate_pins
+from specify_cli.coordination.owned import (
+    AUTHORITY_MARKER,
+    OwnedCoordinationError,
+    branch_oid,
+    owned_base,
+    resolve_owned_coordination,
+    validate_anchor_shape,
+    validate_pins,
+)
 from specify_cli.migration.owned_history_io import BoundHistoryDirectory
 from specify_cli.status.locking import feature_status_lock
 
@@ -31,6 +39,8 @@ def git_operation(root: Path, args: list[str], *, input_bytes: bytes | None = No
 
 
 def _plan(repository: Path, checkout: Path, handle: str, target: str, coord: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    if target == coord:
+        raise OwnedCoordinationError("COORD_EQUAL_PINS_REFUSED", "Target and original coordination commit pins must be distinct")
     root, directory, meta, head, branch, snapshot = owned_base(repository, checkout, handle)
     if branch == meta["coordination_branch"]:
         context, _ = resolve_owned_coordination(repository, checkout, handle)
@@ -103,6 +113,10 @@ def restore_owned_coordination(repository: Path, checkout: Path, handle: str, ta
                 commit = (
                     git_operation(checkout, [*backend, "commit-tree", report["tree"], "-p", target, "-p", coord], input_bytes=message.encode()).decode().strip()
                 )
+                # commit-tree can normalize its parent list. Verify the actual
+                # immutable object with the same predicate used by owned query
+                # before any ref or symbolic HEAD is activated.
+                validate_anchor_shape(checkout, commit, target, coord)
                 bound.verify(images)
                 locked, _ = _plan(repository, checkout, handle, target, coord)
                 if locked != report:
