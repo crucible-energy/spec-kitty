@@ -527,3 +527,66 @@ print(json.dumps({{'stable': stable, 'child': reply, 'applied': report['applied'
     assert result["child"]["refused"] and result["child"]["descriptors_closed"]
     assert result["applied"] and result["temps_cleaned_by_parent"]
     assert tree(checkouts.primary) == before_primary
+
+
+@pytest.mark.parametrize("operation", ["read", "capture", "verify", "check_directory", "stage", "_stage_bytes", "replace", "rollback"])
+def test_inherited_directory_operations_refuse_and_close_only_child_fds(checkouts: Checkouts, operation: str):
+    """Directory ownership guards apply independently of the replacement fence."""
+    result = _run_fork_script(
+        checkouts,
+        f"""
+import errno
+from specify_cli.migration.owned_history_sources import HistoryRestoreError
+result_read, result_write = os.pipe()
+bound = owned_history_io.BoundHistoryDirectory(ROOT, DIRECTORY)
+names = ('status.json', 'status.events.jsonl', 'history-restoration.json')
+originals = bound.capture(names)
+temporary, staged = bound.stage(b'parent staging bytes', 0o644)
+temp_image = bound.read(temporary)
+descriptors = list(bound.parents.values())
+with locking.feature_status_lock(ROOT, SLUG, timeout=1):
+    child = os.fork()
+    if child == 0:
+        os.close(result_read)
+        refused = False
+        try:
+            calls = {{
+                'read': lambda: bound.read('status.json'),
+                'capture': lambda: bound.capture(names),
+                'verify': lambda: bound.verify(originals),
+                'check_directory': lambda: bound.check_directory(),
+                'stage': lambda: bound.stage(b'child bytes', 0o644),
+                '_stage_bytes': lambda: bound._stage_bytes(b'child bytes', 0o644),
+                'replace': lambda: bound.replace(temporary, 'status.json'),
+                'rollback': lambda: bound.rollback({{'status.json': (temporary, staged)}}, originals, {{}}),
+            }}
+            calls[{operation!r}]()
+        except HistoryRestoreError as exc:
+            refused = 'fork child' in str(exc)
+        finally:
+            # Repeat cleanup to prove copied bookkeeping cannot close a reused
+            # descriptor or unlink creator-owned staging after detachment.
+            bound.close()
+            bound.close()
+        closed = []
+        for fd in descriptors:
+            try:
+                os.fstat(fd)
+                closed.append(False)
+            except OSError as exc:
+                closed.append(exc.errno == errno.EBADF)
+        send(result_write, {{'refused': refused, 'descriptors_closed': all(closed)}})
+        os._exit(0)
+    os.close(result_write)
+    reply = receive(result_read)
+    _, status = os.waitpid(child, 0)
+    assert status == 0
+    stable = bound.capture(names) == originals and bound.read(temporary) == temp_image
+    locked = native_blocked()
+bound.close()
+bound.close()
+print(json.dumps({{'child': reply, 'parent_stable': stable, 'parent_still_locked': locked,
+                  'parent_cleaned': not (DIRECTORY / temporary).exists()}}))
+""",
+    )
+    assert result == {"child": {"refused": True, "descriptors_closed": True}, "parent_stable": True, "parent_still_locked": True, "parent_cleaned": True}

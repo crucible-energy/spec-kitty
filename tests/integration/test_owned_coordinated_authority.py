@@ -424,6 +424,14 @@ def test_changes_requested_records_real_rework_without_runtime_advance(placed: A
 
 @pytest.mark.parametrize("fault", ["active-lease", "active-run", "foreign-run", "hidden-log", "borrowed-git", "snapshot-symlink"])
 def test_ownership_and_authority_guards_fail_closed(authority: Authority, fault: str):
+    expected_codes = {
+        "active-lease": "OWNED_ACTIVE_LEASE_REFUSED",
+        "active-run": "OWNED_ACTIVE_RUN_REFUSED",
+        "foreign-run": "OWNED_RUN_ROOT_REFUSED",
+        "hidden-log": "OWNED_UNCOMMITTED_AUTHORITY_REFUSED",
+        "borrowed-git": "OWNED_GIT_PATH_REFUSED",
+        "snapshot-symlink": "OWNED_COORD_VALIDATION_REFUSED",
+    }
     if fault == "active-lease":
         import psutil
         from specify_cli.status.models import InnerStateChanged, WPInnerStateDelta
@@ -463,7 +471,7 @@ def test_ownership_and_authority_guards_fail_closed(authority: Authority, fault:
     before = authority.snapshot()
     result = authority.placement("--apply")
     assert result.exit_code == 1, result.output
-    assert "code" in json.loads(result.stdout)
+    assert json.loads(result.stdout)["code"] == expected_codes[fault]
     assert authority.snapshot() == before
 
 
@@ -596,3 +604,85 @@ def test_existing_default_materialize_refreshes_old_verdict_projection(tmp_path:
     assert json.loads((directory / "status.json").read_text()) == snapshot
     assert (directory / "status.events.jsonl").read_bytes() == log
     assert not any(f.code == "SNAPSHOT_DRIFT" for f in classify_status_json(directory))
+
+
+def test_relative_git_backlink_accepts_the_registered_owned_checkout(authority: Authority, monkeypatch: pytest.MonkeyPatch):
+    git(authority.owned, "worktree", "repair", "--relative-paths", str(authority.owned))
+    gitdir = Path(git(authority.owned, "rev-parse", "--absolute-git-dir"))
+    assert not Path((gitdir / "gitdir").read_text(encoding="utf-8").strip()).is_absolute()
+    # Caller is the primary checkout, deliberately not the admin directory.
+    monkeypatch.chdir(authority.primary)
+    before = authority.snapshot()
+    preview = authority.placement()
+    assert preview.exit_code == 0, preview.output
+    assert authority.snapshot() == before
+    from specify_cli.migration import owned_coordination
+
+    original = owned_coordination.git_operation
+    monkeypatch.setattr(
+        owned_coordination,
+        "git_operation",
+        lambda root, args, **kw: original(root, ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", *args], **kw),
+    )
+    applied = authority.placement("--apply")
+    assert applied.exit_code == 0, applied.output
+    before_query = authority.snapshot()
+    query = authority.query()
+    assert query.exit_code == 0, query.output
+    assert authority.snapshot() == before_query
+
+
+def test_locked_review_noop_never_enters_installation(placed: Authority, monkeypatch: pytest.MonkeyPatch):
+    from specify_cli.coordination import owned_status
+
+    original = owned_status._review_plan
+    calls = []
+    installs = []
+
+    def replan(*args):
+        calls.append(True)
+        if len(calls) == 1:
+            return original(*args)
+        return {}, {"changed": False, "status_ref": COORD}
+
+    monkeypatch.setattr(owned_status, "_review_plan", replan)
+    monkeypatch.setattr(owned_status, "_replace_batch", lambda *args: installs.append(args))
+    before = placed.snapshot()
+    result = _review(placed, "--apply")
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.stdout)
+    assert not data["changed"] and not data["applied"] and not data["commit_required"]
+    assert not installs and placed.snapshot() == before
+
+
+def test_locked_projection_noop_uses_final_bytes_and_does_not_install(placed: Authority, monkeypatch: pytest.MonkeyPatch):
+    from specify_cli.coordination import owned_status
+
+    original = owned_status.materialize_to_json
+    calls = []
+    installs = []
+
+    def serialize(snapshot):
+        calls.append(True)
+        # A stale preflight serialization differs; the locked serialization is
+        # already installed. The final report must describe that locked state.
+        return original(snapshot) + ("\n" if len(calls) == 1 else "")
+
+    monkeypatch.setattr(owned_status, "materialize_to_json", serialize)
+    monkeypatch.setattr(owned_status, "_replace_batch", lambda *args: installs.append(args))
+    before = placed.snapshot()
+    report = owned_status.refresh_owned_projection(placed.primary, placed.owned, SLUG, apply=True)
+    assert not report["changed"] and not report["applied"] and not report["commit_required"]
+    assert not installs and placed.snapshot() == before
+
+
+def test_owned_materialize_default_preview_and_exclusive_flags(placed: Authority):
+    before = placed.snapshot()
+    args = ["materialize", "--mission", SLUG, "--owned-checkout", str(placed.owned), "--json"]
+    preview = CliRunner().invoke(status_commands, args)
+    assert preview.exit_code == 0, preview.output
+    assert json.loads(preview.stdout)["dry_run"] and not json.loads(preview.stdout)["applied"]
+    refused = CliRunner().invoke(status_commands, [*args, "--apply", "--dry-run"])
+    assert refused.exit_code == 1
+    assert "mutually exclusive" in json.loads(refused.stdout)["error"]
+    assert placed.snapshot() == before
