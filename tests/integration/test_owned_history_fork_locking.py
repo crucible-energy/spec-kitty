@@ -590,3 +590,15 @@ print(json.dumps({{'child': reply, 'parent_stable': stable, 'parent_still_locked
 """,
     )
     assert result == {"child": {"refused": True, "descriptors_closed": True}, "parent_stable": True, "parent_still_locked": True, "parent_cleaned": True}
+
+
+def test_closed_creator_transaction_cannot_reuse_directory_authority(checkouts: Checkouts):
+    """Repeated close is safe, and a closed creator cannot reuse its saved fd number."""
+    from specify_cli.migration.owned_history_io import BoundHistoryDirectory
+    from specify_cli.migration.owned_history_sources import HistoryRestoreError
+
+    bound = BoundHistoryDirectory(checkouts.owned, checkouts.directory)
+    bound.close()
+    bound.close()
+    with pytest.raises(HistoryRestoreError, match="transaction is closed"):
+        bound.capture(("status.json",))

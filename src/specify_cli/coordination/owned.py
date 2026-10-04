@@ -34,6 +34,7 @@ class OwnedCoordinationError(ValueError):
         self.paths = paths
 
     def to_dict(self) -> dict[str, Any]:
+        """Return the stable refusal code, actual checked paths and applied=False."""
         return {"code": self.code, "error": str(self), "checked_paths": [str(path) for path in self.paths], "applied": False}
 
 
@@ -42,6 +43,7 @@ def _git(root: Path, *args: str) -> str:
 
 
 def branch_oid(root: Path, branch: str) -> str | None:
+    """Read an exact local branch oid without resolving a prefix or writing refs."""
     refs = _git(root, "for-each-ref", "--format=%(refname) %(objectname)", "refs/heads/")
     return dict(line.split(" ", 1) for line in refs.splitlines()).get(f"refs/heads/{branch}")
 
@@ -53,7 +55,7 @@ def _backlink(root: Path) -> None:
     gitdir = Path(_git(root, "rev-parse", "--absolute-git-dir"))
     if marker.is_file():
         backlink = gitdir / "gitdir"
-        if backlink.is_symlink() or Path(backlink.read_text().strip()).resolve() != marker:
+        if backlink.is_symlink() or (gitdir / backlink.read_text(encoding="utf-8").strip()).resolve() != marker:
             raise OwnedCoordinationError("OWNED_GIT_PATH_REFUSED", "Git registration backlink does not name this checkout", (marker, backlink))
 
 
@@ -157,6 +159,11 @@ def owned_base(repository: Path, checkout: Path, handle: str) -> tuple[Path, Pat
 
 
 def validate_pins(root: Path, directory: Path, meta: dict[str, Any], target: str, coord: str) -> dict[str, Any]:
+    """Verify immutable history parity, original planning and the authored WP graph.
+
+    Return source/blob/count/ancestry evidence for explicit placement or query;
+    operator-selected pins establish content integrity, not signed approval.
+    """
     target_rows, target_source = load_source(root, directory, target, meta)
     coord_rows, coord_source = load_source(root, directory, coord, meta)
     common_ancestor = _git(root, "merge-base", target, coord)
@@ -235,10 +242,16 @@ class OwnedCoordinationContext:
     event_counts: tuple[int, int, int, int]
 
     def roots(self) -> dict[str, str]:
+        """Expose logical partition roots while retaining repository identity separately."""
         return {"repository_root": str(self.repository_root), "planning_root": str(self.root), "status_root": str(self.root), "run_root": str(self.root)}
 
 
 def resolve_owned_coordination(repository: Path, checkout: Path, handle: str) -> tuple[OwnedCoordinationContext, StatusSnapshot]:
+    """Bind a clean inactive registered checkout to genuine declared coordination.
+
+    Require the supported recovery anchor, unchanged target planning and retained
+    historical records; never substitute a primary surface or an unregistered husk.
+    """
     root, directory, meta, head, branch, snapshot = owned_base(repository, checkout, handle)
     coord = meta["coordination_branch"]
     if branch != coord or branch_oid(root, coord) != head:
@@ -276,6 +289,11 @@ def resolve_owned_coordination(repository: Path, checkout: Path, handle: str) ->
 
 
 def query_owned_coordination(repository: Path, checkout: Path, handle: str) -> dict[str, Any]:
+    """Return validated status, dependency readiness and retained runtime evidence.
+
+    This is a pure query of the committed owned authority: no runtime bootstrap,
+    lane allocation, review disposition, snapshot write or DAG advancement.
+    """
     context, snapshot = resolve_owned_coordination(repository, checkout, handle)
     manifest = load_wps_manifest(context.directory)
     if manifest is None:

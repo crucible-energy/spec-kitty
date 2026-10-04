@@ -55,6 +55,13 @@ _The 3.2.7 development cycle is open. Entries land here as missions merge._
   tests accept safe upstream fork refusal while checking parent lock preservation
   and cleanup. Older supported backends retain the legacy guarded protocol.
 
+  Install-unwind correction separately binds directory IO, rollback and temporary
+  cleanup to the creator PID. A fork child continuing a copied install frame
+  refuses inherited operations and closes only its descriptor copies; matching
+  installed images never authorize child rollback or staging deletion. Causal
+  regressions let children fully unwind after snapshot/receipt installation and
+  verify parent artifacts, staging and native ownership before completion.
+
 - **Fork packaging hooks (entry-point plugins + `DistributionProfile`).**
   Renamed / private-index forks can customize CLI package identity, upgrade
   providers (including built-in PEP 503 `SimpleIndexProvider`), remediation

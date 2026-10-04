@@ -109,6 +109,15 @@ refuses canonical status writes until it executes a fresh interpreter. Child
 cleanup never calls `LOCK_UN`, unlinks the parent's lock file, or runs the parent's
 release/fence-finally logic. The parent keeps its original state and native lock.
 Idle forks and fresh-interpreter processes acquire their own native locks normally.
+
+The directory transaction independently belongs to its **creator PID**. A forked
+child continuing a copied install frame may unwind through ordinary exception and
+finally handlers, but it never rolls back the parent's installed-image ledger or
+unlinks the parent's staging files. Inherited directory operations refuse and
+close only that child's descriptor copies. Repeated close is harmless; the creator
+retains its directory descriptors, installed artifacts, temporary inodes and lock
+until it completes or performs its own conditional rollback.
+
 Modern filelock owns its native descriptor transitions, PID checks, and at-fork
 cleanup. The CLI uses that public lock API unwrapped and never holds its own
 mutex in a before-fork callback or across upstream acquire/release. Only the
@@ -131,10 +140,19 @@ Legacy bulk rewrites and raw file writes must not run concurrently with recovery
 the shared-lock serialization contract belongs to the supported writers listed
 above, not arbitrary filesystem mutation.
 
+## Known limits
+
 The event log is installed last. This is not a filesystem-wide crash-atomic
 three-file transaction: a process/host interruption can leave a stale snapshot
 or receipt, which their hashes expose. Preserve that state for inspection; do
 not force past the dirty-checkout refusal.
+
+Native lock detachment alone is insufficient for copied install-frame unwind.
+Use a wheel qualified with the creator-PID directory-transaction regression;
+earlier recovery/coordination wheel qualification does not prove this correction.
+The deterministic tests fork after an existing snapshot or new receipt is
+installed, let the child fully unwind, and check parent output/staging identities,
+native-lock retention and child-only descriptor closure before parent completion.
 
 ## Using this fork slice before release
 

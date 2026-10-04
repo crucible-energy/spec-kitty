@@ -24,6 +24,7 @@ class FileImage:
 
     @property
     def mode(self) -> int:
+        """Preserve observed permission bits; new generated files default to 0644."""
         return self.identity[2] & 0o777 if self.identity is not None else 0o644
 
     def is_installed(self, staged: FileImage) -> bool:
@@ -52,9 +53,13 @@ class BoundHistoryDirectory:
     Reopening each parent uses the coordination transaction's existing canonical
     O_NOFOLLOW traversal. Every write, rename and cleanup uses only the captured
     final directory fd; namespace substitution cannot redirect them to primary.
+    The creator PID alone owns file mutation and temporary cleanup. Inherited
+    child frames refuse IO and close only their descriptor copies.
     """
 
     def __init__(self, root: Path, directory: Path) -> None:
+        """Pin the no-follow directory chain, closing partial opens on failure."""
+        self._owner_pid = os.getpid()
         if not _supported():
             raise HistoryRestoreError("Owned history apply requires fd-relative no-follow IO; unsupported platform refused")
         self.root = root
@@ -73,10 +78,28 @@ class BoundHistoryDirectory:
             self.close()
             raise
 
+    @property
+    def owner_pid(self) -> int:
+        """Return the creator PID; forked copies never acquire transaction ownership."""
+        return self._owner_pid
+
+    def _require_owner(self) -> None:
+        """Detach inherited descriptors and refuse IO before touching parent files."""
+        if self.owner_pid != os.getpid():
+            self.close()
+            raise HistoryRestoreError("Owned history IO refused in fork child; exec a fresh interpreter")
+        if not self.parents:
+            raise HistoryRestoreError("Bound history transaction is closed")
+
     def close(self) -> None:
-        """Clean only our known temporary inodes, then close every owned fd."""
+        """Creator cleans known temporary inodes; children close only copied fds.
+
+        Copied install frames may reach this finally after a fence refusal or an
+        arbitrary exception. No inherited cleanup may stat/unlink parent staging.
+        Clearing bookkeeping also makes a repeated close harmless.
+        """
         try:
-            for name, identity in self.temporary.items():
+            for name, identity in self.temporary.items() if self.owner_pid == os.getpid() else ():
                 try:
                     info = os.stat(name, dir_fd=self.fd, follow_symlinks=False)
                 except FileNotFoundError:
@@ -84,12 +107,14 @@ class BoundHistoryDirectory:
                 if (info.st_dev, info.st_ino) == identity:
                     os.unlink(name, dir_fd=self.fd)
         finally:
+            self.temporary.clear()
             for fd in self.parents.values():
                 os.close(fd)
             self.parents.clear()
 
     def check_directory(self) -> None:
         """Refuse changed identities or symlink substitutions anywhere in the chain."""
+        self._require_owner()
         if self.root != self.root.resolve():
             raise HistoryRestoreError("Owned checkout directory chain changed during history installation")
         for parent, original in self.parents.items():
@@ -106,6 +131,7 @@ class BoundHistoryDirectory:
 
     def read(self, name: str) -> FileImage:
         """Read a regular file relative to the pinned directory, never a symlink."""
+        self._require_owner()
         _basename(name)
         try:
             fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=self.fd)
@@ -122,6 +148,8 @@ class BoundHistoryDirectory:
             return _image(raw, after)
 
     def capture(self, names: tuple[str, ...]) -> dict[str, FileImage]:
+        """Capture content and inode identities through this creator-owned directory."""
+        self._require_owner()
         return {name: self.read(name) for name in names}
 
     def verify(self, expected: dict[str, FileImage]) -> None:
@@ -140,6 +168,7 @@ class BoundHistoryDirectory:
 
     def _stage_bytes(self, raw: bytes, mode: int) -> tuple[str, FileImage]:
         """One fd-relative staging core, shared by installation and rollback."""
+        self._require_owner()
         name = f".history-{uuid.uuid4().hex}.tmp"
         fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=self.fd)
         with os.fdopen(fd, "wb") as file:
@@ -154,12 +183,18 @@ class BoundHistoryDirectory:
 
     def replace(self, source: str, destination: str) -> None:
         """Both rename operands are relative to the same validated directory fd."""
+        self._require_owner()
         _basename(source)
         _basename(destination)
         os.replace(source, destination, src_dir_fd=self.fd, dst_dir_fd=self.fd)
 
     def rollback(self, attempted: dict[str, tuple[str, FileImage]], originals: dict[str, FileImage], installed: dict[str, FileImage]) -> None:
-        """Undo only unchanged inodes installed by us; preserve any later writer."""
+        """Creator undoes unchanged installed inodes, preserving later writer edits.
+
+        A copied child must refuse even when its image ledger still matches the
+        parent's installed files; matching bytes/inodes do not transfer ownership.
+        """
+        self._require_owner()
         preserved = []
         for name, (_, staged) in reversed(list(attempted.items())):
             try:

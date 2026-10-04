@@ -25,6 +25,8 @@ __all__ = ["OwnedReviewRequest", "record_owned_review", "refresh_owned_projectio
 
 @dataclass(frozen=True)
 class OwnedReviewRequest:
+    """Operator-supplied real review facts; this record does not authenticate a reviewer."""
+
     wp_id: str
     reviewer: str
     verdict: str
@@ -32,10 +34,12 @@ class OwnedReviewRequest:
     reviewed_commit: str
 
     def key(self, mission_id: str) -> str:
+        """Bind an idempotent recorded-review request to the mission and all supplied facts."""
         return cast(str, sha256(json.dumps({"mission_id": mission_id, **self.__dict__}, sort_keys=True).encode()))
 
 
 def _review_plan(repository: Path, checkout: Path, handle: str, request: OwnedReviewRequest) -> tuple[dict[Path, bytes], dict[str, Any]]:
+    """Build, without persisting, a canonical disposition or exact-request no-op."""
     context, snapshot = resolve_owned_coordination(repository, checkout, handle)
     if not request.reviewer.strip() or not request.reference.strip() or request.verdict not in ("approved", "changes_requested"):
         raise OwnedCoordinationError("OWNED_REVIEW_INPUT_REFUSED", "Real reviewer, reference and supported verdict are required")
@@ -66,7 +70,7 @@ def _review_plan(repository: Path, checkout: Path, handle: str, request: OwnedRe
         raise OwnedCoordinationError("OWNED_REVIEW_LANE_REFUSED", "Real disposition requires the existing in_review lane; no claim or force is synthesized")
     # A code pin must be a real immutable commit in this repository carrying the
     # same dossier identity. Source snapshots/provenance are verified, not inferred.
-    meta = json.loads((context.directory / "meta.json").read_text())
+    meta = json.loads((context.directory / "meta.json").read_text(encoding="utf-8"))
     _, reviewed = load_source(context.root, context.directory, request.reviewed_commit, meta)
     manifest = load_wps_manifest(context.directory)
     selected = next((wp for wp in manifest.work_packages if wp.id == request.wp_id), None) if manifest is not None else None
@@ -121,6 +125,12 @@ def _review_plan(repository: Path, checkout: Path, handle: str, request: OwnedRe
 
 
 def record_owned_review(repository: Path, checkout: Path, handle: str, request: OwnedReviewRequest, *, apply: bool = False) -> dict[str, Any]:
+    """Preview or record supplied independent-review evidence on owned coordination.
+
+    Apply revalidates authority under the canonical lock and installs the log and
+    snapshot through creator-owned IO. It performs no review, commit or runtime
+    advancement; callers must commit/push real applied dispositions themselves.
+    """
     context, _ = resolve_owned_coordination(repository, checkout, handle)
     outputs, report = _review_plan(repository, checkout, handle, request)
     if apply and report["changed"]:
@@ -135,13 +145,20 @@ def record_owned_review(repository: Path, checkout: Path, handle: str, request: 
                 # this locked call. Preview IDs never become fresh approvals.
                 outputs, report = _review_plan(repository, checkout, handle, request)
                 bound.verify(originals)
-                _replace_batch(outputs, bound, originals, context.slug)
+                if report["changed"]:
+                    _replace_batch(outputs, bound, originals, context.slug)
             finally:
                 bound.close()
-    return {**report, "dry_run": not apply, "applied": bool(apply and report["changed"]), "commit_required": bool(apply and report["changed"])}
+    applied = bool(apply and report["changed"])
+    return {**report, "dry_run": not apply, "applied": applied, "commit_required": applied}
 
 
 def refresh_owned_projection(repository: Path, checkout: Path, handle: str, *, apply: bool = False) -> dict[str, Any]:
+    """Explicitly preview or refresh the derived snapshot without changing events.
+
+    Apply requires the same clean committed owned coordination authority as query
+    and review, rechecked under the canonical lock; the operator commits its output.
+    """
     context, snapshot = resolve_owned_coordination(repository, checkout, handle)
     raw = materialize_to_json(snapshot).encode()
     path = context.directory / "status.json"
@@ -155,8 +172,12 @@ def refresh_owned_projection(repository: Path, checkout: Path, handle: str, *, a
                 if current != context:
                     raise OwnedCoordinationError("OWNED_PROJECTION_CONTEXT_CHANGED", "Projection authority changed under the canonical lock")
                 projected: StatusSnapshot = materialize_snapshot(current.directory)
+                projected_raw = materialize_to_json(projected).encode()
                 bound.verify(originals)
-                _replace_batch({path: materialize_to_json(projected).encode()}, bound, originals, context.slug)
+                changed = originals["status.json"].data != projected_raw
+                snapshot = projected
+                if changed:
+                    _replace_batch({path: projected_raw}, bound, originals, context.slug)
             finally:
                 bound.close()
     return {

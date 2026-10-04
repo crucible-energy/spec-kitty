@@ -406,8 +406,10 @@ def materialize(
         from specify_cli.coordination.owned_status import refresh_owned_projection
 
         try:
-            if mission is None or (apply and dry_run):
-                raise ValueError("Owned materialization requires --mission and one of --apply/--dry-run")
+            if mission is None:
+                raise ValueError("Owned materialization requires --mission")
+            if apply and dry_run:
+                raise ValueError("--apply and --dry-run are mutually exclusive; omit both for preview")
             repository = locate_project_root()
             if repository is None:
                 raise ValueError("Could not locate the invoking repository")

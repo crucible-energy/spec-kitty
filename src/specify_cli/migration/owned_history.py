@@ -186,7 +186,12 @@ def _plan(ownership: CheckoutOwnership, directory: Path, meta: dict[str, Any], p
 
 
 def _replace_batch(outputs: dict[Path, bytes], bound: BoundHistoryDirectory, originals: dict[str, FileImage], mission_slug: str) -> None:
-    """Stage on the pinned descriptor, then install under the canonical write fence."""
+    """Install under the canonical fence using a creator-owned directory transaction.
+
+    The creator may conditionally roll back unchanged installed images on failure.
+    A copied fork-child frame must propagate refusal without touching that ledger;
+    the enclosing close detaches only its inherited descriptor copies.
+    """
     staged = {path.name: bound.stage(raw, originals[path.name].mode) for path, raw in outputs.items()}
     expected = dict(originals)
     bound.verify(expected)  # A same-thread live append during staging must survive.
@@ -209,7 +214,11 @@ def _replace_batch(outputs: dict[Path, bytes], bound: BoundHistoryDirectory, ori
                 bound.verify(expected)
             os.fsync(bound.fd)
         except BaseException:
-            bound.rollback(attempted, originals, installed_images)
+            # A forked copy can reach this handler after a fence refusal or an
+            # arbitrary child exception. Its matching images still belong to
+            # the parent; only creator-owned rollback may modify them.
+            if bound.owner_pid == os.getpid():
+                bound.rollback(attempted, originals, installed_images)
             raise
 
 

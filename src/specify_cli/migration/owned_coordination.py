@@ -17,6 +17,11 @@ __all__ = ["restore_owned_coordination"]
 
 
 def git_operation(root: Path, args: list[str], *, input_bytes: bytes | None = None) -> bytes:
+    """Run one bounded Git operation without environment redirects or replacement objects.
+
+    Unlike immutable source reads, this helper also executes the creator's planned
+    commit/ref transaction. Nonzero Git results become typed placement refusals.
+    """
     env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     env["GIT_NO_REPLACE_OBJECTS"] = "1"
     result = subprocess.run(["git", "--no-optional-locks", "-C", str(root), *args], input=input_bytes, capture_output=True, timeout=30, env=env)
@@ -64,6 +69,12 @@ def _plan(repository: Path, checkout: Path, handle: str, target: str, coord: str
 
 
 def restore_owned_coordination(repository: Path, checkout: Path, handle: str, target: str, coord: str, *, apply: bool = False) -> dict[str, Any]:
+    """Preview or establish coordination authority in a reused registered checkout.
+
+    Apply validates immutable parents/planning and inactivity under the canonical
+    lock, builds an exact-target-tree anchor and atomically creates the missing
+    coordination ref plus symbolic HEAD. It allocates no workspace or DAG action.
+    """
     report, meta = _plan(repository, checkout, handle, target, coord)
     if apply and report["changed"]:
         checkout = Path(report["owned_checkout"])

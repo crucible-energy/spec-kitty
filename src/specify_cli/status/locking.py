@@ -129,6 +129,7 @@ class StatusReplacementFence:
     owner_pid: int = field(default_factory=os.getpid)
 
     def check(self) -> None:
+        """Refuse inherited fences or latched reentrant writes before replacement."""
         if self.owner_pid != os.getpid():
             raise StatusLockForkRefused("Cannot use an inherited replacement fence in a fork child")
         if self.conflicted:
