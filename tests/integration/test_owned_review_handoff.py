@@ -227,6 +227,72 @@ def test_required_gate_runs_real_command_only_on_apply(gated: Rework):
     assert report["aggregate_approval"] is False
 
 
+@pytest.mark.parametrize("identity", ["unknown", None])
+def test_required_unknown_or_missing_baseline_source_refuses_before_run(gated: Rework, monkeypatch: pytest.MonkeyPatch, identity: str | None):
+    """Change only the committed capture identity; a real passing command is not proof."""
+    from specify_cli.review import pre_review_gate
+
+    a = gated.authority
+    baseline = a.directory / "tasks/WP02/baseline-tests.json"
+    payload = json.loads(baseline.read_text())
+    assert payload["wp_id"] == "WP02" and payload["failed"] == 0
+    if identity is None:
+        payload.pop("source_identity")
+    else:
+        payload["source_identity"] = identity
+    baseline.write_text(json.dumps(payload))
+    gated.pin = commit(a.owned)
+    original = pre_review_gate._run_raw_command
+    runs = []
+
+    def observe(*args, **kwargs):
+        runs.append(args)
+        return original(*args, **kwargs)  # Never substitute a process verdict.
+
+    monkeypatch.setattr(pre_review_gate, "_run_raw_command", observe)
+    before = a.snapshot()
+    result = gated.invoke("submit-owned-review", "--apply")
+    assert result.exit_code == 1, result.output
+    data = json.loads(result.stdout)
+    assert data["code"] == "OWNED_PRE_REVIEW_GATE_BLOCKED"
+    assert data["pre_review_gate"]["outcome"] == "unverified_baseline"
+    assert data["pre_review_gate"]["baseline_source_identity"] == "unknown"
+    assert not data["pre_review_gate"]["test_run"] and not runs
+    assert not data["applied"] and not data["aggregate_approval"]
+    assert a.snapshot() == before
+
+
+@pytest.mark.parametrize("required", [False, True])
+def test_consumer_without_declared_command_reports_actual_missing_coverage(gated: Rework, monkeypatch: pytest.MonkeyPatch, required: bool):
+    from specify_cli.review import pre_review_gate
+
+    a = gated.authority
+    (a.owned / ".kittify/config.yaml").write_text(json.dumps({"review": {"fail_on_pre_review_regression": required}}))
+    (a.directory / "tasks/WP02/baseline-tests.json").unlink()
+    gated.pin = commit(a.owned)
+    original = pre_review_gate._run_raw_command
+    runs = []
+
+    def observe(*args, **kwargs):
+        runs.append(args)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(pre_review_gate, "_run_raw_command", observe)
+    before = a.snapshot()
+    result = gated.invoke("submit-owned-review", "--apply")
+    assert result.exit_code == (1 if required else 0), result.output
+    data = json.loads(result.stdout)
+    assert data["pre_review_gate"]["outcome"] == "no_coverage"
+    assert data["pre_review_gate"]["scope_source"] == "GateCoverageScopeSource"
+    assert not data["pre_review_gate"]["test_run"] and not runs
+    assert not data["aggregate_approval"]
+    if required:
+        assert data["code"] == "OWNED_PRE_REVIEW_GATE_BLOCKED" and a.snapshot() == before
+    else:
+        assert data["to_lane"] == "for_review" and data["applied"]
+        assert a.snapshot()[0] == before[0] and a.snapshot()[2] == before[2]
+
+
 def test_required_gate_failure_and_missing_baseline_do_not_submit(gated: Rework):
     a = gated.authority
     for fault in ("failed-command", "missing-baseline"):
