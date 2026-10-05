@@ -138,6 +138,11 @@ checkout. Audit remains read-only and still reports genuine snapshot drift.
 
 ## Later real independent review
 
+For a WP returned to `in_progress` by genuine rejection, first use the explicit
+[owned submission and independent claim](owned-review-handoff.md) to reach
+`for_review` then `in_review`. These handoff edges are separate from verdict
+recording and preserve its existing phase guard.
+
 After performing the actual review, the independent reviewer/operator may use:
 
 ```bash
@@ -160,7 +165,8 @@ committed request retry is idempotent.
 
 ## Remaining scope
 
-Advancing owned next, reviewer claim/issuance handoff, recovery of the blocked
+Owned submission/claim now provide the narrow status handoff above. Advancing
+owned next, reviewer prompt/issuance, recovery of the blocked
 runtime DAG, changing a target binding after target advancement, lane-base
 qualification and WP03 allocation/integration remain separate supported work.
 Historical restoration/authority are not canonical registration/export, protected

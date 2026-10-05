@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import shlex
 import sys
+import subprocess
 from dataclasses import dataclass
+from contextlib import contextmanager
 
 import pytest
 from typer.testing import CliRunner
@@ -130,13 +132,21 @@ def test_bad_handoff_refuses_without_writes(rework: Rework, command: str, fault:
     elif fault == "reference":
         extra = ["--reference", "review://invented"]
     elif fault == "code-pin":
-        extra = ["--code-commit", rework.pin[:8]]
+        extra = ["--code-commit", rework.pin[:8], "--reference", rework.reference.replace(rework.pin, rework.pin[:8])]
     elif fault == "unknown-actor":
         extra = ["--implementer", "unknown"]
     before = a.snapshot()
     result = rework.invoke(command, *extra, "--apply")
     assert result.exit_code == 1, result.output
-    assert "code" in json.loads(result.stdout)
+    expected = {
+        "phase": "OWNED_HANDOFF_LANE_REFUSED",
+        "unknown-wp": "OWNED_HANDOFF_WP_REFUSED",
+        "staged": "OWNED_COORD_VALIDATION_REFUSED",
+        "reference": "OWNED_HANDOFF_REFERENCE_REFUSED",
+        "code-pin": "OWNED_COORD_VALIDATION_REFUSED",
+        "unknown-actor": "OWNED_HANDOFF_ACTOR_REFUSED",
+    }
+    assert json.loads(result.stdout)["code"] == expected[fault]
     assert a.snapshot() == before
 
 
@@ -145,7 +155,11 @@ def test_claim_refuses_self_or_changed_submission_pin(rework: Rework):
     _success(rework.invoke("submit-owned-review", "--apply"))
     commit(a.owned)
     before = a.snapshot()
-    for args in (["--reviewer", IMPLEMENTER], ["--code-commit", a.target_pin], ["--implementer", "another actor"]):
+    for args in (
+        ["--reviewer", IMPLEMENTER],
+        ["--code-commit", a.target_pin, "--reference", rework.reference.replace(rework.pin, a.target_pin)],
+        ["--implementer", "another actor"],
+    ):
         result = rework.invoke("claim-owned-review", *args, "--apply")
         assert result.exit_code == 1 and a.snapshot() == before, result.output
 
@@ -228,7 +242,29 @@ def test_required_gate_failure_and_missing_baseline_do_not_submit(gated: Rework)
         assert json.loads(result.stdout)["code"] == "OWNED_PRE_REVIEW_GATE_BLOCKED"
 
 
-def test_duplicate_event_id_and_locked_context_change_refuse(rework: Rework, monkeypatch: pytest.MonkeyPatch):
+def test_baseline_other_wp_and_hidden_test_inputs_cannot_qualify_gate(gated: Rework):
+    a = gated.authority
+    baseline = a.directory / "tasks/WP02/baseline-tests.json"
+    payload = json.loads(baseline.read_text())
+    payload["wp_id"] = "WP99"
+    baseline.write_text(json.dumps(payload))
+    gated.pin = commit(a.owned)
+    before = a.snapshot()
+    result = gated.invoke("submit-owned-review", "--apply")
+    assert result.exit_code == 1 and a.snapshot() == before
+    assert json.loads(result.stdout)["code"] == "OWNED_PRE_REVIEW_GATE_BLOCKED"
+    payload["wp_id"] = "WP02"
+    baseline.write_text(json.dumps(payload))
+    gated.pin = commit(a.owned)
+    git(a.owned, "update-index", "--assume-unchanged", "WP02.txt")
+    (a.owned / "WP02.txt").write_text("hidden unqualified input")
+    before = a.snapshot()
+    hidden = gated.invoke("submit-owned-review", "--apply")
+    assert hidden.exit_code == 1 and a.snapshot() == before
+    assert json.loads(hidden.stdout)["code"] == "OWNED_GATE_CODE_CHECKOUT_REQUIRED"
+
+
+def test_duplicate_event_id_refuses(rework: Rework, monkeypatch: pytest.MonkeyPatch):
     # Implementation seams are loaded only after the CLI has a supported entrypoint.
     from specify_cli.coordination import owned_handoff
     from specify_cli.status.models import StatusEvent
@@ -240,3 +276,120 @@ def test_duplicate_event_id_and_locked_context_change_refuse(rework: Rework, mon
     result = rework.invoke("submit-owned-review", "--apply")
     assert result.exit_code == 1 and a.snapshot() == before
     assert json.loads(result.stdout)["code"] == "OWNED_HANDOFF_EVENT_CONFLICT"
+
+
+def test_locked_context_change_preserves_other_owners_commit(rework: Rework, monkeypatch: pytest.MonkeyPatch):
+    from specify_cli.coordination import owned_handoff
+
+    a = rework.authority
+    original = owned_handoff.feature_status_lock
+    advanced = []
+    before_files = a.snapshot()[:3]
+
+    @contextmanager
+    def advance(*args, **kwargs):
+        with original(*args, **kwargs) as held:
+            git(a.owned, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "commit", "--allow-empty", "-qm", "other admitted owner")
+            advanced.append(git(a.owned, "rev-parse", "HEAD"))
+            yield held
+
+    monkeypatch.setattr(owned_handoff, "feature_status_lock", advance)
+    result = rework.invoke("submit-owned-review", "--apply")
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.stdout)["code"] == "OWNED_HANDOFF_CONTEXT_CHANGED"
+    assert advanced and git(a.owned, "rev-parse", "HEAD") == advanced[0]
+    assert a.snapshot()[:3] == before_files
+
+
+def test_required_uncovered_gate_and_stale_code_checkout_refuse(gated: Rework, monkeypatch: pytest.MonkeyPatch):
+    before = gated.authority.snapshot()
+    stale = gated.invoke("submit-owned-review", "--code-checkout", str(gated.authority.sibling), "--apply")
+    assert stale.exit_code == 1 and gated.authority.snapshot() == before
+    monkeypatch.setattr(
+        "specify_cli.review.gate_bindings.resolve_gate_bindings_for_transition",
+        lambda *_: GateBindingResolution(
+            GateCoverage.NO_BINDING, "in_progress->for_review", "mission_step_contract:software-dev/review", "NO_COVERAGE: required binding absent"
+        ),
+    )
+    result = gated.invoke("submit-owned-review", "--apply")
+    assert result.exit_code == 1 and gated.authority.snapshot() == before
+    assert json.loads(result.stdout)["code"] == "OWNED_PRE_REVIEW_GATE_BLOCKED"
+
+
+def test_canonical_subtask_completion_is_not_invented(authority: Authority, monkeypatch: pytest.MonkeyPatch):
+    from specify_cli.migration import owned_coordination
+    from specify_cli.review import gate_bindings
+
+    a = authority
+    wp = a.directory / "tasks/WP02.md"
+    wp.write_text(wp.read_text().replace("subtasks: []", "subtasks: [T123]"))
+    a.target_pin = commit(a.owned)
+    original = owned_coordination.git_operation
+    monkeypatch.setattr(
+        owned_coordination,
+        "git_operation",
+        lambda root, args, **kw: original(root, ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", *args], **kw),
+    )
+    _success(a.placement("--apply"))
+    git(a.owned, "remote", "add", "origin", "https://github.com/fixture-org/mission.git")
+    _success(_review(a, "--verdict", "changes_requested", "--apply", reviewer=REVIEWER))
+    (a.owned / "evidence").mkdir()
+    (a.owned / PROOF).write_text("{}")
+    pin = commit(a.owned)
+    monkeypatch.setattr(
+        gate_bindings,
+        "resolve_gate_bindings_for_transition",
+        lambda *_: GateBindingResolution(GateCoverage.NO_BINDING, "in_progress->for_review", "mission_step_contract:software-dev/review", "NO_COVERAGE: fixture"),
+    )
+    before = a.snapshot()
+    result = Rework(a, pin).invoke("submit-owned-review", "--apply")
+    assert result.exit_code == 1 and a.snapshot() == before, result.output
+    assert json.loads(result.stdout)["code"] == "OWNED_HANDOFF_TRANSITION_REFUSED"
+
+
+def test_gate_policy_invalid_shapes_and_hidden_changes_refuse(rework: Rework):
+    a = rework.authority
+    policy = a.owned / ".kittify/config.yaml"
+    for bad, expected in (
+        ("{", "OWNED_COORD_VALIDATION_REFUSED"),
+        ('["not a policy"]', "OWNED_COORD_VALIDATION_REFUSED"),
+        ('{"review":"not a mapping"}', "OWNED_GATE_POLICY_REFUSED"),
+        ('{"review":{"fail_on_pre_review_regression":"yes"}}', "OWNED_GATE_POLICY_REFUSED"),
+    ):
+        policy.write_text(bad)
+        rework.pin = commit(a.owned)
+        before = a.snapshot()
+        result = rework.invoke("submit-owned-review", "--apply")
+        assert result.exit_code == 1 and a.snapshot() == before, result.output
+        assert json.loads(result.stdout)["code"] == expected
+    policy.write_text("{}")
+    rework.pin = commit(a.owned)
+    git(a.owned, "update-index", "--assume-unchanged", ".kittify/config.yaml")
+    policy.write_text('{"review":{"fail_on_pre_review_regression":true}}')
+    before = a.snapshot()
+    result = rework.invoke("submit-owned-review", "--apply")
+    assert result.exit_code == 1 and a.snapshot() == before
+    assert json.loads(result.stdout)["code"] == "OWNED_GATE_POLICY_REFUSED"
+
+
+def test_baseline_failures_are_reported_blocked_without_aggregate_green(gated: Rework):
+    from specify_cli.review.scope_source import RawRunResult, resolve_scope_source
+
+    a = gated.authority
+    baseline = a.directory / "tasks/WP02/baseline-tests.json"
+    payload = json.loads(baseline.read_text())
+    (a.owned / "gate_check.py").write_text("raise AssertionError('actual failure remains')\n")
+    captured = subprocess.run([sys.executable, "-B", "gate_check.py"], cwd=a.owned, capture_output=True, text=True, check=False)
+    failures = resolve_scope_source(a.owned).parse_results(RawRunResult(captured.returncode, captured.stdout, captured.stderr))
+    assert failures
+    payload.update({"failed": len(failures), "passed": 0, "failures": [f.to_dict() for f in failures]})
+    baseline.write_text(json.dumps(payload))
+    gated.pin = commit(a.owned)
+    before = a.snapshot()
+    result = gated.invoke("submit-owned-review", "--apply")
+    assert result.exit_code == 1 and a.snapshot() == before
+    data = json.loads(result.stdout)
+    assert data["code"] == "OWNED_PRE_REVIEW_GATE_BLOCKED" and not data["aggregate_approval"]
+    assert data["pre_review_gate"]["required"]
+    assert data["pre_review_gate"]["outcome"] == "no_new_failures"
+    assert data["pre_review_gate"]["verdicts"][0]["pre_existing_failures"]

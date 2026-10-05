@@ -517,6 +517,77 @@ def review_owned(
     _output_result(json_output, report, "Owned review disposition recorded / previewed")
 
 
+def _owned_handoff_command(
+    mission: str,
+    owned_checkout: Path,
+    wp_id: str,
+    implementer: str,
+    code_commit: str,
+    reference: str,
+    kind: str,
+    reviewer: str | None,
+    scope_proof: str | None,
+    code_checkout: Path | None,
+    apply: bool,
+    json_output: bool,
+) -> None:
+    """Render the explicit owned handoff result without default discovery or issuance."""
+    from specify_cli.coordination.owned import OwnedCoordinationError
+    from specify_cli.coordination.owned_handoff import OwnedHandoffRequest, record_owned_handoff
+
+    try:
+        repository = locate_project_root()
+        if repository is None:
+            raise ValueError("Could not locate the invoking repository")
+        request = OwnedHandoffRequest(kind, wp_id, implementer, code_commit, reference, reviewer, scope_proof)
+        report = record_owned_handoff(repository, owned_checkout, mission, request, apply=apply, code_checkout=code_checkout)
+    except (ValueError, RuntimeError, OSError, AttributeError) as exc:
+        # Canonical protection resolution can reject non-mapping repository
+        # config before gate-policy resolution. Keep that fail-closed refusal
+        # structured here; it never means an uncovered gate may be skipped.
+        data = exc.to_dict() if isinstance(exc, OwnedCoordinationError) else {"code": "OWNED_COORD_VALIDATION_REFUSED", "error": str(exc), "applied": False}
+        _output_error(json_output, str(exc), data)
+        raise typer.Exit(1) from exc
+    _output_result(json_output, report, "Owned review handoff recorded / previewed")
+
+
+@app.command(name="submit-owned-review")
+def submit_owned_review(
+    mission: Annotated[str, typer.Option("--mission", help="Existing coordinated mission.")],
+    owned_checkout: Annotated[Path, typer.Option("--owned-checkout", help="Registered checkout on declared coordination authority.")],
+    wp_id: Annotated[str, typer.Option("--wp-id", help="Existing in_progress work package.")],
+    implementer: Annotated[str, typer.Option("--implementer", help="Actual known implementation identity; historical bindings stay intact.")],
+    code_commit: Annotated[str, typer.Option("--code-commit", help="Immutable implemented code/dossier commit.")],
+    reference: Annotated[str, typer.Option("--reference", help="Public GitHub origin commit URL matching --code-commit.")],
+    scope_proof: Annotated[
+        str | None, typer.Option("--scope-proof", help="Tracked regular proof path at the code pin; integrity only, no invented gate verdict.")
+    ] = None,
+    code_checkout: Annotated[
+        Path | None, typer.Option("--code-checkout", help="Existing registered clean checkout at code pin when active gates require it.")
+    ] = None,
+    apply: Annotated[bool, typer.Option("--apply", help="Run configured gates and submit; default is read-only preview.")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Structured handoff/gate evidence report.")] = False,
+) -> None:
+    """Preview or submit in_progress -> for_review using canonical FSM/gates, never force."""
+    _owned_handoff_command(mission, owned_checkout, wp_id, implementer, code_commit, reference, "submit", None, scope_proof, code_checkout, apply, json_output)
+
+
+@app.command(name="claim-owned-review")
+def claim_owned_review(
+    mission: Annotated[str, typer.Option("--mission", help="Existing coordinated mission.")],
+    owned_checkout: Annotated[Path, typer.Option("--owned-checkout", help="Registered coordination authority.")],
+    wp_id: Annotated[str, typer.Option("--wp-id", help="Existing for_review work package.")],
+    implementer: Annotated[str, typer.Option("--implementer", help="Actual implementer matching the submitted review.")],
+    reviewer: Annotated[str, typer.Option("--reviewer", help="Actual independent reviewer; implementer self-claim refused.")],
+    code_commit: Annotated[str, typer.Option("--code-commit", help="Immutable code pin matching submission.")],
+    reference: Annotated[str, typer.Option("--reference", help="Public GitHub origin commit URL matching --code-commit.")],
+    apply: Annotated[bool, typer.Option("--apply", help="Claim for_review -> in_review; default is preview.")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Structured reviewer claim report.")] = False,
+) -> None:
+    """Claim a submitted owned review without approving, allocating or changing leases."""
+    _owned_handoff_command(mission, owned_checkout, wp_id, implementer, code_commit, reference, "claim", reviewer, None, None, apply, json_output)
+
+
 @app.command()
 def doctor(
     mission: Annotated[

@@ -19,6 +19,16 @@ _The 3.2.7 development cycle is open. Entries land here as missions merge._
 
 ### ✨ Added
 
+- **Fork owned review submission and independent claim (#60).**
+  `agent status submit-owned-review` previews or applies `in_progress -> for_review`
+  with immutable code/public-reference evidence, canonical subtask/FSM guards and
+  explicit pre-review gate coverage. `claim-owned-review` records the actual distinct
+  reviewer for the submitted code pin before existing `review-owned` verdicts.
+  Both use the validated coordination authority, shared lock, creator-owned IO and
+  committed-request idempotence without allocation, lease override or DAG issuance.
+  See [owned review handoff](../migrations/owned-review-handoff.md) for policy and
+  existing-code-checkout requirements; scoped evidence is never aggregate approval.
+
 - **Fork explicit coordinated authority/query routing (#60).**
   `migrate restore-owned-coordination` validates immutable planning/status pins
   and atomically binds a reused registered linked checkout to the missing declared

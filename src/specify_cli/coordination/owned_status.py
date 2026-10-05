@@ -8,19 +8,50 @@ from pathlib import Path
 from typing import Any
 import fnmatch
 
-from specify_cli.coordination.owned import OwnedCoordinationError, resolve_owned_coordination
+from specify_cli.coordination.owned import OwnedCoordinationContext, OwnedCoordinationError, resolve_owned_coordination
 from specify_cli.migration.owned_history import _replace_batch
 from specify_cli.migration.owned_history_io import BoundHistoryDirectory
 from specify_cli.migration.owned_history_sources import _blob, git_bytes, load_source, sha256
 from specify_cli.core.wps_manifest import load_wps_manifest
 from specify_cli.status.emit import build_status_event
 from specify_cli.status.locking import feature_status_lock
-from specify_cli.status.models import DoneEvidence, GuardContext, Lane, ReviewResult, StatusSnapshot, actor_identity_str
+from specify_cli.status.models import DoneEvidence, EventStream, GuardContext, Lane, ReviewResult, StatusSnapshot, actor_identity_str
 from specify_cli.status.reducer import materialize_snapshot, materialize_to_json, reduce
 from specify_cli.status.store import read_event_stream_from_text
 from specify_cli.status.transitions import validate_transition
 
-__all__ = ["OwnedReviewRequest", "record_owned_review", "refresh_owned_projection"]
+__all__ = ["OwnedReviewRequest", "record_owned_review", "refresh_owned_projection", "implementation_actors", "validate_owned_review_code"]
+
+
+def implementation_actors(stream: EventStream, wp_id: str) -> set[str]:
+    """Read recorded implementation/submit identities, without rewriting legacy bindings."""
+    return {
+        actor_identity_str(event.actor).strip()
+        for event in stream.transitions
+        if event.wp_id == wp_id
+        and (
+            (event.from_lane in (Lane.PLANNED, Lane.CLAIMED) and event.to_lane in (Lane.CLAIMED, Lane.IN_PROGRESS))
+            or (event.from_lane == Lane.IN_PROGRESS and event.to_lane == Lane.FOR_REVIEW)
+        )
+    }
+
+
+def validate_owned_review_code(context: OwnedCoordinationContext, wp_id: str, pin: str) -> dict[str, Any]:
+    """Verify the immutable dossier and authored regular-file code ownership at a pin."""
+    meta = json.loads((context.directory / "meta.json").read_text(encoding="utf-8"))
+    _, reviewed = load_source(context.root, context.directory, pin, meta)
+    manifest = load_wps_manifest(context.directory)
+    selected = next((wp for wp in manifest.work_packages if wp.id == wp_id), None) if manifest is not None else None
+    if selected is None or not selected.owned_files:
+        raise OwnedCoordinationError("OWNED_REVIEW_CODE_REFUSED", "Selected WP requires its authored code ownership declaration")
+    files = git_bytes(context.root, "ls-tree", "-r", "--name-only", pin).decode().splitlines()
+    for pattern in selected.owned_files:
+        matches = [name for name in files if fnmatch.fnmatchcase(name, pattern)]
+        if not matches or pattern.startswith("/") or ".." in Path(pattern).parts:
+            raise OwnedCoordinationError("OWNED_REVIEW_CODE_REFUSED", f"Reviewed commit does not carry safe WP-owned code: {pattern}")
+        for name in matches:
+            _blob(context.root, pin, name)
+    return reviewed
 
 
 @dataclass(frozen=True)
@@ -59,30 +90,21 @@ def _review_plan(repository: Path, checkout: Path, handle: str, request: OwnedRe
                 "to_lane": str(event.to_lane),
                 "status_ref": context.coord_branch,
             }
-    implementers = {
-        actor_identity_str(event.actor).strip()
-        for event in stream.transitions
-        if event.wp_id == request.wp_id and event.from_lane in (Lane.PLANNED, Lane.CLAIMED) and event.to_lane in (Lane.CLAIMED, Lane.IN_PROGRESS)
-    }
+    implementers = implementation_actors(stream, request.wp_id)
     if request.reviewer.strip() in implementers:
         raise OwnedCoordinationError("OWNED_SELF_REVIEW_REFUSED", "Implementer self-review is refused")
     if state.get("lane") != "in_review":
         raise OwnedCoordinationError("OWNED_REVIEW_LANE_REFUSED", "Real disposition requires the existing in_review lane; no claim or force is synthesized")
     # A code pin must be a real immutable commit in this repository carrying the
     # same dossier identity. Source snapshots/provenance are verified, not inferred.
-    meta = json.loads((context.directory / "meta.json").read_text(encoding="utf-8"))
-    _, reviewed = load_source(context.root, context.directory, request.reviewed_commit, meta)
-    manifest = load_wps_manifest(context.directory)
-    selected = next((wp for wp in manifest.work_packages if wp.id == request.wp_id), None) if manifest is not None else None
-    if selected is None or not selected.owned_files:
-        raise OwnedCoordinationError("OWNED_REVIEW_CODE_REFUSED", "Selected WP requires its authored code ownership declaration")
-    files = git_bytes(context.root, "ls-tree", "-r", "--name-only", request.reviewed_commit).decode().splitlines()
-    for pattern in selected.owned_files:
-        matches = [name for name in files if fnmatch.fnmatchcase(name, pattern)]
-        if not matches or pattern.startswith("/") or ".." in Path(pattern).parts:
-            raise OwnedCoordinationError("OWNED_REVIEW_CODE_REFUSED", f"Reviewed commit does not carry safe WP-owned code: {pattern}")
-        for name in matches:
-            _blob(context.root, request.reviewed_commit, name)  # Refuse symlink blobs too.
+    reviewed = validate_owned_review_code(context, request.wp_id, request.reviewed_commit)
+    last = next((event for event in reversed(stream.transitions) if event.wp_id == request.wp_id), None)
+    if (
+        last is not None
+        and (last.policy_metadata or {}).get("owned_handoff_kind") == "claim"
+        and (actor_identity_str(last.actor) != request.reviewer or (last.policy_metadata or {}).get("code_commit") != request.reviewed_commit)
+    ):
+        raise OwnedCoordinationError("OWNED_REVIEW_CLAIM_REFUSED", "Disposition must match the actual owned reviewer claim and code pin")
     result = ReviewResult(request.reviewer, request.verdict, request.reference)
     evidence = DoneEvidence.from_dict({"review": result.to_dict()})
     to_lane = "approved" if request.verdict == "approved" else "in_progress"
