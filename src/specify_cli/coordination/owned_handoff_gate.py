@@ -14,8 +14,8 @@ from specify_cli.migration.owned_history_sources import _blob
 from specify_cli.migration.owned_history_sources import git_bytes
 from specify_cli.review.baseline import BaselineTestResult
 from specify_cli.review import gate_bindings, gate_registry
-from specify_cli.review.pre_review_gate import GateOutcome
-from specify_cli.review.scope_source import resolve_scope_source
+from specify_cli.review.pre_review_gate import GateAuthoritiesUnavailable, GateOutcome, _scope_result_from_source
+from specify_cli.review.scope_source import UNKNOWN_SOURCE_IDENTITY, ScopeSource, empty_scope_is_coverage_gap, resolve_scope_source
 from specify_cli.review.verdict_aggregation import aggregate_verdicts
 from specify_cli.core.vcs.git import merge_base_changed_files
 from specify_cli.git.protection_policy import ProtectionPolicy
@@ -71,6 +71,45 @@ def _code_root(context: OwnedCoordinationContext, pin: str, checkout: Path | Non
     return root
 
 
+def _scope_available(source: ScopeSource, changed: tuple[str, ...], report: dict[str, Any]) -> bool:
+    """Use canonical scope derivation without inventing a process run or verdict."""
+    report["scope_source"] = type(source).__name__
+    report["test_run"] = False
+    try:
+        scope = _scope_result_from_source(source, changed)
+    except GateAuthoritiesUnavailable as exc:
+        report.update({"outcome": str(GateOutcome.NO_COVERAGE), "reason": str(exc), "scope_coverage": "unavailable"})
+        return False
+    report["scope"] = list(scope.test_targets)
+    if scope.is_empty and empty_scope_is_coverage_gap(source):
+        report.update({"outcome": str(GateOutcome.NO_COVERAGE), "reason": scope.describe_empty_reason(), "scope_coverage": "empty"})
+        return False
+    report["scope_coverage"] = "resolved"
+    return True
+
+
+def _baseline_verified(baseline: BaselineTestResult | None, source: ScopeSource, report: dict[str, Any], *, required: bool) -> None:
+    """The mandatory owned door needs known capture identity before any test run.
+
+    The advisory engine intentionally admits legacy unknown identities; this
+    stricter input requirement is local to owned mandatory submission. Actual
+    parse-mode equality remains the engine's comparison after a real run.
+    """
+    identity = baseline.source_identity if baseline is not None else UNKNOWN_SOURCE_IDENTITY
+    report["baseline_source_identity"] = identity
+    known = isinstance(identity, str) and identity != UNKNOWN_SOURCE_IDENTITY and identity.strip() == identity and all(identity.partition("/"))
+    capture_verified = bool(known and baseline is not None and baseline.failed >= 0)
+    report["baseline_identity_verified"] = bool(capture_verified and identity.partition("/")[0] == type(source).__name__)
+    if required and not capture_verified:
+        report.update(
+            {"outcome": str(GateOutcome.UNVERIFIED_BASELINE), "reason": "Required baseline capture source identity is missing/unknown or capture is unverified"}
+        )
+        raise OwnedGateBlocked(report["reason"], report)
+    if required and identity.partition("/")[0] != type(source).__name__:
+        report.update({"outcome": str(GateOutcome.SOURCE_MISMATCH), "reason": "Committed baseline source does not match the selected canonical scope source"})
+        raise OwnedGateBlocked(report["reason"], report)
+
+
 def submission_gate(context: OwnedCoordinationContext, wp_id: str, pin: str, checkout: Path | None, *, run: bool) -> dict[str, Any]:
     """Resolve canonical bindings; run real code only on apply, reporting scoped truth.
 
@@ -96,8 +135,6 @@ def submission_gate(context: OwnedCoordinationContext, wp_id: str, pin: str, che
         return report
     root = _code_root(context, pin, checkout)
     report["code_checkout"] = str(root)
-    if not run:
-        return report
     from specify_cli.core.wps_manifest import load_wps_manifest
 
     manifest = load_wps_manifest(context.directory)
@@ -114,10 +151,17 @@ def submission_gate(context: OwnedCoordinationContext, wp_id: str, pin: str, che
     if baseline is not None and baseline.wp_id != wp_id:
         raise OwnedCoordinationError("OWNED_PRE_REVIEW_GATE_BLOCKED", "Baseline belongs to a different work package")
     source = resolve_scope_source(root)
-    ctx = gate_registry.TransitionGateContext(
-        merge_base_changed_files(root, context.target_commit), source, baseline, root, False, Lane.IN_PROGRESS, Lane.FOR_REVIEW
-    )
+    changed = merge_base_changed_files(root, context.target_commit)
+    if not _scope_available(source, changed, report):
+        if required:
+            raise OwnedGateBlocked("Required pre-review scope authorities are unavailable", report)
+        return report
+    _baseline_verified(baseline, source, report, required=required)
+    if not run:
+        return report
+    ctx = gate_registry.TransitionGateContext(changed, source, baseline, root, False, Lane.IN_PROGRESS, Lane.FOR_REVIEW)
     verdicts = [gate_registry.get_gate_handler(binding.handler).run(ctx) for binding in resolution.active]
+    report["test_run"] = any(v.outcome != GateOutcome.NO_COVERAGE for v in verdicts)
     decision = aggregate_verdicts(verdicts, block_enabled=required, force=False)
     report["verdicts"] = [
         {

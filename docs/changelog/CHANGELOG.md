@@ -29,6 +29,13 @@ _The 3.2.7 development cycle is open. Entries land here as missions merge._
   See [owned review handoff](../migrations/owned-review-handoff.md) for policy and
   existing-code-checkout requirements; scoped evidence is never aggregate approval.
 
+  Mandatory owned-gate correction refuses missing/unknown baseline capture identity
+  as structured unverified proof before a test run or status installation. Canonical
+  advisory/default semantics remain unchanged; optional unavailable consumer scope
+  is explicit `no_coverage` with no fabricated process verdict, while required scope
+  gaps block. Consumer command/baseline integration and enforcement approval are
+  documented separately from tool qualification.
+
 - **Fork explicit coordinated authority/query routing (#60).**
   `migrate restore-owned-coordination` validates immutable planning/status pins
   and atomically binds a reused registered linked checkout to the missing declared

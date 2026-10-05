@@ -88,6 +88,60 @@ remaining failure blocks submission. A baseline failure can therefore remain
 explicitly blocking even when a scoped regression run has no *new* failures.
 The output always says `aggregate_approval=false`.
 
+The mandatory door additionally requires a known committed `source_identity` for
+the baseline capture. An absent field (which the legacy reader defaults to
+`unknown`), literal `unknown`, empty identity or failed capture returns structured
+`OWNED_PRE_REVIEW_GATE_BLOCKED` / `unverified_baseline` **before running tests or
+installing status**. A different source-provider identity also refuses before a
+run; actual parse-mode equality is compared by the canonical engine after a real
+run. Do not hand-edit an identity onto an older baseline to make it eligible.
+The shared advisory engine and default legacy transition semantics are unchanged.
+
+An active **optional** binding whose canonical scope authority cannot be loaded
+returns explicit `no_coverage`, with `scope_source`, the actual reason and
+`test_run=false`; it does not become a false green or an implicit mandatory gate.
+The same gap blocks when policy is required. These advisory semantics do not waive
+independent stale/dirty/protected/immutable-code-checkout or FSM guards.
+
+### Parent consumer gate wiring (recommendation only)
+
+The parent reports Aletheia has neither `review.test_command` nor the mandatory
+flag, lacks Spec Kitty's internal `tests.architectural._gate_coverage`, and has no
+committed WP02 baseline. Without a declared adapter the existing source factory
+selects `GateCoverageScopeSource`, which cannot scope that consumer. The owned
+door now exposes that optional gap as advisory, not actual test proof.
+
+Before claiming full check proof, the parent should:
+
+1. Preserve Rust behavior and repair the known Clippy warning through the normal
+   review path. The actual full check remains blocked until that is fixed; do not
+   suppress the warning, narrow existing enforcement or substitute a scoped pass.
+2. Confirm the exact existing full-check command and its supported output. Add an
+   explicit `review.test_command` adapter to that command as **tool integration**,
+   with identical committed configuration on status authority and the selected
+   code checkout. This does not by itself establish passing checks or add CI.
+   `DeclaredCommandScopeSource` parses JUnit artifacts when produced, otherwise
+   `FAIL <test>: <message>` text; a nonzero unparseable full check stays a whole-run
+   failure. Do not assume `{output_file}` is expanded by this head-side adapter.
+3. Produce and commit the real WP02 baseline through the canonical **ScopeSource-
+   aware** capture path (`workflow_executor.implement_capture_baseline` delegates
+   to `review.baseline.capture_baseline` with `resolve_scope_source(...)`). It must
+   record actual command results, producer capture time, known source identity and
+   an authorized real baseline ref at the exact authored WP artifact path. The
+   legacy config-only capture path can leave identity `unknown` and is not adequate
+   for the mandatory door. Cached unknown artifacts must not be relabeled; any
+   recapture preserves their provenance and needs explicit owner disposition.
+   Capture can temporarily allocate a detached worktree, so the parent must honor
+   bounded slot/owner/cleanup constraints; this handoff command does not allocate it.
+4. Publish the code/config/baseline evidence as a new immutable pin/reference,
+   preserving the original approved code's provenance and reviewing that delta.
+   Use only existing clean registered status/code checkouts and inspect preview's
+   coverage before an authorized run. Binding activation still comes from the
+   canonical mission contract; no new bindings are invented here.
+5. Enabling `review.fail_on_pre_review_regression` changes enforcement and needs
+   **Sam's explicit approval**. This task does not enable it, add CI, edit Aletheia
+   configuration/baselines/tasks, waive a source gate or perform actual status steps.
+
 ## Claim the submitted review
 
 After committing/pushing submission:

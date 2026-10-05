@@ -293,6 +293,32 @@ def test_consumer_without_declared_command_reports_actual_missing_coverage(gated
         assert a.snapshot()[0] == before[0] and a.snapshot()[2] == before[2]
 
 
+def test_required_baseline_provider_mismatch_refuses_before_real_run(gated: Rework, monkeypatch: pytest.MonkeyPatch):
+    from specify_cli.review import pre_review_gate
+
+    a = gated.authority
+    baseline = a.directory / "tasks/WP02/baseline-tests.json"
+    payload = json.loads(baseline.read_text())
+    payload["source_identity"] = "OtherScopeSource/text"
+    baseline.write_text(json.dumps(payload))
+    gated.pin = commit(a.owned)
+    runs = []
+    original = pre_review_gate._run_raw_command
+
+    def observe(*args, **kwargs):
+        runs.append(args)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(pre_review_gate, "_run_raw_command", observe)
+    before = a.snapshot()
+    result = gated.invoke("submit-owned-review", "--apply")
+    assert result.exit_code == 1 and a.snapshot() == before
+    data = json.loads(result.stdout)
+    assert data["code"] == "OWNED_PRE_REVIEW_GATE_BLOCKED"
+    assert data["pre_review_gate"]["outcome"] == "source_mismatch"
+    assert not data["pre_review_gate"]["baseline_identity_verified"] and not runs
+
+
 def test_required_gate_failure_and_missing_baseline_do_not_submit(gated: Rework):
     a = gated.authority
     for fault in ("failed-command", "missing-baseline"):
