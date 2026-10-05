@@ -24,7 +24,7 @@ import re
 import tempfile
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from specify_cli.core.constants import KITTY_SPECS_DIR
 from specify_cli.core.paths import assert_safe_path_segment
@@ -33,6 +33,7 @@ from specify_cli.events import sanitize_event_for_log
 from specify_cli.mission_metadata import load_meta
 
 from .models import EventStream, InnerStateChanged, StatusEvent
+from .locking import status_log_write_lock
 
 #: Wire discriminator for off-axis runtime-state annotation events
 #: (``InnerStateChanged``). These are surfaced to ``reduce()`` — never
@@ -201,8 +202,7 @@ class _SlugResolver:
             ensure_within_any(meta_path, roots=[root])
         except ValueError as exc:
             logger.warning(
-                "Refusing to resolve mission_slug %r: composed meta path escapes the "
-                "specs root (symlink/containment guard); mission_id will be None: %s",
+                "Refusing to resolve mission_slug %r: composed meta path escapes the specs root (symlink/containment guard); mission_id will be None: %s",
                 mission_slug,
                 exc,
             )
@@ -295,11 +295,12 @@ def append_event(feature_dir: Path, event: StatusEvent) -> None:
     Uses ``sort_keys=True`` for deterministic key ordering.
     """
     path = _events_path(feature_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
     sanitized = sanitize_event_for_log(event.to_dict())
     line = json.dumps(sanitized, sort_keys=True)
-    with path.open("a", encoding="utf-8") as fh:
-        fh.write(line + "\n")
+    with status_log_write_lock(feature_dir):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(line + "\n")
 
 
 def _event_matches_expected(actual: StatusEvent, expected: StatusEvent) -> bool:
@@ -365,6 +366,13 @@ def _append_serialized_atomic(feature_dir: Path, rows: list[dict[str, Any]]) -> 
     if not rows:
         return
 
+    with status_log_write_lock(feature_dir):
+        _append_serialized_atomic_locked(feature_dir, rows)
+
+
+def _append_serialized_atomic_locked(feature_dir: Path, rows: list[dict[str, Any]]) -> None:
+    """Read/replace the batch while the canonical mission lock is held."""
+
     path = _events_path(feature_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -372,9 +380,7 @@ def _append_serialized_atomic(feature_dir: Path, rows: list[dict[str, Any]]) -> 
     if existing and not existing.endswith("\n"):
         existing += "\n"
 
-    additions = "".join(
-        json.dumps(sanitize_event_for_log(row), sort_keys=True) + "\n" for row in rows
-    )
+    additions = "".join(json.dumps(sanitize_event_for_log(row), sort_keys=True) + "\n" for row in rows)
     fd, raw_tmp_path = tempfile.mkstemp(
         prefix=f".{path.name}.",
         suffix=".tmp",
@@ -419,9 +425,7 @@ def _read_text_without_following_symlinks(path: Path) -> str:
         return ""
     except OSError as exc:
         if path.is_symlink():
-            raise StoreError(
-                f"Refusing to read symbolic link event log: {path}"
-            ) from exc
+            raise StoreError(f"Refusing to read symbolic link event log: {path}") from exc
         raise
     with os.fdopen(fd, "r", encoding="utf-8") as fh:
         return fh.read()
@@ -460,9 +464,7 @@ def append_annotations_atomic_verified(
     persisted_ids = {a.event_id for a in read_event_stream(feature_dir).annotations}
     for annotation in annotations:
         if annotation.event_id not in persisted_ids:
-            raise StoreError(
-                f"annotation {annotation.event_id} missing after append (readback failed)"
-            )
+            raise StoreError(f"annotation {annotation.event_id} missing after append (readback failed)")
 
 
 def append_event_stream_atomic_verified(
@@ -493,16 +495,12 @@ def append_event_stream_atomic_verified(
         raise StoreError(f"event-stream append failed: {exc}") from exc
 
     stream = read_event_stream(feature_dir)
-    persisted_annotation_ids = {
-        annotation.event_id for annotation in stream.annotations
-    }
+    persisted_annotation_ids = {annotation.event_id for annotation in stream.annotations}
     for event in events:
         if isinstance(event, StatusEvent):
             verify_event_readback(feature_dir, event)
         elif event.event_id not in persisted_annotation_ids:
-            raise StoreError(
-                f"annotation {event.event_id} missing after mixed append (readback failed)"
-            )
+            raise StoreError(f"annotation {event.event_id} missing after mixed append (readback failed)")
 
 
 def append_events_atomic_verified(feature_dir: Path, events: list[StatusEvent]) -> None:
@@ -552,9 +550,7 @@ def read_events_raw(feature_dir: Path) -> list[dict[str, Any]]:
             except json.JSONDecodeError as exc:
                 raise StoreError(f"Invalid JSON on line {line_number}: {exc}") from exc
             if not isinstance(obj, dict):
-                raise StoreError(
-                    f"Invalid event structure on line {line_number}: expected JSON object"
-                )
+                raise StoreError(f"Invalid event structure on line {line_number}: expected JSON object")
             results.append(obj)
     return results
 
@@ -563,11 +559,13 @@ def read_events_raw(feature_dir: Path) -> list[dict[str, Any]]:
 # envelope shape MUST be added here, or both read_events and
 # `doctor mission-state --fix` will fail loudly on that mission with
 # "missing required to_lane" (the SNAPSHOT_DRIFT symptom from issue #1782).
-_RETROSPECTIVE_LIFECYCLE_EVENT_TYPES: frozenset[str] = frozenset({
-    "RetrospectiveCaptured",
-    "RetrospectiveCaptureFailed",
-    "RetrospectiveSkipped",
-})
+_RETROSPECTIVE_LIFECYCLE_EVENT_TYPES: frozenset[str] = frozenset(
+    {
+        "RetrospectiveCaptured",
+        "RetrospectiveCaptureFailed",
+        "RetrospectiveSkipped",
+    }
+)
 
 
 def is_retrospective_lifecycle_event(obj: Mapping[str, Any]) -> bool:
@@ -651,9 +649,7 @@ def _partition_event_stream_from_text(feature_dir: Path, content: str) -> EventS
         except json.JSONDecodeError as exc:
             raise StoreError(f"Invalid JSON on line {line_number}: {exc}") from exc
         if not isinstance(obj, dict):
-            raise StoreError(
-                f"Invalid event structure on line {line_number}: expected JSON object"
-            )
+            raise StoreError(f"Invalid event structure on line {line_number}: expected JSON object")
 
         kind = obj.get("kind")
         if kind is not None:
@@ -661,14 +657,10 @@ def _partition_event_stream_from_text(feature_dir: Path, content: str) -> EventS
                 try:
                     annotations.append(InnerStateChanged.from_dict(obj))
                 except (KeyError, ValueError, TypeError) as exc:
-                    raise StoreError(
-                        f"Invalid event structure on line {line_number}: {exc}"
-                    ) from exc
+                    raise StoreError(f"Invalid event structure on line {line_number}: {exc}") from exc
                 continue
             # An unknown kind is never silently skipped — fail loud.
-            raise StoreError(
-                f"Unknown event kind {kind!r} on line {line_number}"
-            )
+            raise StoreError(f"Unknown event kind {kind!r} on line {line_number}")
 
         if is_non_lane_event(obj):
             continue
@@ -703,7 +695,8 @@ def read_events_from_text(feature_dir: Path, content: str) -> list[StatusEvent]:
     Raises :class:`StoreError` on invalid JSON **or** invalid event
     structure, including the 1-based line number in the message.
     """
-    return _partition_event_stream_from_text(feature_dir, content).transitions
+    # The models facade is follow_imports=skip in the scoped mypy gate.
+    return cast("list[StatusEvent]", _partition_event_stream_from_text(feature_dir, content).transitions)
 
 
 def read_event_stream_from_text(feature_dir: Path, content: str) -> EventStream:
