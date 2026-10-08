@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import click
+from typer.core import TyperGroup, TyperOption
 import pytest
 import typer
 from typer.testing import CliRunner
@@ -129,11 +129,11 @@ def _live_parser_long_flags() -> frozenset[str]:
     app = typer.Typer(add_completion=False)
     app.command()(merge_module.merge)
     command = typer.main.get_command(app)
-    if isinstance(command, click.Group):
+    if isinstance(command, TyperGroup):
         command = next(iter(command.commands.values()))
     flags: set[str] = set()
     for param in command.params:
-        if isinstance(param, click.Option):
+        if isinstance(param, TyperOption):
             for opt in (*param.opts, *param.secondary_opts):
                 if opt.startswith("--"):
                     flags.add(opt)
@@ -153,12 +153,12 @@ def _live_parser_visibility_partition() -> tuple[frozenset[str], frozenset[str]]
     app = typer.Typer(add_completion=False)
     app.command()(merge_module.merge)
     command = typer.main.get_command(app)
-    if isinstance(command, click.Group):
+    if isinstance(command, TyperGroup):
         command = next(iter(command.commands.values()))
     visible: set[str] = set()
     hidden: set[str] = set()
     for param in command.params:
-        if isinstance(param, click.Option):
+        if isinstance(param, TyperOption):
             longs = [
                 opt
                 for opt in (*param.opts, *param.secondary_opts)
