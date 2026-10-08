@@ -125,3 +125,14 @@ option/default/visibility assertions: 28 unchanged golden cases pass against
 immutable c32. The completion increment separately adds only its explicit merge
 options to the two golden sets. No dependency, production shim, assertion or
 skip policy is changed to repair that helper.
+
+The two default architecture skips are existing performance-marked tests. An
+explicit run of their semantic content caught three new deep status imports in
+the completion leaf and eight pre-existing sites. The new leaf now consumes the
+already-exported canonical facade. A new unmarked focused rule requires this
+boundary without timing opt-in; it passes, as do cold-import and metadata timing
+checks. The corrected facade source reruns all 30 owned cases successfully and
+passes strict mypy/Ruff. The repository-wide unskipped status scan still fails
+on exactly eight sites reproduced against immutable c32: this is an outstanding
+baseline gate, tracked in [owner-assigned issue71](https://github.com/crucible-energy/spec-kitty/issues/71).
+No exemption, assertion or skip policy is changed to conceal it.

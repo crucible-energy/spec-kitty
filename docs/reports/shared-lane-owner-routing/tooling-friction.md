@@ -70,3 +70,9 @@ updated: '2026-10-08'
   separately authorized test-only repair uses native parser types/context and
   passes all unchanged baseline expectations; it is distinct from the new
   completion options and changes no production compatibility or dependencies.
+- A default performance skip also covered a whole-tree status-facade assertion.
+  Explicit execution exposed the new leaf's three direct imports; they are
+  corrected through existing facade exports and protected by an unmarked
+  focused rule. Eight unrelated existing sites reproduce at immutable c32 and
+  remain a failed whole-tree gate, assigned to Samuel Goff in issue71. The
+  source receipt distinguishes this baseline from zero new facade violations.

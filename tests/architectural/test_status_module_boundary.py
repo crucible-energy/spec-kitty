@@ -356,6 +356,13 @@ def test_ast_scan_no_direct_status_imports_repo_wide() -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_owned_completion_status_facade_is_required_without_timing_opt_in() -> None:
+    """Owned completion has no deep imports, independently of timing markers."""
+    source = _SRC / "specify_cli" / "merge" / "owned.py"
+    violations = scan_for_bypass_imports([source], exempt_files=set())
+    assert not violations, "Owned completion must consume the canonical status facade: " + "; ".join(map(str, violations))
+
+
 def test_ast_scan_catches_injected_violation(tmp_path: pathlib.Path) -> None:
     """Injection proof: the scanner detects a synthetic bypass import.
 
