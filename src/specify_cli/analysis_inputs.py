@@ -56,6 +56,99 @@ def _safe_path(root: Path, path: Path) -> Path:
     return path
 
 
+def _contained_alias_target(root: Path, alias: Path, raw_target: str) -> Path:
+    """Walk a relative link without permitting an intermediate escape or link."""
+    target = Path(raw_target)
+    if target.is_absolute():
+        raise MaterialInputError("Analysis authority symlink target must be a contained relative reference")
+    cursor = _safe_path(root, alias.parent)
+    for part in target.parts:
+        cursor = cursor.parent if part == ".." else cursor / part
+        try:
+            cursor.relative_to(root)
+        except ValueError as exc:
+            raise MaterialInputError("Analysis authority symlink escapes repository") from exc
+        if cursor.is_symlink():
+            raise MaterialInputError("Analysis authority symlink chain or cycle is unsupported")
+        if not cursor.is_dir():
+            raise MaterialInputError("Analysis authority symlink target is dangling or not a directory")
+    if cursor == root or alias.is_relative_to(cursor):
+        raise MaterialInputError("Analysis authority symlink creates a directory cycle")
+    return cursor
+
+
+def _require_tracked_alias(root: Path, alias: Path, raw_target: str) -> None:
+    """HEAD must contain this exact link, not an untracked authority proposal."""
+    from kernel.git import GitCommandError, run_git, tree_entry
+
+    relative = alias.relative_to(root).as_posix()
+    try:
+        entry = tree_entry(root, "HEAD", relative)
+        if entry is None or entry.mode != "120000" or entry.type != "blob":
+            raise MaterialInputError("Analysis authority symlink is not a committed canonical alias")
+        blob = run_git(root, "cat-file", "blob", entry.oid).stdout
+    except (GitCommandError, OSError) as exc:
+        raise MaterialInputError("Analysis authority symlink ownership cannot be established") from exc
+    if blob != os.fsencode(raw_target):
+        raise MaterialInputError("Analysis authority symlink differs from its committed target")
+
+
+def _canonical_alias_entry(root: Path, alias: Path, canonical: set[Path]) -> tuple[Path, dict[str, str | None]]:
+    from specify_cli.analysis_report import _sha256_text
+
+    _safe_path(root, alias.parent)
+    raw_target = os.readlink(alias)
+    target = _contained_alias_target(root, alias, raw_target)
+    if target not in canonical:
+        raise MaterialInputError("Analysis authority symlink target is not independently selected canonical authority")
+    _require_tracked_alias(root, alias, raw_target)
+    identity = {"kind": "canonical-directory-alias/v1", "target": raw_target, "canonical": target.relative_to(root).as_posix()}
+    return target, {"path": alias.relative_to(root).as_posix(), "sha256": _sha256_text(json.dumps(identity, sort_keys=True))}
+
+
+def _material_closure(
+    root: Path,
+    selected: list[Path],
+    canonical: set[Path],
+    *,
+    paths: set[Path] | None = None,
+    aliases: dict[Path, dict[str, str | None]] | None = None,
+) -> tuple[set[Path], dict[Path, dict[str, str | None]]]:
+    """Visit canonical content once, retaining link identity without alias copies."""
+    paths = set() if paths is None else paths
+    aliases = {} if aliases is None else aliases
+    active: set[Path] = set()
+
+    def include(path: Path) -> None:
+        if path in active:
+            raise MaterialInputError("Analysis authority symlink creates a directory cycle")
+        if path in paths:
+            return
+        if path.is_symlink():
+            target, entry = _canonical_alias_entry(root, path, canonical)
+            paths.add(path)
+            aliases[path] = entry
+            include(target)
+            return
+        path = _safe_path(root, path)
+        if path.is_dir():
+            paths.add(path)
+            active.add(path)
+            try:
+                for child in sorted(path.iterdir()):
+                    include(child)
+            finally:
+                active.remove(path)
+        else:
+            if path.exists() and not path.is_file():
+                raise MaterialInputError("Non-regular analysis authority is unsupported")
+            paths.add(path)
+
+    for path in selected:
+        include(path)
+    return paths, aliases
+
+
 def _declared_paths(charter: dict[str, Any]) -> list[str]:
     from charter.activation.sync import apply_legacy_governance_selection_key_compat
 
@@ -146,7 +239,7 @@ def _resolved_template_paths(root: Path, feature_dir: Path) -> list[Path]:
     from charter.activation.pack_context import CharterPackConfigError
     from specify_cli.runtime.resolver import ResolutionTier, resolve_configured_template
 
-    metadata = _mapping(feature_dir / "meta.json")
+    metadata = _mapping(_safe_path(root, feature_dir / "meta.json"))
     mission_type = metadata.get("mission_type")
     if mission_type is None:
         return []
@@ -169,55 +262,50 @@ def collect_material_inputs(feature_dir: Path, repo_root: Path) -> dict[str, dic
 
     This mode rejects external mutable org packs rather than pretending that a
     project Git transaction can establish their committed state.
+    Committed relative directory aliases may reference an independently selected
+    canonical authority in this same root. Their link identity is material;
+    content is visited only at the canonical path. Other symlinks remain unsafe.
     """
     from specify_cli.analysis_report import _hash_inputs
 
     root = repo_root.absolute()
-    paths: set[Path] = set()
-
-    def include(path: Path) -> None:
-        path = _safe_path(root, path)
-        if path.is_dir():
-            paths.add(path)
-            for child in sorted(path.iterdir()):
-                include(child)
-        else:
-            if path.exists() and not path.is_file():
-                raise MaterialInputError("Non-regular analysis authority is unsupported")
-            paths.add(path)
-
-    config_path = root / ".kittify/config.yaml"
-    include(config_path)
+    # Bootstrap configuration remains strict: aliases cannot select the charter
+    # or add authority declarations through a different configuration source.
+    config_path = _safe_path(root, root / ".kittify/config.yaml")
     config = _mapping(config_path)
-    charter_path = resolve_charter_yaml_pointer(root, config) or root / CHARTER_YAML
-    include(charter_path)
+    charter_path = _safe_path(root, resolve_charter_yaml_pointer(root, config) or root / CHARTER_YAML)
     charter = _mapping(charter_path)
+    selected = [config_path, charter_path]
     for name in (*_hash_inputs(), "meta.json", "wps.yaml"):
-        include(feature_dir / name)
-    include(feature_dir / "tasks")
+        selected.append(feature_dir / name)
+    selected.append(feature_dir / "tasks")
     # Only declarative subtrees: no charter context-state, synthesis manifest,
     # operation logs, runtime cache, status streams or generated task state.
     for name in ("missions", "overrides", "doctrine", "templates", "command-templates"):
-        include(root / ".kittify" / name)
+        selected.append(root / ".kittify" / name)
     for name in (CHARTER_MD.name, "interview/answers.yaml", "_LIBRARY"):
-        include(charter_path.parent / name)
-    for value in _declared_paths(charter):
-        include(root / value)
+        selected.append(charter_path.parent / name)
+    declared = [root / value for value in _declared_paths(charter)]
+    # Only independently declared, non-alias authority endpoints qualify. Being
+    # somewhere under the root (or under a broad selection) is not permission.
+    canonical = {_safe_path(root, path) for path in declared if not path.is_symlink()}
+    selected.extend(declared)
     for pack in load_pack_registry(root).packs:
-        include(pack.effective_root(root))
+        selected.append(pack.effective_root(root))
 
     for value in _references(charter, "local_path"):
-        include(charter_path.parent / value)
-    for path in _source_paths(charter, root):
-        include(path)
-    for path in _resolved_template_paths(root, feature_dir):
-        include(path)
-
+        selected.append(charter_path.parent / value)
+    selected.extend(_source_paths(charter, root))
+    # Resolution may read Mission metadata and project/pack definitions. Restore
+    # validation of all selected prerequisites before those content readers run.
+    paths, aliases = _material_closure(root, selected, canonical)
+    templates = _resolved_template_paths(root, feature_dir)
+    paths, aliases = _material_closure(root, templates, canonical, paths=paths, aliases=aliases)
     result: dict[str, dict[str, str | None]] = {}
     for path in sorted(paths):
         relative = path.relative_to(root).as_posix()
         # Directory sentinels and missing-file sentinels are distinct. The
         # complete key set detects additions/removals without hashing outputs.
-        result[f"material:{relative}"] = _entry(path, root, feature_dir)
+        result[f"material:{relative}"] = aliases[path] if path in aliases else _entry(path, root, feature_dir)
     result.update(_package_inputs())
     return result

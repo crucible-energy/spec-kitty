@@ -10,8 +10,10 @@ updated: '2026-10-08'
 Audience: the SDK orchestrator and independent source reviewer.
 
 This is an explicitly delegated dependency fix, not an admitted work package.
-The existing lane is `fix/owned-analysis-implementation`, based on
-`1af6a711074e45359ddfe568dd71f057286a13ee`. Sam approved lane reuse at
+The existing lane is `fix/owned-analysis-implementation`, originally based on
+`1af6a711074e45359ddfe568dd71f057286a13ee`. The operator delivered the preceding
+repair as `e86a792e5338d0b344456f1e1d9e5cfea2259afb`; the next compatibility
+increment starts from that clean revision. Sam approved lane reuse at
 `2026-10-08T08:04:51Z`, with delivery-or-24h expiry
 `2026-10-09T08:04:51Z`. Source changes remain uncommitted for orchestrator review.
 
@@ -41,6 +43,18 @@ Standalone Op placement cannot safely target this lane; see
   manifest. All three refuse before claim after the fix; ordinary V1 behavior
   remains optional. Renderer operations were not restricted as a substitute for
   read-side enforcement.
+- Actual native recording subsequently refused the documented canonical alias
+  `zig/docs -> ../docs` before writing. The exact mode-120000/blob identity was
+  reproduced in real sandbox Git fixtures. Canonical content remains rooted at
+  `docs`; alias identity is now included separately without a duplicate master.
+  Tests retain external/dangling/cycle/untracked/unsafe-ancestor refusals and
+  prove content, membership, retargeting and transaction races invalidate proof.
+- Independent review B2 found that deferred traversal let template prerequisite
+  resolution read externally linked Mission metadata before refusing it. Both a
+  real external metadata link and linked metadata ancestor reproduced one
+  delegated content read before the fix. Strict metadata boundary validation and
+  pre-resolution selected-closure validation now refuse both with zero reads.
+  Canonical alias behavior and unsafe-authority policy remain unchanged.
 
 ## Validation approach
 

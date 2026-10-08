@@ -366,6 +366,170 @@ edits are confined to `src/specify_cli/analysis_report.py` and
 existing approach/design/tooling/evidence tracers updated. No source adoption,
 commit, push, PR, installation or new SDK checkout/branch was performed.
 
+## Tracked canonical-alias compatibility increment
+
+The operator reported actual native refusal before write, `Analysis authority
+contains a symlink`, for the documented tracked alias `zig/docs -> ../docs`.
+The clean authorized SDK lane was verified at delivered commit
+`e86a792e5338d0b344456f1e1d9e5cfea2259afb`, branch unchanged. The historical pinned
+base remains `1af6a711074e45359ddfe568dd71f057286a13ee`. This increment edits only
+`analysis_inputs.py`, adds `test_owned_analysis_alias_cli.py`, and updates the
+existing approach/design/evidence tracers; it creates no SDK branch/checkout.
+
+The fixture uses a real Git-committed `zig/docs` symlink with mode `120000` and
+exact blob `a9594bfe4ab69aca32d7c51b17985ad9ee89e563`. Its canonical target is
+independently selected in the real fixture charter. No source authority/path is
+monkeypatched. The dirty primary retains raw index/staging, HEAD and sentinels.
+
+| Executed command arguments after the existing source pytest prefix | Result |
+|---|---|
+| `tests/integration/test_owned_analysis_alias_cli.py -k records_and_qualifies -q` before code edits | **2 failed, 11 deselected**: both default and report-only recording returned `failed_before_write` with the exact symlink refusal. |
+| Initial chained `ruff check src/specify_cli/analysis_inputs.py tests/integration/test_owned_analysis_alias_cli.py && <pytest-prefix> ... -q` | Ruff flagged the imported pytest fixture (F401/F811); pytest did not run. Fixed with explicit fixture re-export, without suppression. |
+| Same lint and `tests/integration/test_owned_analysis_alias_cli.py -q` after alias closure | Lint passed; **13 passed**. |
+| `ruff format --force-exclude <the two edited Python paths> && ruff check <same> && <pytest-prefix> tests/integration/test_owned_analysis_alias_cli.py tests/specify_cli/test_analysis_inputs.py -q -rs` after expanded controls | One file formatted, one unchanged; lint passed; **35 passed, 1 warning** (existing legacy-governance-key fixture). |
+| `<pytest-prefix> tests/integration/test_owned_analysis_alias_cli.py tests/integration/test_owned_analysis_implementation_cli.py tests/specify_cli/cli/commands/agent/test_analysis_report_transaction.py -q -rs` | **101 passed**, completed command. |
+
+The expanded alias controls include canonical content change, canonical directory
+addition/removal, retargeting to another independently selected authority with
+identical content, equivalent-target link-spelling change, and external
+retargeting. Material changes are committed before invoking implement, so refusal
+is not merely a dirty-checkout fallback. Unsafe-before-write controls include
+dangling and self/cross-directory cycles, external and undeclared targets,
+untracked/dirty aliases, absolute targets, intermediate root escape and symlink
+ancestors. A real pre-commit and post-commit hook changes canonical target content;
+both retain a `committed_unqualified` report and cannot unlock freshness.
+
+The collector preserves strict bootstrap configuration checks. Selected canonical
+authority endpoints are determined independently before traversal; an alias
+cannot select a new secret/cache/mutable subtree just because it is contained.
+Only exact selected non-alias directory endpoints qualify. The closure hashes
+raw link spelling and canonical target identity, visits canonical content once,
+and detects active traversal cycles. Package symlink, external pack, index and
+pre/post-transaction guards are retained.
+
+### Narrow strict comparison for the new module
+
+The following exact command was executed in both the SDK lane and the existing
+unchanged `base-1af6a711-src` source snapshot:
+
+```sh
+env UV_CACHE_DIR=/var/folders/4g/1bsytq914tscfrn82thwf0r40000gn/T/opencode/sdk-owned-analysis-mypy/cache uv run --no-project --with mypy --with types-jsonschema --with types-psutil --with types-PyYAML --with types-requests --with types-toml --python /Users/sam/git/crucible/_worktrees/spec-kitty-owned-checkout-runtime/.venv/bin/python mypy --strict --no-incremental --python-executable /Users/sam/git/crucible/_worktrees/spec-kitty-owned-checkout-runtime/.venv/bin/python --cache-dir=/var/folders/4g/1bsytq914tscfrn82thwf0r40000gn/T/opencode/sdk-owned-analysis-mypy/type-cache src/specify_cli/analysis_inputs.py
+```
+
+- Candidate: `analysis_inputs.py:192`, `no-any-return`, `_entry` returns
+  `_artifact_hash_entry(path, root)`; **1 error in 1 checked file**, exit 1.
+- Pinned base: identical statement/diagnostic at line 106; **1 error in 1
+  checked file**, exit 1.
+- **Zero introduced diagnostics** for the new module. No baseline fix, ignore,
+  suppression, global installation or SDK `.venv` change was made.
+
+The existing baseline issue was supplemented via `gh issue comment 5917 --repo
+spec-kitty/spec-kitty --body <the additional narrow reproduction and unchanged
+statement attribution>`:
+[public baseline disposition](https://github.com/spec-kitty/spec-kitty/issues/5917#issuecomment-6062274560).
+
+Read-only optional discovery used a file glob for `**/zig/docs` in the primary
+API directory (no result) and enumerated the shared `_worktrees` direct children.
+A concrete native owning root/Mission path was not established, so no native
+collector probe or recording/claim/write was performed. No unrelated authority
+class was changed without real refusal evidence. Native adoption still requires
+the operator to re-run its actual recording with this reviewed SDK candidate;
+these sandbox checks do not establish native release qualification.
+
+Final alias self-review command: `git diff -- src/specify_cli/analysis_inputs.py
+&& ruff check src/specify_cli/analysis_inputs.py tests/integration/test_owned_analysis_alias_cli.py
+&& ruff format --check --force-exclude <same two paths> && git diff --check
+&& git status --short && git branch --show-current && git rev-parse HEAD
+&& date -u '+%Y-%m-%dT%H:%M:%SZ'` completed with exit 0 at
+`2026-10-08T14:49:36Z`: lint passed, two files already formatted, whitespace
+passed, only the intended alias source/test and three tracer documents changed.
+HEAD remains `e86a792e5338d0b344456f1e1d9e5cfea2259afb` on the authorized branch.
+Self-review checked HEAD-mode/blob provenance, strict bootstrap paths, exact
+canonical endpoint selection, cycle rejection before visited-path deduplication,
+single canonical content traversal and link-identity hashing. No native edit,
+status snapshot manipulation, source commit/push/PR or broader authority-policy
+change was performed. Independent review and actual native recording remain
+the operator's next steps.
+
+## Independent-review B2 closeout: validate prerequisites before content reads
+
+B2 identified an ordering regression in the alias candidate: Mission metadata
+and declarative paths were deferred into `selected`, while template prerequisite
+resolution called `_mapping(meta.json)` before closure validation. An eventual
+refusal was not sufficient because external content had already been read.
+
+The bounded correction changes only `analysis_inputs.py` and the existing alias
+test file, plus approach/design/evidence tracers. `_resolved_template_paths`
+strictly validates the metadata path and all ancestors before its content read.
+The selected closure is validated before calling the template helper. Resolved
+templates then extend the same path/alias containers, preserving one canonical
+traversal rather than creating a second master or broadening symlink admission.
+
+### Prerequisite-reader audit
+
+- `_mapping(config.yaml)`: already preceded by strict `_safe_path` bootstrap
+  validation; unchanged.
+- `_mapping(charter.yaml)` via the configured charter pointer: already preceded
+  by strict path/ancestor validation; unchanged.
+- `load_pack_registry(root)`: its prerequisite content read is the same validated
+  `.kittify/config.yaml`; registration/effective-root selection adds no pack
+  content read before that root is placed in the selected closure.
+- `_resolved_template_paths`: directly reads Mission metadata, then invokes
+  `resolve_mission_type_context` whose activation/governance/template slots can
+  read project and pack definitions. Metadata is now explicitly checked at its
+  read boundary, and all selected project/pack/authority paths have traversed
+  material validation before that resolution runs.
+- `_entry` content hashing/WP parsing remains after closure validation.
+  Bundled package traversal retains its separate strict symlink check.
+
+### Real read observation and failed-before / passed-after
+
+`test_b2_metadata_refuses_before_content_read` uses the real linked-checkout
+fixture and constructs (1) an actual external `meta.json` symlink and (2) an
+actual symlinked Mission directory ancestor containing metadata. Its observer
+wraps `Path.read_text`, records metadata reads, and delegates to the actual
+reader. It does not mock authority selection or manufacture a safe source path.
+The observer begins only after fixture construction.
+
+| Exact executed arguments after the existing source pytest prefix | Result |
+|---|---|
+| `tests/integration/test_owned_analysis_alias_cli.py -k b2 -q` before B2 source edits | **2 failed, 20 deselected**. Refusal occurred, but each case recorded one actual metadata content read before refusal. |
+| `ruff check src/specify_cli/analysis_inputs.py tests/integration/test_owned_analysis_alias_cli.py && <pytest-prefix> tests/integration/test_owned_analysis_alias_cli.py -k b2 -q` after validation-order correction | Lint passed; **2 passed, 20 deselected**, zero metadata content reads in both cases. |
+| `ruff format --force-exclude <the same two Python paths> && ruff check <same> && <pytest-prefix> tests/integration/test_owned_analysis_alias_cli.py tests/specify_cli/test_analysis_inputs.py tests/specify_cli/cli/commands/agent/test_analysis_report_transaction.py -q -rs` | One file formatted, one unchanged; lint passed; **67 passed, 1 existing legacy-governance warning**, completed command. |
+
+Both read-observation cases also preserve primary HEAD/raw index/staging/worktree
+sentinels. The full focused run retains canonical-alias success, target
+content/membership/retarget invalidation, cycle/external/unsafe-ancestor refusals
+and real report-transaction race controls. No additional policy was introduced.
+
+### Narrow strict comparison
+
+The exact ephemeral uv `analysis_inputs.py` strict command in the preceding
+alias section was rerun in the SDK lane and unchanged `base-1af6a711-src`
+snapshot, with identical flags, stubs, SDK Python executable and target file.
+
+- Candidate: `analysis_inputs.py:199`, `no-any-return`, unchanged
+  `return _artifact_hash_entry(path, root)`; **1 error / 1 checked file**, exit 1.
+- Pinned base: same statement/diagnostic at line 106; **1 error / 1 checked
+  file**, exit 1.
+- **Zero introduced findings**. The documented #5917 baseline remains red; no
+  ignore, suppression, baseline code repair or checker configuration change was
+  made. The new closure extension and metadata prevalidation add no diagnostics.
+
+Independent re-review is still required before adoption. No global installation,
+new source checkout/branch, native write, status snapshot edit, source commit,
+push or PR was performed.
+
+B2 final self-review: `ruff check src/specify_cli/analysis_inputs.py
+tests/integration/test_owned_analysis_alias_cli.py && ruff format --check
+--force-exclude <same two paths> && git diff --check && git branch --show-current
+&& git rev-parse HEAD && date -u '+%Y-%m-%dT%H:%M:%SZ'` completed with exit 0 at
+`2026-10-08T17:06:46Z`: lint passed, two files already formatted and whitespace
+passed. Branch/HEAD remain `fix/owned-analysis-implementation` /
+`e86a792e5338d0b344456f1e1d9e5cfea2259afb`. The reviewed B2 ordering changes do
+not alter the canonical-alias eligibility conditions or existing transaction
+guards. The candidate remains uncommitted pending independent re-review.
+
 ## Exact edited surfaces
 
 Source:
@@ -373,6 +537,7 @@ Source:
 ```text
 src/charter/activation/context.py
 src/specify_cli/analysis_report.py
+src/specify_cli/analysis_inputs.py
 src/specify_cli/cli/commands/agent/mission_record_analysis.py
 src/specify_cli/cli/commands/agent/workflow.py
 src/specify_cli/cli/commands/agent/workflow_executor.py
@@ -390,6 +555,7 @@ Tests and documentation:
 
 ```text
 tests/integration/test_owned_analysis_implementation_cli.py
+tests/integration/test_owned_analysis_alias_cli.py
 tests/integration/test_owned_lifecycle_acceptance_cli.py
 tests/specify_cli/cli/commands/agent/test_record_analysis_coord_worktree.py
 docs/context/execution.md
@@ -399,8 +565,8 @@ docs/reports/owned-analysis-5882/tooling-friction.md
 docs/reports/owned-analysis-5882/evidence.md
 ```
 
-`analysis_inputs.py`, verdict policy, Mission/user artifacts and unrelated SDK
-lanes received no source edits. Sandbox Git repositories and linked checkouts
+Verdict policy, Mission/user artifacts and unrelated SDK lanes received no source
+edits. Sandbox Git repositories and linked checkouts
 are test fixtures, not additional SDK work lanes.
 
 ## Review disposition

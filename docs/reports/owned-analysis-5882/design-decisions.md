@@ -22,7 +22,8 @@ Audience: the independent SDK source reviewer.
    checking select the owner charter only when given the validated fact.
    Ordinary callers retain canonical-root charter hashing. Owned recording
    requires a charter. The existing material collector already accepts the
-   write-checkout root correctly; no `analysis_inputs.py` extension was needed.
+   write-checkout root correctly; the initial ownership fix needed no collector
+   extension. The later tracked canonical-alias correction is described below.
 4. **Reuse guarded implementation.** Owner admission selects the existing
    checkout/write branch and threads the fact through dependency, analysis,
    sparse, workspace, status, feedback, ancestry and commit paths. Write intent
@@ -49,6 +50,33 @@ Audience: the independent SDK source reviewer.
    Missing fields cannot select legacy-only hashing. The non-owned V1 optional
    transaction/manifest contract and verdict policy retain their prior behavior.
    The canonical renderer stays available to prepare unqualified wrappers.
+9. **Contained canonical directory aliases preserve one authority.** Native
+   recording produced a real refusal on tracked `zig/docs -> ../docs`, whose
+   canonical `docs` target was independently selected. The material collector
+   now accepts only relative directory links committed as Git mode 120000 with
+   exact matching HEAD blob bytes, terminating at an exact independently declared
+   non-alias authority endpoint in the same root. Every intermediate component
+   must stay inside the root and be a real directory, with no symlink ancestor or
+   chain. Absolute, external, dangling, undeclared, untracked, dirty, cyclic and
+   intermediate-escape references still refuse. Recursive graph cycles refuse
+   rather than being silently deduplicated.
+   Link spelling plus canonical target identity are hashed as an alias entry;
+   canonical content and directory membership remain represented only under the
+   canonical path. This retains the native link without dereferencing copies or
+   narrowing the charter. Package symlink and external-pack guards are unchanged.
+   No broader file-alias or alias-chain trust policy is admitted without separate
+   concrete refusal evidence and policy resolution.
+10. **B2: prerequisite validation precedes content resolution.** Deferred alias
+    traversal must not defer checks on metadata or other inputs used to select
+    templates. `_resolved_template_paths` strictly checks `meta.json` and every
+    ancestor before `_mapping` reads it. The selected material closure is also
+    validated before template-context resolution can read project/pack
+    definitions; newly resolved template paths extend the same visited closure.
+    Configuration and charter bootstrap checks remain before their own readers.
+    This restores refusal-before-read ordering without changing alias eligibility
+    or widening trust. External metadata links and linked Mission ancestors are
+    tested with an observer that delegates the actual reader and records zero
+    metadata content reads after refusal.
 
 ## Known Limitations
 
@@ -60,10 +88,15 @@ Audience: the independent SDK source reviewer.
   honestly red, tracked in [#5917](https://github.com/spec-kitty/spec-kitty/issues/5917).
   No baseline source, ignore or suppression was changed. See the evidence ledger
   for exact commands and per-diagnostic attribution.
+- The newly touched material collector has one additional unchanged baseline
+  `no-any-return`: `_entry` returns the skipped-import artifact hash helper at
+  current line 199 / pinned-base line 106 after B2. The identical narrow strict command
+  reproduces it, with zero introduced findings. It is documented under #5917.
 - No standalone Op or admitted WP could be opened safely in this lane with
   the current standalone dispatch placement. The explicit delegated scope and
   these tracers are the honest bootstrap record.
 - Tests establish local behavior in the provisioned source environment. They
   do not establish merge, release, deployment or production qualification.
-- Independent review and source delivery belong to the orchestrator. No source
-  commit, push or PR has been performed.
+- Independent review and source delivery belong to the orchestrator. The operator
+  committed/pushed the earlier repair as `e86a792e`; this agent's subsequent alias
+  compatibility changes remain uncommitted, without push or PR publication.
