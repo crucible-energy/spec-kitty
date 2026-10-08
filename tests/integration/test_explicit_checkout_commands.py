@@ -225,6 +225,10 @@ def test_owned_review_prompt_uses_finalized_selected_base_and_scoped_commands(ch
         result = runner.invoke(tasks_app, ["move-task", "WP01", "--to", "doing", "--agent", "codex",
             "--assignee", "worker", "--mission", SLUG, "--owned-checkout", str(owned), "--json"])
         assert result.exit_code == 0, result.output
+        (owned / filename).write_text("VALUE = 2\n")
+        (owned / "unrelated.py").write_text("OUTSIDE_REVIEW_SCOPE = True\n")
+        git(owned, "add", filename, "unrelated.py")
+        git(owned, "commit", "-qm", "fixture: implementation and unrelated concurrent work")
     before = tuple(snapshot(root) for root in (primary, owned, sibling))
     text, _ = build_prompt("review", mission, SLUG, "WP01", "codex", primary, "software-dev", effective_root=owned)
     assert "Workspace contract: explicitly selected checkout" in text
@@ -234,11 +238,15 @@ def test_owned_review_prompt_uses_finalized_selected_base_and_scoped_commands(ch
     assert f"git log {review_sha}..HEAD --oneline -- {shlex.quote(filename)}" in text
     assert f"git diff {review_sha}..HEAD --stat -- {shlex.quote(filename)}" in text
     command = next(line.strip() for line in text.splitlines() if line.strip().startswith("git diff "))
-    assert subprocess.run(shlex.split(command), cwd=owned, capture_output=True, check=False).returncode == 0
+    diff = subprocess.run(shlex.split(command), cwd=owned, capture_output=True, text=True, check=False)
+    assert diff.returncode == 0, diff.stderr
+    if claim:
+        assert filename in diff.stdout
+        assert "unrelated.py" not in diff.stdout
     assert tuple(snapshot(root) for root in (primary, owned, sibling)) == before
 
 
-def test_historical_review_scope_excludes_status_without_reintroducing_new_planning_ownership(checkouts):
+def test_historical_review_scope_excludes_status_without_reintroducing_new_planning_ownership(checkouts, monkeypatch):
     from tests._factories import provision_test_charter
     from runtime.next.prompt_builder import build_prompt
 
@@ -263,8 +271,15 @@ def test_historical_review_scope_excludes_status_without_reintroducing_new_plann
     meta = json.loads((legacy / "meta.json").read_text())
     meta["target_branch"] = "main"
     (legacy / "meta.json").write_text(json.dumps(meta))
-    legacy_wp = legacy / "tasks/WP01-test.md"
-    legacy_wp.write_text(legacy_wp.read_text().replace("execution_mode: code_change", "execution_mode: planning_artifact"))
+    from specify_cli.workspace.context import ResolvedWorkspace
+    import runtime.next.prompt_builder as prompt_builder
+    # Only this historical compatibility case supplies the prior nullable-lane
+    # workspace shape. Modern owned cases above use the actual resolver.
+    monkeypatch.setattr(prompt_builder, "resolve_workspace_for_wp", lambda *_args, **_kwargs: ResolvedWorkspace(
+        mission_slug=SLUG, wp_id="WP01", execution_mode="code_change", mode_source="legacy_context",
+        resolution_kind="lane_workspace", workspace_name=owned.name, worktree_path=owned,
+        branch_name=TARGET, lane_id=None, lane_wp_ids=["WP01"],
+    ))
     git(primary, "add", str(legacy))
     git(primary, "commit", "-qm", "fixture: WP01 claimed for implementation")
     claim_sha = git(primary, "rev-parse", "HEAD")

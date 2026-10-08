@@ -196,7 +196,7 @@ def _build_wp_prompt(
         shared = ", ".join(workspace.lane_wp_ids or [wp_id])
         lines.append(f"Workspace contract: lane {workspace.lane_id} shared by {shared}")
     else:
-        lines.append("Workspace contract: repository root planning workspace")
+        lines.append("Workspace contract: explicitly selected checkout" if effective_root is not None else "Workspace contract: repository root planning workspace")
     lines.append("")
     lines.extend(_mission_type_governance_lines(repo_root, feature_dir))
     lines.append(_governance_context(repo_root, action=action, feature_dir=feature_dir, profile=agent_profile_id))
@@ -220,7 +220,7 @@ def _build_wp_prompt(
 
     # Working directory
     lines.append("WORKING DIRECTORY:")
-    lines.append(f"  cd {workspace_path}")
+    lines.append(f"  cd {shlex.quote(str(workspace_path))}")
     if effective_root is not None:
         lines.append("  # Explicitly selected checkout for this work package")
     elif not workspace.lane_id:
@@ -228,7 +228,7 @@ def _build_wp_prompt(
     lines.append("")
 
     if action == "review":
-        lines.extend(_wp_review_commands(workspace, wp_files, wp_id, mission_slug, repo_root))
+        lines.extend(_wp_review_commands(workspace, wp_files, wp_id, mission_slug, repo_root, feature_dir))
 
     # WP content
     lines.append("=" * 78)
@@ -259,11 +259,16 @@ def _build_wp_prompt(
 
 
 def _wp_review_commands(
-    workspace: ResolvedWorkspace, wp_files: list[Path], wp_id: str, mission_slug: str, repo_root: Path,
+    workspace: ResolvedWorkspace, wp_files: list[Path], wp_id: str, mission_slug: str, repo_root: Path, feature_dir: Path,
 ) -> list[str]:
     """Render scoped review commands from the selected workspace and claim history."""
     lines: list[str] = []
     review_paths = ""
+    review_base: str | None = None
+    if workspace.mode_source == "owned_checkout":
+        from specify_cli.lanes.for_review_gate import resolve_owned_review_base
+
+        review_base = resolve_owned_review_base(feature_dir, repo_root)
     if not workspace.lane_id:
         if wp_files:
             wp_meta, _ = read_wp_frontmatter(wp_files[0])
@@ -279,42 +284,44 @@ def _wp_review_commands(
                             f":(exclude){mission_root}status.json",
                         ]
                     )
-                review_paths = " -- " + " ".join(review_pathspecs)
-        claim = subprocess.run(
-            [
-                "git",
-                "log",
-                "--format=%H%x00%s",
-                "--",
-                *(str(path) for path in wp_files),
-            ],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-        )
-        review_base = None
-        for raw in claim.stdout.splitlines():
-            commit_hash, _, subject = raw.partition("\x00")
-            if not commit_hash:
-                continue
-            if f"Move {wp_id} to in_progress" in subject or f"{wp_id} claimed for implementation" in subject or f"Start {wp_id} implementation" in subject:
-                review_base = commit_hash.strip()
-                break
+                review_paths = " -- " + " ".join(shlex.quote(path) for path in review_pathspecs)
+        # Historical flagless contexts keep their claim-history fallback;
+        # explicit owned contexts must use the finalized owner authority above.
+        if workspace.mode_source != "owned_checkout":
+            claim = subprocess.run(
+                [
+                    "git",
+                    "log",
+                    "--format=%H%x00%s",
+                    "--",
+                    *(str(path) for path in wp_files),
+                ],
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+            for raw in claim.stdout.splitlines():
+                commit_hash, _, subject = raw.partition("\x00")
+                if not commit_hash:
+                    continue
+                if f"Move {wp_id} to in_progress" in subject or f"{wp_id} claimed for implementation" in subject or f"Start {wp_id} implementation" in subject:
+                    review_base = commit_hash.strip()
+                    break
     lines.append("REVIEW COMMANDS:")
     if workspace.lane_id:
         review_base = (
             workspace.context.base_branch if workspace.context and workspace.context.base_branch else get_feature_target_branch(repo_root, mission_slug)
         )
-        lines.append(f"  git log {review_base}..HEAD --oneline")
-        lines.append(f"  git diff {review_base}..HEAD --stat")
+        lines.append(f"  git log {shlex.quote(f'{review_base}..HEAD')} --oneline")
+        lines.append(f"  git diff {shlex.quote(f'{review_base}..HEAD')} --stat")
     elif review_base is None:
         lines.append("  unavailable: no deterministic implementation claim commit found for this WP")
     else:
-        lines.append(f"  git log {review_base}..HEAD --oneline{review_paths}")
-        lines.append(f"  git diff {review_base}..HEAD --stat{review_paths}")
+        lines.append(f"  git log {shlex.quote(f'{review_base}..HEAD')} --oneline{review_paths}")
+        lines.append(f"  git diff {shlex.quote(f'{review_base}..HEAD')} --stat{review_paths}")
     lines.append("")
     lines.append(render_wp_review_antipattern_checklist())
     lines.append("")
