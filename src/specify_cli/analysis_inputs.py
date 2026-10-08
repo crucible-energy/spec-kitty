@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import json
 import os
+import hashlib
+import stat
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -212,7 +215,85 @@ def _source_paths(charter: dict[str, Any], root: Path) -> list[Path]:
     return paths
 
 
-def _package_inputs() -> dict[str, dict[str, str | None]]:
+@dataclass(frozen=True)
+class _TemplateObservation:
+    sha256: str
+    identity: tuple[tuple[int, ...], ...]
+
+
+def _template_identity(path: Path) -> tuple[tuple[int, ...], ...]:
+    from specify_cli.runtime.asset_preparation import asset_parent_states
+
+    parents = asset_parent_states(path)
+    rows: list[tuple[int, ...]] = []
+    for parent, state in parents:
+        info = parent.lstat()
+        if not stat.S_ISDIR(info.st_mode) and not (state.kind == "symlink" and stat.S_ISLNK(info.st_mode) and os.readlink(parent) == state.target):
+            raise MaterialInputError("Selected template ancestry changed before content read")
+        identity: tuple[int, ...] = (info.st_dev, info.st_ino, info.st_mode)
+        # Descriptor traversal prevents ancestor-link reads. Only the immediate
+        # asset directory's metadata participates in the read-window guard;
+        # system/shared ancestor membership is unrelated to this selection.
+        if parent == path.parent:
+            identity += (info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+        rows.append(identity)
+    info = path.lstat()
+    if not stat.S_ISREG(info.st_mode):
+        raise MaterialInputError("Selected template is not a regular non-symlink asset")
+    rows.append((info.st_dev, info.st_ino, info.st_mode, info.st_size, info.st_mtime_ns, info.st_ctime_ns))
+    return tuple(rows)
+
+
+def _open_template(path: Path) -> int:
+    """Hold non-following ancestor descriptors where the platform supports them."""
+    from specify_cli.runtime.asset_preparation import asset_parent_states
+
+    canonical = path
+    # Only the existing provenance seam's exact macOS system aliases qualify.
+    # Resolve those spellings explicitly, never arbitrary user symlinks.
+    for parent, state in asset_parent_states(path):
+        if state.kind == "symlink":
+            canonical = parent.parent / str(state.target) / path.relative_to(parent)
+    asset_parent_states(canonical)
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    if os.open not in os.supports_dir_fd or not hasattr(os, "O_DIRECTORY") or not hasattr(os, "O_NOFOLLOW"):
+        raise MaterialInputError("Descriptor-safe selected template reads are unsupported on this platform")
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    descriptor = os.open(canonical.anchor, directory_flags)
+    try:
+        for part in canonical.parts[1:-1]:
+            child = os.open(part, directory_flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        return os.open(canonical.name, flags, dir_fd=descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _observe_template(path: Path) -> _TemplateObservation:
+    """Read exact bytes with a stable, non-link source/destination identity."""
+    try:
+        before = _template_identity(path)
+        with os.fdopen(_open_template(path), "rb") as stream:
+            info = os.fstat(stream.fileno())
+            opened = (info.st_dev, info.st_ino, info.st_mode, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+            if opened != before[-1]:
+                raise MaterialInputError("Selected template changed before content read")
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        if _template_identity(path) != before:
+            raise MaterialInputError("Selected template changed during content read")
+        # Parent timestamps guard only this read; sibling writes during package
+        # traversal are not changes to selected authority. Identity and content
+        # are rechecked across the full collection and pinned in the report.
+        stable = tuple(row[:3] for row in before[:-1]) + (before[-1],)
+        return _TemplateObservation(digest, stable)
+    except MaterialInputError:
+        raise
+    except (OSError, ValueError) as exc:
+        raise MaterialInputError("Selected template provenance is unsafe or unverifiable") from exc
+
+
+def _package_inputs(proofs: dict[Path, _TemplateObservation] | None = None) -> dict[str, dict[str, str | None]]:
     """Content-pin bundled authority without embedding machine-local paths."""
     from specify_cli.analysis_report import _sha256_file, _sha256_text
 
@@ -225,16 +306,68 @@ def _package_inputs() -> dict[str, dict[str, str | None]]:
         raise MaterialInputError("Bundled analysis authority unavailable") from exc
     for label, root in roots:
         rows = []
+        # Required membership comes from the selected proofs, not traversal or
+        # present-file probes: a temporarily missing source must remain required.
+        required = {path for path in (proofs or {}) if path.is_relative_to(root)}
+        contributed: set[Path] = set()
         for path in sorted(root.rglob("*")):
             if path.is_symlink():
                 raise MaterialInputError("Bundled analysis authority contains a symlink")
             if path.is_file() and "__pycache__" not in path.parts:
-                rows.append(f"{path.relative_to(root).as_posix()}:{_sha256_file(path)}")
+                if proofs is not None and path in proofs:
+                    observed = _observe_template(path)
+                    if observed != proofs[path]:
+                        raise MaterialInputError("Selected bundled template changed before package pinning")
+                    digest = observed.sha256
+                    contributed.add(path)
+                else:
+                    digest = _sha256_file(path)
+                rows.append(f"{path.relative_to(root).as_posix()}:{digest}")
+        if contributed != required:
+            raise MaterialInputError(f"Selected bundled template missing from {label} pin")
         result[f"package:{label}"] = {"path": None, "sha256": _sha256_text("\n".join(rows))}
     return result
 
 
-def _resolved_template_paths(root: Path, feature_dir: Path) -> list[Path]:
+def _qualify_global_template(mission: str, name: str, path: Path, proofs: dict[Path, _TemplateObservation]) -> dict[str, str | None]:
+    from charter.activation.resolver import DoctrineService
+    from kernel.paths import get_kittify_home
+    from specify_cli.analysis_report import _sha256_text
+    from specify_cli.runtime.merge import MANAGED_DIRS
+
+    if os.environ.get("SPEC_KITTY_PACKS_ROOT") or os.environ.get("SPEC_KITTY_TEMPLATE_ROOT"):
+        raise MaterialInputError("Environment-selected mutable package authority is unsupported")
+    assets = get_package_asset_root()
+    source = DoctrineService.resolve_package_default_asset_path(missions_root=assets, mission=mission, subdir="templates", name=name)
+    expected = get_kittify_home() / "missions" / mission / "templates" / name
+    if not path.is_absolute() or ".." in path.parts:
+        raise MaterialInputError("Selected global template has an unsafe path identity")
+    if f"missions/{mission}" not in MANAGED_DIRS or path != expected or source is None or not source.is_relative_to(assets):
+        raise MaterialInputError("External mutable global template authority is unsupported")
+    bundled = _observe_template(source)
+    replica = _observe_template(path)
+    if replica.sha256 != bundled.sha256:
+        raise MaterialInputError("Selected global template differs from its exact bundled source")
+    for selected, observed in ((source, bundled), (path, replica)):
+        if selected in proofs and proofs[selected] != observed:
+            raise MaterialInputError("Selected template changed during input collection")
+        proofs[selected] = observed
+    # The bytes remain pinned by package:mission-assets; this digest additionally
+    # binds actual selection and replica identity, so even equal-byte retargeting
+    # cannot reuse a report from another selection. No external path is writable.
+    identity = {
+        "kind": "bundled-global-template/v1",
+        "mission": mission,
+        "name": name,
+        "source": source.relative_to(assets).as_posix(),
+        "sha256": bundled.sha256,
+        "replica": str(path.absolute()),
+        "identity": replica.identity,
+    }
+    return {"path": None, "sha256": _sha256_text(json.dumps(identity, sort_keys=True))}
+
+
+def _resolved_template_paths(root: Path, feature_dir: Path, selections: dict[str, dict[str, str | None]], proofs: dict[Path, _TemplateObservation]) -> list[Path]:
     from charter.activation.mission_type_profiles import resolve_mission_type_context
     from charter.activation.pack_context import CharterPackConfigError
     from specify_cli.runtime.resolver import ResolutionTier, resolve_configured_template
@@ -248,10 +381,16 @@ def _resolved_template_paths(root: Path, feature_dir: Path) -> list[Path]:
     except CharterPackConfigError as exc:
         raise MaterialInputError("Configured charter activation is invalid") from exc
     paths = []
-    for kind in context.template_set or {}:
+    template_set = context.template_set or {}
+    for kind in template_set:
         resolved = resolve_configured_template(kind, root, context)
-        if resolved.tier in (ResolutionTier.GLOBAL, ResolutionTier.GLOBAL_MISSION):
+        if resolved.tier is ResolutionTier.GLOBAL:
             raise MaterialInputError("External mutable global template authority is unsupported")
+        if resolved.tier is ResolutionTier.GLOBAL_MISSION:
+            if resolved.mission != context.mission_type:
+                raise MaterialInputError("Selected global template has a foreign mission identity")
+            selections[f"template-selection:{kind}"] = _qualify_global_template(resolved.mission, template_set[kind], resolved.path, proofs)
+            continue
         if resolved.tier is not ResolutionTier.PACKAGE_DEFAULT:
             paths.append(resolved.path)
     return paths
@@ -299,7 +438,9 @@ def collect_material_inputs(feature_dir: Path, repo_root: Path) -> dict[str, dic
     # Resolution may read Mission metadata and project/pack definitions. Restore
     # validation of all selected prerequisites before those content readers run.
     paths, aliases = _material_closure(root, selected, canonical)
-    templates = _resolved_template_paths(root, feature_dir)
+    selections: dict[str, dict[str, str | None]] = {}
+    proofs: dict[Path, _TemplateObservation] = {}
+    templates = _resolved_template_paths(root, feature_dir, selections, proofs)
     paths, aliases = _material_closure(root, templates, canonical, paths=paths, aliases=aliases)
     result: dict[str, dict[str, str | None]] = {}
     for path in sorted(paths):
@@ -307,5 +448,11 @@ def collect_material_inputs(feature_dir: Path, repo_root: Path) -> dict[str, dic
         # Directory sentinels and missing-file sentinels are distinct. The
         # complete key set detects additions/removals without hashing outputs.
         result[f"material:{relative}"] = aliases[path] if path in aliases else _entry(path, root, feature_dir)
-    result.update(_package_inputs())
+    result.update(_package_inputs(proofs))
+    # Couple equality to the exact package material pins returned in this pass.
+    # Recheck after the full closure read, including ancestry and replica identity.
+    for path, observed in proofs.items():
+        if _observe_template(path) != observed:
+            raise MaterialInputError("Selected template changed during input collection")
+    result.update(selections)
     return result

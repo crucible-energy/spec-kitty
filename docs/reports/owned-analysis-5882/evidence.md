@@ -530,6 +530,253 @@ passed. Branch/HEAD remain `fix/owned-analysis-implementation` /
 not alter the canonical-alias eligibility conditions or existing transaction
 guards. The candidate remains uncommitted pending independent re-review.
 
+## Cold-bootstrap bundled-template provenance continuation
+
+Initial audited source state was clean at
+`604c63621c547c9e1f2d29b19171d311a33b39a5`, branch
+`fix/owned-analysis-implementation`, in the existing authorized SDK checkout.
+Renewed authorization covers this bounded dependency correction. No source
+commit, push, branch/checkout creation, installation, CI/gate change, native
+artifact edit, or native recording/admission occurred in this continuation.
+
+Python Pedro and implement doctrine were loaded using source `PYTHONPATH`, the
+existing `.venv`, isolated HOME, and `--no-mark-loaded`. The separate governed
+read-only investigation log is `sdk-template-delegation-source.log`; it loaded
+the same profile and identified the canonical package-only API. It is source
+investigation evidence, not independent approval. `sdk-template-doctrine.log`
+retains the actual implement context and its completed child exit is recorded.
+
+### Executable test prefix and red/green ledger
+
+All runs below used this prefix from the authorized SDK checkout:
+
+```sh
+T=/var/folders/4g/1bsytq914tscfrn82thwf0r40000gn/T/opencode
+env PYTHONPATH="$PWD/src" PYTHONDONTWRITEBYTECODE=1 TMPDIR="$T" \
+  .venv/bin/python "$T/sdk-template-bound.py" LABEL LIMIT \
+  .venv/bin/python -u "$T/owned-analysis-exit-pytest.py" FILES -q -rs
+```
+
+`LABEL`, `LIMIT`, and `FILES` below replace those tokens literally; the red runs
+used `-q` without `-rs`. Every listed child completed without outer timeout.
+Separate `.log` and `.exit.json` artifacts are retained per label. Do not reuse a
+label: the driver deliberately refuses to overwrite prior evidence.
+
+File aliases for this continuation:
+
+| Alias | Literal path |
+|---|---|
+| COLD | `tests/integration/test_analysis_bootstrap_templates_cli.py` |
+| PROOF | `tests/specify_cli/test_analysis_template_provenance.py` |
+| INPUT | `tests/specify_cli/test_analysis_inputs.py` |
+| ALIAS | `tests/integration/test_owned_analysis_alias_cli.py` |
+| OWN | `tests/integration/test_owned_analysis_implementation_cli.py` |
+| TX | `tests/specify_cli/cli/commands/agent/test_analysis_report_transaction.py` |
+| BOOT | `tests/runtime/test_bootstrap_unit.py` |
+| PRUNE | `tests/runtime/test_asset_preparation_prune.py` |
+| MEMBERS | `tests/runtime/test_check_assets_membership_tolerance.py` |
+| TERMS | `tests/architectural/test_no_legacy_terminology.py` |
+
+| LABEL / LIMIT / FILES | Actual result and child exit |
+|---|---|
+| `sdk-template-red / 600 / COLD` | 4 failed, exit 1: three real global-template refusals plus an ordinary-default test-envelope error. Original log replaced by marked redacted summary; exit JSON retained. |
+| `sdk-template-red-clean / 600 / COLD` | **3 failed, 1 passed**, exit 1, unchanged production source. Both owned modes and ordinary report-only emitted `failed_before_write` with the exact global-template refusal; ordinary default already succeeded. |
+| `sdk-template-green-cli / 1800 / COLD` | **15 passed**, exit 0, initial qualifier. |
+| `sdk-template-provenance-unit / 600 / PROOF` | **14 passed**, exit 0, first supplemental controls. |
+| `sdk-template-final-cli / 2100 / COLD` | 5 failed, 10 passed, exit 1 after over-broad ancestor metadata strengthening. Four printed false provenance refusals; one FIFO readiness failure lacked child diagnostics. Corrected scope and added child-diagnostic capture. |
+| `sdk-template-regressions / 1500 / ALIAS OWN INPUT TX BOOT PRUNE MEMBERS` | **160 passed**, one existing legacy-key warning, exit 0. |
+| `sdk-template-final-proof / 600 / PROOF INPUT` | **31 passed**, one existing legacy-key warning, exit 0. |
+| `sdk-template-qualified-cli / 2100 / COLD` | 1 failed, 14 passed, exit 1: remaining broad-ancestor read-window timestamp sensitivity refused a clean initial recording. Narrowed that metadata guard to the immediate asset directory; descriptor traversal still guards all ancestors. |
+| `sdk-template-regression-current / 1500 / ALIAS OWN TX BOOT PRUNE MEMBERS` | **145 passed**, exit 0. Shared provenance seam and existing owned/alias/transaction behavior validated. |
+| `sdk-template-final-qualified-cli / 2100 / COLD` | **15 passed** in 1063.59s, pytest main 0, normal shutdown and actual child exit **0**. Includes the native caller's `/var` system-alias HOME spelling. |
+| `sdk-template-final-targeted / 1200 / PROOF INPUT ALIAS TX TERMS` | **180 passed** in 651.91s, one existing legacy-key warning, pytest main/actual child exit **0/0**. |
+| `sdk-template-type-clean-proof / 240 / PROOF` | **17 passed**, actual exit 0 after strict tuple annotations and removal of an unused observation field. These final edits preserve the tested selection/read algorithm. |
+
+The root CLI tests use cold isolated HOME and actual startup, resolver and Git
+transactions. FIFO synchronization pauses at the existing input read *after*
+bootstrap; mutable bytes and identical non-mission global copies, leaf/ancestor/
+HOME symlinks then refuse before report write. Post-report altered bytes,
+equal-byte replacement, HOME retargeting and links cannot claim WP01. Real
+pre/post-commit hooks leave `committed_unqualified` reports and admission refuses.
+Primary HEAD, raw index and staged/unstaged/untracked sentinels are checked.
+
+Supplemental controls observe real reads, including ancestor retargeting before
+descriptor open with **zero content reads**, transient directory ABA during a
+read, package-pin/source mismatch, and replica mutation during package pinning.
+They do not alter SDK package sources. Unrelated global membership remains
+non-material; descriptor-unavailable platforms explicitly fail closed. Complete
+project material keys and both package pins remain in successful reports.
+
+### Strict comparison against the actual initial HEAD
+
+An unmodified source/config archive of `604c636` was extracted under the approved
+`sdk-owned-analysis-mypy/base-604c636-src` directory with `git archive`; it is not
+a Git checkout or branch. The identical command below ran from that archive and
+the candidate directory, through the bounded driver with a 240-second limit:
+
+```sh
+env UV_CACHE_DIR="$T/sdk-owned-analysis-mypy/cache" PYTHONDONTWRITEBYTECODE=1 \
+  uv run --offline --no-project --with mypy --with types-jsonschema \
+  --with types-psutil --with types-PyYAML --with types-requests --with types-toml \
+  --python /Users/sam/git/crucible/_worktrees/spec-kitty-owned-checkout-runtime/.venv/bin/python \
+  mypy --strict --no-incremental \
+  --python-executable /Users/sam/git/crucible/_worktrees/spec-kitty-owned-checkout-runtime/.venv/bin/python \
+  --cache-dir="$T/sdk-owned-analysis-mypy/type-cache" \
+  src/specify_cli/analysis_inputs.py src/specify_cli/runtime/asset_preparation.py
+```
+
+Base: **1 error / 2 checked source files**, exit 1, at `analysis_inputs.py:199`.
+Initial candidate also had one error; the later final-metadata edit introduced
+two tuple-inference errors (3 total), which were fixed with explicit annotations.
+Final candidate (`sdk-template-type-clean-strict.log`): **1 error / 2 checked
+source files**, exit 1, at line 202. The comparator maps exact unchanged source
+lines and requires identical path/message/error code: one matched unchanged
+`return _artifact_hash_entry(path, root)` finding, **zero introduced findings**.
+This remains differential strict qualification, not an absolute pass; #5917
+already tracks the diagnostic. No ignore, suppression or checker flag changed.
+
+Final comparison executed with
+`.venv/bin/python "$T/sdk-template-bound.py" sdk-template-type-clean-comparison 30 .venv/bin/python "$T/sdk-template-attribute-strict.py" sdk-template-type-clean-strict.log`:
+actual child exit **0**, one exact unchanged match, zero introduced findings,
+zero base-only findings. Final Ruff lint, four-file formatter check and
+`git diff --check` all passed. The status/branch/HEAD audit lists exactly the
+two source files, two new tests and four tracer files below; branch and initial
+HEAD remain the requested values.
+
+### Independent verification and remaining scope
+
+From the authorized SDK directory, set `T` as above and use fresh artifact labels:
+
+```sh
+env PYTHONPATH="$PWD/src" PYTHONDONTWRITEBYTECODE=1 TMPDIR="$T" \
+  .venv/bin/python "$T/sdk-template-bound.py" "review-cold-$(date -u +%Y%m%dT%H%M%SZ)" 2100 \
+  .venv/bin/python -u "$T/owned-analysis-exit-pytest.py" \
+  tests/integration/test_analysis_bootstrap_templates_cli.py -q -rs
+
+env PYTHONPATH="$PWD/src" PYTHONDONTWRITEBYTECODE=1 TMPDIR="$T" \
+  .venv/bin/python "$T/sdk-template-bound.py" "review-proof-$(date -u +%Y%m%dT%H%M%SZ)" 1200 \
+  .venv/bin/python -u "$T/owned-analysis-exit-pytest.py" \
+  tests/specify_cli/test_analysis_template_provenance.py \
+  tests/specify_cli/test_analysis_inputs.py \
+  tests/integration/test_owned_analysis_alias_cli.py \
+  tests/specify_cli/cli/commands/agent/test_analysis_report_transaction.py \
+  tests/architectural/test_no_legacy_terminology.py -q -rs
+
+ruff check src/specify_cli/analysis_inputs.py src/specify_cli/runtime/asset_preparation.py \
+  tests/integration/test_analysis_bootstrap_templates_cli.py tests/specify_cli/test_analysis_template_provenance.py
+ruff format --check --force-exclude src/specify_cli/analysis_inputs.py src/specify_cli/runtime/asset_preparation.py \
+  tests/integration/test_analysis_bootstrap_templates_cli.py tests/specify_cli/test_analysis_template_provenance.py
+git diff --check
+```
+
+Only two source files, two new targeted test files, and these four existing
+tracers change in this continuation. The extra source seam is justified by reuse
+of the existing ancestry/system-alias provenance rule; resolver precedence,
+bootstrap installation and canonical status sources receive no edits.
+Independent review and the operator's actual native command remain outstanding.
+The qualified exception requires descriptor-safe platform support; the package
+and full manifest remain the content authority, and local replica replacement
+requires re-recording. No native delivery or cross-platform qualification is
+claimed by these sandbox results.
+
+## Renata template-provenance re-review: B1/B2 rework
+
+The owned branch and HEAD were re-audited as
+`fix/owned-analysis-implementation` /
+`604c63621c547c9e1f2d29b19171d311a33b39a5`, with only the existing bounded diff.
+Production edits in this pass are confined to metadata-only ancestor
+classification in `runtime/asset_preparation.py` and required package-pin row
+membership in `analysis_inputs.py`. Tests are appended to the existing untracked
+`test_analysis_template_provenance.py`; the root-CLI test file receives no rework
+edits. These four existing tracer files record the dispositions.
+
+### Separate failing-first reproductions
+
+Using the same approved-temp source test prefix documented above:
+
+| Driver label / limit | Literal pytest arguments | Actual result / child exit |
+|---|---|---|
+| `sdk-template-review-b1-red / 240` | `tests/specify_cli/test_analysis_template_provenance.py -k b1 -q` | **2 failed, 17 deselected**, exit 1. Each observer recorded one actual ancestor `Path.read_bytes`; the race replaces the file with an external link after `lstat`. |
+| `sdk-template-review-b1-green / 240` | Same arguments after the B1 seam edit | **2 passed, 17 deselected**, exit 0; both path-content and descriptor-content read counts are zero. |
+| `sdk-template-review-b2-red / 240` | `tests/specify_cli/test_analysis_template_provenance.py -k b2 -q` | **1 failed, 19 deselected**, exit 1: full collection did not raise despite omission during real traversal. All source observations remained equal after restoration. B2 production code was unchanged for this run. |
+| `sdk-template-review-b2-green / 240` | Same arguments after required/contributed membership enforcement | **1 passed, 19 deselected**, exit 0: refuses `Selected bundled template missing from mission-assets pin`. |
+
+B2's fixture uses copied real bundled assets and a copied kernel anchor file
+under the test temporary directory. Only the canonical ancestor-walk anchor
+input is redirected; canonical path, Mission context and package-only definition
+resolution bodies execute unchanged. An observer delegates the real `rglob`
+while the actual temporary `software-dev` subtree is renamed out, then restores
+it before final observations. Assertions establish that the selected source
+still exists, was absent from traversal rows, and has unchanged observed content
+and identity. No SDK package source or protected checkout is modified.
+
+### Focused green and regression qualification
+
+The following runs use the exact prefix above with these literal labels,
+1200-second limits, named files, arguments and completed exits:
+
+```sh
+# LABEL=sdk-template-review-regressions
+tests/specify_cli/test_analysis_template_provenance.py
+tests/specify_cli/test_analysis_inputs.py
+tests/integration/test_owned_analysis_alias_cli.py
+tests/specify_cli/cli/commands/agent/test_analysis_report_transaction.py
+tests/runtime/test_bootstrap_unit.py
+tests/runtime/test_asset_preparation_prune.py
+tests/runtime/test_check_assets_membership_tolerance.py
+-q -rs
+
+# LABEL=sdk-template-review-cold-cli
+tests/integration/test_analysis_bootstrap_templates_cli.py
+-k 'cold_owned or cold_ordinary or real_global_template_commit_race' -q -rs
+```
+
+- Regression group: **129 passed**, one existing legacy-key warning, in
+  588.23s; pytest main and real child exits **0/0**, no outer timeout.
+- Root-CLI group: **6 passed, 9 deselected** in 379.81s; pytest main and real
+  child exits **0/0**, no outer timeout. This revalidates both ordinary and owned
+  cold-bootstrap recording modes and the real pre/post-commit race controls.
+- `ruff format --force-exclude` over the four current Python paths reformatted
+  only the supplemental test file; all source files and the root-CLI file were
+  unchanged by formatting. `ruff check` passed over those four paths. Final
+  formatter/whitespace validation is included in the final audit below.
+
+### Necessary strict comparison
+
+The identical two-source-file offline strict command from the preceding section
+ran as `sdk-template-review-strict`, with a 240-second whole-child bound. It
+reported **1 error / 2 checked files**, actual exit 1: unchanged `_entry` at
+`analysis_inputs.py:202`, `no-any-return`. The existing unmodified initial-HEAD
+archive reports the identical diagnostic at line 199.
+
+```sh
+.venv/bin/python "$T/sdk-template-bound.py" sdk-template-review-strict-comparison 30 \
+  .venv/bin/python "$T/sdk-template-attribute-strict.py" sdk-template-review-strict.log
+```
+
+The comparator exited **0**: one exact unchanged-source match, **zero introduced
+findings**, zero base-only findings. This remains differential qualification
+against the documented #5917 baseline, not an absolute strict pass.
+
+### Finding disposition for independent re-review
+
+| Finding | Disposition | Evidence | Remaining action |
+|---|---|---|---|
+| Renata template B1, P1 | Addressed: metadata-only ancestor classification; descriptor-safe leaf read retained | 2 red → 2 green; zero reads in both green cases; bootstrap regression group passes | Independent reviewer re-checks the corrected diff; no fixing commit exists under the no-commit instruction |
+| Renata template B2, P1 | Addressed: selected proof membership must equal digest-verified row membership for each package pin; final observations retained | Full-collector 1 red → 1 green; real resolution/traversal/restoration; regression and cold-root-CLI groups pass | Independent reviewer re-checks completeness enforcement; no adoption or native command has run |
+
+All `sdk-template-review-*` logs and actual exit JSON are retained under `T`.
+No commit, push, adoption, native command, new branch/checkout, gate or canonical
+status edit occurred. The total bounded diff still has two source files, two new
+test files and these four existing tracer files; no path is added by the rework.
+
+Final audit after tracer updates: Ruff lint passed, all four Python files were
+already formatted, and `git diff --check` passed. The status/branch/HEAD read
+confirmed exactly the eight existing bounded-diff paths on the requested branch
+and unchanged initial HEAD. The final source review checked metadata-only
+classification, required membership derived before traversal, digest/identity
+verification before row contribution, and retained final observations.
+
 ## Exact edited surfaces
 
 Source:

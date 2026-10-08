@@ -69,3 +69,39 @@ observers call the real guarded paths. Ordinary routing and owned REVIEW
 refusals retain their existing regression controls.
 
 See [evidence](evidence.md) for executed commands and outcomes.
+
+## Cold-bootstrap template provenance continuation
+
+The renewed bounded authorization starts from clean
+`604c63621c547c9e1f2d29b19171d311a33b39a5` in the same owned SDK checkout and
+branch. The reported native failure was reproduced through the root source CLI,
+which runs ordinary runtime bootstrap before recording. Python Pedro was loaded
+through the source CLI; a separate profile-loaded, read-only investigation
+confirmed the existing package-only resolution API and bootstrap ownership seam.
+
+The correction qualifies a selected mission-scoped global template only against
+its exact canonical bundled counterpart. It binds the replica's selection and
+stable filesystem identity in the complete material manifest, retains the
+existing package content pins, and repeats descriptor-safe proof during every
+collection and transaction recheck. Mutable, foreign, linked and unverifiable
+selections refuse. Root bootstrap remains part of the acceptance tests.
+
+Real cold-HOME CLI tests cover both owned recording modes, ordinary default and
+report-only recording, post-bootstrap unsafe selection, post-report changes,
+HOME retargeting, equal-byte replacement, and real pre/post-commit hook races.
+Supplemental read observers test package-pin coupling and transient read races
+without changing SDK package bytes. No native recording or admission was run.
+
+### Renata template-provenance re-review: B1 and B2
+
+Both P1 findings were reproduced before their respective source edits. B1's
+regular-file ancestor was read even though classification later refused it;
+ancestor classification now requests metadata only. Zero-read observers cover
+both the stable file and a file-to-external-symlink race after `lstat`.
+
+B2's temporary source-subtree disappearance escaped pin completeness checks
+when the subtree returned before final observations. Required package members
+now come from the already-selected proofs; each must contribute a
+digest-verified row. The full-collector reproduction uses temporary copied
+package assets and the real canonical path/definition resolvers. Independent
+re-review is pending; this pass changes only those two production seams.

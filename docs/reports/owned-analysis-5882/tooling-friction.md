@@ -61,3 +61,57 @@ Audience: the SDK orchestrator.
 - The file reader truncated three long lines of `AGENTS.md`; a bounded Python
   read retrieved those lines in full. No instruction was inferred from a
   truncated suffix.
+
+## Cold-bootstrap continuation at 604c636
+
+- An initial default-model delegated investigation returned a tools-unavailable
+  response without loading its profile. It is not counted as governed
+  delegation. The explicit `openai/gpt-6.1-sol` invocation then loaded Python
+  Pedro via the existing source CLI, read the branch charter and implement
+  context, and completed a bounded read-only source investigation. Both actual
+  process exits and logs are retained under the approved temp parent.
+- The implement-context command initially exceeded a 60-second shell budget.
+  The whole-child bounded invocation subsequently exited 0 in 31.88 seconds.
+  Its existing primary-folded doctrine-root/legacy-key diagnostic remains
+  visible; the fully read owned branch charter governs the change.
+- The first pytest failure-local repr included inherited environment credentials.
+  That unsanitized log was removed and replaced with a clearly marked redacted
+  outcome record; its actual exit JSON is retained. Cold CLI environments now
+  use an explicit non-secret process-variable set. A second unchanged-source
+  red-first run preserved complete clean diagnostics: three product failures,
+  one ordinary-default pass. No raw credential values are retained in these
+  tracer documents.
+- An ordinary-default test initially assumed the report-only `commit_status`
+  envelope. The unchanged command already returned success; the assertion now
+  checks its actual success envelope and report artifact. This was a test error,
+  not a fourth product failure.
+- The approved `sdk-template-bound.py` driver creates a separate child session,
+  waits through actual shutdown, and TERM/KILLs that session only at its bound.
+  It never converts a pytest summary or timeout into exit 0. The existing source
+  pytest launcher and provisioned `.venv` are reused without installation.
+- A broad ancestor-timestamp proof generated real false refusals under parallel
+  targeted runs. It was corrected in code, not retried unchanged. Descriptor-safe
+  traversal and immediate-directory read-window checks now preserve authority
+  safety while excluding unrelated shared ancestor membership.
+- The final strict pass first exposed two introduced tuple-inference errors.
+  Explicit variable-length tuple annotations fixed both without suppression.
+  The final differential command has only the previously reported #5917
+  unchanged `_entry` diagnostic. Offline uv reused the provisioned ephemeral
+  mypy/stub environment; no installed/global CLI or SDK environment was changed.
+
+## Renata template-provenance rework
+
+- Eventual B1 refusal hid an actual content read. The new observers delegate
+  `Path.read_bytes`, `Path.lstat` and descriptor hashing to their real bodies;
+  each pre-fix case recorded one ancestor byte read. Post-fix cases record zero
+  path-content and descriptor-content reads, including file-to-link retargeting.
+- Endpoint observations also hid B2 traversal omission. Moving the SDK's own
+  package subtree would violate scope, so the test uses a temporary copied
+  packaged layout with the real kernel ancestor-walk and definition resolvers.
+  Its real traversal is observed while the selected subtree is absent; cleanup
+  restores that subtree even on assertion failure. The pre-fix collector
+  actually returned without refusal, and every retained source observation
+  compared equal. The test does not substitute a pin or successful result.
+- This rework reused the existing bounded source launchers and offline strict
+  environment. No additional test/tooling failure or new baseline diagnostic
+  was accepted. All targeted children reached actual exits without timeout.

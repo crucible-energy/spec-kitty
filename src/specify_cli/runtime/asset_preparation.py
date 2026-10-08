@@ -52,8 +52,9 @@ def node_state(path: Path, *, read_content: bool = True) -> FileState:
     """Read one node without following its final link.
 
     ``read_content=False`` records a regular file's ``lstat`` shape but skips the
-    byte read, standing in the empty-content digest. Used ONLY for owner lock
-    files (#4703): on Windows ``msvcrt.locking()`` is mandatory, so reading a
+    byte read, standing in the empty-content digest. Ancestor classification
+    uses it to reject non-directories before content reads. Owner lock files
+    also use it (#4703): on Windows ``msvcrt.locking()`` is mandatory, so reading a
     lock this process holds raises ``PermissionError`` — and a lock is a
     self-managed, definitionally-empty artifact whose content is never verified
     or used (only its kind: absent vs regular file), so the byte read is both
@@ -72,6 +73,22 @@ def node_state(path: Path, *, read_content: bool = True) -> FileState:
         raise ValueError(f"Unsupported asset node: {path}")
     sha256 = digest(path.read_bytes()) if read_content else digest(b"")
     return FileState("file", sha256=sha256, mode=mode, mtime_ns=info.st_mtime_ns)
+
+
+def asset_parent_states(path: Path) -> tuple[tuple[Path, FileState], ...]:
+    """Validate ancestry before asset reads, preserving macOS system aliases."""
+    parents = []
+    for parent in reversed(path.parents):
+        if parent == Path(parent.anchor):
+            continue
+        state = node_state(parent, read_content=False)
+        system_alias = (
+            sys.platform == "darwin" and parent in {Path("/var"), Path("/tmp")} and state.kind == "symlink" and state.target == f"private/{parent.name}"  # noqa: S108 -- validate macOS system aliases, not a temporary file
+        )
+        if state.kind not in {"absent", "directory"} and not system_alias:
+            raise ValueError(f"Asset parent is not a directory: {parent}")
+        parents.append((parent, state))
+    return tuple(parents)
 
 
 def _action(before: FileState, after: FileState) -> str | None:
@@ -243,19 +260,12 @@ class AssetPreparation:
         only for owner lock files, whose read under a held mandatory lock is
         fatal on Windows and whose content is never verified (#4703).
         """
-        for parent in reversed(path.parents):
-            if parent != Path(parent.anchor):
-                state = node_state(parent)
-                system_alias = (
-                    sys.platform == "darwin" and parent in {Path("/var"), Path("/tmp")} and state.kind == "symlink" and state.target == f"private/{parent.name}"  # noqa: S108 -- validate macOS system aliases, not a temporary file
-                )
-                if state.kind not in {"absent", "directory"} and not system_alias:
-                    raise ValueError(f"Asset parent is not a directory: {parent}")
-                existing_parent = self.observed.get(parent)
-                if existing_parent is None:
-                    self.observed[parent] = _observation(parent, state, role=role)
-                elif role == "source_read" and existing_parent.role != "source_read":
-                    self.observed[parent] = replace(existing_parent, role="source_read")
+        for parent, state in asset_parent_states(path):
+            existing_parent = self.observed.get(parent)
+            if existing_parent is None:
+                self.observed[parent] = _observation(parent, state, role=role)
+            elif role == "source_read" and existing_parent.role != "source_read":
+                self.observed[parent] = replace(existing_parent, role="source_read")
         state = node_state(path, read_content=read_content)
         children = tuple(sorted(p.name for p in path.iterdir())) if members and state.kind == "directory" else None
         previous = self.observed.get(path)

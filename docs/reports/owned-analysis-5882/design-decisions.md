@@ -80,6 +80,52 @@ Audience: the independent SDK source reviewer.
 
 ## Known Limitations
 
+### Bundled global-template replicas at initial HEAD 604c636
+
+- **One canonical package source.** Actual selection stays with
+  `resolve_configured_template`; its validated mission/filename is passed to
+  `DoctrineService.resolve_package_default_asset_path`. Qualification requires
+  the existing `MANAGED_DIRS` ownership declaration, exact global destination,
+  a contained bundled source, regular non-link assets, and identical binary
+  SHA-256 values. Neither directory naming nor an installer receipt proves it.
+  Non-mission `GLOBAL` selections continue to refuse even with identical bytes.
+- **Safe read provenance shares the existing seam.** The tightly necessary
+  `asset_parent_states` extraction preserves `AssetPreparation.observe` behavior
+  and its exact macOS `/var` and `/tmp` system-alias rule. New template reads
+  validate ancestry, traverse held non-following directory descriptors, match
+  the opened file identity, and verify identity again after reading. This avoids
+  copying a second platform-alias policy or using general `Path.resolve()` to
+  erase user-link evidence. Platforms without descriptor-safe traversal retain
+  fail-closed global-template refusal; no weaker fallback is introduced.
+- **Content authority and replica selection are distinct material facts.**
+  `package:built-in` and `package:mission-assets` retain complete package content
+  pins. `template-selection:<kind>` adds an opaque digest over exact mission,
+  filename, package-relative source, bytes, replica location and stable
+  filesystem identity. Its `path` is null; no global file is added to project
+  Git staging. Package pinning uses the guarded reader for selected sources and
+  must match the earlier observation; final source/replica rechecks couple the
+  whole collection. Existing complete-key-set and transaction qualification
+  checks remain mandatory.
+- **Bootstrap repairs cannot silently revive a stale report.** Global file
+  identity includes device/inode, mode, size, mtime and ctime; ancestor identity
+  includes device/inode/mode. An equal-byte replacement, different HOME, or
+  managed rewrite changes the selection digest. A subsequent root CLI may
+  repair altered bytes, but that repair cannot recreate the recorded identity.
+  Reports are therefore replica-local and must be regenerated after relocation
+  or replacement. Package source pins remain content-based.
+- **Directory membership is scoped correctly.** Immediate asset-directory
+  metadata detects transient changes during a guarded read. Shared/system
+  ancestor timestamps and unrelated sibling membership are not durable report
+  material. An intermediate implementation over-pinned them and actually
+  refused clean recordings during concurrent tests; the read-window guard and
+  stable selection identity now have separate responsibilities.
+
+The continuation's two-file strict check reports one unchanged baseline
+`_entry` diagnostic at candidate line 202 / initial-HEAD line 199 and zero
+introduced diagnostics. The older multi-file baseline counts below describe
+earlier increments, not this continuation's validation surface. Independent
+review and the operator's actual native recording remain pending.
+
 - The operator subsequently provisioned mypy and declared stubs in an ephemeral
   `uv --no-project` environment. The identical strict check now completes:
   candidate **13 errors / 4 files**, pinned unchanged base **26 errors / 6 files**.
@@ -100,3 +146,32 @@ Audience: the independent SDK source reviewer.
 - Independent review and source delivery belong to the orchestrator. The operator
   committed/pushed the earlier repair as `e86a792e`; this agent's subsequent alias
   compatibility changes remain uncommitted, without push or PR publication.
+
+## Renata template-provenance B1/B2 correction
+
+- **B1 — classify ancestors without content.** `asset_parent_states` now calls
+  `node_state(parent, read_content=False)`. Regular files and unsafe links refuse
+  from their metadata before any byte reader can run, including a regular file
+  replaced by an external link after its `lstat`. The leaf reader retains the
+  existing non-following descriptor traversal and opened-file identity checks.
+  The `node_state` documentation now names both metadata-only ancestry and lock
+  classification rather than claiming that only lock files use this mode.
+- **B2 — observation equality does not prove row membership.** Before each
+  package traversal, `_package_inputs` derives the required proof paths confined
+  to that canonical package root. It separately records paths that contribute
+  rows after the guarded digest/identity comparison and refuses unless those
+  sets match. Thus selected bundled sources cannot disappear from the
+  `mission-assets` pin while leaving their endpoint observations unchanged.
+  The same completeness check applies to the enclosing `built-in` pin. Required
+  membership never depends on traversal results or current existence checks.
+  Existing final source/replica observations still run after complete pinning.
+- **Reproduction preserves source authority.** B2's test copies real package
+  definitions into a temporary packaged layout and changes only the canonical
+  ancestor-walk anchor input. Path, Mission definition and package-only template
+  resolution execute their real bodies. The selected source subtree is actually
+  renamed out during the real `rglob` iterator, then restored in `finally`.
+  Its source observations remain equal; omission alone must refuse. No SDK asset
+  subtree is moved or edited, and no successful manifest is substituted.
+
+Both findings are addressed with red/green evidence; independent re-review is
+still required. No mutable template tier, status source or gate is broadened.
