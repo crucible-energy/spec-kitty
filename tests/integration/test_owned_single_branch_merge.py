@@ -371,3 +371,41 @@ def test_completed_source_cannot_reuse_proof_after_reverted_history(accepted_che
     assert repeated.exit_code == 1, repeated.output
     assert json.loads(repeated.output)["error_code"] == "OWNED_SOURCE_DRIFT"
     assert tuple(snapshot(root) for root in accepted_checkouts) == before
+
+
+def test_producer_sequence_cannot_restore_intermediate_metadata_drift(accepted_checkouts):
+    _primary, owned, _sibling = accepted_checkouts
+    mission = owned / "kitty-specs" / SLUG
+    final_files = {name: (mission / name).read_bytes() for name in (
+        "meta.json", "status.json", "status.events.jsonl", "acceptance-matrix.json",
+    )}
+    accepted = json.loads(final_files["meta.json"])["accept_commit"]
+    # Rebuild only this disposable fixture's two producer follow-ups. Their
+    # labels and final bytes are genuine; the intermediate purpose is not.
+    git(owned, "reset", "--hard", accepted)
+    meta = json.loads((mission / "meta.json").read_text())
+    meta["accept_commit"] = accepted
+    meta["acceptance_history"][-1]["accept_commit"] = accepted
+    meta["purpose_tldr"] = "An unaccepted purpose concealed by later restoration"
+    (mission / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    git(owned, "add", str(mission / "meta.json"))
+    git(owned, "commit", "-qm", f"Record acceptance commit for {SLUG}")
+    for name, contents in final_files.items():
+        (mission / name).write_bytes(contents)
+    git(owned, "add", ".")
+    git(owned, "commit", "-qm", f"Finalize acceptance artifacts for {SLUG}")
+    before = tuple(snapshot(root) for root in accepted_checkouts)
+    result = invoke_merge(owned, "--dry-run")
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.output)["error_code"] == "OWNED_SOURCE_DRIFT"
+    assert tuple(snapshot(root) for root in accepted_checkouts) == before
+
+
+def test_empty_post_acceptance_commit_is_not_integration_proof(accepted_checkouts):
+    _primary, owned, _sibling = accepted_checkouts
+    git(owned, "commit", "--allow-empty", "-qm", "fixture: arbitrary later head")
+    before = tuple(snapshot(root) for root in accepted_checkouts)
+    result = invoke_merge(owned, "--dry-run")
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.output)["error_code"] == "OWNED_SOURCE_DRIFT"
+    assert tuple(snapshot(root) for root in accepted_checkouts) == before
