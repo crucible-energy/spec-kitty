@@ -163,6 +163,35 @@ def test_owned_wp_normalization_cache_isolated_from_same_slug_primary(checkouts)
     assert tuple(snapshot(root) for root in (primary, owned, sibling)) == before
 
 
+def test_native_owned_next_advances_tasks_to_implementation_without_cross_read(checkouts):
+    from tests._factories import provision_test_charter
+    from specify_cli.identity.project import ensure_identity
+    from runtime.next.decision import decide_next
+
+    primary, owned, sibling = checkouts
+    provision_test_charter(owned)
+    ensure_identity(owned)
+    result = invoke("finalize-tasks", owned)
+    assert result.exit_code == 0, result.output
+    protected = snapshot(primary), snapshot(sibling)
+    seen = []
+    for _ in range(6):
+        decision = decide_next("codex", SLUG, "success", owned, effective_root=owned)
+        assert str(decision.kind) == "step", decision.reason
+        seen.append(decision.step_id)
+        assert (snapshot(primary), snapshot(sibling)) == protected
+        if decision.action == "implement":
+            assert decision.wp_id == "WP01"
+            assert Path(decision.workspace_path) == owned
+            assert decision.prompt_file and Path(decision.prompt_file).is_file()
+            text = Path(decision.prompt_file).read_text()
+            assert str(owned) in text
+            assert f"--owned-checkout {owned}" in text
+            assert "# Planning-artifact work" not in text
+            break
+    assert seen == ["discovery", "specify", "plan", "tasks", "implement"]
+
+
 def test_validate_only_is_readonly(checkouts):
     primary, owned, sibling = checkouts
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
