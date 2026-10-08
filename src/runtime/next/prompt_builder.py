@@ -14,6 +14,7 @@ default per NEW-2 resolution).
 from __future__ import annotations
 
 import subprocess
+import shlex
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -34,7 +35,7 @@ from specify_cli.core.paths import get_feature_target_branch
 from specify_cli.runtime.resolver import resolve_command
 from specify_cli.review.antipattern_checklist import render_wp_review_antipattern_checklist
 from specify_cli.status import read_wp_frontmatter
-from specify_cli.workspace.context import resolve_workspace_for_wp
+from specify_cli.workspace.context import ResolvedWorkspace, resolve_workspace_for_wp
 
 
 # ---------------------------------------------------------------------------
@@ -64,6 +65,7 @@ def build_prompt(
     agent: str,
     repo_root: Path,
     mission_type: str,
+    *, effective_root: Path | None = None,
 ) -> tuple[str, Path]:
     """Build a prompt for the given action.
 
@@ -75,8 +77,10 @@ def build_prompt(
     For implement/review actions the prompt includes workspace paths, isolation
     rules, WP content, and completion instructions.
     """
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
     if action in ("implement", "review") and wp_id:
-        prompt_text = _build_wp_prompt(action, feature_dir, mission_slug, wp_id, agent, repo_root, mission_type)
+        prompt_text = _build_wp_prompt(action, feature_dir, mission_slug, wp_id, agent, repo_root, mission_type, **effective_root_kwargs(effective_root))
     else:
         prompt_text = _build_template_prompt(action, feature_dir, mission_slug, agent, repo_root, mission_type)
 
@@ -155,9 +159,15 @@ def _build_wp_prompt(
     agent: str,
     repo_root: Path,
     mission_type: str,
+    *, effective_root: Path | None = None,
 ) -> str:
     """Build prompt for implement or review actions with WP context."""
-    workspace = resolve_workspace_for_wp(repo_root, mission_slug, wp_id)
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
+    if effective_root is not None:
+        repo_root = effective_root
+    checkout_option = f" --owned-checkout {shlex.quote(str(effective_root))}" if effective_root is not None else ""
+    workspace = resolve_workspace_for_wp(repo_root, mission_slug, wp_id, **effective_root_kwargs(effective_root))
     workspace_path = workspace.worktree_path
     wp_files = sorted((feature_dir / "tasks").glob(f"{wp_id}*.md"))
     wp_meta = None
@@ -211,66 +221,14 @@ def _build_wp_prompt(
     # Working directory
     lines.append("WORKING DIRECTORY:")
     lines.append(f"  cd {workspace_path}")
-    if not workspace.lane_id:
+    if effective_root is not None:
+        lines.append("  # Explicitly selected checkout for this work package")
+    elif not workspace.lane_id:
         lines.append("  # Planning-artifact work for this WP happens in the repository root")
     lines.append("")
 
     if action == "review":
-        review_paths = ""
-        if not workspace.lane_id:
-            if wp_files:
-                wp_meta, _ = read_wp_frontmatter(wp_files[0])
-                if wp_meta.owned_files:
-                    review_pathspecs = list(wp_meta.owned_files)
-                    mission_root = f"kitty-specs/{mission_slug}/"
-                    if any(path.startswith(mission_root) for path in review_pathspecs):
-                        review_pathspecs.extend(
-                            [
-                                f":(exclude){mission_root}tasks/**",
-                                f":(exclude){mission_root}tasks.md",
-                                f":(exclude){mission_root}status.events.jsonl",
-                                f":(exclude){mission_root}status.json",
-                            ]
-                        )
-                    review_paths = " -- " + " ".join(review_pathspecs)
-            claim = subprocess.run(
-                [
-                    "git",
-                    "log",
-                    "--format=%H%x00%s",
-                    "--",
-                    *(str(path) for path in wp_files),
-                ],
-                cwd=repo_root,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                check=False,
-            )
-            review_base = None
-            for raw in claim.stdout.splitlines():
-                commit_hash, _, subject = raw.partition("\x00")
-                if not commit_hash:
-                    continue
-                if f"Move {wp_id} to in_progress" in subject or f"{wp_id} claimed for implementation" in subject or f"Start {wp_id} implementation" in subject:
-                    review_base = commit_hash.strip()
-                    break
-        lines.append("REVIEW COMMANDS:")
-        if workspace.lane_id:
-            review_base = (
-                workspace.context.base_branch if workspace.context and workspace.context.base_branch else get_feature_target_branch(repo_root, mission_slug)
-            )
-            lines.append(f"  git log {review_base}..HEAD --oneline")
-            lines.append(f"  git diff {review_base}..HEAD --stat")
-        elif review_base is None:
-            lines.append("  unavailable: no deterministic implementation claim commit found for this WP")
-        else:
-            lines.append(f"  git log {review_base}..HEAD --oneline{review_paths}")
-            lines.append(f"  git diff {review_base}..HEAD --stat{review_paths}")
-        lines.append("")
-        lines.append(render_wp_review_antipattern_checklist())
-        lines.append("")
+        lines.extend(_wp_review_commands(workspace, wp_files, wp_id, mission_slug, repo_root))
 
     # WP content
     lines.append("=" * 78)
@@ -287,14 +245,81 @@ def _build_wp_prompt(
     # Completion instructions
     lines.append("WHEN DONE:")
     if action == "implement":
-        lines.append(f"  spec-kitty agent tasks mark-status {subtask_cmd} --status done --mission {mission_slug}")
-        lines.append(f'  spec-kitty agent tasks move-task {wp_id} --to for_review --mission {mission_slug} --note "Ready for review"')
+        lines.append(f"  spec-kitty agent tasks mark-status {subtask_cmd} --status done --mission {mission_slug}{checkout_option}")
+        lines.append(f'  spec-kitty agent tasks move-task {wp_id} --to for_review --mission {mission_slug}{checkout_option} --note "Ready for review"')
     else:
-        lines.append(f'  APPROVE: spec-kitty agent tasks move-task {wp_id} --to approved --mission {mission_slug} --note "Review passed"')
+        lines.append(f'  APPROVE: spec-kitty agent tasks move-task {wp_id} --to approved --mission {mission_slug}{checkout_option} --note "Review passed"')
         lines.append("           approved means review-passed; merge will later record done")
-        lines.append(f"  REJECT:  spec-kitty agent tasks move-task {wp_id} --to planned --review-feedback-file <feedback-file> --mission {mission_slug}")
+        lines.append(
+            f"  REJECT:  spec-kitty agent tasks move-task {wp_id} --to planned "
+            f"--review-feedback-file <feedback-file> --mission {mission_slug}{checkout_option}"
+        )
 
     return "\n".join(lines)
+
+
+def _wp_review_commands(
+    workspace: ResolvedWorkspace, wp_files: list[Path], wp_id: str, mission_slug: str, repo_root: Path,
+) -> list[str]:
+    """Render scoped review commands from the selected workspace and claim history."""
+    lines: list[str] = []
+    review_paths = ""
+    if not workspace.lane_id:
+        if wp_files:
+            wp_meta, _ = read_wp_frontmatter(wp_files[0])
+            if wp_meta.owned_files:
+                review_pathspecs = list(wp_meta.owned_files)
+                mission_root = f"kitty-specs/{mission_slug}/"
+                if any(path.startswith(mission_root) for path in review_pathspecs):
+                    review_pathspecs.extend(
+                        [
+                            f":(exclude){mission_root}tasks/**",
+                            f":(exclude){mission_root}tasks.md",
+                            f":(exclude){mission_root}status.events.jsonl",
+                            f":(exclude){mission_root}status.json",
+                        ]
+                    )
+                review_paths = " -- " + " ".join(review_pathspecs)
+        claim = subprocess.run(
+            [
+                "git",
+                "log",
+                "--format=%H%x00%s",
+                "--",
+                *(str(path) for path in wp_files),
+            ],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        review_base = None
+        for raw in claim.stdout.splitlines():
+            commit_hash, _, subject = raw.partition("\x00")
+            if not commit_hash:
+                continue
+            if f"Move {wp_id} to in_progress" in subject or f"{wp_id} claimed for implementation" in subject or f"Start {wp_id} implementation" in subject:
+                review_base = commit_hash.strip()
+                break
+    lines.append("REVIEW COMMANDS:")
+    if workspace.lane_id:
+        review_base = (
+            workspace.context.base_branch if workspace.context and workspace.context.base_branch else get_feature_target_branch(repo_root, mission_slug)
+        )
+        lines.append(f"  git log {review_base}..HEAD --oneline")
+        lines.append(f"  git diff {review_base}..HEAD --stat")
+    elif review_base is None:
+        lines.append("  unavailable: no deterministic implementation claim commit found for this WP")
+    else:
+        lines.append(f"  git log {review_base}..HEAD --oneline{review_paths}")
+        lines.append(f"  git diff {review_base}..HEAD --stat{review_paths}")
+    lines.append("")
+    lines.append(render_wp_review_antipattern_checklist())
+    lines.append("")
+
+    return lines
 
 
 def _mission_context_header(mission_slug: str, feature_dir: Path, agent: str) -> str:
@@ -411,7 +436,8 @@ def _governance_context(
                     profile=profile,
                 )
             if context.mode != "missing":
-                return context.text
+                rendered_context: str = context.text
+                return rendered_context
         except (CharterScopeConflict, CharterScopeNotFound):
             # Scope routing failures mean the operator-authored monorepo
             # governance config does not cover this feature path. Falling back

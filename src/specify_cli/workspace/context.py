@@ -438,6 +438,10 @@ def _validated_context_lane(
     """Validate saved lane identity against finalized allocation authority."""
     from specify_cli.lanes.worktree_allocator import predict_lane_worktree
 
+    lane_ids = [lane.lane_id for lane in manifest.lanes]
+    members = [wp_id for lane in manifest.lanes for wp_id in lane.wp_ids]
+    if len(lane_ids) != len(set(lane_ids)) or len(members) != len(set(members)):
+        raise ValueError("Workspace context identity has ambiguous finalized lane membership")
     lane = next((item for item in manifest.lanes if item.lane_id == context.lane_id), None)
     if lane is None or context.mission_slug != manifest.mission_slug:
         raise ValueError("Workspace context identity does not match the finalized mission/lane")
@@ -718,6 +722,7 @@ def _normalize_wp_file(wp_file: Path, mission_slug: str) -> NormalizedWorkPackag
 def build_normalized_wp_index(
     repo_root: Path,
     mission_slug: str,
+    *, effective_root: Path | None = None,
 ) -> dict[str, NormalizedWorkPackage]:
     """Load and normalize mission WP metadata once per process.
 
@@ -725,14 +730,16 @@ def build_normalized_wp_index(
     for supported historical missions are inferred in memory so downstream
     callers share one canonical classification result.
     """
-    cache_key = _normalized_feature_cache_key(repo_root, mission_slug)
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
     # read-side-placement-seam-migration WP07: names WORK_PACKAGE_TASK through
     # the seam authority instead of the kind-blind ``resolve_planning_read_dir``.
     # WORK_PACKAGE_TASK is PRIMARY-partition, so this is behavior-identical to
     # the prior resolver — no fail-loud arm is reachable here.
-    tasks_dir = placement_seam(repo_root, mission_slug).read_dir(
+    tasks_dir = placement_seam(repo_root, mission_slug, **effective_root_kwargs(effective_root)).read_dir(
         MissionArtifactKind.WORK_PACKAGE_TASK
     ) / "tasks"
+    cache_key = _normalized_feature_cache_key(tasks_dir, mission_slug)
     snapshot = _normalized_feature_snapshot(tasks_dir)
     cached = _FEATURE_WP_METADATA_CACHE.get(cache_key)
     if cached is not None and _FEATURE_WP_METADATA_SNAPSHOT_CACHE.get(cache_key) == snapshot:
@@ -771,11 +778,15 @@ def get_normalized_wp(
     repo_root: Path,
     mission_slug: str,
     wp_id: str,
+    *, effective_root: Path | None = None,
 ) -> NormalizedWorkPackage:
     """Return the normalized metadata entry for a work package."""
-    cache_key = _normalized_feature_cache_key(repo_root, mission_slug)
-    entry = build_normalized_wp_index(repo_root, mission_slug).get(wp_id)
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
+    entry = build_normalized_wp_index(repo_root, mission_slug, **effective_root_kwargs(effective_root)).get(wp_id)
     if entry is None:
+        tasks_dir = placement_seam(repo_root, mission_slug, **effective_root_kwargs(effective_root)).read_dir(MissionArtifactKind.WORK_PACKAGE_TASK) / "tasks"
+        cache_key = _normalized_feature_cache_key(tasks_dir, mission_slug)
         error = _FEATURE_WP_METADATA_ERROR_CACHE.get(cache_key, {}).get(wp_id)
         if error is not None:
             raise error
@@ -784,7 +795,7 @@ def get_normalized_wp(
             # read-side-placement-seam-migration WP07: named via the seam
             # authority (WORK_PACKAGE_TASK, PRIMARY-partition — no fail-loud
             # arm reachable) instead of ``resolve_planning_read_dir``.
-            f"{placement_seam(repo_root, mission_slug).read_dir(MissionArtifactKind.WORK_PACKAGE_TASK) / 'tasks'}"
+            f"{tasks_dir}"
         )
     return entry
 
@@ -796,6 +807,7 @@ def resolve_workspace_for_wp(
     *,
     write_intent: bool = False,
     current_cwd: Path | None = None,
+    effective_root: Path | None = None,
 ) -> ResolvedWorkspace:
     """Resolve the real workspace/branch contract for a work package.
 
@@ -821,7 +833,9 @@ def resolve_workspace_for_wp(
     git subprocess is invoked (NFR-004). ``current_cwd`` defaults to the process
     CWD; it is injectable for tests.
     """
-    resolved = _resolve_workspace_for_wp_impl(repo_root, mission_slug, wp_id)
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
+    resolved = _resolve_workspace_for_wp_impl(repo_root, mission_slug, wp_id, **effective_root_kwargs(effective_root))
     if write_intent:
         from mission_runtime import enforce_checkout_identity
         from specify_cli.core.paths import get_main_repo_root
@@ -841,6 +855,7 @@ def _resolve_workspace_for_wp_impl(
     repo_root: Path,
     mission_slug: str,
     wp_id: str,
+    *, effective_root: Path | None = None,
 ) -> ResolvedWorkspace:
     """Resolve the ResolvedWorkspace for a WP (pure resolution, no identity gate).
 
@@ -848,8 +863,19 @@ def _resolve_workspace_for_wp_impl(
     :func:`resolve_workspace_for_wp` wrapper so every one of this function's
     early-return arms is gated identically without duplicating the check.
     """
-    normalized_wp = get_normalized_wp(repo_root, mission_slug, wp_id)
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
+    normalized_wp = get_normalized_wp(repo_root, mission_slug, wp_id, **effective_root_kwargs(effective_root))
     execution_mode = WorkProductKind(normalized_wp.metadata.execution_mode or WorkProductKind.CODE_CHANGE)
+    if effective_root is not None:
+        placement = placement_seam(repo_root, mission_slug, effective_root=effective_root)
+        return ResolvedWorkspace(
+            mission_slug=mission_slug, wp_id=wp_id, execution_mode=execution_mode.value,
+            mode_source="owned_checkout", resolution_kind="lane_workspace",
+            workspace_name=effective_root.name, worktree_path=effective_root,
+            branch_name=placement.write_target(MissionArtifactKind.WORK_PACKAGE_TASK).ref,
+            lane_id=None, lane_wp_ids=[wp_id],
+        )
 
     if execution_mode == WorkProductKind.PLANNING_ARTIFACT:
         # planning_artifact WPs are first-class lane-owned entities assigned to
