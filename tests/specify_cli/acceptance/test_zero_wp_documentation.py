@@ -14,7 +14,7 @@ from runtime.next import runtime_bridge_engine as engine
 from specify_cli.acceptance import AcceptanceError, AcceptanceSummary, collect_feature_summary
 from tests.specify_cli.test_canonical_acceptance import _setup_feature, _write_wp_file
 
-pytestmark = [pytest.mark.unit, pytest.mark.corpus]
+pytestmark = [pytest.mark.unit, pytest.mark.fast, pytest.mark.corpus]
 SLUG = "099-test-feature"
 
 
@@ -58,6 +58,7 @@ def test_completed_documentation_accepts_empty_status_log(completed_documentatio
     summary = _summary(mission_dir.parents[1])
     assert summary.activity_issues == []
     assert summary.work_packages == []
+    assert summary.ok
 
 
 @pytest.mark.parametrize(
@@ -156,6 +157,7 @@ def test_documentation_requires_complete_matching_evidence(completed_documentati
         state_path.write_text(json.dumps(state))
     summary = _summary(root)
     assert summary.activity_issues
+    assert not summary.ok
 
 
 def test_corrupt_status_log_still_fails(completed_documentation: tuple[Path, Path]) -> None:
