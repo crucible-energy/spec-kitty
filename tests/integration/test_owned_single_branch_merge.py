@@ -322,3 +322,52 @@ def test_owned_multiple_wps_complete_as_one_canonical_transaction(checkouts):
     ]
     assert {row["evidence"]["repos"][0]["commit"] for row in tail} == {integrated}
     assert (snapshot(primary), snapshot(sibling)) == before
+
+
+@pytest.mark.parametrize("case", ["code", "contract", "matrix", "meta"])
+@pytest.mark.parametrize("agent,dry_run", [(False, True), (True, True), (False, False), (True, False)])
+def test_reverted_post_acceptance_history_is_refused(accepted_checkouts, case, agent, dry_run):
+    _primary, owned, _sibling = accepted_checkouts
+    mission = owned / "kitty-specs" / SLUG
+    path = {"code": owned / "app.py", "contract": mission / "spec.md",
+            "matrix": mission / "acceptance-matrix.json", "meta": mission / "meta.json"}[case]
+    original = path.read_bytes()
+    if case in {"code", "contract"}:
+        path.write_text("unaccepted intervening source\n", encoding="utf-8")
+    else:
+        changed = json.loads(original)
+        if case == "matrix":
+            changed["criteria"][0]["description"] = "unaccepted criterion"
+        else:
+            changed["purpose_tldr"] = "unaccepted purpose"
+        path.write_text(json.dumps(changed), encoding="utf-8")
+    git(owned, "add", str(path))
+    git(owned, "commit", "-qm", "fixture: unaccepted intervening change")
+    path.write_bytes(original)
+    git(owned, "add", str(path))
+    git(owned, "commit", "-qm", "fixture: restore accepted endpoint bytes")
+    before = tuple(snapshot(root) for root in accepted_checkouts)
+    result = invoke_merge(owned, *(["--dry-run"] if dry_run else []), agent=agent)
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.output)["error_code"] == "OWNED_SOURCE_DRIFT"
+    assert tuple(snapshot(root) for root in accepted_checkouts) == before
+
+
+@pytest.mark.parametrize("agent", [False, True])
+def test_completed_source_cannot_reuse_proof_after_reverted_history(accepted_checkouts, agent):
+    _primary, owned, _sibling = accepted_checkouts
+    completed = invoke_merge(owned, agent=agent)
+    assert completed.exit_code == 0, completed.output
+    path = owned / "app.py"
+    original = path.read_bytes()
+    path.write_text("VALUE = 999\n", encoding="utf-8")
+    git(owned, "add", str(path))
+    git(owned, "commit", "-qm", "fixture: later unaccepted change")
+    path.write_bytes(original)
+    git(owned, "add", str(path))
+    git(owned, "commit", "-qm", "fixture: restore previously completed bytes")
+    before = tuple(snapshot(root) for root in accepted_checkouts)
+    repeated = invoke_merge(owned, agent=agent)
+    assert repeated.exit_code == 1, repeated.output
+    assert json.loads(repeated.output)["error_code"] == "OWNED_SOURCE_DRIFT"
+    assert tuple(snapshot(root) for root in accepted_checkouts) == before
