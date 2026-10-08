@@ -124,6 +124,45 @@ def test_no_opt_in_keeps_primary_resolution(checkouts):
     assert "FEATURE_CONTEXT_UNRESOLVED" in result.output
 
 
+def test_owned_work_package_context_after_finalization_stays_in_selected_checkout(checkouts):
+    from mission_runtime import resolve_action_context
+
+    primary, owned, sibling = checkouts
+    result = invoke("finalize-tasks", owned)
+    assert result.exit_code == 0, result.output
+    before = tuple(snapshot(root) for root in checkouts)
+    context = resolve_action_context(
+        primary, action="implement", feature=SLUG, wp_id="WP01",
+        cwd=owned, effective_root=owned,
+    )
+    assert Path(context.wp_file) == owned / "kitty-specs" / SLUG / "tasks/WP01-test.md"
+    assert Path(context.workspace_path) == owned
+    assert context.branch_name == TARGET
+    assert context.dependencies == []
+    assert tuple(snapshot(root) for root in (primary, owned, sibling)) == before
+
+
+def test_owned_wp_normalization_cache_isolated_from_same_slug_primary(checkouts):
+    from specify_cli.workspace.context import build_normalized_wp_index
+
+    primary, owned, sibling = checkouts
+    directory = primary / "kitty-specs" / SLUG
+    (directory / "tasks").mkdir(parents=True)
+    metadata = json.loads((owned / "kitty-specs" / SLUG / "meta.json").read_text())
+    metadata["target_branch"] = "main"
+    (directory / "meta.json").write_text(json.dumps(metadata))
+    (directory / "tasks/WP01-test.md").write_text(
+        (owned / "kitty-specs" / SLUG / "tasks/WP01-test.md").read_text()
+        .replace("owned_files: [app.py]", "owned_files: [primary.py]"),
+    )
+    before = tuple(snapshot(root) for root in checkouts)
+    assert build_normalized_wp_index(primary, SLUG)["WP01"].metadata.owned_files == ["primary.py"]
+    selected = build_normalized_wp_index(primary, SLUG, effective_root=owned)
+    assert selected["WP01"].metadata.owned_files == ["app.py"]
+    assert build_normalized_wp_index(primary, SLUG)["WP01"].metadata.owned_files == ["primary.py"]
+    assert tuple(snapshot(root) for root in (primary, owned, sibling)) == before
+
+
 def test_validate_only_is_readonly(checkouts):
     primary, owned, sibling = checkouts
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
