@@ -142,6 +142,31 @@ class TestOrphanedContext:
 
 
 class TestSharedLaneReentry:
+    def test_missing_context_retains_supported_recovery_without_invention(self, kittify_project: Path) -> None:
+        workspace = kittify_project / ".worktrees/001-feature-lane-a"
+        assert workspace_context_module.refresh_lane_context(
+            kittify_project, "001-feature", "WP02", manifest=_lane_manifest(),
+            workspace_path=workspace, dependencies=[],
+        ) is None
+        assert list_contexts(kittify_project) == []
+
+    @pytest.mark.parametrize("mismatch", ["requested_wp", "requested_mission", "finalized_mission"])
+    def test_refresh_refuses_outside_finalized_identity_without_writing(
+        self, kittify_project: Path, mismatch: str,
+    ) -> None:
+        context = _context()
+        save_context(kittify_project, context)
+        saved = kittify_project / ".kittify/workspaces/001-feature-lane-a.json"
+        before = saved.read_bytes()
+        manifest = _lane_manifest("another-mission" if mismatch == "finalized_mission" else "001-feature")
+        with pytest.raises(ValueError, match="identity"):
+            workspace_context_module.refresh_lane_context(
+                kittify_project, "another-mission" if mismatch == "requested_mission" else "001-feature",
+                "WP99" if mismatch == "requested_wp" else "WP02", manifest=manifest,
+                workspace_path=kittify_project / context.worktree_path, dependencies=[],
+            )
+        assert saved.read_bytes() == before
+
     def test_finalized_members_refresh_before_active_ownership(
         self, kittify_project: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
