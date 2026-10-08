@@ -192,7 +192,9 @@ def test_acceptance_preserves_live_template_drift_refusal(completed_documentatio
     live_template = Path(snapshot.template_path)
     live_template.write_text(live_template.read_text() + "\n# changed during run\n")
     decision = engine.plan_next(
-        snapshot, engine._load_frozen_template(run_dir), snapshot.policy_snapshot,
+        snapshot,
+        engine._load_frozen_template(run_dir),
+        snapshot.policy_snapshot,
         live_template_path=live_template,
     )
     assert decision.kind == "blocked"

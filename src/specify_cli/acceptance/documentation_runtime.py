@@ -43,7 +43,18 @@ def completed_documentation_runtime(repo_root: Path, mission_dir: Path) -> bool:
             snapshot.policy_snapshot,
             live_template_path=run_dir / "mission_template_frozen.yaml",
         )
-        return bool(decision.kind == "terminal")
+        if decision.kind != "terminal":
+            return False
+        # Frozen integrity and the live template's drift policy are separate
+        # facts. Reuse the canonical pure planner for both; neither read advances
+        # the run or creates state.
+        live_decision = engine.plan_next(
+            snapshot,
+            template,
+            snapshot.policy_snapshot,
+            live_template_path=Path(snapshot.template_path),
+        )
+        return bool(live_decision.kind == "terminal")
     except (OSError, ValueError, KeyError, TypeError, MissionRuntimeError, yaml.YAMLError):
         # Invalid runtime evidence must preserve the existing acceptance refusal.
         return False

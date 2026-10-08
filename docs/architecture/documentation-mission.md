@@ -949,6 +949,7 @@ creating software work packages. Acceptance requires an existing, readable
 `status.events.jsonl` and a matching persisted documentation run whose frozen
 template reports terminal completion. An outstanding step, pending decision,
 blocked run, corrupt state, or mismatched identity still prevents acceptance.
+Changes to the original runtime template also retain the runtime's drift refusal.
 
 The normal artifact, unchecked-task, metadata, branch, and clean-tree gates
 continue to apply. Documentation missions that contain work packages also
