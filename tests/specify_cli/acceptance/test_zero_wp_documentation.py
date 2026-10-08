@@ -29,8 +29,10 @@ def completed_documentation(tmp_path: Path) -> tuple[Path, Path]:
     meta_path.write_text(json.dumps(meta))
     (mission_dir / "status.events.jsonl").write_text("")
     template_path = Path(__file__).parents[3] / "packs/built-in/missions/documentation/mission-runtime.yaml"
+    live_template = tmp_path / "documentation-runtime.yaml"
+    live_template.write_bytes(template_path.read_bytes())
     run = start_mission_run(
-        str(template_path),
+        str(live_template),
         inputs={"mission_slug": SLUG},
         policy_snapshot=MissionPolicySnapshot(),
         run_store=tmp_path / ".kittify/runtime/runs",
@@ -182,3 +184,16 @@ def test_runtime_proof_does_not_write_files(completed_documentation: tuple[Path,
     before = [path.read_bytes() for path in files]
     _summary(root)
     assert [path.read_bytes() for path in files] == before
+
+
+def test_acceptance_preserves_live_template_drift_refusal(completed_documentation: tuple[Path, Path]) -> None:
+    mission_dir, run_dir = completed_documentation
+    snapshot = engine._read_snapshot(run_dir)
+    live_template = Path(snapshot.template_path)
+    live_template.write_text(live_template.read_text() + "\n# changed during run\n")
+    decision = engine.plan_next(
+        snapshot, engine._load_frozen_template(run_dir), snapshot.policy_snapshot,
+        live_template_path=live_template,
+    )
+    assert decision.kind == "blocked"
+    assert not _summary(mission_dir.parents[1]).ok
