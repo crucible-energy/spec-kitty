@@ -20,7 +20,7 @@ import json
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from specify_cli.core.atomic import atomic_write
 from kernel.git_topology import GitTopologyError, git_toplevel
@@ -32,6 +32,9 @@ from specify_cli.ownership.workspace_strategy import create_planning_workspace
 # Deep import: status.emit imports this module during status/__init__ execution,
 # so the status facade is not yet initialized here — importing from it would cycle.
 from specify_cli.status.wp_metadata import WPMetadata, read_authored_wp_frontmatter
+
+if TYPE_CHECKING:
+    from specify_cli.lanes.models import ExecutionLane, LanesManifest
 
 
 #: Operator recovery command named by workspace husk resolution errors
@@ -429,6 +432,46 @@ def find_context_for_wp(
     return build_feature_context_index(repo_root, mission_slug).get(wp_id)
 
 
+def _validated_context_lane(
+    repo_root: Path, context: WorkspaceContext, manifest: LanesManifest,
+) -> ExecutionLane:
+    """Validate saved lane identity against finalized allocation authority."""
+    from specify_cli.lanes.worktree_allocator import predict_lane_worktree
+
+    lane = next((item for item in manifest.lanes if item.lane_id == context.lane_id), None)
+    if lane is None or context.mission_slug != manifest.mission_slug:
+        raise ValueError("Workspace context identity does not match the finalized mission/lane")
+    path, branch = predict_lane_worktree(repo_root, manifest.mission_slug, lane.lane_id)
+    if context.branch_name != branch or (repo_root / context.worktree_path).resolve() != path.resolve():
+        raise ValueError("Workspace context identity does not match the finalized branch/path")
+    return lane
+
+
+def refresh_lane_context(
+    repo_root: Path, mission_slug: str, wp_id: str, *,
+    manifest: LanesManifest, workspace_path: Path, dependencies: list[str],
+    validate_only: bool = False,
+) -> WorkspaceContext | None:
+    """Refresh finalized membership/current work without changing creation provenance.
+
+    Missing context stays missing for the existing supported recovery path. Wrong
+    identity refuses before any write; a dirty in-flight workspace is untouched.
+    """
+    context = load_context(repo_root, workspace_path.name)
+    if context is None:
+        return None
+    lane = _validated_context_lane(repo_root, context, manifest)
+    if mission_slug != context.mission_slug or wp_id not in lane.wp_ids:
+        raise ValueError("Workspace context identity does not contain the requested work package")
+    if validate_only:
+        return context
+    context.wp_id = context.current_wp = wp_id
+    context.lane_wp_ids = list(lane.wp_ids)
+    context.dependencies = list(dependencies)
+    save_context(repo_root, context)
+    return context
+
+
 def resolve_active_wp_for_branch(
     repo_root: Path,
     branch_name: str,
@@ -478,6 +521,17 @@ def resolve_active_wp_for_branch(
         MissionArtifactKind.WORK_PACKAGE_TASK
     )
     lane_wp_ids = _context_lane_wp_ids(context)
+    try:
+        from specify_cli.lanes.persistence import read_lanes_json, CorruptLanesError
+
+        manifest = read_lanes_json(planning_dir)
+        if manifest is not None:
+            lane = _validated_context_lane(repo_root, context, manifest)
+            if lane_wp_ids != list(lane.wp_ids):
+                return _active_wp_diagnostic(context, code="ACTIVE_WP_CONTEXT_MEMBERSHIP_DRIFT",
+                    message="Saved workspace membership differs from finalized lane authority; re-enter the supported implement action.")
+    except (ValueError, CorruptLanesError) as exc:
+        return _active_wp_diagnostic(context, code="ACTIVE_WP_CONTEXT_INVALID", message=str(exc))
 
     if not feature_dir.is_dir():
         return _active_wp_diagnostic(
@@ -1016,6 +1070,7 @@ __all__ = [
     "list_contexts",
     "find_context_for_wp",
     "resolve_workspace_for_wp",
+    "refresh_lane_context",
     "resolve_feature_worktree",
     "find_orphaned_contexts",
     "cleanup_orphaned_contexts",
