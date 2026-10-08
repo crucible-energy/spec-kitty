@@ -1,3 +1,8 @@
+---
+doc_status: active
+updated: '2026-10-08'
+---
+
 # Engineering decisions
 
 - Finalized lanes own membership and exact mission/lane/branch/path identity.

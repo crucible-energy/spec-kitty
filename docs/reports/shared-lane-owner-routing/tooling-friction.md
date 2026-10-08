@@ -1,3 +1,8 @@
+---
+doc_status: active
+updated: '2026-10-08'
+---
+
 # Findings and limitations
 
 - Spec Kitty has AGENTS.md and a binding project charter; SAM.md is absent here.

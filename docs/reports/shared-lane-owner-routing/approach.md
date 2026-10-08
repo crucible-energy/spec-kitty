@@ -1,3 +1,8 @@
+---
+doc_status: active
+updated: '2026-10-08'
+---
+
 # Shared-lane and explicit checkout owner repair
 
 This is a necessary source-owner dependency repair for Temet Nosce mission

@@ -1,3 +1,8 @@
+---
+doc_status: active
+updated: '2026-10-08'
+---
+
 # Validation and delivery evidence
 
 Production source is fixed at `0de4fdda43c6bd1baf48066a5fdde0cb45fa69d6`;

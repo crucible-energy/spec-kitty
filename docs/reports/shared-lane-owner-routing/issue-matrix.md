@@ -1,3 +1,8 @@
+---
+doc_status: active
+updated: '2026-10-08'
+---
+
 # Issue matrix
 
 | Issue | Scope | Claim | State |
