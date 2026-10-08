@@ -192,6 +192,76 @@ def test_native_owned_next_advances_tasks_to_implementation_without_cross_read(c
     assert seen == ["discovery", "specify", "plan", "tasks", "implement"]
 
 
+@pytest.mark.parametrize("claim,spaced_path", [(False, False), (True, False), (True, True)])
+def test_owned_review_prompt_uses_actual_selected_claim_and_scoped_commands(checkouts, monkeypatch, claim, spaced_path):
+    import shlex
+    from tests._factories import provision_test_charter
+    from specify_cli.cli.commands.agent.tasks import app as tasks_app
+    from runtime.next.prompt_builder import build_prompt
+
+    primary, owned, sibling = checkouts
+    if spaced_path:
+        moved = owned.with_name("owned space")
+        git(primary, "worktree", "move", str(owned), str(moved))
+        owned = moved
+        monkeypatch.chdir(owned)
+        monkeypatch.setenv("SPECIFY_REPO_ROOT", str(owned))
+    provision_test_charter(owned)
+    mission = owned / "kitty-specs" / SLUG
+    wp = mission / "tasks/WP01-test.md"
+    filename = "app space.py" if spaced_path else "app.py"
+    if spaced_path:
+        git(owned, "mv", "app.py", filename)
+        wp.write_text(wp.read_text().replace("app.py", filename))
+    (owned / ".gitignore").write_text(".kittify/sync-state.json\n")
+    git(owned, "add", ".")
+    git(owned, "commit", "-qm", "fixture: selected review scope")
+    result = invoke("finalize-tasks", owned)
+    assert result.exit_code == 0, result.output
+    if claim:
+        result = runner.invoke(tasks_app, ["move-task", "WP01", "--to", "doing", "--agent", "codex",
+            "--assignee", "worker", "--mission", SLUG, "--owned-checkout", str(owned), "--json"])
+        assert result.exit_code == 0, result.output
+        claim_sha = git(owned, "log", "-1", "--format=%H", "--", str(wp))
+    before = tuple(snapshot(root) for root in (primary, owned, sibling))
+    text, _ = build_prompt("review", mission, SLUG, "WP01", "codex", primary, "software-dev", effective_root=owned)
+    assert "Workspace contract: explicitly selected checkout" in text
+    assert "repository root planning workspace" not in text
+    assert f"--owned-checkout {shlex.quote(str(owned))}" in text
+    assert f"cd {shlex.quote(str(owned))}" in text
+    if claim:
+        assert f"git log {claim_sha}..HEAD --oneline -- {shlex.quote(filename)}" in text
+        assert f"git diff {claim_sha}..HEAD --stat -- {shlex.quote(filename)}" in text
+    else:
+        assert "unavailable: no deterministic implementation claim commit" in text
+        assert "git log " not in text
+    assert tuple(snapshot(root) for root in (primary, owned, sibling)) == before
+
+
+def test_historical_review_scope_excludes_status_without_reintroducing_new_planning_ownership(checkouts):
+    from tests._factories import provision_test_charter
+    from runtime.next.prompt_builder import build_prompt
+
+    primary, owned, sibling = checkouts
+    provision_test_charter(owned)
+    mission = owned / "kitty-specs" / SLUG
+    wp = mission / "tasks/WP01-test.md"
+    wp.write_text(wp.read_text().replace("owned_files: [app.py]", f"owned_files: [app.py, kitty-specs/{SLUG}/spec.md]"))
+    # Model retained authored metadata/history; current finalization must still refuse it.
+    git(owned, "add", str(wp))
+    git(owned, "commit", "-qm", "fixture: WP01 claimed for implementation")
+    claim_sha = git(owned, "rev-parse", "HEAD")
+    before = tuple(snapshot(root) for root in checkouts)
+    result = invoke("finalize-tasks", owned)
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.output)["error_code"] == "INVALID_WP_OWNED_FILES_KITTY_SPECS"
+    text, _ = build_prompt("review", mission, SLUG, "WP01", "codex", primary, "software-dev", effective_root=owned)
+    assert f"git diff {claim_sha}..HEAD --stat -- app.py" in text
+    for excluded in ("tasks/**", "tasks.md", "status.events.jsonl", "status.json"):
+        assert f"':(exclude)kitty-specs/{SLUG}/{excluded}'" in text
+    assert tuple(snapshot(root) for root in checkouts) == before
+
+
 def test_validate_only_is_readonly(checkouts):
     primary, owned, sibling = checkouts
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
