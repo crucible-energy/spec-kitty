@@ -217,6 +217,12 @@ class TestSharedLaneReentry:
         resolved = resolve_active_wp_for_branch(kittify_project, context.branch_name)
         assert resolved.diagnostic_code == "ACTIVE_WP_CONTEXT_INVALID"
         assert resolved.owned_files == []
+        manifest = _lane_manifest()
+        manifest.lanes.append(manifest.lanes[0])
+        write_lanes_json(directory, manifest)
+        resolved = resolve_active_wp_for_branch(kittify_project, context.branch_name)
+        assert resolved.diagnostic_code == "ACTIVE_WP_CONTEXT_INVALID"
+        assert "ambiguous" in (resolved.diagnostic_message or "")
 
     def test_allocator_reuse_refreshes_the_same_context(self, kittify_project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         import specify_cli.lanes.implement_support as support
