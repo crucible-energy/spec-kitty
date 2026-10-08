@@ -17,6 +17,7 @@ from specify_cli.acceptance.matrix import (
 from specify_cli.cli.commands.agent.tasks import app as tasks_app
 from specify_cli.cli.commands.merge import merge
 from specify_cli.coordination.transaction import BookkeepingTransaction
+from specify_cli.status import materialize
 from tests.integration.test_explicit_checkout_commands import (
     SLUG,
     TARGET,
@@ -440,6 +441,82 @@ def test_status_formatting_commit_is_not_canonical_completion(accepted_checkouts
     git(owned, "commit", "-qm", "fixture: status formatting without terminal events")
     before = tuple(snapshot(root) for root in accepted_checkouts)
     result = invoke_merge(owned, "--dry-run")
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.output)["error_code"] == "OWNED_SOURCE_DRIFT"
+    assert tuple(snapshot(root) for root in accepted_checkouts) == before
+
+
+@pytest.mark.parametrize("fault,code", [
+    ("wrong_boundary", "OWNED_SOURCE_DRIFT"), ("wrong_repository", "OWNED_SOURCE_DRIFT"),
+    ("review_mismatch", "OWNED_APPROVAL_REFUSED"), ("no_repository", "OWNED_SOURCE_DRIFT"),
+])
+def test_terminal_evidence_fault_refuses_without_effects(accepted_checkouts, fault, code):
+    _primary, owned, _sibling = accepted_checkouts
+    completed = invoke_merge(owned)
+    assert completed.exit_code == 0, completed.output
+    mission = owned / "kitty-specs" / SLUG
+    path = mission / "status.events.jsonl"
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    terminal = rows[-1]
+    assert terminal["to_lane"] == "done"
+    if fault == "wrong_boundary":
+        terminal["evidence"]["repos"][0]["commit"] = git(owned, "rev-parse", "HEAD^^")
+    elif fault == "wrong_repository":
+        terminal["evidence"]["repos"][0]["repo"] = "another-repository"
+    elif fault == "review_mismatch":
+        terminal["evidence"]["review"]["reference"] = "different-review"
+    else:
+        terminal["evidence"]["repos"] = []
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    # Fault only this disposable terminal unit, then use the canonical snapshot
+    # producer so refusal proves the evidence guard rather than snapshot drift.
+    materialize(mission)
+    git(owned, "add", str(path), str(mission / "status.json"))
+    git(owned, "commit", "--amend", "--no-edit", "-q")
+    before = tuple(snapshot(root) for root in accepted_checkouts)
+    result = invoke_merge(owned)
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.output)["error_code"] == code
+    assert tuple(snapshot(root) for root in accepted_checkouts) == before
+
+
+@pytest.mark.parametrize("fault", ["wrong_parent", "history_mismatch"])
+def test_accepted_record_requires_actual_parent_and_coherent_history(accepted_checkouts, fault):
+    _primary, owned, _sibling = accepted_checkouts
+    path = owned / "kitty-specs" / SLUG / "meta.json"
+    meta = json.loads(path.read_text())
+    if fault == "wrong_parent":
+        # A real existing acceptance commit is not its own source parent.
+        meta["accepted_from_commit"] = meta["accept_commit"]
+        meta["acceptance_history"][-1]["accepted_from_commit"] = meta["accept_commit"]
+    else:
+        meta["acceptance_history"][-1]["accepted_by"] = "different-local-actor"
+    path.write_text(json.dumps(meta), encoding="utf-8")
+    git(owned, "add", str(path))
+    git(owned, "commit", "-qm", "fixture: inconsistent accepted record")
+    before = tuple(snapshot(root) for root in accepted_checkouts)
+    result = invoke_merge(owned, "--dry-run")
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.output)["error_code"] == "OWNED_ACCEPTANCE_REFUSED"
+    assert tuple(snapshot(root) for root in accepted_checkouts) == before
+
+
+@pytest.mark.parametrize("accepted_checkouts", ["invariant"], indirect=True)
+def test_intermediate_producer_matrix_change_then_restore_refuses(accepted_checkouts):
+    _primary, owned, _sibling = accepted_checkouts
+    path = owned / "kitty-specs" / SLUG / "acceptance-matrix.json"
+    original = path.read_bytes()
+    matrix = json.loads(original)
+    matrix["negative_invariants"][0]["verification_command"] = "test -e a-different-target"
+    path.write_text(json.dumps(matrix), encoding="utf-8")
+    git(owned, "add", str(path))
+    # Only the disposable genuine final producer residual is rewritten.
+    git(owned, "commit", "--amend", "--no-edit", "-q")
+    path.write_bytes(original)
+    git(owned, "add", str(path))
+    git(owned, "commit", "-qm", f"Finalize acceptance artifacts for {SLUG}")
+    before = tuple(snapshot(root) for root in accepted_checkouts)
+    result = invoke_merge(owned, "--dry-run", agent=True)
     assert result.exit_code == 1, result.output
     assert json.loads(result.output)["error_code"] == "OWNED_SOURCE_DRIFT"
     assert tuple(snapshot(root) for root in accepted_checkouts) == before

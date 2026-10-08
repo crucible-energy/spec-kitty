@@ -178,3 +178,26 @@ shared the SQLite data prefix. They remain retained; a byte-identical database
 copy passes SQLite integrity checking and produces the final report from an
 isolated data filename without those warnings. No test or source rule changes
 to repair this operator reporting mistake.
+
+## Substantive evidence probes adopted from independent review
+
+Independent cycle-two review runs the frozen 52 owned cases and 28 parser
+goldens, then supplies seven additional public fault probes. The author adopts
+these tests without changing the production bytes at `95852e720`. Four faults
+exercise actual terminal evidence: a real earlier commit instead of the exact
+acceptance boundary, a different repository, a mismatched actual review reference
+and missing repository evidence. Two faults exercise accepted-record coherence:
+an existing acceptance commit substituted for its actual parent and a history
+actor differing from the current record. The seventh corrupts a genuine producer
+verification command and restores the final matrix bytes in a later commit.
+All require the specific refusal and preservation of every fixture checkout.
+Canonical materialization is used only in disposable terminal fault fixtures.
+
+Author validation passes these seven cases with exact observed refusal codes,
+all 28 unchanged parser goldens, strict typing and Ruff. The combined 52-case and
+seven-case coverage data measures 182/202 statements (90.099%), with no excluded
+lines, satisfying the charter's 90% new-code requirement for this leaf. It uses
+separate SQLite/report filenames and emits no append/report-prefix warnings.
+The earlier 178/202 measurement remains retained as its own outcome. Applicable
+docs/terminology checks and the exact test-only delivery recheck remain separate
+from production-source review and any runtime qualification or adoption.
