@@ -2,7 +2,7 @@
 title: How to Merge a Mission
 description: 'How to merge a mission with Spec Kitty 3.2: Use this guide to merge completed work packages from a Spec Kitty mission into its target branch.'
 doc_status: active
-updated: '2026-08-31'
+updated: '2026-10-08'
 audience: docs/context/audience/external/project-owner.md
 type: how-to
 related:
@@ -43,6 +43,34 @@ Or from the repository root checkout:
 ```bash
 spec-kitty merge --mission 015-user-authentication
 ```
+
+## Complete an Explicitly Owned Single-Branch Mission
+
+When `single_branch` work already lives on its declared target branch, select
+the exact owned checkout for local completion:
+
+```bash
+spec-kitty merge --mission 015-user-authentication --owned-checkout "/absolute/owned-checkout" --dry-run --json
+spec-kitty merge --mission 015-user-authentication --owned-checkout "/absolute/owned-checkout" --json
+```
+
+`spec-kitty agent mission merge` forwards the same option. The selected checkout
+must be registered, clean, on the unprotected declared target, genuinely reviewed
+and accepted, with a complete passing acceptance matrix. Changed source,
+requirements, review inputs or verification configuration require a new review
+and acceptance. The option never falls back to the repository-root checkout.
+
+There is no branch consolidation to perform: the code is already committed to
+the actual local target ref. Completion records that exact commit and each WP's
+existing reviewer in canonical `approved → done` events, committed together.
+Repeated completion verifies the retained evidence and makes no new commit.
+Branches and worktrees are preserved. Publishing, cleanup, integration strategies
+and guard overrides are refused in this mode.
+
+This completes local WP integration. A GitHub PR into the default branch remains
+a separate owner delivery gate. Mission birth numbering, mission audit and
+retrospective requirements retain their own gates; this route does not invent
+their evidence or claim remote integration.
 
 ## Pre-flight Validation
 

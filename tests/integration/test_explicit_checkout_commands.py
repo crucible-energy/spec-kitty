@@ -124,6 +124,199 @@ def test_no_opt_in_keeps_primary_resolution(checkouts):
     assert "FEATURE_CONTEXT_UNRESOLVED" in result.output
 
 
+def test_owned_work_package_context_after_finalization_stays_in_selected_checkout(checkouts):
+    from mission_runtime import resolve_action_context
+
+    primary, owned, sibling = checkouts
+    result = invoke("finalize-tasks", owned)
+    assert result.exit_code == 0, result.output
+    before = tuple(snapshot(root) for root in checkouts)
+    context = resolve_action_context(
+        primary, action="implement", feature=SLUG, wp_id="WP01",
+        cwd=owned, effective_root=owned,
+    )
+    assert Path(context.wp_file) == owned / "kitty-specs" / SLUG / "tasks/WP01-test.md"
+    assert Path(context.workspace_path) == owned
+    assert context.branch_name == TARGET
+    assert context.dependencies == []
+    assert tuple(snapshot(root) for root in (primary, owned, sibling)) == before
+
+
+def test_owned_wp_normalization_cache_isolated_from_same_slug_primary(checkouts):
+    from specify_cli.workspace.context import build_normalized_wp_index
+
+    primary, owned, sibling = checkouts
+    directory = primary / "kitty-specs" / SLUG
+    (directory / "tasks").mkdir(parents=True)
+    metadata = json.loads((owned / "kitty-specs" / SLUG / "meta.json").read_text())
+    metadata["target_branch"] = "main"
+    (directory / "meta.json").write_text(json.dumps(metadata))
+    (directory / "tasks/WP01-test.md").write_text(
+        (owned / "kitty-specs" / SLUG / "tasks/WP01-test.md").read_text()
+        .replace("owned_files: [app.py]", "owned_files: [primary.py]"),
+    )
+    before = tuple(snapshot(root) for root in checkouts)
+    assert build_normalized_wp_index(primary, SLUG)["WP01"].metadata.owned_files == ["primary.py"]
+    selected = build_normalized_wp_index(primary, SLUG, effective_root=owned)
+    assert selected["WP01"].metadata.owned_files == ["app.py"]
+    assert build_normalized_wp_index(primary, SLUG)["WP01"].metadata.owned_files == ["primary.py"]
+    assert tuple(snapshot(root) for root in (primary, owned, sibling)) == before
+
+
+def test_native_owned_next_advances_tasks_to_implementation_without_cross_read(checkouts):
+    from tests._factories import provision_test_charter
+    from specify_cli.identity.project import ensure_identity
+    from runtime.next.decision import decide_next
+
+    primary, owned, sibling = checkouts
+    provision_test_charter(owned)
+    ensure_identity(owned)
+    result = invoke("finalize-tasks", owned)
+    assert result.exit_code == 0, result.output
+    protected = snapshot(primary), snapshot(sibling)
+    seen = []
+    for _ in range(6):
+        decision = decide_next("codex", SLUG, "success", owned, effective_root=owned)
+        assert str(decision.kind) == "step", decision.reason
+        seen.append(decision.step_id)
+        assert (snapshot(primary), snapshot(sibling)) == protected
+        if decision.action == "implement":
+            assert decision.wp_id == "WP01"
+            assert Path(decision.workspace_path) == owned
+            assert decision.prompt_file and Path(decision.prompt_file).is_file()
+            text = Path(decision.prompt_file).read_text()
+            assert str(owned) in text
+            assert f"--owned-checkout {owned}" in text
+            assert "# Planning-artifact work" not in text
+            break
+    assert seen == ["discovery", "specify", "plan", "tasks", "implement"]
+
+
+@pytest.mark.parametrize("claim,spaced_path", [(False, False), (True, False), (True, True)])
+def test_owned_review_prompt_uses_finalized_selected_base_and_scoped_commands(checkouts, monkeypatch, claim, spaced_path):
+    import shlex
+    from tests._factories import provision_test_charter
+    from specify_cli.cli.commands.agent.tasks import app as tasks_app
+    from runtime.next.prompt_builder import build_prompt
+
+    primary, owned, sibling = checkouts
+    if spaced_path:
+        moved = owned.with_name("owned space")
+        git(primary, "worktree", "move", str(owned), str(moved))
+        owned = moved
+        monkeypatch.chdir(owned)
+        monkeypatch.setenv("SPECIFY_REPO_ROOT", str(owned))
+    provision_test_charter(owned)
+    mission = owned / "kitty-specs" / SLUG
+    wp = mission / "tasks/WP01-test.md"
+    filename = "app space.py" if spaced_path else "app.py"
+    if spaced_path:
+        git(owned, "mv", "app.py", filename)
+        wp.write_text(wp.read_text().replace("app.py", filename))
+    (owned / ".gitignore").write_text(".kittify/sync-state.json\n")
+    git(owned, "add", ".")
+    git(owned, "commit", "-qm", "fixture: selected review scope")
+    result = invoke("finalize-tasks", owned)
+    assert result.exit_code == 0, result.output
+    from specify_cli.lanes.persistence import require_lanes_json
+    review_sha = require_lanes_json(mission).planning_commit_sha
+    assert review_sha
+    if claim:
+        result = runner.invoke(tasks_app, ["move-task", "WP01", "--to", "doing", "--agent", "codex",
+            "--assignee", "worker", "--mission", SLUG, "--owned-checkout", str(owned), "--json"])
+        assert result.exit_code == 0, result.output
+        (owned / filename).write_text("VALUE = 2\n")
+        (owned / "unrelated.py").write_text("OUTSIDE_REVIEW_SCOPE = True\n")
+        git(owned, "add", filename, "unrelated.py")
+        git(owned, "commit", "-qm", "fixture: implementation and unrelated concurrent work")
+    before = tuple(snapshot(root) for root in (primary, owned, sibling))
+    text, _ = build_prompt("review", mission, SLUG, "WP01", "codex", primary, "software-dev", effective_root=owned)
+    assert "Workspace contract: explicitly selected checkout" in text
+    assert "repository root planning workspace" not in text
+    assert f"--owned-checkout {shlex.quote(str(owned))}" in text
+    assert f"cd {shlex.quote(str(owned))}" in text
+    assert f"git log {review_sha}..HEAD --oneline -- {shlex.quote(filename)}" in text
+    assert f"git diff {review_sha}..HEAD --stat -- {shlex.quote(filename)}" in text
+    command = next(line.strip() for line in text.splitlines() if line.strip().startswith("git diff "))
+    diff = subprocess.run(shlex.split(command), cwd=owned, capture_output=True, text=True, check=False)
+    assert diff.returncode == 0, diff.stderr
+    if claim:
+        assert filename in diff.stdout
+        assert "unrelated.py" not in diff.stdout
+    assert tuple(snapshot(root) for root in (primary, owned, sibling)) == before
+
+
+def test_historical_review_scope_excludes_status_without_reintroducing_new_planning_ownership(checkouts, monkeypatch):
+    from tests._factories import provision_test_charter
+    from runtime.next.prompt_builder import build_prompt
+
+    primary, owned, sibling = checkouts
+    provision_test_charter(owned)
+    mission = owned / "kitty-specs" / SLUG
+    wp = mission / "tasks/WP01-test.md"
+    wp.write_text(wp.read_text().replace("owned_files: [app.py]", f"owned_files: [app.py, kitty-specs/{SLUG}/spec.md]"))
+    # Model retained authored metadata/history; current finalization must still refuse it.
+    git(owned, "add", str(wp))
+    git(owned, "commit", "-qm", "fixture: WP01 claimed for implementation")
+    before = tuple(snapshot(root) for root in checkouts)
+    result = invoke("finalize-tasks", owned)
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.output)["error_code"] == "INVALID_WP_OWNED_FILES_KITTY_SPECS"
+    assert tuple(snapshot(root) for root in checkouts) == before
+    # The historical fallback is deliberately flagless planning metadata, not
+    # a way to repair missing authority in a current explicit owned checkout.
+    provision_test_charter(primary)
+    legacy = primary / "kitty-specs" / SLUG
+    shutil.copytree(mission, legacy)
+    meta = json.loads((legacy / "meta.json").read_text())
+    meta["target_branch"] = "main"
+    (legacy / "meta.json").write_text(json.dumps(meta))
+    from specify_cli.workspace.context import ResolvedWorkspace
+    import runtime.next.prompt_builder as prompt_builder
+    # Only this historical compatibility case supplies the prior nullable-lane
+    # workspace shape. Modern owned cases above use the actual resolver.
+    monkeypatch.setattr(prompt_builder, "resolve_workspace_for_wp", lambda *_args, **_kwargs: ResolvedWorkspace(
+        mission_slug=SLUG, wp_id="WP01", execution_mode="code_change", mode_source="legacy_context",
+        resolution_kind="lane_workspace", workspace_name=owned.name, worktree_path=owned,
+        branch_name=TARGET, lane_id=None, lane_wp_ids=["WP01"],
+    ))
+    git(primary, "add", str(legacy))
+    git(primary, "commit", "-qm", "fixture: WP01 claimed for implementation")
+    claim_sha = git(primary, "rev-parse", "HEAD")
+    before = tuple(snapshot(root) for root in checkouts)
+    text, _ = build_prompt("review", legacy, SLUG, "WP01", "codex", primary, "software-dev")
+    assert f"git diff {claim_sha}..HEAD --stat -- app.py" in text
+    for excluded in ("tasks/**", "tasks.md", "status.events.jsonl", "status.json"):
+        assert f"':(exclude)kitty-specs/{SLUG}/{excluded}'" in text
+    assert tuple(snapshot(root) for root in checkouts) == before
+
+
+@pytest.mark.parametrize("invalid_base", [None, "f" * 40, "HEAD", "nonancestor"])
+def test_owned_review_prompt_refuses_invalid_finalized_base_without_effects(checkouts, invalid_base):
+    from tests._factories import provision_test_charter
+    from mission_runtime import ActionContextError
+    from runtime.next.prompt_builder import build_prompt
+    from specify_cli.lanes.persistence import require_lanes_json, write_lanes_json
+
+    primary, owned, sibling = checkouts
+    provision_test_charter(owned)
+    result = invoke("finalize-tasks", owned)
+    assert result.exit_code == 0, result.output
+    mission = owned / "kitty-specs" / SLUG
+    manifest = require_lanes_json(mission)
+    if invalid_base == "HEAD":
+        invalid_base = git(owned, "rev-parse", "HEAD")
+    elif invalid_base == "nonancestor":
+        invalid_base = git(owned, "commit-tree", git(owned, "rev-parse", "HEAD^{tree}"), "-m", "fixture: unrelated history")
+    manifest.planning_commit_sha = invalid_base
+    write_lanes_json(mission, manifest)
+    before = tuple(snapshot(root) for root in checkouts)
+    with pytest.raises(ActionContextError) as raised:
+        build_prompt("review", mission, SLUG, "WP01", "codex", primary, "software-dev", effective_root=owned)
+    assert raised.value.code == "OWNED_REVIEW_BASE_INVALID"
+    assert tuple(snapshot(root) for root in checkouts) == before
+
+
 def test_validate_only_is_readonly(checkouts):
     primary, owned, sibling = checkouts
     before = snapshot(primary), snapshot(owned), snapshot(sibling)

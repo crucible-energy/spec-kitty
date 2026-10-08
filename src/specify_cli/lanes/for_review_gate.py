@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .models import ExecutionLane, LanesManifest
 
-__all__ = ["GateDecision", "evaluate_for_review_gate", "resolve_lane_base_ref"]
+__all__ = ["GateDecision", "evaluate_for_review_gate", "resolve_lane_base_ref", "resolve_owned_review_base"]
 
 
 @dataclass(frozen=True)
@@ -200,3 +200,54 @@ def evaluate_for_review_gate(
         lane_branch=lane_branch,
         base_ref=base_ref,
     )
+
+
+def resolve_owned_review_base(feature_dir: Path, checkout_root: Path) -> str:
+    """Resolve one immutable, suitable review base for an owned checkout."""
+    import subprocess
+
+    from mission_runtime import ActionContextError
+    from specify_cli.core.vcs.git import git_merge_base
+    from specify_cli.lanes.persistence import require_lanes_json
+
+    manifest = require_lanes_json(feature_dir)
+    declared = manifest.planning_commit_sha
+    if not declared:
+        raise ActionContextError(
+            "OWNED_REVIEW_BASE_INVALID",
+            "Owned review requires lanes.json planning_commit_sha.",
+        )
+
+    def resolve_commit(ref: str) -> str | None:
+        result = subprocess.run(
+            ["git", "rev-parse", "--verify", f"{ref}^{{commit}}"],
+            cwd=str(checkout_root),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if result.returncode != 0:
+            return None
+        resolved = result.stdout.strip()
+        return resolved or None
+
+    base_commit = resolve_commit(declared)
+    head_commit = resolve_commit("HEAD")
+    if base_commit is None or head_commit is None:
+        raise ActionContextError(
+            "OWNED_REVIEW_BASE_INVALID",
+            "Owned review base and HEAD must resolve to commits in the selected checkout.",
+        )
+    if base_commit == head_commit:
+        raise ActionContextError(
+            "OWNED_REVIEW_BASE_INVALID",
+            "Owned review base must differ from HEAD.",
+        )
+    if git_merge_base(checkout_root, head_commit, base_commit) != base_commit:
+        raise ActionContextError(
+            "OWNED_REVIEW_BASE_INVALID",
+            "Owned review base must be an ancestor of HEAD in the selected checkout.",
+        )
+    return base_commit

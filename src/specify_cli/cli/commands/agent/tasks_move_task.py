@@ -128,7 +128,7 @@ from specify_cli.core.owned_mission import (
     require_unstaged_index,
     resolve_owned_mission,
 )
-from specify_cli.core.vcs.git import git_merge_base, merge_base_changed_files
+from specify_cli.core.vcs.git import merge_base_changed_files
 from specify_cli.mission_metadata import resolve_mission_identity
 from specify_cli.review import pre_review_gate
 from specify_cli.review.baseline import BaselineTestResult
@@ -649,53 +649,11 @@ def _lane_deliverable_paths(worktree_path: Path, porcelain: str) -> tuple[Path, 
 
 
 def _mt_resolve_owned_review_base(st: _MoveTaskState) -> str:
-    """Resolve one immutable, suitable review base for an owned checkout."""
-    from specify_cli.cli.commands.agent import tasks as _tasks
-    from specify_cli.lanes.persistence import require_lanes_json
+    """Adapt the canonical owned-review resolver to this transition state."""
+    from specify_cli.lanes.for_review_gate import resolve_owned_review_base
 
     assert st.owned is not None
-    owned = st.owned
-    manifest = require_lanes_json(st.feature_dir)
-    declared = manifest.planning_commit_sha
-    if not declared:
-        raise ActionContextError(
-            "OWNED_REVIEW_BASE_INVALID",
-            "Owned review requires lanes.json planning_commit_sha.",
-        )
-
-    def resolve_commit(ref: str) -> str | None:
-        result = _tasks.subprocess.run(
-            ["git", "rev-parse", "--verify", f"{ref}^{{commit}}"],
-            cwd=str(owned.root),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-        )
-        if result.returncode != 0:
-            return None
-        resolved = result.stdout.strip()
-        return resolved or None
-
-    base_commit = resolve_commit(declared)
-    head_commit = resolve_commit("HEAD")
-    if base_commit is None or head_commit is None:
-        raise ActionContextError(
-            "OWNED_REVIEW_BASE_INVALID",
-            "Owned review base and HEAD must resolve to commits in the selected checkout.",
-        )
-    if base_commit == head_commit:
-        raise ActionContextError(
-            "OWNED_REVIEW_BASE_INVALID",
-            "Owned review base must differ from HEAD.",
-        )
-    if git_merge_base(owned.root, head_commit, base_commit) != base_commit:
-        raise ActionContextError(
-            "OWNED_REVIEW_BASE_INVALID",
-            "Owned review base must be an ancestor of HEAD in the selected checkout.",
-        )
-    return base_commit
+    return resolve_owned_review_base(st.feature_dir, st.owned.root)
 
 
 def _mt_owned_workspace(st: _MoveTaskState) -> ResolvedWorkspace:
@@ -1323,7 +1281,8 @@ def _mt_resolve_pre_review_workspace(st: _MoveTaskState) -> Path | None:
     from specify_cli.lanes.persistence import CorruptLanesError, MissingLanesError
 
     if st.owned is not None:
-        return st.owned.root
+        owned_workspace_path: Path = st.owned.root
+        return owned_workspace_path
     try:
         workspace = _tasks.resolve_workspace_for_wp(st.main_repo_root, st.mission_slug, st.task_id)
     except (ValueError, FileNotFoundError, MissingLanesError, CorruptLanesError):

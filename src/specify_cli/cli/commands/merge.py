@@ -1,7 +1,6 @@
 """Merge command implementation.
 
-Lane worktrees are the only supported execution topology. ``spec-kitty merge``
-always follows the same two-step flow, and the two steps are two *distinct*
+Ordinary ``spec-kitty merge`` follows the lane-based two-step flow, and the two steps are two *distinct*
 "merge" operations (see the sense entries in ``docs/context/orchestration.md``):
 1. Lane consolidation (``merge`` Sense 1, LOCAL): consolidate each lane branch
    into the mission branch — no remote push.
@@ -13,6 +12,10 @@ publish happens only under ``--push`` and is never implied by the command name.
 Planning-artifact-only missions are the exception: their artifacts are already
 committed to the target branch, so merge performs closeout bookkeeping directly
 on that target branch without requiring a mission branch.
+
+An explicit ``--owned-checkout`` selects a separate single-branch completion
+leaf. Accepted code already on its declared target receives canonical DONE
+evidence for that present local ref, without consolidation, publishing or cleanup.
 
 Recovery semantics (WP01 / 067):
 - MergeState is created at merge start and updated after each WP mark-done.
@@ -58,14 +61,15 @@ from __future__ import annotations
 from specify_cli.core.constants import KITTIFY_DIR
 from mission_runtime import MissionArtifactKind, placement_seam
 import json
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 
 from specify_cli import __version__ as SPEC_KITTY_VERSION
 from specify_cli.cli.console import console
 from specify_cli.cli.helpers import show_banner
-from specify_cli.core.context_validation import require_main_repo
+from specify_cli.core.context_validation import require_main_repo_unless_owned
 from specify_cli.core.paths import (
     MissionMetaReadError,
     get_main_repo_root,
@@ -233,8 +237,6 @@ from specify_cli.core.git_preflight import (
 )
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from specify_cli.merge.state import MergeState
 
 
@@ -450,7 +452,7 @@ def _run_real_merge(
     )
 
 
-@require_main_repo
+@require_main_repo_unless_owned
 def merge(
     strategy: MergeStrategy | None = typer.Option(
         None,
@@ -510,9 +512,43 @@ def merge(
         "--note",
         help="Reason recorded as override evidence when using --skip-review-artifact-check (required with it).",
     ),
+    owned_checkout: Annotated[Path | None, typer.Option(
+        "--owned-checkout", help="Complete accepted single-branch work on this exact owned checkout's existing local target.",
+    )] = None,
+    actor: Annotated[str | None, typer.Option("--actor", help="Actor for explicit-owned local completion.")] = None,
 ) -> None:
     """Merge a lane-based mission into its target branch."""
     del context_token, keep_workspace
+
+    if owned_checkout is not None:
+        from mission_runtime import ActionContextError
+        from specify_cli.merge.owned import complete_owned_mission
+
+        try:
+            if (push or resume or abort or skip_review_artifact_check or note
+                or allow_sparse_checkout or delete_branch is True or remove_worktree is True
+                or strategy is not None):
+                raise ActionContextError(
+                    "OWNED_OPTION_UNSUPPORTED", "Owned completion preserves refs/worktrees and permits no integration, publish or guard override flags.",
+                )
+            payload = complete_owned_mission(
+                find_repo_root(), owned_checkout, mission, target=target_branch,
+                dry_run=dry_run, actor=actor,
+            )
+        except Exception as exc:
+            if json_output:
+                print(json.dumps({
+                    "error": str(exc),
+                    "error_code": getattr(exc, "code", getattr(exc, "error_code", "OWNED_COMPLETION_REFUSED")),
+                }))
+            else:
+                console.print(f"[red]Error:[/red] {exc}")
+            raise typer.Exit(1) from exc
+        if json_output:
+            print(json.dumps(payload))
+        else:
+            console.print(f"Owned local completion: {payload['mission_slug']} ({'preview' if dry_run else 'done'}). Remote delivery remains a separate operator gate.")
+        return
 
     # #2959 escape hatch — a skip is never silent: refuse it without a reason
     # BEFORE any merge work runs, so the evidence record always carries a note.

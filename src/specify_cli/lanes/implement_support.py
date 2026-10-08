@@ -17,7 +17,7 @@ from mission_runtime import MissionArtifactKind, placement_seam
 from specify_cli.ownership.models import WorkProductKind
 from specify_cli.lanes.lane_env import lane_test_env
 from specify_cli.lanes.models import ExecutionLane, LanesManifest
-from specify_cli.lanes.branch_naming import lane_branch_name, worktree_dir_name as _worktree_dir_name
+from specify_cli.lanes.branch_naming import lane_branch_name
 from specify_cli.lanes._git import branch_exists
 from specify_cli.lanes.persistence import read_lanes_json
 from specify_cli.lanes.worktree_allocator import (
@@ -122,6 +122,12 @@ def create_lane_workspace(
         repo_root, mission_slug, lane_id
     )
     is_reuse = predicted_path.exists() or branch_exists(repo_root, predicted_branch)
+    from specify_cli.workspace.context import refresh_lane_context
+
+    if is_reuse:
+        refresh_lane_context(repo_root, mission_slug, wp_id, manifest=lanes_manifest,
+                             workspace_path=predicted_path, dependencies=declared_deps,
+                             validate_only=True)
 
     workspace_path, branch_name = allocate_lane_worktree(
         repo_root=repo_root,
@@ -156,19 +162,12 @@ def create_lane_workspace(
         )
     )
 
-    from specify_cli.workspace.context import load_context
-
     base_branch = honored_base
 
     if is_reuse:
         # Reuse — refresh context to reflect the new active WP.
-        context_name = _worktree_dir_name(mission_slug, mission_id=None, lane_id=lane_id)
-        existing_ctx = load_context(repo_root, context_name)
-        if existing_ctx is not None:
-            existing_ctx.wp_id = wp_id
-            existing_ctx.current_wp = wp_id
-            existing_ctx.dependencies = declared_deps
-            save_context(repo_root, existing_ctx)
+        refresh_lane_context(repo_root, mission_slug, wp_id, manifest=lanes_manifest,
+                             workspace_path=workspace_path, dependencies=declared_deps)
     else:
         # Fresh creation — update frontmatter and create context.
         base_commit_sha = _rev_parse(repo_root, base_branch)
@@ -307,8 +306,16 @@ def reenter_lane_self_heal(
     workspace_path, _branch = predict_lane_worktree(main_repo_root, mission_slug, lane.lane_id)
     if not workspace_path.exists():
         return None
+    from specify_cli.workspace.context import get_normalized_wp, refresh_lane_context
+
+    dependencies = list(get_normalized_wp(main_repo_root, mission_slug, wp_id).metadata.dependencies)
+    refresh_lane_context(main_repo_root, mission_slug, wp_id, manifest=manifest,
+                         workspace_path=workspace_path, dependencies=dependencies,
+                         validate_only=True)
     _merge_recorded_planning_commit(workspace_path, lane.lane_id, manifest.planning_commit_sha)
     _merge_dependency_lane_tips(main_repo_root, workspace_path, mission_slug, lane, manifest)
+    refresh_lane_context(main_repo_root, mission_slug, wp_id, manifest=manifest,
+                         workspace_path=workspace_path, dependencies=dependencies)
     return workspace_path
 
 

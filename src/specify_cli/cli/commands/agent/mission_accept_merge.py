@@ -253,6 +253,9 @@ def merge_feature(
     auto_retry: Annotated[
         bool, typer.Option("--auto-retry/--no-auto-retry", help="Auto-navigate to a deterministic mission worktree if in the wrong location")
     ] = False,
+    owned_checkout: Annotated[Path | None, typer.Option("--owned-checkout", help="Exact owned single-branch checkout for local completion.")] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Output deterministic JSON for owned completion.")] = False,
+    actor: Annotated[str | None, typer.Option("--actor", help="Actor for explicit-owned local completion.")] = None,
 ) -> None:
     """Merge mission branch into target branch.
 
@@ -284,6 +287,24 @@ def merge_feature(
     # The ``mission`` lookup honors the historical ``mission.<name>`` patch seams
     # (``locate_project_root`` / ``resolve_mission_handle`` / ``get_feature_target_branch``).
     from specify_cli.cli.commands.agent import mission as _mission
+
+    if owned_checkout is not None:
+        if auto_retry or push or strategy != "merge":
+            print(json.dumps({
+                "error_code": "OWNED_OPTION_UNSUPPORTED",
+                "error": "Owned completion permits no auto-navigation, publishing or branch-integration strategy.",
+            }))
+            raise typer.Exit(1)
+        # Forward the explicit root before any primary-root mission lookup or
+        # target auto-detection. Defaults that imply lane cleanup are not used.
+        _mission.top_level_merge(
+            mission=feature, owned_checkout=owned_checkout, target_branch=target,
+            dry_run=dry_run, json_output=json_output, actor=actor,
+            strategy=None, delete_branch=None, remove_worktree=None, push=False,
+            resume=False, abort=False, context_token=None, keep_workspace=False,
+            allow_sparse_checkout=False, yes=False, skip_review_artifact_check=False, note=None,
+        )
+        return
 
     try:
         repo_root = _mission.locate_project_root()

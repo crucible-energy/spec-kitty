@@ -141,6 +141,144 @@ class TestOrphanedContext:
         assert orphaned[0][0] == "001-feature-lane-a"
 
 
+class TestSharedLaneReentry:
+    def test_missing_context_retains_supported_recovery_without_invention(self, kittify_project: Path) -> None:
+        workspace = kittify_project / ".worktrees/001-feature-lane-a"
+        assert workspace_context_module.refresh_lane_context(
+            kittify_project, "001-feature", "WP02", manifest=_lane_manifest(),
+            workspace_path=workspace, dependencies=[],
+        ) is None
+        assert list_contexts(kittify_project) == []
+
+    @pytest.mark.parametrize("mismatch", ["requested_wp", "requested_mission", "finalized_mission"])
+    def test_refresh_refuses_outside_finalized_identity_without_writing(
+        self, kittify_project: Path, mismatch: str,
+    ) -> None:
+        context = _context()
+        save_context(kittify_project, context)
+        saved = kittify_project / ".kittify/workspaces/001-feature-lane-a.json"
+        before = saved.read_bytes()
+        manifest = _lane_manifest("another-mission" if mismatch == "finalized_mission" else "001-feature")
+        with pytest.raises(ValueError, match="identity"):
+            workspace_context_module.refresh_lane_context(
+                kittify_project, "another-mission" if mismatch == "requested_mission" else "001-feature",
+                "WP99" if mismatch == "requested_wp" else "WP02", manifest=manifest,
+                workspace_path=kittify_project / context.worktree_path, dependencies=[],
+            )
+        assert saved.read_bytes() == before
+
+    def test_finalized_members_refresh_before_active_ownership(
+        self, kittify_project: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from specify_cli.lanes.implement_support import reenter_lane_self_heal
+        import specify_cli.lanes.worktree_allocator as allocator
+
+        directory = _seed_mission(kittify_project)
+        manifest = _lane_manifest()
+        write_lanes_json(directory, manifest)
+        for wp in ("WP01", "WP02"):
+            _write_wp(directory / "tasks", wp, "Work", "Update src/code.py.",
+                      execution_mode="code_change", owned_files=[f"src/{wp}.py"])
+        initial = _context(current_wp="WP01")
+        initial.lane_wp_ids = ["WP01"]
+        save_context(kittify_project, initial)
+        original = initial.to_dict()
+        workspace = kittify_project / initial.worktree_path
+        workspace.mkdir(parents=True)
+        dirty = workspace / "in-flight.txt"
+        dirty.write_text("preserve this work\n")
+        _seed_lane_event(directory, "WP01", Lane.APPROVED)
+        _seed_lane_event(directory, "WP02", Lane.IN_PROGRESS)
+        monkeypatch.setattr(allocator, "_merge_recorded_planning_commit", lambda *_: None)
+        monkeypatch.setattr(allocator, "_merge_dependency_lane_tips", lambda *_: None)
+
+        assert reenter_lane_self_heal(kittify_project, "001-feature", "WP02") == workspace
+        refreshed = load_context(kittify_project, workspace.name)
+        assert refreshed is not None
+        assert refreshed.lane_wp_ids == ["WP01", "WP02"]
+        assert refreshed.current_wp == refreshed.wp_id == "WP02"
+        assert refreshed.dependencies == []
+        for field in ("base_branch", "base_commit", "created_at", "created_by", "branch_name", "worktree_path"):
+            assert refreshed.to_dict()[field] == original[field]
+        assert dirty.read_text() == "preserve this work\n"
+        resolved = resolve_active_wp_for_branch(kittify_project, initial.branch_name)
+        assert resolved.wp_id == "WP02"
+        assert resolved.owned_files == ["src/WP02.py"]
+        assert resolved.diagnostic_code is None
+
+    def test_wrong_lane_identity_refuses_without_context_mutation(
+        self, kittify_project: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from specify_cli.lanes.implement_support import reenter_lane_self_heal
+        import specify_cli.lanes.worktree_allocator as allocator
+
+        directory = _seed_mission(kittify_project)
+        write_lanes_json(directory, _lane_manifest())
+        _write_wp(directory / "tasks", "WP02", "Work", "Update src/code.py.", execution_mode="code_change")
+        initial = _context()
+        initial.branch_name = "unrelated-branch"
+        save_context(kittify_project, initial)
+        (kittify_project / initial.worktree_path).mkdir(parents=True)
+        path = kittify_project / ".kittify/workspaces/001-feature-lane-a.json"
+        before = path.read_bytes()
+        merges: list[str] = []
+        monkeypatch.setattr(allocator, "_merge_recorded_planning_commit", lambda *_: merges.append("planning"))
+        monkeypatch.setattr(allocator, "_merge_dependency_lane_tips", lambda *_: merges.append("dependency"))
+        with pytest.raises(ValueError, match="identity"):
+            reenter_lane_self_heal(kittify_project, "001-feature", "WP02")
+        assert path.read_bytes() == before
+        assert merges == []
+
+    def test_guard_refuses_membership_drift_and_corrupt_authority(self, kittify_project: Path) -> None:
+        directory = _seed_mission(kittify_project)
+        manifest_path = write_lanes_json(directory, _lane_manifest())
+        context = _context(current_wp="WP01")
+        context.lane_wp_ids = ["WP01"]
+        save_context(kittify_project, context)
+        resolved = resolve_active_wp_for_branch(kittify_project, context.branch_name)
+        assert resolved.diagnostic_code == "ACTIVE_WP_CONTEXT_MEMBERSHIP_DRIFT"
+        assert resolved.owned_files == []
+        manifest_path.write_text("{invalid json")
+        resolved = resolve_active_wp_for_branch(kittify_project, context.branch_name)
+        assert resolved.diagnostic_code == "ACTIVE_WP_CONTEXT_INVALID"
+        assert resolved.owned_files == []
+        manifest = _lane_manifest()
+        manifest.lanes.append(manifest.lanes[0])
+        write_lanes_json(directory, manifest)
+        resolved = resolve_active_wp_for_branch(kittify_project, context.branch_name)
+        assert resolved.diagnostic_code == "ACTIVE_WP_CONTEXT_INVALID"
+        assert "ambiguous" in (resolved.diagnostic_message or "")
+
+    def test_allocator_reuse_refreshes_the_same_context(self, kittify_project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        import specify_cli.lanes.implement_support as support
+        from specify_cli.workspace.context import ResolvedWorkspace
+
+        directory = _seed_mission(kittify_project)
+        manifest = _lane_manifest()
+        write_lanes_json(directory, manifest)
+        context = _context(current_wp="WP01")
+        context.lane_wp_ids = ["WP01"]
+        save_context(kittify_project, context)
+        workspace = kittify_project / context.worktree_path
+        workspace.mkdir(parents=True)
+        before = context.to_dict()
+        monkeypatch.setattr(support, "allocate_lane_worktree", lambda **_: (workspace, context.branch_name))
+        monkeypatch.setattr(support, "_read_coordination_branch", lambda *_: None)
+        monkeypatch.setattr("specify_cli.policy.hook_installer.install_commit_guard", lambda *_: None)
+        resolved = ResolvedWorkspace(mission_slug="001-feature", wp_id="WP02", execution_mode="code_change",
+            mode_source="declared", resolution_kind="lane_workspace", workspace_name=workspace.name,
+            worktree_path=workspace, branch_name=context.branch_name, lane_id="lane-a", lane_wp_ids=list(manifest.lanes[0].wp_ids))
+        support.create_lane_workspace(kittify_project, "001-feature", "WP02", directory / "tasks/WP02.md",
+                                      resolved, manifest, ["WP01"], "git")
+        refreshed = load_context(kittify_project, workspace.name)
+        assert refreshed is not None
+        assert refreshed.lane_wp_ids == ["WP01", "WP02"]
+        assert refreshed.current_wp == "WP02"
+        assert refreshed.dependencies == ["WP01"]
+        for key in ("base_branch", "base_commit", "created_at", "created_by"):
+            assert refreshed.to_dict()[key] == before[key]
+
+
 class TestCorruptedContext:
     def test_invalid_json_handled(self, kittify_project: Path) -> None:
         context_file = kittify_project / ".kittify" / "workspaces" / "001-feature-lane-a.json"
