@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from kernel.git import GitPath
-from mission_runtime import MissionArtifactKind, MissionTopology, is_single_branch, placement_seam, resolve_topology, single_branch_write_ref
+from mission_runtime import MissionArtifactKind, MissionTopology, OwnedCheckout, is_single_branch, placement_seam, resolve_topology, single_branch_write_ref
 
 __all__ = ["SharedWorkspaceWriter", "dirty_paths", "in_progress_wps_in_write_checkout", "is_single_branch_repo_root_lane", "shared_workspace_writers"]
 
@@ -49,7 +49,7 @@ class SharedWorkspaceWriter:
         return f"Warning: {self.mission_slug}/{self.wp_id} is {self.lane} by {by} in this workspace; one writer per checkout."
 
 
-def is_single_branch_repo_root_lane(repo_root: Path, mission_slug: str, lane_or_workspace: object) -> bool:
+def is_single_branch_repo_root_lane(repo_root: Path, mission_slug: str, lane_or_workspace: object, *, owned: OwnedCheckout | None = None) -> bool:
     """True when *lane_or_workspace* is the repository-root lane of a ``single_branch`` Mission (the shared write checkout).
 
     The one predicate behind the claim lock, the repo-root claim guard and the shared-workspace
@@ -60,7 +60,8 @@ def is_single_branch_repo_root_lane(repo_root: Path, mission_slug: str, lane_or_
     """
     from specify_cli.lanes.compute import is_repo_root_lane
 
-    return bool(is_repo_root_lane(lane_or_workspace)) and is_single_branch(resolve_topology(repo_root, mission_slug))
+    checkout_root = is_repo_root_lane(lane_or_workspace) or (owned is not None and bool(getattr(lane_or_workspace, "runs_in_checkout_root", False)))
+    return checkout_root and is_single_branch(owned.topology if owned is not None else resolve_topology(repo_root, mission_slug))
 
 
 def _repo_root_lane_claim(feature_dir: Path) -> tuple[frozenset[str], str | None]:
@@ -175,6 +176,7 @@ def in_progress_wps_in_write_checkout(
     write_checkout: Path,
     *,
     exclude: tuple[str, str] | None = None,
+    owned: OwnedCheckout | None = None,
 ) -> list[tuple[str, str]]:
     """Return ``(mission_slug, wp_id)`` pairs ``in_progress`` in *write_checkout*.
 
@@ -216,7 +218,7 @@ def in_progress_wps_in_write_checkout(
     the caller's own WP, so resuming a WP it already holds ``in_progress``
     never reads as occupancy by another WP (contract's resume exemption).
     """
-    occupied = _writers_in_write_checkout(repo_root, write_checkout, lanes=_IN_PROGRESS_LANES, exclude=exclude)
+    occupied = _writers_in_write_checkout(repo_root, write_checkout, lanes=_IN_PROGRESS_LANES, exclude=exclude, owned=owned)
     return [(writer.mission_slug, writer.wp_id) for writer in occupied]
 
 
@@ -226,6 +228,7 @@ def _writers_in_write_checkout(
     *,
     lanes: Collection[str],
     exclude: tuple[str, str] | None,
+    owned: OwnedCheckout | None = None,
 ) -> list[SharedWorkspaceWriter]:
     """The occupancy scan of :func:`in_progress_wps_in_write_checkout`, generalised to any *lanes*."""
     from specify_cli.context.mission_resolver import FsMissionResolver
@@ -233,6 +236,7 @@ def _writers_in_write_checkout(
     from specify_cli.status import read_events as _read_events
     from specify_cli.status import reduce as _reduce_events
 
+    repo_root = owned.owned_root if owned is not None else repo_root
     write_checkout_resolved = write_checkout.resolve()
     if write_checkout_resolved != repo_root.resolve():
         # No single_branch mission's checkout can be anything other than
@@ -252,7 +256,11 @@ def _writers_in_write_checkout(
 
         # single_branch has no coordination partition: the status log is read
         # through the same seam, which resolves it to the primary mission dir.
-        snapshot = _reduce_events(_read_events(placement_seam(repo_root, mission_slug).read_dir(MissionArtifactKind.STATUS_STATE)))
+        # The resolver's candidate is already in the validated write checkout.
+        # Every single_branch Mission there owns its local status; the ordinary
+        # seam would fold P to R and silently miss its competing writers.
+        status_dir = mission.feature_dir if owned is not None else placement_seam(repo_root, mission_slug).read_dir(MissionArtifactKind.STATUS_STATE)
+        snapshot = _reduce_events(_read_events(status_dir))
         for wp_id, wp_state in snapshot.work_packages.items():
             if wp_id not in repo_root_wp_ids or exclude == (mission_slug, wp_id):
                 continue
@@ -288,6 +296,8 @@ def shared_workspace_writers(
     wp_id: str,
     workspace: Any,
     actor: str | None,
+    *,
+    owned: OwnedCheckout | None = None,
 ) -> list[SharedWorkspaceWriter]:
     """Other actors' WPs ``in_progress`` / ``in_review`` in *workspace* (advisory, #5099; never refuses).
 
@@ -299,10 +309,11 @@ def shared_workspace_writers(
     """
     from specify_cli.lanes.compute import is_repo_root_lane
 
-    if is_repo_root_lane(workspace):
-        if not is_single_branch_repo_root_lane(repo_root, mission_slug, workspace):
+    if owned is not None or is_repo_root_lane(workspace):
+        if not is_single_branch_repo_root_lane(repo_root, mission_slug, workspace, owned=owned):
             return []
-        found = _writers_in_write_checkout(repo_root, repo_root, lanes=_WRITER_LANES, exclude=(mission_slug, wp_id))
+        write_checkout = owned.owned_root if owned is not None else repo_root
+        found = _writers_in_write_checkout(repo_root, write_checkout, lanes=_WRITER_LANES, exclude=(mission_slug, wp_id), owned=owned)
     else:
         found = _lane_mates_writing(repo_root, mission_slug, wp_id, list(getattr(workspace, "lane_wp_ids", []) or []))
     return [writer for writer in found if writer.actor is None or writer.actor != actor]

@@ -2,7 +2,7 @@
 title: 'Context: Execution'
 description: 'Glossary context for execution semantics: tool invocation and the semantic safety gates applied during generation within a Spec Kitty mission.'
 doc_status: active
-updated: '2026-10-05'
+updated: '2026-10-08'
 related:
 - docs/context/governance.md
 - docs/context/identity.md
@@ -316,11 +316,12 @@ Terms describing tool invocation and semantic safety gates during generation.
 
 | | |
 |---|---|
-| **Definition** | A linked git checkout of the repository that the canonical owned-mission validator has accepted, for one command invocation, as owning a given Mission. The operator names it with `--owned-checkout <path>`, or a flagless command adopts it after validation. Every lifecycle read and write of that Mission resolves inside it. The validator records the proof as the *validated ownership fact* (`mission_runtime.OwnedCheckout`: owned checkout, repository root checkout, stored topology, target branch). |
+| **Definition** | A linked git checkout of the repository that the canonical owned-mission validator has accepted, for one command invocation, as owning a given Mission. The operator names it with `--owned-checkout <path>`, or a flagless command adopts it after validation. Supported lifecycle reads and writes of that Mission resolve inside it. The validator records the proof as the *validated ownership fact* (`mission_runtime.OwnedCheckout`: owned checkout, repository root checkout, Mission directory, stored topology, write branch). |
 | **Context** | Execution |
 | **Status** | candidate |
-| **Applicable to** | `3.x` |
+| **Applicable to** | `4.x` |
 | **Use when** | Describing where an owned Mission's artifacts, status log and commits live; describing `--owned-checkout` behavior or its refusals (`OWNED_*` codes). |
+| **Analysis and implementation** | `agent mission record-analysis --mission <slug> --owned-checkout <path>` records and qualifies the report against that checkout's planning, charter and material inputs. Default mode requires a clean owned checkout; `--report-only` permits unrelated owned-checkout work while requiring clean material inputs. Both preserve unrelated repository-root work. `agent action implement WP01 --mission <slug> --owned-checkout <path> --agent <tool>` supports validated `single_branch` Missions and reuses the exact checkout and write branch; invoke it from inside that checkout to satisfy write intent. Missing/stale analysis, unqualified transactions and the ordinary claim guards still refuse. Owned `agent action review` remains refused with `OWNED_ACTION_UNSUPPORTED` (#5882). |
 | **Do NOT use when** | The concept is the repository-root working copy — use [repository root checkout](#repository-root-checkout); the repository root checkout is never an owned checkout, and passing it is refused with `OWNED_CHECKOUT_IS_REPOSITORY_ROOT`. It is a per-work-package execution checkout — use lane worktree, [Lane](./orchestration.md#lane). It is the coordination worktree of a coordination topology. It is any linked worktree the validator has not accepted — say "linked checkout". It is the ref being committed to — use [Target Ref / Commit Target](./orchestration.md#target-ref--commit-target). Never write "primary" for either checkout. |
 | **Related terms** | [repository root checkout](#repository-root-checkout), [MissionExecutionContext](#missionexecutioncontext), [Lane](./orchestration.md#lane), [target branch](./orchestration.md#target-branch) |
 

@@ -224,7 +224,10 @@ def build_charter_context(
 
     from charter.activation.sync import ensure_charter_bundle_fresh
 
-    sync_result = ensure_charter_bundle_fresh(repo_root)
+    # An explicit scope already selects the governing charter. Folding it to
+    # the common Git root would replace that authority with another checkout's
+    # charter. Unscoped callers retain the canonical-root bundle contract.
+    sync_result = ensure_charter_bundle_fresh(repo_root) if scope is None else None
     canonical_root = sync_result.canonical_root if sync_result and sync_result.canonical_root else repo_root
 
     normalized = action.strip().lower()

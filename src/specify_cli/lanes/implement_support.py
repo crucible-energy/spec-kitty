@@ -11,6 +11,7 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path
+from mission_runtime import OwnedCheckout
 
 from kernel.clock import now_utc_iso
 from kernel.git.remote import resolve_remote, tracking_ref
@@ -147,6 +148,7 @@ def _ensure_repo_root_checkout_available(
     resolved_workspace: ResolvedWorkspace,
     *,
     occupancy_verified: bool = False,
+    owned: OwnedCheckout | None = None,
 ) -> bool:
     """Enforce the repo-root-lane refusal order (contract order 2-4, #5100 T018).
 
@@ -186,7 +188,9 @@ def _ensure_repo_root_checkout_available(
         this call, so the caller can thread it into a later repeat check;
         ``False`` when the mission is not single_branch and nothing was checked.
     """
-    if not _is_single_branch_mission(repo_root, mission_slug):
+    from mission_runtime import is_single_branch
+
+    if not (is_single_branch(owned.topology) if owned is not None else _is_single_branch_mission(repo_root, mission_slug)):
         return False
 
     from specify_cli.lanes.checkout_occupancy import dirty_paths, in_progress_wps_in_write_checkout
@@ -214,7 +218,7 @@ def _ensure_repo_root_checkout_available(
             f"{write_checkout} before retrying."
         )
 
-    occupants = [] if occupancy_verified else in_progress_wps_in_write_checkout(repo_root, write_checkout, exclude=(mission_slug, wp_id))
+    occupants = [] if occupancy_verified else in_progress_wps_in_write_checkout(repo_root, write_checkout, exclude=(mission_slug, wp_id), owned=owned)
     if occupants:
         other_mission, other_wp = occupants[0]
         # The scan only reports missions whose write branch is the branch the
@@ -231,7 +235,7 @@ def _ensure_repo_root_checkout_available(
             "(use --to canceled instead if the work is abandoned)"
         )
 
-    status_feature_dir = placement_seam(repo_root, mission_slug).read_dir(MissionArtifactKind.STATUS_STATE)
+    status_feature_dir = placement_seam(repo_root, mission_slug, owned=owned).read_dir(MissionArtifactKind.STATUS_STATE)
     # has_event_log guard: a caller reaching this arm before the event log
     # is bootstrapped (e.g. a direct unit-level call to this function,
     # bypassing implement's own earlier ``ensure_wp_claim_preconditions``
@@ -255,6 +259,7 @@ def guard_repo_root_claim(
     resolved_workspace: ResolvedWorkspace,
     *,
     occupancy_verified: bool = False,
+    owned: OwnedCheckout | None = None,
 ) -> None:
     """Guard and record a claim on a repo-root lane: the ONE claim seam both claim verbs share.
 
@@ -270,11 +275,11 @@ def guard_repo_root_claim(
     checkout always exists and so never goes through workspace creation
     (#5459).
     """
-    _ensure_repo_root_checkout_available(repo_root, mission_slug, wp_id, resolved_workspace, occupancy_verified=occupancy_verified)
+    _ensure_repo_root_checkout_available(repo_root, mission_slug, wp_id, resolved_workspace, occupancy_verified=occupancy_verified, owned=owned)
 
     from specify_cli.lanes.claim_base import record_claim_base
 
-    record_claim_base(repo_root, repo_root, mission_slug, wp_id)
+    record_claim_base(repo_root, owned.owned_root if owned is not None else repo_root, mission_slug, wp_id)
 
 
 @dataclass
@@ -567,7 +572,7 @@ def _rev_parse(repo_root: Path, ref: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _planning_dir(main_repo_root: Path, mission_slug: str) -> Path:
+def _planning_dir(main_repo_root: Path, mission_slug: str, *, owned: OwnedCheckout | None = None) -> Path:
     """PRIMARY-partition mission dir (where ``lanes.json`` lives) for *mission_slug*.
 
     Routes through the kind-aware placement seam -- the same seam
@@ -577,13 +582,15 @@ def _planning_dir(main_repo_root: Path, mission_slug: str) -> Path:
     topology (coord-topology missions carry a SEPARATE status/coord dir that
     does NOT hold ``lanes.json``, #2118).
     """
-    return placement_seam(main_repo_root, mission_slug).read_dir(MissionArtifactKind.WORK_PACKAGE_TASK)
+    return placement_seam(main_repo_root, mission_slug, owned=owned).read_dir(MissionArtifactKind.WORK_PACKAGE_TASK)
 
 
 def reenter_lane_self_heal(
     main_repo_root: Path,
     mission_slug: str,
     wp_id: str,
+    *,
+    owned: OwnedCheckout | None = None,
 ) -> Path | None:
     """Idempotent self-heal re-entry for a stale lane workspace (FR-005/#3281/C-006).
 
@@ -627,6 +634,11 @@ def reenter_lane_self_heal(
     from specify_cli.ownership.workspace_strategy import create_planning_workspace
     from specify_cli.git import assert_not_protected_branch
 
+    # A validated owned single_branch workspace has no lane to allocate or
+    # dependency lane tips to merge. Its ancestry is still checked by the
+    # shared post-materialization gate; never reconcile the primary checkout.
+    if owned is not None:
+        return owned.owned_root
     manifest = read_lanes_json(_planning_dir(main_repo_root, mission_slug))
     if manifest is None:
         return None
@@ -846,6 +858,8 @@ def check_claim_ancestry(
     mission_dir: Path,
     wp_id: str,
     workspace_path: Path,
+    *,
+    owned: OwnedCheckout | None = None,
 ) -> AncestryCheckResult:
     """THE shared POST-materialize claim-ancestry predicate (C-WP03/FR-007/C-005).
 
@@ -862,7 +876,7 @@ def check_claim_ancestry(
     ``--to claimed``) -- so no caller independently re-derives (and
     potentially diverges on) this decision.
     """
-    manifest = read_lanes_json(_planning_dir(main_repo_root, mission_slug))
+    manifest = read_lanes_json(_planning_dir(main_repo_root, mission_slug, owned=owned))
     if manifest is None:
         return AncestryCheckResult(ok=True)
     lane = manifest.lane_for_wp(wp_id)
@@ -897,6 +911,8 @@ def resolve_claim_ancestry_gate(
     mission_dir: Path,
     wp_id: str,
     workspace_path: Path,
+    *,
+    owned: OwnedCheckout | None = None,
 ) -> AncestryCheckResult:
     """Ancestry check with self-heal-coupled retry (C-005/FR-005+FR-007 land together).
 
@@ -907,11 +923,11 @@ def resolve_claim_ancestry_gate(
     spuriously blocks a legitimate claim (a gate without self-heal is a
     dead-end retry, FR-005+FR-007's explicit pairing).
     """
-    result = check_claim_ancestry(main_repo_root, mission_slug, mission_dir, wp_id, workspace_path)
+    result = check_claim_ancestry(main_repo_root, mission_slug, mission_dir, wp_id, workspace_path, owned=owned)
     if result.ok:
         return result
-    reenter_lane_self_heal(main_repo_root, mission_slug, wp_id)
-    return check_claim_ancestry(main_repo_root, mission_slug, mission_dir, wp_id, workspace_path)
+    reenter_lane_self_heal(main_repo_root, mission_slug, wp_id, owned=owned)
+    return check_claim_ancestry(main_repo_root, mission_slug, mission_dir, wp_id, workspace_path, owned=owned)
 
 
 def _rev_parse_ref(repo_root: Path, ref: str) -> str:

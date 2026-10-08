@@ -15,7 +15,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from kernel.git import GitPath, IndexEntry, commit_paths, index_entries, status_entries, tracked_paths
-from mission_runtime import MissionArtifactKind, placement_seam
+from mission_runtime import MissionArtifactKind, OwnedCheckout, placement_seam
 
 from specify_cli.analysis_inputs import collect_material_inputs
 from specify_cli.analysis_report import (
@@ -172,6 +172,7 @@ def _commit_report(
     report: Path,
     message: str,
     target_branch: str,
+    owned: OwnedCheckout | None = None,
 ) -> CommitRouterResult:
     """Commit *report* through the canonical router; raise on anything but a clean commit.
 
@@ -187,6 +188,7 @@ def _commit_report(
         policy=ProtectionPolicy.resolve(repo_root),
         kind=MissionArtifactKind.ANALYSIS_REPORT,
         target_branch=target_branch,
+        owned=owned,
     )
     # WP14 review correction (round 2, binding -- the WP13 precedent this
     # mission's spec_commit_cmd.py consumer was rejected over): the legacy
@@ -230,7 +232,9 @@ class ReportTransactionOutcome:
     router_result: CommitRouterResult | None = None
 
 
-def record_report_transaction(*, repo_root: Path, feature_dir: Path, body: str, analyzer_agent: str | None, target_branch: str) -> ReportTransactionOutcome:
+def record_report_transaction(
+    *, repo_root: Path, feature_dir: Path, body: str, analyzer_agent: str | None, target_branch: str, owned: OwnedCheckout | None = None
+) -> ReportTransactionOutcome:
     """Record only the report; never reset or restore concurrent operator state."""
     report = feature_dir / ANALYSIS_REPORT_FILENAME
     relative = report.relative_to(repo_root).as_posix()
@@ -247,10 +251,10 @@ def record_report_transaction(*, repo_root: Path, feature_dir: Path, body: str, 
             if cursor.is_symlink():
                 raise ValueError("Report destination contains a symlink")
         _require_idle(repo_root)
-        target = placement_seam(repo_root, feature_dir.name).write_target(MissionArtifactKind.ANALYSIS_REPORT)
+        target = placement_seam(repo_root, feature_dir.name, owned=owned).write_target(MissionArtifactKind.ANALYSIS_REPORT)
         if target.ref != target_branch:
             raise ValueError("Analysis report placement changed before preflight")
-        preflight_commit(repo_root=repo_root, worktree_root=repo_root, target=target, message=message, paths=(report,))
+        preflight_commit(repo_root=repo_root, worktree_root=repo_root, target=target, message=message, paths=(report,), owned=owned)
         inputs = collect_material_inputs(feature_dir, repo_root)
         material_paths = {entry["path"] for entry in inputs.values()}
         dirty = _dirty_paths(repo_root)
@@ -271,6 +275,7 @@ def record_report_transaction(*, repo_root: Path, feature_dir: Path, body: str, 
             analyzer_agent=analyzer_agent,
             material_inputs=inputs,
             transaction_id=token,
+            owned=owned,
         )
         existing = _matching_qualified_report(repo_root, report, rendered)
         if existing is not None:
@@ -287,7 +292,7 @@ def record_report_transaction(*, repo_root: Path, feature_dir: Path, body: str, 
         receipt_path.parent.mkdir(parents=True, exist_ok=True)
         atomic_write(receipt_path, json.dumps({"state": "pending", "report": relative}))
         result = write_analysis_report(
-            feature_dir=feature_dir, repo_root=repo_root, body=body, analyzer_agent=analyzer_agent, material_inputs=inputs, transaction_id=token
+            feature_dir=feature_dir, repo_root=repo_root, body=body, analyzer_agent=analyzer_agent, material_inputs=inputs, transaction_id=token, owned=owned
         )
         wrote = True
         report_hash = result.content_sha256
@@ -295,7 +300,7 @@ def record_report_transaction(*, repo_root: Path, feature_dir: Path, body: str, 
             raise ValueError("Report changed after rendering; retained report is unqualified")
         _require_idle(repo_root)
         _guard_unchanged_inputs(repo_root=repo_root, feature_dir=feature_dir, relative=relative, head=head, index=index, working=working, inputs=inputs)
-        outcome = _commit_report(repo_root=repo_root, feature_dir=feature_dir, report=report, message=message, target_branch=target_branch)
+        outcome = _commit_report(repo_root=repo_root, feature_dir=feature_dir, report=report, message=message, target_branch=target_branch, owned=owned)
         committed = outcome.commit_hash
         parents = _git(repo_root, "rev-list", "--parents", "-n", "1", committed).split()
         changed = commit_paths(repo_root, committed)

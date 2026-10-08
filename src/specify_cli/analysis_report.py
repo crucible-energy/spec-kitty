@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from ruamel.yaml import YAML
+from mission_runtime import OwnedCheckout
 
 from charter.bundle import CHARTER_MD, CHARTER_YAML
 from charter.resolution import (
@@ -252,9 +253,10 @@ def _artifact_hash_entry(path: Path, governing_root: Path) -> dict[str, str | No
     return {"path": relative_path, "sha256": _sha256_file(path)}
 
 
-def _charter_path(repo_root: Path) -> tuple[Path | None, Path]:
-    # #1823: resolve through the canonical-root resolver so a worktree-local
-    # charter copy is never hashed in place of the main checkout's charter.
+def _charter_path(repo_root: Path, *, owned: OwnedCheckout | None = None) -> tuple[Path | None, Path]:
+    # #1823: ordinary worktree callers hash the canonical-root charter, not
+    # their local copy. An explicit validated owner instead governs its own
+    # charter; rendering and freshness checking must use the same selection.
     # This is a read-only hashing probe over arbitrary roots, so non-git roots
     # degrade to the passed root. Resolver infrastructure failures still
     # propagate; otherwise we would synthesize a local charter hash when the
@@ -272,10 +274,13 @@ def _charter_path(repo_root: Path) -> tuple[Path | None, Path]:
     # SAME canonical_root this function already resolved -- never a second,
     # potentially-duplicated resolve_canonical_repo_root call.
     canonical_root: Path
-    try:
-        canonical_root = resolve_canonical_repo_root(repo_root)
-    except NotInsideRepositoryError:
-        canonical_root = repo_root
+    if owned is not None:
+        canonical_root = owned.owned_root
+    else:
+        try:
+            canonical_root = resolve_canonical_repo_root(repo_root)
+        except NotInsideRepositoryError:
+            canonical_root = repo_root
     charter_yaml: Path = canonical_root / CHARTER_YAML
     if charter_yaml.exists():
         return charter_yaml, canonical_root
@@ -285,11 +290,15 @@ def _charter_path(repo_root: Path) -> tuple[Path | None, Path]:
     return None, canonical_root
 
 
-def collect_input_artifact_hashes(feature_dir: Path, repo_root: Path) -> dict[str, dict[str, str | None]]:
+def collect_input_artifact_hashes(feature_dir: Path, repo_root: Path, *, owned: OwnedCheckout | None = None) -> dict[str, dict[str, str | None]]:
     """Return current hashes for analyzer source artifacts."""
 
+    if owned is not None and (feature_dir.resolve() != owned.mission_dir or repo_root.resolve() != owned.owned_root):
+        raise PathRelativizationError("Analysis inputs do not match the validated owned checkout")
     inputs = {name: _artifact_hash_entry(feature_dir / name, repo_root) for name in _hash_inputs()}
-    charter_path, canonical_root = _charter_path(repo_root)
+    charter_path, canonical_root = _charter_path(repo_root, owned=owned)
+    if owned is not None and charter_path is None:
+        raise AnalysisReportError("Required owned charter missing: charter.yaml or charter.md")
     if charter_path is None:
         inputs["charter"] = {"path": None, "sha256": None}
     else:
@@ -465,6 +474,7 @@ def render_analysis_report(
     analyzer_agent: str | None = None,
     material_inputs: dict[str, dict[str, str | None]] | None = None,
     transaction_id: str | None = None,
+    owned: OwnedCheckout | None = None,
 ) -> tuple[AnalysisReportResult, str]:
     """Render a report and its result without writing its destination."""
 
@@ -474,7 +484,7 @@ def render_analysis_report(
             raise AnalysisReportError(f"Required artifact missing: {required_path}")
 
     identity = resolve_mission_identity(feature_dir)
-    input_artifacts = collect_input_artifact_hashes(feature_dir, repo_root)
+    input_artifacts = collect_input_artifact_hashes(feature_dir, repo_root, owned=owned)
     if material_inputs is not None:
         input_artifacts.update(material_inputs)
 
@@ -534,6 +544,7 @@ def write_analysis_report(
     analyzer_agent: str | None = None,
     material_inputs: dict[str, dict[str, str | None]] | None = None,
     transaction_id: str | None = None,
+    owned: OwnedCheckout | None = None,
 ) -> AnalysisReportResult:
     """Persist `analysis-report.md` using the canonical report renderer."""
     result, content = render_analysis_report(
@@ -543,6 +554,7 @@ def write_analysis_report(
         analyzer_agent=analyzer_agent,
         material_inputs=material_inputs,
         transaction_id=transaction_id,
+        owned=owned,
     )
     atomic_write(result.path, content)
     return result
@@ -556,7 +568,60 @@ def report_semantics(content: str) -> tuple[dict[str, Any], str] | None:
     return ({key: value for key, value in metadata.items() if key not in {"generated_at", "report_transaction"}}, body)
 
 
-def check_analysis_report_current(feature_dir: Path, repo_root: Path) -> AnalysisFreshness:
+def _analysis_input_failure_reason(exc: AnalysisReportError) -> str:
+    prefix = "path_relativization_failed" if isinstance(exc, PathRelativizationError) else "invalid_analysis_inputs"
+    return f"{prefix}: {exc}"
+
+
+def _report_transaction_failure(frontmatter: dict[str, Any], repo_root: Path, path: Path, *, owned: OwnedCheckout | None) -> str | None:
+    """Owned reads never downgrade to the legacy tokenless wrapper contract."""
+    if "report_transaction" not in frontmatter:
+        return "missing_report_transaction" if owned is not None else None
+    from specify_cli.git.report_transaction import report_is_qualified
+
+    if not report_is_qualified(repo_root, path, frontmatter["report_transaction"]):
+        return "unqualified_report_transaction"
+    return None
+
+
+def _require_complete_owned_inputs(saved: dict[str, Any], current: dict[str, dict[str, str | None]]) -> None:
+    """Validate the complete version-1 input carrier before comparing hashes."""
+    from specify_cli.analysis_inputs import MaterialInputError
+
+    if set(saved) != set(current):
+        raise MaterialInputError("Owned analysis requires a complete material input manifest")
+    for key, expected in current.items():
+        entry = saved[key]
+        if (
+            not isinstance(entry, dict)
+            or set(entry) != {"path", "sha256"}
+            or entry["path"] != expected["path"]
+            or (entry["sha256"] is not None and not isinstance(entry["sha256"], str))
+        ):
+            raise MaterialInputError(f"Invalid owned material input entry: {key}")
+
+
+def _report_material_inputs(
+    feature_dir: Path,
+    repo_root: Path,
+    frontmatter: dict[str, Any],
+    saved: dict[str, Any],
+    current: dict[str, dict[str, str | None]],
+    *,
+    owned: OwnedCheckout | None,
+) -> dict[str, dict[str, str | None]]:
+    from specify_cli.analysis_inputs import MaterialInputError, collect_material_inputs
+
+    version = frontmatter.get("material_manifest_version")
+    if version != 1 or (owned is not None and type(version) is not int):
+        raise MaterialInputError("Unsupported material manifest version")
+    material: dict[str, dict[str, str | None]] = collect_material_inputs(feature_dir, repo_root)
+    if owned is not None:
+        _require_complete_owned_inputs(saved, {**current, **material})
+    return material
+
+
+def check_analysis_report_current(feature_dir: Path, repo_root: Path, *, owned: OwnedCheckout | None = None) -> AnalysisFreshness:
     """Return whether `analysis-report.md` exists and matches current inputs."""
 
     path = feature_dir / ANALYSIS_REPORT_FILENAME
@@ -613,11 +678,9 @@ def check_analysis_report_current(feature_dir: Path, repo_root: Path) -> Analysi
             mismatches={},
         )
 
-    if "report_transaction" in frontmatter:
-        from specify_cli.git.report_transaction import report_is_qualified
-
-        if not report_is_qualified(repo_root, path, frontmatter["report_transaction"]):
-            return AnalysisFreshness(False, path, True, False, "unqualified_report_transaction", {})
+    transaction_failure = _report_transaction_failure(frontmatter, repo_root, path, owned=owned)
+    if transaction_failure is not None:
+        return AnalysisFreshness(False, path, True, False, transaction_failure, {})
 
     # NFR-002: collect_input_artifact_hashes can raise PathRelativizationError
     # (FR-007) for an unrelativizable hash-input path. Unlike write_analysis_report
@@ -627,27 +690,26 @@ def check_analysis_report_current(feature_dir: Path, repo_root: Path) -> Analysi
     # map to a typed ok=False result instead of letting it propagate into this
     # function's caller, _require_current_analysis_report.
     try:
-        current = collect_input_artifact_hashes(feature_dir, repo_root)
-    except PathRelativizationError as exc:
+        current = collect_input_artifact_hashes(feature_dir, repo_root, owned=owned)
+    except AnalysisReportError as exc:
         return AnalysisFreshness(
             ok=False,
             path=path,
             stale=True,
             missing=False,
-            reason=f"path_relativization_failed: {exc}",
+            reason=_analysis_input_failure_reason(exc),
             mismatches={},
         )
-    if "material_manifest_version" in frontmatter:
-        from specify_cli.analysis_inputs import MaterialInputError, collect_material_inputs
+    has_material_manifest = owned is not None or "material_manifest_version" in frontmatter
+    if has_material_manifest:
+        from specify_cli.analysis_inputs import MaterialInputError
 
         try:
-            if frontmatter["material_manifest_version"] != 1:
-                raise MaterialInputError("Unsupported material manifest version")
-            current.update(collect_material_inputs(feature_dir, repo_root))
+            current.update(_report_material_inputs(feature_dir, repo_root, frontmatter, saved_inputs, current, owned=owned))
         except (MaterialInputError, OSError, ValueError) as exc:
             return AnalysisFreshness(False, path, True, False, f"invalid_material_inputs: {exc}", {})
     mismatches: dict[str, dict[str, str | None]] = {}
-    keys = set(current) | set(saved_inputs) if "material_manifest_version" in frontmatter else (*_hash_inputs(), "charter")
+    keys = set(current) | set(saved_inputs) if has_material_manifest else (*_hash_inputs(), "charter")
     for key in keys:
         saved_entry = saved_inputs.get(key)
         saved_hash = saved_entry.get("sha256") if isinstance(saved_entry, dict) else None

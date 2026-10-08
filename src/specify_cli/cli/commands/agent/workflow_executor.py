@@ -46,7 +46,7 @@ import typer
 
 from kernel.git import GitCommandError, status_entries
 
-from mission_runtime import MissionArtifactKind, placement_seam
+from mission_runtime import MissionArtifactKind, OwnedCheckout, placement_seam
 from specify_cli.cli.commands._commit_recipes import safe_commit_recipe
 from specify_cli.cli.commands.implement_claim import claim_status_pair_paths
 from specify_cli.cli.commands.agent.workflow_cores import (
@@ -94,7 +94,7 @@ def _wf() -> ModuleType:
     return module
 
 
-def _locate_wp(repo_root: Path, mission_slug: str, normalized_wp_id: str) -> WorkPackage:
+def _locate_wp(repo_root: Path, mission_slug: str, normalized_wp_id: str, *, owned: OwnedCheckout | None = None) -> WorkPackage:
     """Typed accessor for ``workflow.locate_work_package`` (#2675 T054).
 
     ``_wf()`` returns ``ModuleType``, so ``.locate_work_package(...)`` leaks
@@ -104,7 +104,7 @@ def _locate_wp(repo_root: Path, mission_slug: str, normalized_wp_id: str) -> Wor
     """
     return cast(
         "WorkPackage",
-        _wf().locate_work_package(repo_root, mission_slug, normalized_wp_id),
+        _wf().locate_work_package(repo_root, mission_slug, normalized_wp_id, **({"owned": owned} if owned is not None else {})),
     )
 
 
@@ -271,6 +271,7 @@ def commit_workflow_change(
     rollback_point: RollbackPoint,
     auto_rebase_lane_after_commit: bool = False,
     before_lane_sync: Callable[[], None] | None = None,
+    owned: OwnedCheckout | None = None,
 ) -> None:
     """Commit a workflow change with atomic event-log rollback on failure.
 
@@ -297,6 +298,36 @@ def commit_workflow_change(
         typer.Exit(1): On commit failure (after rollback).
     """
     w = _wf()
+
+    if owned is not None:
+        from specify_cli.coordination.commit_router import commit_for_mission
+        from specify_cli.coordination.commit_outcome import commit_outcome_exit_code
+        from specify_cli.git.protection_policy import ProtectionPolicy
+
+        try:
+            outcome = commit_for_mission(
+                repo_root=repo_root, mission_slug=mission_slug, files=tuple(paths), message=message,
+                policy=ProtectionPolicy.resolve_for_owned(owned, mission_slug),
+                kind=MissionArtifactKind.STATUS_STATE, owned=owned,
+            )
+            # The owned transactional status shell may have already committed
+            # the pair while the Mission lock was held. Qualify an unchanged
+            # outcome against the exact committed bytes before recording it.
+            claim_sha = outcome.commit_hash
+            if outcome.status == "unchanged":
+                claim_sha = _owned_committed_claim_sha(owned, paths)
+            if outcome.status not in {"committed", "unchanged"} or claim_sha is None or commit_outcome_exit_code(outcome) != 0:
+                raise RuntimeError(outcome.diagnostic or f"Claim commit did not complete: {outcome.status}")
+        except Exception as exc:
+            _handle_commit_failure(
+                exc=exc, receipt_ref=owned.write_branch, message=message, wp_id=wp_id, operation=operation,
+                rollback=_CommitFailureContext(rollback_point=rollback_point, repo_root=repo_root),
+                error_prefix=f"Error: Failed to commit workflow status update for {wp_id}", include_recovery_note=True,
+            )
+        w._record_receipt(owned.write_branch, message, "committed", sha=claim_sha, wp_id=wp_id)
+        if before_lane_sync is not None:
+            before_lane_sync()
+        return
 
     # #2508 fix (FR-010, the #2160-class read-source bug): ``feature_dir`` is
     # the STATUS_STATE-partition read (a coord-topology mission's coord
@@ -432,18 +463,34 @@ def commit_workflow_change(
         )
 
 
-def claim_status_dir(main_repo_root: Path, mission_slug: str) -> Path:
+def _owned_committed_claim_sha(owned: OwnedCheckout, paths: list[Path]) -> str | None:
+    """Qualify the transactional shell's completed claim, never an unchecked no-op."""
+    from kernel.git import run_git
+
+    sha = _committed_receipt_sha(owned.owned_root, "HEAD")
+    if sha is None or not paths:
+        return None
+    for path in owned.files(paths):
+        committed = run_git(owned.owned_root, "show", f"{sha}:{path.relative_to(owned.owned_root).as_posix()}", check=False)
+        if committed.returncode != 0 or committed.stdout != path.read_bytes():
+            return None
+    return sha if _committed_receipt_sha(owned.owned_root, "HEAD") == sha else None
+
+
+def claim_status_dir(main_repo_root: Path, mission_slug: str, *, owned: OwnedCheckout | None = None) -> Path:
     """The status write surface a claim locks on (#5819): the one key both claim paths share.
 
     ``agent action implement`` and ``implement`` must take the same Mission write lock for one
     Mission, so both key it on this directory's name (the coordination worktree's Mission
     directory on a coord Mission, which can differ from the primary directory name).
     """
-    status_dir: Path = _wf()._canonical_status_feature_dir(main_repo_root, mission_slug)
+    status_dir: Path = _wf()._canonical_status_feature_dir(main_repo_root, mission_slug, **({"owned": owned} if owned is not None else {}))
     return status_dir
 
 
-def enter_checkout_claim_lock(stack: ExitStack, main_repo_root: Path, mission_slug: str, workspace: ResolvedWorkspace) -> None:
+def enter_checkout_claim_lock(
+    stack: ExitStack, main_repo_root: Path, mission_slug: str, workspace: ResolvedWorkspace, *, owned: OwnedCheckout | None = None
+) -> None:
     """Hold the write-checkout claim lock on *stack* for a single_branch repo-root claim (#5796).
 
     Taken before the occupancy scan and kept until *stack* closes, i.e. through the
@@ -454,12 +501,12 @@ def enter_checkout_claim_lock(stack: ExitStack, main_repo_root: Path, mission_sl
     from specify_cli.lanes.checkout_occupancy import is_single_branch_repo_root_lane
     from specify_cli.status import write_checkout_claim_lock
 
-    if is_single_branch_repo_root_lane(main_repo_root, mission_slug, workspace):
-        stack.enter_context(write_checkout_claim_lock(main_repo_root))
+    if is_single_branch_repo_root_lane(main_repo_root, mission_slug, workspace, owned=owned):
+        stack.enter_context(write_checkout_claim_lock(owned.owned_root if owned is not None else main_repo_root))
 
 
 def warn_shared_workspace_writers(
-    main_repo_root: Path, mission_slug: str, wp_id: str, workspace: ResolvedWorkspace, agent: str | None
+    main_repo_root: Path, mission_slug: str, wp_id: str, workspace: ResolvedWorkspace, agent: str | None, *, owned: OwnedCheckout | None = None
 ) -> list[str]:
     """Print the advisory #5099 warning for every other actor writing in *workspace*; return the lines.
 
@@ -470,7 +517,7 @@ def warn_shared_workspace_writers(
 
     writers: list[SharedWorkspaceWriter]
     try:
-        writers = shared_workspace_writers(main_repo_root, mission_slug, wp_id, workspace, agent)
+        writers = shared_workspace_writers(main_repo_root, mission_slug, wp_id, workspace, agent, owned=owned)
     except (OSError, ValueError, RuntimeError, StoreError):
         logger.debug("shared-workspace probe failed for %s/%s", mission_slug, wp_id, exc_info=True)
         return []
@@ -480,7 +527,7 @@ def warn_shared_workspace_writers(
     return lines
 
 
-def guard_repo_root_claim(main_repo_root: Path, mission_slug: str, wp_id: str, workspace: ResolvedWorkspace) -> None:
+def guard_repo_root_claim(main_repo_root: Path, mission_slug: str, wp_id: str, workspace: ResolvedWorkspace, *, owned: OwnedCheckout | None = None) -> None:
     """Run the shared repo-root claim seam for ``agent action implement`` (#5459).
 
     A no-op for an ordinary lane worktree, whose guard and claim base run
@@ -499,10 +546,10 @@ def guard_repo_root_claim(main_repo_root: Path, mission_slug: str, wp_id: str, w
         guard_repo_root_claim as _guard,
     )
 
-    if not is_single_branch_repo_root_lane(main_repo_root, mission_slug, workspace):
+    if not is_single_branch_repo_root_lane(main_repo_root, mission_slug, workspace, owned=owned):
         return
     try:
-        _guard(main_repo_root, mission_slug, wp_id, workspace)
+        _guard(main_repo_root, mission_slug, wp_id, workspace, owned=owned)
     except (WriteCheckoutWrongBranchError, WriteCheckoutOccupiedError, WriteCheckoutDirtyError) as e:
         print(f"Error: {e} ({e.error_code})")
         raise typer.Exit(1) from e
@@ -590,7 +637,7 @@ def ensure_workspace_materialized(
 
 
 def render_charter_context_text(
-    repo_root: Path, action: str, *, mission_type: str | None = None
+    repo_root: Path, action: str, *, mission_type: str | None = None, owned: OwnedCheckout | None = None
 ) -> str:
     """Render charter context for workflow prompts.
 
@@ -600,8 +647,12 @@ def render_charter_context_text(
     bundle (FR-003a) — governance declared but not delivered.
     """
     try:
+        from charter.activation.scope import CharterScope
+
         context = _wf().build_charter_context(
-            repo_root, action=action, mark_loaded=True, mission_type=mission_type
+            owned.owned_root if owned is not None else repo_root,
+            action=action, mark_loaded=True, mission_type=mission_type,
+            **({"scope": CharterScope.resolve(owned.owned_root, owned.mission_dir)} if owned is not None else {}),
         )
         text: str = context.text
         return text
@@ -641,7 +692,7 @@ def write_prompt_to_file(
 
 
 def implement_sparse_checkout_preflight(
-    repo_root: Path, mission_slug: str, agent: str | None, allow_sparse_checkout: bool
+    repo_root: Path, mission_slug: str, agent: str | None, allow_sparse_checkout: bool, *, owned: OwnedCheckout | None = None
 ) -> None:
     """WP05/T021 FR-007: sparse-checkout preflight, run before any worktree
     creation or state change. Raises ``typer.Exit(1)`` on refusal.
@@ -665,7 +716,7 @@ def implement_sparse_checkout_preflight(
         # is a PRIMARY-partition kind, so it short-circuits to PRIMARY before any
         # coord probe and never lands on that husk.
         identity = resolve_mission_identity(
-            placement_seam(repo_root, mission_slug).read_dir(MissionArtifactKind.PRIMARY_METADATA)
+            placement_seam(repo_root, mission_slug, owned=owned).read_dir(MissionArtifactKind.PRIMARY_METADATA)
         )
         mission_id_for_preflight = identity.mission_id
     except Exception:  # noqa: BLE001 — meta.json may not exist for legacy missions
@@ -673,7 +724,7 @@ def implement_sparse_checkout_preflight(
 
     try:
         require_no_sparse_checkout(
-            repo_root=repo_root,
+            repo_root=owned.owned_root if owned is not None else repo_root,
             command="spec-kitty agent action implement",
             override_flag=allow_sparse_checkout,
             actor=agent,
@@ -686,10 +737,10 @@ def implement_sparse_checkout_preflight(
         raise typer.Exit(1) from exc
 
 
-def implement_locate_wp(repo_root: Path, mission_slug: str, normalized_wp_id: str) -> WorkPackage:
+def implement_locate_wp(repo_root: Path, mission_slug: str, normalized_wp_id: str, *, owned: OwnedCheckout | None = None) -> WorkPackage:
     """Find the WP file, translating the canonical-status-missing case."""
     try:
-        return _locate_wp(repo_root, mission_slug, normalized_wp_id)
+        return _locate_wp(repo_root, mission_slug, normalized_wp_id, owned=owned)
     except RuntimeError as e:
         if is_missing_canonical_status_error(e):
             print(f"Error: {missing_canonical_status_message(normalized_wp_id, mission_slug)}")
@@ -730,7 +781,7 @@ def implement_check_wp_charter_precondition(main_repo_root: Path, wp: WorkPackag
 
 
 def implement_check_dependency_gate(
-    main_repo_root: Path, mission_slug: str, normalized_wp_id: str, wp_meta: WPMetadata
+    main_repo_root: Path, mission_slug: str, normalized_wp_id: str, wp_meta: WPMetadata, *, owned: OwnedCheckout | None = None
 ) -> None:
     """Gate the not-yet-started claim transition on dependency readiness.
 
@@ -745,8 +796,7 @@ def implement_check_dependency_gate(
     from specify_cli.status import reduce as dep_reduce_events
     from specify_cli.status import resolve_lane_alias as dep_resolve_alias
 
-    w = _wf()
-    dependency_feature_dir = w._canonical_status_feature_dir(main_repo_root, mission_slug)
+    dependency_feature_dir = claim_status_dir(main_repo_root, mission_slug, owned=owned)
     dependency_snapshot = dep_reduce_events(dep_read_events(dependency_feature_dir))
     dependency_lanes = {
         wp_id: state.get("lane", Lane.PLANNED) for wp_id, state in dependency_snapshot.work_packages.items()
@@ -788,6 +838,7 @@ def implement_resolve_feedback_and_gate(
     mission_slug: str,
     normalized_wp_id: str,
     wp: WorkPackage,
+    *, owned: OwnedCheckout | None = None,
 ) -> tuple[Path, bool, str | None, Path | None, str | None]:
     """Resolve the review-feedback context and enforce the analysis-report gate.
 
@@ -802,12 +853,13 @@ def implement_resolve_feedback_and_gate(
     # fix-mode and baseline-commit sites) — routes through the kind-aware
     # seam instead of the kind-blind coord husk (NFR-001 / Directive-041).
     feature_dir = w._resolve_workflow_read_dir(
-        repo_root=main_repo_root, mission_slug=mission_slug, kind=MissionArtifactKind.WORK_PACKAGE_TASK
+        repo_root=main_repo_root, mission_slug=mission_slug, kind=MissionArtifactKind.WORK_PACKAGE_TASK, owned=owned
     )
     has_feedback, review_feedback_ref, review_feedback_file, review_feedback_source = resolve_review_feedback_context(
         feature_dir=feature_dir,
         wp_id=normalized_wp_id,
         wp_frontmatter=getattr(wp, "frontmatter", "") or "",
+        owned=owned,
     )
 
     if review_feedback_source == "canonical" and review_feedback_file is None:
@@ -818,15 +870,16 @@ def implement_resolve_feedback_and_gate(
     # #1989 (read-side companion to WP01): read the report from the PRIMARY
     # checkout where record-analysis writes it (see _analysis_report_gate_dir).
     w._require_current_analysis_report(
-        w._analysis_report_gate_dir(main_repo_root, mission_slug),
+        w._analysis_report_gate_dir(main_repo_root, mission_slug, **({"owned": owned} if owned is not None else {})),
         main_repo_root,
         mission_slug,
+        **({"owned": owned} if owned is not None else {}),
     )
 
     return feature_dir, has_feedback, review_feedback_ref, review_feedback_file, review_feedback_source
 
 
-def implement_resolve_mission_type(repo_root: Path, mission_slug: str) -> tuple[str, str | None]:
+def implement_resolve_mission_type(repo_root: Path, mission_slug: str, *, owned: OwnedCheckout | None = None) -> tuple[str, str | None]:
     """Resolve the mission type + (for research missions) the deliverables path.
 
     FR-005 (#2186): the mission TYPE is a meta.json read and meta.json lives
@@ -838,7 +891,7 @@ def implement_resolve_mission_type(repo_root: Path, mission_slug: str) -> tuple[
     instead — PRIMARY_METADATA is a PRIMARY-partition kind, so it resolves
     PRIMARY for every topology without ever consulting that husk.
     """
-    mission_type_dir = placement_seam(repo_root, mission_slug).read_dir(MissionArtifactKind.PRIMARY_METADATA)
+    mission_type_dir = placement_seam(repo_root, mission_slug, owned=owned).read_dir(MissionArtifactKind.PRIMARY_METADATA)
     mission_type = get_mission_type(mission_type_dir)
     deliverables_path = None
     if mission_type == MISSION_TYPE_RESEARCH:
@@ -879,6 +932,7 @@ def _implement_start_claim(
     workspace_path: Path,
     resolved_binding: ResolvedBinding | None,
     operator_force_note: str | None = None,
+    owned: OwnedCheckout | None = None,
 ) -> str:
     """Emit the claim status event, guarded by the runtime operational-context
     precondition. Returns ``shell_pid``. Raises ``typer.Exit(1)`` on
@@ -910,7 +964,7 @@ def _implement_start_claim(
     # before start_implementation_status, leaving zero new status events
     # and zero new worktree paths.
     operational_context = build_operational_context_for_claim(
-        repo_root=main_repo_root,
+        repo_root=owned.owned_root if owned is not None else main_repo_root,
         feature_dir=feature_dir,
         mission_slug=mission_slug,
         wp_id=normalized_wp_id,
@@ -953,6 +1007,7 @@ def _implement_start_claim(
                 if resolved_binding is not None
                 else None
             ),
+            owned=owned,
         )
     except WorkPackageClaimConflict as exc:
         print(f"Error: {exc}")
@@ -975,6 +1030,7 @@ def _implement_write_claim_and_commit(
     target_branch: str,
     rollback_point: RollbackPoint,
     release_lock: Callable[[], None],
+    owned: OwnedCheckout | None = None,
 ) -> None:
     """Auto-commit the claim's event-log/status artifacts (enables instant
     status sync). The WP file is not mutated for the claim (byte-stable, SC-004);
@@ -1016,6 +1072,7 @@ def _implement_write_claim_and_commit(
         rollback_point=rollback_point,
         auto_rebase_lane_after_commit=True,
         before_lane_sync=release_lock,
+        owned=owned,
     )
 
 
@@ -1027,6 +1084,7 @@ def _implement_emit_resume_refresh(
     actor: str,
     repo_root: Path,
     resolved_binding: ResolvedBinding | None = None,
+    owned: OwnedCheckout | None = None,
 ) -> None:
     """WP07/T029a (FR-004/US3): refresh ``shell_pid`` on resume/re-claim of an
     already ``in_progress`` WP via an off-axis ``InnerStateChanged``
@@ -1063,6 +1121,7 @@ def _implement_emit_resume_refresh(
         actor=actor,
         mission_slug=mission_slug,
         repo_root=repo_root,
+        owned=owned,
     )
 
 
@@ -1087,6 +1146,7 @@ def implement_claim_transition(
     status_execution_mode: str,
     resolved_binding: ResolvedBinding | None = None,
     operator_force_note: str | None = None,
+    owned: OwnedCheckout | None = None,
 ) -> ImplementClaimResult:
     """Claim a WP for ``agent action implement`` inside ONE Mission write-lock hold (#5819).
 
@@ -1096,7 +1156,7 @@ def implement_claim_transition(
     Mission), so no other writer can append between the capture and the rollback.
     The wait is unbounded, like the review window.
     """
-    wf_feature_dir = claim_status_dir(main_repo_root, mission_slug)
+    wf_feature_dir = claim_status_dir(main_repo_root, mission_slug, owned=owned)
     with ExitStack() as hold:
         hold.enter_context(mission_write_lock(wf_feature_dir, repo_root=main_repo_root, timeout=UNBOUNDED_LOCK_WAIT))
         return _implement_claim_transition_body(
@@ -1115,6 +1175,7 @@ def implement_claim_transition(
             status_execution_mode=status_execution_mode,
             resolved_binding=resolved_binding,
             operator_force_note=operator_force_note,
+            owned=owned,
         )
 
 
@@ -1135,6 +1196,7 @@ def _implement_claim_transition_body(
     status_execution_mode: str,
     resolved_binding: ResolvedBinding | None = None,
     operator_force_note: str | None = None,
+    owned: OwnedCheckout | None = None,
 ) -> ImplementClaimResult:
     """Move a WP to ``in_progress`` (claiming it) if not already there.
 
@@ -1168,7 +1230,7 @@ def _implement_claim_transition_body(
     logger.debug("WP agent assignment: tool=%s model=%s", wp_agent_assignment.tool, wp_agent_assignment.model)
     needs_agent_assignment = wp_agent_assignment.tool == "unknown"
     wp_slug = wp.path.stem
-    fix_mode_active = has_prior_rejection(feature_dir, wp_slug, normalized_wp_id)
+    fix_mode_active = has_prior_rejection(feature_dir, wp_slug, normalized_wp_id, owned=owned)
 
     # Capture before every status mutation, including the bare-resume path, so
     # commit failure can restore both authoritative artifacts. The capture refuses
@@ -1198,6 +1260,7 @@ def _implement_claim_transition_body(
             workspace_path=workspace_path,
             resolved_binding=resolved_binding,
             operator_force_note=operator_force_note,
+            owned=owned,
         )
 
         if current_lane == Lane.IN_PROGRESS:
@@ -1208,6 +1271,7 @@ def _implement_claim_transition_body(
                 actor=agent or wp_agent_assignment.tool or "unknown",
                 resolved_binding=resolved_binding,
                 repo_root=main_repo_root,
+                owned=owned,
             )
         _implement_write_claim_and_commit(
             agent=agent,
@@ -1218,12 +1282,13 @@ def _implement_claim_transition_body(
             target_branch=target_branch,
             rollback_point=rollback_point,
             release_lock=release_lock,
+            owned=owned,
         )
 
         print(f"✓ Claimed {normalized_wp_id} (agent: {agent}, PID: {shell_pid}, target: {target_branch})")
 
         # Reload to get updated content
-        wp = _locate_wp(repo_root, mission_slug, normalized_wp_id)
+        wp = _locate_wp(repo_root, mission_slug, normalized_wp_id, owned=owned)
     else:
         print(f"⚠️  {normalized_wp_id} is already in lane: {current_lane}. Action implement will not move it to in_progress.")
         _implement_emit_resume_refresh(
@@ -1233,6 +1298,7 @@ def _implement_claim_transition_body(
             actor=agent or wp_agent_assignment.tool or "unknown",
             repo_root=main_repo_root,
             resolved_binding=resolved_binding,
+            owned=owned,
         )
         w._commit_workflow_change(
             repo_root=main_repo_root,
@@ -1245,6 +1311,7 @@ def _implement_claim_transition_body(
             rollback_point=rollback_point,
             auto_rebase_lane_after_commit=True,
             before_lane_sync=release_lock,
+            owned=owned,
         )
 
     return ImplementClaimResult(
@@ -1267,6 +1334,7 @@ def implement_try_render_fix_mode_prompt(
     mission_slug: str,
     normalized_wp_id: str,
     repo_root: Path,
+    owned: OwnedCheckout | None = None,
 ) -> Path | None:
     """Render the focused fix-mode prompt when the WP was rejected and has
     review-cycle artifacts. The fix-prompt completely replaces the full WP
@@ -1298,7 +1366,7 @@ def implement_try_render_fix_mode_prompt(
         # review``). This function's own ``.from_file``/``.latest`` calls
         # below remain content/cycle-number loaders (squad #1 — KEPT, not
         # verdict readers), unaffected by this directory-resolution fix.
-        sub_artifact_dir = _review_cycle_wp_dir(repo_root, mission_slug, wp_slug)
+        sub_artifact_dir = _review_cycle_wp_dir(repo_root, mission_slug, wp_slug, owned=owned)
         # Declared up front (#2675 T054): ``.from_file(...)`` returns a
         # non-Optional ``ReviewCycleArtifact`` while ``.latest(...)`` returns
         # ``ReviewCycleArtifact | None`` -- without this explicit annotation
@@ -1382,6 +1450,7 @@ def implement_capture_baseline(
     feature_dir: Path,
     wp_slug: str,
     main_repo_root: Path,
+    owned: OwnedCheckout | None = None,
 ) -> None:
     """Capture (one-time, cached) baseline test results before the agent
     starts coding, and best-effort commit the baseline artifact."""
@@ -1410,7 +1479,7 @@ def implement_capture_baseline(
             mission_slug=mission_slug,
             feature_dir=feature_dir,
             wp_slug=wp_slug,
-            scope_source=resolve_scope_source(main_repo_root),
+            scope_source=resolve_scope_source(owned.owned_root if owned is not None else main_repo_root),
         )
         # Rich markup only renders through the CLI console seam; the builtin
         # print emitted the tags literally (#4163).
@@ -1438,7 +1507,7 @@ def implement_capture_baseline(
             baseline is not None
             and baseline.failed != -1
             and baseline_artifact.exists()
-            and _baseline_artifact_needs_commit(main_repo_root, baseline_artifact)
+            and _baseline_artifact_needs_commit(owned.owned_root if owned is not None else main_repo_root, baseline_artifact)
         ):
             # Mechanical WP06 pre-step migration.
             try:
@@ -1454,14 +1523,16 @@ def implement_capture_baseline(
                     repo_root=main_repo_root,
                     mission_slug=mission_slug,
                     kind=MissionArtifactKind.WORK_PACKAGE_TASK,
+                    owned=owned,
                 )
                 w.safe_commit(
                     repo_root=main_repo_root,
-                    worktree_root=main_repo_root,
+                    worktree_root=owned.owned_root if owned is not None else main_repo_root,
                     target=baseline_placement,
                     message=f"chore: Capture baseline tests for {normalized_wp_id}",
                     paths=(baseline_artifact,),
                     capability=GuardCapability.STANDARD,
+                    owned=owned,
                 )
             except Exception as bl_commit_exc:  # noqa: BLE001 — best-effort
                 # #2896: surface the real refusal reason visibly, not only to
@@ -1497,6 +1568,7 @@ def build_implement_prompt_lines(
     review_feedback_file: Path | None,
     mission_type: str,
     deliverables_path: str | None,
+    owned: OwnedCheckout | None = None,
 ) -> list[str]:
     """Assemble the full ``IMPLEMENT: <wp>`` prompt body."""
     lines: list[str] = []
@@ -1507,13 +1579,13 @@ def build_implement_prompt_lines(
     lines.append(f"Source: {wp.path}")
     lines.append("")
     lines.append(f"Workspace: {workspace_path}")
-    lines.append(workspace_contract_description(workspace, normalized_wp_id))
+    lines.append("Workspace contract: owned single_branch write checkout" if owned is not None else workspace_contract_description(workspace, normalized_wp_id))
     lines.append("")
     # WP03 (#833): surface the resolved agent 4-tuple so model / profile_id /
     # role flow into the rendered prompt instead of being silently discarded.
     lines.extend(render_resolved_agent_identity(wp_agent_assignment))
     lines.append("")
-    lines.append(render_charter_context_text(repo_root, "implement", mission_type=mission_type))
+    lines.append(render_charter_context_text(repo_root, "implement", mission_type=mission_type, owned=owned))
     lines.append("")
 
     # CRITICAL: WP isolation rules
@@ -1524,8 +1596,8 @@ def build_implement_prompt_lines(
     try:
         from specify_cli.core.worktree_topology import materialize_worktree_topology, render_topology_json
 
-        topology = materialize_worktree_topology(repo_root, mission_slug)
-        if topology.has_stacking:
+        topology = materialize_worktree_topology(repo_root, mission_slug) if owned is None else None
+        if topology is not None and topology.has_stacking:
             lines.extend(render_topology_json(topology, current_wp_id=normalized_wp_id))
             lines.append("")
     except Exception as exc:
@@ -1557,13 +1629,19 @@ def build_implement_prompt_lines(
         lines.append("   # All implementation work happens in this workspace")
         lines.append(f"   # When done, return to repo root: cd {repo_root}")
     else:
-        lines.append("   # Planning-artifact work for this WP happens in the repository root")
+        lines.append(
+            "   # Work for this WP happens in the owned checkout"
+            if owned is not None else "   # Planning-artifact work for this WP happens in the repository root"
+        )
     lines.append("")
-    lines.extend(shared_artifact_guidance(workspace, repo_root, mission_slug))
+    lines.extend(shared_artifact_guidance(workspace, owned.owned_root if owned is not None else repo_root, mission_slug))
     lines.append("")
     lines.append("📋 STATUS TRACKING:")
     lines.append(f"   kitty-specs/ status is tracked in {target_branch} branch (visible to all agents)")
-    lines.append("   Status changes auto-commit to the coordination branch (visible to all agents)")
+    lines.append(
+        "   Status changes auto-commit to the owned checkout's write branch"
+        if owned is not None else "   Status changes auto-commit to the coordination branch (visible to all agents)"
+    )
     lines.append("   ⚠️  You will see commits from other agents - IGNORE THEM")
     lines.append("=" * 80)
     lines.append("")
@@ -1648,6 +1726,7 @@ def implement_finalize_and_print(
     mission_type: str,
     deliverables_path: str | None,
     subtask_cmd: str,
+    owned: OwnedCheckout | None = None,
 ) -> None:
     """Write the full prompt to its scoped tmp file and print the concise
     stdout summary directing the agent to read it."""
@@ -1660,7 +1739,7 @@ def implement_finalize_and_print(
         shared = ", ".join(workspace.lane_wp_ids or [normalized_wp_id])
         print(f"   Lane workspace: {workspace.lane_id} (shared by {shared})")
     else:
-        print("   Repository-root planning workspace")
+        print("   Owned single_branch write checkout" if owned is not None else "   Repository-root planning workspace")
     if has_feedback:
         if review_feedback_ref:
             print(f"⚠️  Has review feedback - read reference: {review_feedback_ref}")

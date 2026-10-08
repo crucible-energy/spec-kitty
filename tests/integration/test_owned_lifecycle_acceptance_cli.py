@@ -50,7 +50,7 @@ def _worktree_and_branch_lists(repo_root: Path) -> tuple[str, str]:
     return worktrees, branches
 
 
-@pytest.mark.parametrize("command", ["implement", "review"])
+@pytest.mark.parametrize("command", ["review"])
 @pytest.mark.parametrize("with_mission", [True, False])
 def test_owned_action_refuses_with_owned_action_unsupported(
     owned_checkouts: OwnedCheckouts,
@@ -59,7 +59,7 @@ def test_owned_action_refuses_with_owned_action_unsupported(
     with_mission: bool,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """US6 (target): both commands refuse a valid P with OWNED_ACTION_UNSUPPORTED, no side effects."""
+    """Owned review still refuses a valid P before any side effect (#5882)."""
     p_root = owned_checkouts.owned_root
     r_root = owned_checkouts.repository_root
     monkeypatch.chdir(r_root)
@@ -92,7 +92,7 @@ def _registered_codes() -> frozenset[str]:
     return frozenset({member.value for member in OwnedRefusalCode})
 
 
-@pytest.mark.parametrize("command", ["implement", "review"])
+@pytest.mark.parametrize("command", ["review"])
 def test_owned_action_refuses_before_side_effects(
     owned_checkouts: OwnedCheckouts,
     command: str,
@@ -444,9 +444,15 @@ def test_fr020_valid_p_control(
     lists_before = _worktree_and_branch_snapshot(checkouts.repository_root)
     result = _invoke_result(command, checkouts.owned_root, checkouts.mission_slug)
     combined = result.output
-    if command in ("action-implement", "action-review"):
+    if command == "action-review":
         assert result.exit_code == 1, combined
         assert OwnedRefusalCode.OWNED_ACTION_UNSUPPORTED.value in combined, combined
+    elif command == "action-implement":
+        # Ownership is admitted, but this control has no finalized status.
+        # The real implementation path must retain that precondition.
+        assert result.exit_code == 1, combined
+        assert "canonical status" in combined.lower(), combined
+        assert OwnedRefusalCode.OWNED_ACTION_UNSUPPORTED.value not in combined
     else:
         assert result.exit_code == 0, combined
         assert result.exception is None, repr(result.exception)

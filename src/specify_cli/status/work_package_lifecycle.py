@@ -26,6 +26,7 @@ from specify_cli.status.models import (
     actor_identity_str,
 )
 from specify_cli.workspace import canonicalize_feature_dir
+from mission_runtime import OwnedCheckout
 
 #: Placeholder assignee identities written by callers that claim a WP without
 #: a real agent identity (``implement-command`` — the internal ``spec-kitty
@@ -161,6 +162,7 @@ def _read_events_for_implementer(
     feature_dir: Path,
     mission_slug: str,
     repo_root: Path | None,
+    owned: OwnedCheckout | None = None,
 ) -> list[StatusEvent] | None:
     """The mission's transactional event read, or ``None`` on any read failure (#5377).
 
@@ -173,7 +175,7 @@ def _read_events_for_implementer(
     from specify_cli.coordination.status_transition import read_events_transactional
 
     try:
-        return list(read_events_transactional(feature_dir=feature_dir, mission_slug=mission_slug, repo_root=repo_root))
+        return list(read_events_transactional(feature_dir=feature_dir, mission_slug=mission_slug, repo_root=repo_root, owned=owned))
     except Exception:  # fail closed toward the existing claim-conflict refusal (#5377)
         return None
 
@@ -185,6 +187,7 @@ def _admits_implementer_of_record(
     wp_id: str,
     actor: ActorField,
     repo_root: Path | None,
+    owned: OwnedCheckout | None = None,
 ) -> bool:
     """Whether ``actor`` is ``wp_id``'s implementer of record (#5377).
 
@@ -196,7 +199,7 @@ def _admits_implementer_of_record(
     """
     from specify_cli.status.review_roles import is_latest_implementer, latest_implementer_actor
 
-    events = _read_events_for_implementer(feature_dir=feature_dir, mission_slug=mission_slug, repo_root=repo_root)
+    events = _read_events_for_implementer(feature_dir=feature_dir, mission_slug=mission_slug, repo_root=repo_root, owned=owned)
     if events is None:
         return False
     try:
@@ -233,6 +236,7 @@ def _review_lane_exit_reason(
     actor: ActorField,
     repo_root: Path | None,
     operator_force_note: str | None,
+    owned: OwnedCheckout | None = None,
 ) -> str:
     """Return the honest event reason for leaving a review lane, or raise the refusal (#5446)."""
     if operator_force_note is not None:
@@ -251,21 +255,22 @@ def _review_lane_exit_reason(
         wp_id=wp_id,
         actor=actor,
         repo_root=repo_root,
+        owned=owned,
     ):
         raise WorkPackageClaimConflict(
             wp_id,
-            _implementer_of_record_label(feature_dir, mission_slug, wp_id, repo_root),
+            _implementer_of_record_label(feature_dir, mission_slug, wp_id, repo_root, owned=owned),
             actor,
             submitted=True,
         )
     return f"Implementer of record withdrew {wp_id} from for_review to continue implementation"
 
 
-def _implementer_of_record_label(feature_dir: Path, mission_slug: str, wp_id: str, repo_root: Path | None) -> str:
+def _implementer_of_record_label(feature_dir: Path, mission_slug: str, wp_id: str, repo_root: Path | None, *, owned: OwnedCheckout | None = None) -> str:
     """Name the implementer of record for a refusal message; ``"unknown"`` on any read failure."""
     from specify_cli.status.review_roles import latest_implementer_actor
 
-    events = _read_events_for_implementer(feature_dir=feature_dir, mission_slug=mission_slug, repo_root=repo_root)
+    events = _read_events_for_implementer(feature_dir=feature_dir, mission_slug=mission_slug, repo_root=repo_root, owned=owned)
     if events is None:
         return _UNKNOWN_ACTOR
     try:
@@ -287,6 +292,7 @@ def start_implementation_status(
     review_lane_exit: bool = False,
     operator_force_note: str | None = None,
     annotation_delta: WPInnerStateDelta | None = None,
+    owned: OwnedCheckout | None = None,
 ) -> WorkPackageStartResult:
     """Idempotently move a WP into ``in_progress`` for an implementation actor.
 
@@ -306,7 +312,7 @@ def start_implementation_status(
         read_current_wp_state_transactional,
     )
 
-    feature_dir = canonicalize_feature_dir(feature_dir)
+    feature_dir = owned.mission_dir if owned is not None else canonicalize_feature_dir(feature_dir)
     lock_root = _repo_root_for_lock(feature_dir, repo_root)
 
     with feature_status_lock(lock_root, feature_dir.name):
@@ -315,6 +321,7 @@ def start_implementation_status(
             mission_slug=mission_slug,
             wp_id=wp_id,
             repo_root=repo_root,
+            owned=owned,
         )
         current_lane = current.lane
         current_actor = current.actor
@@ -336,6 +343,7 @@ def start_implementation_status(
                         execution_mode=execution_mode,
                         repo_root=repo_root,
                         policy_metadata=policy_metadata,
+                        owned=owned,
                     ),
                     TransitionRequest(
                         feature_dir=feature_dir,
@@ -348,6 +356,7 @@ def start_implementation_status(
                         repo_root=repo_root,
                         policy_metadata=policy_metadata,
                         annotation_delta=annotation_delta,
+                        owned=owned,
                     ),
                 ],
             )
@@ -376,6 +385,7 @@ def start_implementation_status(
                         repo_root=repo_root,
                         policy_metadata=policy_metadata,
                         annotation_delta=annotation_delta,
+                        owned=owned,
                     )
                 ],
             )
@@ -398,6 +408,7 @@ def start_implementation_status(
                     wp_id=wp_id,
                     actor=actor,
                     repo_root=repo_root,
+                    owned=owned,
                 ):
                     raise WorkPackageClaimConflict(wp_id, current_actor or _UNKNOWN_ACTOR, actor)
                 return WorkPackageStartResult(wp_id, Lane.IN_PROGRESS, Lane.IN_PROGRESS, actor, (), no_op=True, claimed_by=actor_identity_str(actor))
@@ -413,6 +424,7 @@ def start_implementation_status(
                 actor=actor,
                 repo_root=repo_root,
                 operator_force_note=operator_force_note,
+                owned=owned,
             )
             event = emit_status_transition_transactional(
                 TransitionRequest(
@@ -428,6 +440,7 @@ def start_implementation_status(
                     repo_root=repo_root,
                     policy_metadata=policy_metadata,
                     annotation_delta=annotation_delta,
+                    owned=owned,
                 ),
             )
             return WorkPackageStartResult(

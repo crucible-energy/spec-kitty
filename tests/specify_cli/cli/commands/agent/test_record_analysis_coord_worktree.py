@@ -189,8 +189,9 @@ def test_analysis_report_gate_dir_uses_primary_not_candidate(
     captured_kinds: list[MissionArtifactKind] = []
 
     def _fake_resolve_workflow_read_dir(
-        *, repo_root: Path, mission_slug: str, kind: MissionArtifactKind
+        *, repo_root: Path, mission_slug: str, kind: MissionArtifactKind, owned: object | None = None
     ) -> Path:
+        assert owned is None  # This control pins the ordinary primary-partition route.
         captured_kinds.append(kind)
         return primary_sentinel
 

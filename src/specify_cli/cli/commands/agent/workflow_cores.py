@@ -35,6 +35,7 @@ from specify_cli.review.cycle import is_non_resolvable_review_ref as _is_non_res
 from specify_cli.status import FORCE_NOTE_REQUIRED, AgentAssignment, Lane
 
 if TYPE_CHECKING:
+    from mission_runtime import OwnedCheckout
     from specify_cli.status import StatusEvent
     from specify_cli.workspace.context import ResolvedWorkspace
 
@@ -268,7 +269,7 @@ def auto_claim_failure_message(preview: object | None) -> str:
 # ---------------------------------------------------------------------------
 
 
-def resolve_review_feedback_pointer(repo_root: Path, pointer: str) -> Path | None:
+def resolve_review_feedback_pointer(repo_root: Path, pointer: str, *, owned: OwnedCheckout | None = None) -> Path | None:
     """Resolve a review feedback pointer to a file path.
 
     Supports two pointer formats:
@@ -285,7 +286,7 @@ def resolve_review_feedback_pointer(repo_root: Path, pointer: str) -> Path | Non
     from specify_cli.review.cycle import resolve_review_cycle_pointer
 
     try:
-        result: Path | None = resolve_review_cycle_pointer(repo_root, pointer).path
+        result: Path | None = resolve_review_cycle_pointer(repo_root, pointer, owned=owned).path
         return result
     except ValueError:
         return None
@@ -325,7 +326,7 @@ def read_wp_events(feature_dir: Path, wp_id: str) -> list[StatusEvent]:
         return []
 
 
-def _resolve_status_state_read_dir(feature_dir: Path) -> Path:
+def _resolve_status_state_read_dir(feature_dir: Path, *, owned: OwnedCheckout | None = None) -> Path:
     """Resolve the STATUS_STATE home for reading *feature_dir*'s event log.
 
     A thin adapter onto the single handed-dir authority
@@ -336,10 +337,12 @@ def _resolve_status_state_read_dir(feature_dir: Path) -> Path:
     partition or with no derivable workspace root. The imports stay lazy to
     keep this pure core's import surface unchanged.
     """
-    from mission_runtime import MissionArtifactKind
+    from mission_runtime import MissionArtifactKind, placement_seam
 
     from specify_cli.missions._read_path_resolver import resolve_partition_read_dir
 
+    if owned is not None:
+        return placement_seam(owned.repository_root, feature_dir.name, owned=owned).read_dir(MissionArtifactKind.STATUS_STATE)
     resolved: Path = resolve_partition_read_dir(feature_dir, MissionArtifactKind.STATUS_STATE)
     return resolved
 
@@ -347,6 +350,7 @@ def _resolve_status_state_read_dir(feature_dir: Path) -> Path:
 def latest_review_feedback_reference(
     feature_dir: Path,
     wp_id: str,
+    *, owned: OwnedCheckout | None = None,
 ) -> tuple[str | None, Path | None, int | None]:
     """Return the newest canonical review feedback reference for *wp_id*.
 
@@ -370,7 +374,7 @@ def latest_review_feedback_reference(
     # Review feedback artifacts are committed under kitty-specs/ inside
     # whichever tree feature_dir lives in (coord worktree or main repo).
     feedback_root = review_feedback_root(feature_dir)
-    status_state_read_dir = _resolve_status_state_read_dir(feature_dir)
+    status_state_read_dir = _resolve_status_state_read_dir(feature_dir, owned=owned)
     wp_events = read_wp_events(status_state_read_dir, wp_id)
     for index in range(len(wp_events) - 1, -1, -1):
         event = wp_events[index]
@@ -379,7 +383,7 @@ def latest_review_feedback_reference(
         review_ref = event.review_ref.strip()
         if not review_ref or _is_non_resolvable_review_ref(review_ref):
             continue
-        return review_ref, resolve_review_feedback_pointer(feedback_root, review_ref), index
+        return review_ref, resolve_review_feedback_pointer(feedback_root, review_ref, owned=owned), index
     return None, None, None
 
 
@@ -387,6 +391,7 @@ def resolve_review_feedback_context(
     feature_dir: Path,
     wp_id: str,
     wp_frontmatter: str,
+    *, owned: OwnedCheckout | None = None,
 ) -> tuple[bool, str | None, Path | None, str | None]:
     """Resolve review-feedback presence and the canonical readable artifact.
 
@@ -403,14 +408,14 @@ def resolve_review_feedback_context(
     """
     del wp_frontmatter  # FR-006a/FR-007: frontmatter is no longer a review authority
 
-    review_feedback_ref, review_feedback_file, _ = latest_review_feedback_reference(feature_dir, wp_id)
+    review_feedback_ref, review_feedback_file, _ = latest_review_feedback_reference(feature_dir, wp_id, owned=owned)
     if review_feedback_ref is not None:
         return True, review_feedback_ref, review_feedback_file, "canonical"
 
     return False, None, None, None
 
 
-def _resolve_review_cycle_sub_artifact_dir(feature_dir: Path, wp_slug: str) -> Path:
+def _resolve_review_cycle_sub_artifact_dir(feature_dir: Path, wp_slug: str, *, owned: OwnedCheckout | None = None) -> Path:
     """Resolve the review-cycle artifact directory for *wp_slug* (T024).
 
     WP05 (verdict-seam-write-unification-01KZ9Q35): this used to be a RAW
@@ -427,6 +432,8 @@ def _resolve_review_cycle_sub_artifact_dir(feature_dir: Path, wp_slug: str) -> P
     from specify_cli.core.paths import WorkspaceRootNotFound, resolve_canonical_root
     from specify_cli.review.cycle import _review_cycle_wp_dir
 
+    if owned is not None:
+        return _review_cycle_wp_dir(owned.repository_root, feature_dir.name, wp_slug, owned=owned)
     try:
         main_repo_root = resolve_canonical_root(feature_dir)
     except WorkspaceRootNotFound:
@@ -441,6 +448,7 @@ def has_prior_rejection(
     feature_dir: Path,
     wp_slug: str,
     normalized_wp_id: str,
+    *, owned: OwnedCheckout | None = None,
 ) -> bool:
     """Check if a WP has review-cycle artifacts from a prior rejection.
 
@@ -466,13 +474,13 @@ def has_prior_rejection(
     applies, kept consistent here since this function reads the event log
     independently (not only via the call below).
     """
-    sub_artifact_dir = _resolve_review_cycle_sub_artifact_dir(feature_dir, wp_slug)
+    sub_artifact_dir = _resolve_review_cycle_sub_artifact_dir(feature_dir, wp_slug, owned=owned)
     if not sub_artifact_dir.exists():
         return False
     if not list(sub_artifact_dir.glob("review-cycle-*.md")):
         return False
 
-    status_state_read_dir = _resolve_status_state_read_dir(feature_dir)
+    status_state_read_dir = _resolve_status_state_read_dir(feature_dir, owned=owned)
     wp_events = read_wp_events(status_state_read_dir, normalized_wp_id)
     if not wp_events:
         return False
@@ -480,6 +488,7 @@ def has_prior_rejection(
     review_feedback_ref, review_feedback_file, review_feedback_index = latest_review_feedback_reference(
         feature_dir,
         normalized_wp_id,
+        owned=owned,
     )
     if review_feedback_ref is None or review_feedback_file is None or review_feedback_index is None:
         return False

@@ -85,7 +85,7 @@ from specify_cli.cli.commands.implement import implement as top_level_implement
 from specify_cli.cli.selector_resolution import resolve_mission_handle
 from specify_cli.coordination.types import CommitReceipt
 from specify_cli.core.paths import get_feature_target_branch, get_main_repo_root, is_worktree_context, locate_project_root  # noqa: F401 -- late-bound via workflow_executor._wf() / patched by tests
-from mission_runtime import CommitTarget, MissionArtifactKind, is_primary_artifact_kind, kind_for_mission_file
+from mission_runtime import CommitTarget, MissionArtifactKind, OwnedCheckout, is_primary_artifact_kind, kind_for_mission_file
 from specify_cli.core.commit_guard import GuardCapability
 from specify_cli.git import safe_commit
 from specify_cli.git.commit_helpers import SafeCommitRecoveryFailed
@@ -358,7 +358,7 @@ def _load_coord_branch_meta(feature_dir: Path) -> tuple[str | None, str | None, 
     return (coord, mid, mid8)
 
 
-def _canonical_status_feature_dir(main_repo_root: Path, mission_slug: str) -> Path:
+def _canonical_status_feature_dir(main_repo_root: Path, mission_slug: str, *, owned: OwnedCheckout | None = None) -> Path:
     """Resolve the canonical read-side mission directory for status state.
 
     Routes through the single guarded read-side seam
@@ -378,6 +378,8 @@ def _canonical_status_feature_dir(main_repo_root: Path, mission_slug: str) -> Pa
     """
     from specify_cli.missions._read_path_resolver import resolve_handle_to_read_path
 
+    if owned is not None:
+        return _resolve_workflow_read_dir(repo_root=main_repo_root, mission_slug=mission_slug, kind=MissionArtifactKind.STATUS_STATE, owned=owned)
     return resolve_handle_to_read_path(main_repo_root, mission_slug)
 
 
@@ -667,7 +669,7 @@ def _revert_coordination_commit(receipt: CommitReceipt) -> None:
         )
 
 
-def _workflow_placement_seam(repo_root: Path, mission_slug: str) -> PlacementSeam:
+def _workflow_placement_seam(repo_root: Path, mission_slug: str, *, owned: OwnedCheckout | None = None) -> PlacementSeam:
     """Construct the ONE placement-seam instance every workflow.py wrapper shares.
 
     read-surface-ssot-closeout WP04 (T017/T018): the pre-existing
@@ -683,11 +685,11 @@ def _workflow_placement_seam(repo_root: Path, mission_slug: str) -> PlacementSea
     """
     from mission_runtime import placement_seam
 
-    return placement_seam(repo_root, mission_slug)
+    return placement_seam(repo_root, mission_slug, owned=owned)
 
 
 def _resolve_workflow_placement(
-    *, repo_root: Path, mission_slug: str, kind: MissionArtifactKind
+    *, repo_root: Path, mission_slug: str, kind: MissionArtifactKind, owned: OwnedCheckout | None = None
 ) -> CommitTarget:
     """Resolve the write :class:`CommitTarget` for ``kind`` via the placement seam.
 
@@ -702,11 +704,11 @@ def _resolve_workflow_placement(
     mechanism) keep reading that separately — this helper answers only "where
     does a write of this kind land", the seam's one job.
     """
-    return _workflow_placement_seam(repo_root, mission_slug).write_target(kind)
+    return _workflow_placement_seam(repo_root, mission_slug, owned=owned).write_target(kind)
 
 
 def _resolve_workflow_read_dir(
-    *, repo_root: Path, mission_slug: str, kind: MissionArtifactKind
+    *, repo_root: Path, mission_slug: str, kind: MissionArtifactKind, owned: OwnedCheckout | None = None
 ) -> Path:
     """Resolve the read directory for ``kind`` via the placement seam (IC-04/T017).
 
@@ -718,7 +720,7 @@ def _resolve_workflow_read_dir(
     ``.read_dir(kind)`` instead of re-deriving the seam call inline at each
     read site.
     """
-    read_dir: Path = _workflow_placement_seam(repo_root, mission_slug).read_dir(kind)
+    read_dir: Path = _workflow_placement_seam(repo_root, mission_slug, owned=owned).read_dir(kind)
     return read_dir
 
 
@@ -1160,7 +1162,7 @@ def _find_mission_slug(
 
 
 
-def _preview_claimable_wp_for_mission(repo_root: Path, mission_slug: str):
+def _preview_claimable_wp_for_mission(repo_root: Path, mission_slug: str, *, owned: OwnedCheckout | None = None):
     """Return the shared claimable preview for *mission_slug*, if tasks exist.
 
     WP04 / T016 / FR-002: tasks/ and dependency reads route to the PRIMARY
@@ -1173,13 +1175,14 @@ def _preview_claimable_wp_for_mission(repo_root: Path, mission_slug: str):
     """
     from runtime.next.discovery import preview_claimable_wp
 
-    main_root = get_main_repo_root(repo_root)
+    main_root = owned.repository_root if owned is not None else get_main_repo_root(repo_root)
     # WORK_PACKAGE_TASK is PRIMARY-partition: routes to the primary checkout
     # regardless of coord topology (no shadowing by STATUS-only coord husk).
     planning_dir = _resolve_workflow_read_dir(
         repo_root=main_root,
         mission_slug=mission_slug,
         kind=MissionArtifactKind.WORK_PACKAGE_TASK,
+        owned=owned,
     )
     if not (planning_dir / "tasks").is_dir():
         return None
@@ -1189,21 +1192,23 @@ def _preview_claimable_wp_for_mission(repo_root: Path, mission_slug: str):
         repo_root=main_root,
         mission_slug=mission_slug,
         kind=MissionArtifactKind.STATUS_STATE,
+        owned=owned,
     )
     return preview_claimable_wp(planning_dir, status_dir=status_dir)
 
 
 
 
-def _analysis_report_gate_dir(main_repo_root: Path, mission_slug: str) -> Path:
+def _analysis_report_gate_dir(main_repo_root: Path, mission_slug: str, *, owned: OwnedCheckout | None = None) -> Path:
     """Resolve the mission dir the implement gate reads ``analysis-report.md`` from.
 
-    #1989: this MUST be the topology-blind primary checkout — where
+    #1989: without an ownership fact this MUST be the topology-blind primary checkout — where
     ``record-analysis`` writes the report — NOT the coord-aware
     ``candidate_feature_dir_for_mission`` (which resolves to the coordination
     worktree once one exists, and that worktree lacks the report + ``spec.md`` for
     the freshness hash, so the gate would falsely report it missing). Extracted as
     a named seam so the read-anchor decision is unit-testable in isolation.
+    An explicit ownership fact selects the owner's own planning/report home.
     """
     # read-side-seam-primary-primitive-closure-01KYKMMT WP05/FR-004: routed
     # through the kind-aware seam (ANALYSIS_REPORT is a PRIMARY-partition kind)
@@ -1215,10 +1220,11 @@ def _analysis_report_gate_dir(main_repo_root: Path, mission_slug: str) -> Path:
         repo_root=main_repo_root,
         mission_slug=mission_slug,
         kind=MissionArtifactKind.ANALYSIS_REPORT,
+        owned=owned,
     )
 
 
-def _mission_id_for_claim(main_repo_root: Path, mission_slug: str) -> str:
+def _mission_id_for_claim(main_repo_root: Path, mission_slug: str, *, owned: OwnedCheckout | None = None) -> str:
     """Resolve claim identity from the canonical primary planning surface."""
     # read-side-seam-primary-primitive-closure-01KYKMMT WP05/FR-004: meta.json
     # lives only on PRIMARY (PRIMARY_METADATA is a PRIMARY-partition kind), so
@@ -1228,18 +1234,19 @@ def _mission_id_for_claim(main_repo_root: Path, mission_slug: str) -> str:
         repo_root=main_repo_root,
         mission_slug=mission_slug,
         kind=MissionArtifactKind.PRIMARY_METADATA,
+        owned=owned,
     )
     return resolve_mission_identity(primary_dir).mission_id
 
 
-def _require_current_analysis_report(feature_dir: Path, repo_root: Path, mission_slug: str) -> None:
+def _require_current_analysis_report(feature_dir: Path, repo_root: Path, mission_slug: str, *, owned: OwnedCheckout | None = None) -> None:
     """Block implementation until `/spec-kitty.analyze` is persisted and fresh."""
     from specify_cli.analysis_report import (
         ANALYSIS_REPORT_REASON_CARRIER_FORMAT,
         check_analysis_report_current,
     )
 
-    analysis_freshness = check_analysis_report_current(feature_dir, repo_root)
+    analysis_freshness = check_analysis_report_current(feature_dir, owned.owned_root if owned is not None else repo_root, owned=owned)
     if analysis_freshness.ok:
         return
 
@@ -1527,8 +1534,7 @@ def implement(
         Path | None,
         owned_checkout_option(
             help=(
-                "Not yet supported. Refused: owned checkouts use 'spec-kitty next "
-                "--owned-checkout' and 'spec-kitty agent tasks move-task --owned-checkout' instead."
+                "Reuse the validated owned single_branch checkout and its write branch."
             )
         ),
     ] = None,
@@ -1546,10 +1552,19 @@ def implement(
         spec-kitty agent action implement wp01 --agent codex
         spec-kitty agent action implement --agent gemini  # auto-detects first planned WP
     """
-    # WP09 T047 (FR-018, US6): refuse before ANY side effect -- must precede
-    # even the receipt reset and the sparse-checkout preflight below.
-    if owned_checkout is not None:
-        _refuse_owned_action(owned_checkout, mission, action="implement")
+    from specify_cli.cli.commands._owned_checkout import resolve_owned_or_refuse, success_false_envelope
+    from specify_cli.core.owned_mission import LIFECYCLE_OWNED_TOPOLOGIES
+
+    detected_root = locate_project_root()
+    if detected_root is None:
+        print("Error: Could not locate project root")
+        raise typer.Exit(1)
+    repository_root = get_main_repo_root(detected_root)
+    owned = resolve_owned_or_refuse(
+        repository_root, owned_checkout, mission, cwd=Path.cwd().resolve(),
+        allowed_topologies=LIFECYCLE_OWNED_TOPOLOGIES,
+        json_output=False, envelope=success_false_envelope,
+    )
 
     # #5446: validate the operator force BEFORE any status read or write.
     try:
@@ -1580,45 +1595,44 @@ def implement(
     claim_stack = contextlib.ExitStack()
     try:
         # Get repo root and feature slug
-        repo_root = locate_project_root()
-        if repo_root is None:
-            print("Error: Could not locate project root")
-            raise typer.Exit(1)
-        repo_root = get_main_repo_root(repo_root)
+        repo_root = repository_root
 
-        mission_slug = _find_mission_slug(explicit_mission=request.mission, repo_root=repo_root)
+        mission_slug = owned.mission_slug if owned is not None else _find_mission_slug(explicit_mission=request.mission, repo_root=repo_root)
 
         # -- WP05/T021 FR-007: Sparse-checkout preflight -- runs BEFORE any
         # worktree creation or state changes (same surface as merge).
-        _executor.implement_sparse_checkout_preflight(repo_root, mission_slug, request.agent, request.allow_sparse_checkout)
+        _executor.implement_sparse_checkout_preflight(repo_root, mission_slug, request.agent, request.allow_sparse_checkout, owned=owned)
 
         # Ensure planning repo is on the target branch before we start
         # (needed for auto-commits and status tracking inside this command)
-        main_repo_root, target_branch = _ensure_target_branch_checked_out(repo_root, mission_slug)
+        if owned is not None:
+            main_repo_root, target_branch = owned.repository_root, owned.write_branch
+        else:
+            main_repo_root, target_branch = _ensure_target_branch_checked_out(repo_root, mission_slug)
 
         # Determine which WP to implement
         if request.wp_id:
             normalized_wp_id = _normalize_wp_id(request.wp_id)
         else:
             # Auto-detect first planned WP
-            _claimable_preview = _preview_claimable_wp_for_mission(repo_root, mission_slug)
+            _claimable_preview = _preview_claimable_wp_for_mission(repo_root, mission_slug, owned=owned)
             normalized_wp_id = getattr(_claimable_preview, "wp_id", None)
             if not normalized_wp_id:
                 print(f"Error: {_auto_claim_failure_message(_claimable_preview)}")
                 raise typer.Exit(1)
 
         # Find WP file to read dependencies
-        wp = _executor.implement_locate_wp(repo_root, mission_slug, normalized_wp_id)
+        wp = _executor.implement_locate_wp(repo_root, mission_slug, normalized_wp_id, owned=owned)
 
         # C-006 charter precondition: check BEFORE any worktree creation or
         # status transition.
-        _executor.implement_check_wp_charter_precondition(main_repo_root, wp, normalized_wp_id)
+        _executor.implement_check_wp_charter_precondition(owned.owned_root if owned is not None else main_repo_root, wp, normalized_wp_id)
 
         wp_meta, _ = read_wp_frontmatter(wp.path)
 
         # Only gate the not-yet-started claim transition (resumes on an
         # already-in-flight WP are never re-gated).
-        _executor.implement_check_dependency_gate(main_repo_root, mission_slug, normalized_wp_id, wp_meta)
+        _executor.implement_check_dependency_gate(main_repo_root, mission_slug, normalized_wp_id, wp_meta, owned=owned)
 
         (
             feature_dir,
@@ -1626,7 +1640,7 @@ def implement(
             review_feedback_ref,
             review_feedback_file,
             _review_feedback_source,
-        ) = _executor.implement_resolve_feedback_and_gate(main_repo_root, mission_slug, normalized_wp_id, wp)
+        ) = _executor.implement_resolve_feedback_and_gate(main_repo_root, mission_slug, normalized_wp_id, wp, owned=owned)
 
         # FR-008/#1832 (C-IC05): SINGLE resolution path. Resolve the workspace
         # exactly once here, then *consume* that resolved context for the rest
@@ -1639,7 +1653,7 @@ def implement(
         # implement` WP-execution write site — refuse a claim invoked from a
         # checkout the mission does not own. write_intent gates the
         # checkout-identity refusal (pure reads leave it False).
-        workspace = resolve_workspace_for_wp(main_repo_root, mission_slug, normalized_wp_id, write_intent=True)
+        workspace = resolve_workspace_for_wp(main_repo_root, mission_slug, normalized_wp_id, write_intent=True, owned=owned)
         status_execution_mode = workspace.status_execution_mode
 
         def _create_workspace() -> None:
@@ -1658,18 +1672,18 @@ def implement(
         from specify_cli.lanes.implement_support import reenter_lane_self_heal
 
         def _reenter_self_heal() -> None:
-            reenter_lane_self_heal(main_repo_root, mission_slug, normalized_wp_id)
+            reenter_lane_self_heal(main_repo_root, mission_slug, normalized_wp_id, owned=owned)
 
         # #5459: a repo-root lane (every single_branch WP) executes in the
         # repository root checkout, which always exists, so it never reaches
         # ``_create_workspace``. Run the shared claim seam here instead, before
         # any status event: the write-checkout refusals, then the claim base.
-        _executor.enter_checkout_claim_lock(claim_stack, main_repo_root, mission_slug, workspace)
-        _guard_repo_root_claim(main_repo_root, mission_slug, normalized_wp_id, workspace)
+        _executor.enter_checkout_claim_lock(claim_stack, main_repo_root, mission_slug, workspace, owned=owned)
+        _guard_repo_root_claim(main_repo_root, mission_slug, normalized_wp_id, workspace, owned=owned)
 
         _ensure_workspace_materialized(workspace, normalized_wp_id, _create_workspace, _reenter_self_heal)
         workspace_path = workspace.worktree_path
-        _executor.warn_shared_workspace_writers(main_repo_root, mission_slug, normalized_wp_id, workspace, agent)
+        _executor.warn_shared_workspace_writers(main_repo_root, mission_slug, normalized_wp_id, workspace, agent, owned=owned)
 
         # Seam C-005 (#3281/FR-007): the claim-ancestry gate runs HERE --
         # POST-materialize (after the self-heal above re-runs the planning-
@@ -1685,9 +1699,9 @@ def implement(
         # which is a DIFFERENT surface than the PRIMARY ``feature_dir`` above
         # (WORK_PACKAGE_TASK) for coord-topology missions -- reuse the same
         # coord-aware resolver ``implement_claim_transition`` below consults.
-        status_feature_dir = _canonical_status_feature_dir(main_repo_root, mission_slug)
+        status_feature_dir = _canonical_status_feature_dir(main_repo_root, mission_slug, owned=owned)
         ancestry = resolve_claim_ancestry_gate(
-            main_repo_root, mission_slug, status_feature_dir, normalized_wp_id, workspace_path
+            main_repo_root, mission_slug, status_feature_dir, normalized_wp_id, workspace_path, owned=owned
         )
         if not ancestry.ok:
             print(
@@ -1709,9 +1723,9 @@ def implement(
             model=model,
             profile=profile,
             invocation_id=invocation_id,
-            repo_root=main_repo_root,
+            repo_root=owned.owned_root if owned is not None else main_repo_root,
             mission_id=(
-                _mission_id_for_claim(main_repo_root, mission_slug)
+                _mission_id_for_claim(main_repo_root, mission_slug, owned=owned)
                 if invocation_id is not None
                 else None
             ),
@@ -1733,6 +1747,7 @@ def implement(
             status_execution_mode=status_execution_mode,
             resolved_binding=resolved_binding,
             operator_force_note=request.note,
+            owned=owned,
         )
         wp = claim_result.wp
         wp_slug = claim_result.wp_slug
@@ -1751,12 +1766,13 @@ def implement(
             mission_slug=mission_slug,
             normalized_wp_id=normalized_wp_id,
             repo_root=repo_root,
+            owned=owned,
         )
         if fix_prompt_file is not None:
             return
 
         # Detect mission type and get deliverables_path for research missions.
-        mission_type, deliverables_path = _executor.implement_resolve_mission_type(repo_root, mission_slug)
+        mission_type, deliverables_path = _executor.implement_resolve_mission_type(repo_root, mission_slug, owned=owned)
 
         # Capture baseline test results (one-time, cached) before the agent starts coding
         _executor.implement_capture_baseline(
@@ -1767,6 +1783,7 @@ def implement(
             feature_dir=feature_dir,
             wp_slug=wp_slug,
             main_repo_root=main_repo_root,
+            owned=owned,
         )
 
         prompt_lines = _executor.build_implement_prompt_lines(
@@ -1784,6 +1801,7 @@ def implement(
             review_feedback_file=review_feedback_file,
             mission_type=mission_type,
             deliverables_path=deliverables_path,
+            owned=owned,
         )
 
         _executor.implement_finalize_and_print(
@@ -1798,6 +1816,7 @@ def implement(
             mission_type=mission_type,
             deliverables_path=deliverables_path,
             subtask_cmd=subtask_cmd,
+            owned=owned,
         )
 
     except typer.Exit:

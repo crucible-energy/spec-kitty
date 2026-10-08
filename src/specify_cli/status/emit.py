@@ -1217,6 +1217,7 @@ def emit_inner_state_changed(
     mission_slug: str,
     at: str | None = None,
     repo_root: Path | None = None,
+    owned: OwnedCheckout | None = None,
 ) -> InnerStateChanged:
     """Persist a single off-axis ``InnerStateChanged`` annotation.
 
@@ -1249,7 +1250,7 @@ def emit_inner_state_changed(
         ValueError: for a malformed ``wp_id`` or an empty delta.
         specify_cli.status.store.StoreError: if persistence/readback fails.
     """
-    feature_dir = canonicalize_feature_dir(feature_dir)
+    feature_dir = owned.mission_dir if owned is not None else canonicalize_feature_dir(feature_dir)
 
     event = annotate(
         wp_id,
