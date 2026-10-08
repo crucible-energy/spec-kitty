@@ -136,3 +136,45 @@ passes strict mypy/Ruff. The repository-wide unskipped status scan still fails
 on exactly eight sites reproduced against immutable c32: this is an outstanding
 baseline gate, tracked in [owner-assigned issue71](https://github.com/crucible-energy/spec-kitty/issues/71).
 No exemption, assertion or skip policy is changed to conceal it.
+
+## Independent completion-history rejection and correction
+
+Independent review rejected `ce8aa3664`: after a genuine public approval and
+acceptance, committing a source edit and then its exact restoration allowed the
+public owned preview to bind an unaccepted later HEAD. The endpoint diff lost
+those intervening changes. That rejected source and its original passing suites
+remain distinct from a corrected candidate; neither qualifies runtime adoption.
+
+Causal red commits `926f3552f` and `4d809ce09` retain the source/contract/criteria/
+metadata edit-and-restoration controls, including both public entry points,
+preview, real completion and repeated completion. An additional red control
+rebuilds only a disposable fixture's two acceptance follow-ups: correct producer
+labels and restored final bytes conceal an intermediate metadata change. It
+also fails against the rejected implementation.
+
+The correction validates each bounded linear producer commit's paths and
+content, rather than trusting its label or endpoint equality. After the
+acceptance boundary it admits only the exact boundary HEAD or one single-parent
+canonical terminal transaction containing both the event stream and snapshot.
+Terminal evidence must reference that exact boundary; arbitrary empty commits,
+restored source history and later reuse of an old completion proof refuse.
+The normal real acceptance residual and multi-WP transaction remain required
+positive controls. Independent fixed-source review remains a separate gate.
+
+Corrected-source checks pass all 50 initial public cases and two additional
+refusals for rewritten canonical events and status-only formatting. The two
+complementary coverage cohorts (24 and 28 cases) exercise all 52 current cases:
+all 34 changed executable lines versus rejected ce8 are covered. This is line
+coverage, not branch or semantic completeness; the whole leaf measures 178/202
+statements (88%). All 136 adjacent regressions and the fresh 180-case architecture
+cohort pass, with two existing timing skips. The canonical-reader floor rises
+156 to 157 against measured live usage 161, retaining its four-site margin.
+Strict mypy passes the same ten-file closure, Ruff passes and extended docs lint
+checks 799 pages without violations. The exact independent history probe also
+passes its required refusal after the repair.
+
+The initial append measurement emits two warnings because report filenames
+shared the SQLite data prefix. They remain retained; a byte-identical database
+copy passes SQLite integrity checking and produces the final report from an
+isolated data filename without those warnings. No test or source rule changes
+to repair this operator reporting mistake.

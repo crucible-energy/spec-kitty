@@ -61,6 +61,19 @@ def _changed(owned: OwnedMission, before: str, after: str) -> set[str]:
     return set(_git(owned.root, "diff", "--name-only", "-z", before, after).split("\0")) - {""}
 
 
+def _following(owned: OwnedMission, before: str, head: str) -> list[str]:
+    # At most two acceptance follow-ups and one terminal transaction are valid.
+    # A fourth commit (or a merge parent) cannot fit that bounded linear history.
+    return _git(owned.root, "rev-list", "--reverse", "--max-count=4", f"{before}..{head}").splitlines()
+
+
+def _linear_change(owned: OwnedMission, before: str, after: str, allowed: set[str]) -> None:
+    changed = _changed(owned, before, after)
+    if (_git(owned.root, "show", "-s", "--format=%P", after) != before
+        or not changed or not changed <= allowed):
+        _refuse("OWNED_SOURCE_DRIFT", "Only a bounded, nonempty canonical bookkeeping commit may follow acceptance.")
+
+
 def _matrix_subject(data: dict[str, Any]) -> dict[str, Any]:
     """Bind criteria and verification configuration, allowing producer results."""
     result = json.loads(json.dumps(data))
@@ -76,7 +89,7 @@ def _matrix_subject(data: dict[str, Any]) -> dict[str, Any]:
     return dict(result)
 
 
-def _acceptance_boundary(owned: OwnedMission, accepted: str, head: str) -> str:
+def _acceptance_boundary(owned: OwnedMission, accepted: str, head: str, recorded_meta: dict[str, Any]) -> str:
     """Consume the existing accept producer's bounded local commit sequence.
 
     This checks custody/shape of local owner history, not external issuer auth.
@@ -84,25 +97,31 @@ def _acceptance_boundary(owned: OwnedMission, accepted: str, head: str) -> str:
     """
     prefix = owned.directory.relative_to(owned.root).as_posix()
     boundary = accepted
+    expected = json.loads(json.dumps(recorded_meta))
+    expected["accept_commit"] = accepted
+    expected["acceptance_history"][-1]["accept_commit"] = accepted
+    matrix = _matrix_subject(json.loads(_at(owned, accepted, "acceptance-matrix.json")))
+    events = _at(owned, accepted, "status.events.jsonl").splitlines()
     for message, allowed in (
         (f"Record acceptance commit for {owned.slug}", {f"{prefix}/meta.json"}),
         (f"Finalize acceptance artifacts for {owned.slug}", {
             f"{prefix}/{name}" for name in ("meta.json", "status.json", "status.events.jsonl", "acceptance-matrix.json")
         }),
     ):
-        following = _git(owned.root, "rev-list", "--reverse", "--first-parent", f"{boundary}..{head}").splitlines()
+        following = _following(owned, boundary, head)
         if not following or _git(owned.root, "show", "-s", "--format=%s", following[0]) != message:
             continue
         candidate = following[0]
-        if _git(owned.root, "show", "-s", "--format=%P", candidate) != boundary or not _changed(owned, boundary, candidate) <= allowed:
-            _refuse("OWNED_SOURCE_DRIFT", "Acceptance bookkeeping changed source or target history.")
+        _linear_change(owned, boundary, candidate, allowed)
+        if len(allowed) > 1:
+            expected["status_phase"] = "1"
+        if decode_meta(_at(owned, candidate, "meta.json"), on_malformed="raise") != expected:
+            _refuse("OWNED_SOURCE_DRIFT", "Acceptance bookkeeping changed mission metadata beyond its producer fields.")
+        if matrix != _matrix_subject(json.loads(_at(owned, candidate, "acceptance-matrix.json"))):
+            _refuse("OWNED_SOURCE_DRIFT", "Acceptance changed criterion or verification configuration.")
+        if events != _at(owned, candidate, "status.events.jsonl").splitlines():
+            _refuse("OWNED_SOURCE_DRIFT", "Acceptance bookkeeping changed the already canonical review/event inputs.")
         boundary = candidate
-    before_matrix = json.loads(_at(owned, accepted, "acceptance-matrix.json"))
-    after_matrix = json.loads(_at(owned, boundary, "acceptance-matrix.json"))
-    if _matrix_subject(before_matrix) != _matrix_subject(after_matrix):
-        _refuse("OWNED_SOURCE_DRIFT", "Acceptance changed criterion or verification configuration.")
-    if _at(owned, accepted, "status.events.jsonl").splitlines() != _at(owned, boundary, "status.events.jsonl").splitlines():
-        _refuse("OWNED_SOURCE_DRIFT", "Acceptance bookkeeping changed the already canonical review/event inputs.")
     return boundary
 
 
@@ -124,11 +143,6 @@ def _accepted_source(owned: OwnedMission, meta: dict[str, Any], head: str) -> st
     accept_changes = _changed(owned, source, accepted)
     if accept_changes != {f"{prefix}/meta.json"}:
         _refuse("OWNED_SOURCE_DRIFT", "Acceptance commit must contain only its canonical metadata record.")
-    boundary = _acceptance_boundary(owned, accepted, head)
-    changed = _changed(owned, boundary, head)
-    allowed = {f"{prefix}/{name}" for name in ("status.json", "status.events.jsonl")}
-    if not changed <= allowed:
-        _refuse("OWNED_SOURCE_DRIFT", "Source or acceptance evidence changed after acceptance; accept the new source first.")
     committed_meta = decode_meta(_at(owned, accepted, "meta.json"), on_malformed="raise")
     if not isinstance(committed_meta, dict):
         _refuse("OWNED_ACCEPTANCE_REFUSED", "Recorded acceptance metadata must be a mapping.")
@@ -140,6 +154,15 @@ def _accepted_source(owned: OwnedMission, meta: dict[str, Any], head: str) -> st
         _refuse("OWNED_SOURCE_DRIFT", "Mission metadata changed after acceptance.")
     if any(committed_meta.get(key) != meta[key] for key in keys if key != "accept_commit"):
         _refuse("OWNED_ACCEPTANCE_REFUSED", "Current acceptance differs from its recorded commit.")
+    boundary = _acceptance_boundary(owned, accepted, head, committed_meta)
+    following = _following(owned, boundary, head)
+    if following:
+        if following != [head]:
+            _refuse("OWNED_SOURCE_DRIFT", "Unaccepted intervening history requires acceptance of the new source.")
+        allowed = {f"{prefix}/{name}" for name in ("status.json", "status.events.jsonl")}
+        _linear_change(owned, boundary, head, allowed)
+        if _changed(owned, boundary, head) != allowed:
+            _refuse("OWNED_SOURCE_DRIFT", "Terminal completion must commit its canonical event stream and snapshot together.")
     return boundary
 
 
@@ -150,6 +173,8 @@ def _terminal_tail(owned: OwnedMission, accepted: str, states: dict[str, dict[st
         _refuse("OWNED_SOURCE_DRIFT", "The accepted canonical event prefix changed.")
     tail = [json.loads(line) for line in current[len(original):]]
     if not tail:
+        if head != accepted:
+            _refuse("OWNED_SOURCE_DRIFT", "A later target commit without canonical completion is not accepted integration proof.")
         if any(state.get("lane") != "approved" for state in states.values()):
             _refuse("OWNED_APPROVAL_REFUSED", "Every work package must have a real canonical approval.")
         return head
@@ -166,9 +191,7 @@ def _terminal_tail(owned: OwnedMission, accepted: str, states: dict[str, dict[st
             _refuse("OWNED_SOURCE_DRIFT", "Only canonical approved-to-done completion may follow acceptance.")
         repo = repos[0]
         commit = _commit(owned.root, repo.get("commit"))
-        _ancestor(owned.root, accepted, commit)
-        _ancestor(owned.root, commit, head)
-        if repo.get("branch") != owned.target or repo.get("repo") != owned.primary.name:
+        if commit != accepted or repo.get("branch") != owned.target or repo.get("repo") != owned.primary.name:
             _refuse("OWNED_SOURCE_DRIFT", "Completion evidence belongs to another repository or target.")
         if integration is not None and integration != commit:
             _refuse("OWNED_SOURCE_DRIFT", "Completion must bind one actual target commit.")

@@ -344,7 +344,10 @@ ROUTED_LOAD_META_FLOOR_MARGIN = 4
 # metadata and immutable acceptance-record decode. Live rises 158 -> 160;
 # tighten the floor by two while preserving the four-site margin and the
 # strictly-below-live invariant. No reader allowance or gate is relaxed.
-ROUTED_LOAD_META_FLOOR = 156
+# Per-commit acceptance validation adds one immutable producer metadata decode.
+# Measured live usage is 161; raise the floor to 157 to retain the same margin
+# of four. This tightens canonical usage without adding any inline allowance.
+ROUTED_LOAD_META_FLOOR = 157
 
 
 # --------------------------------------------------------------------------- #

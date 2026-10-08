@@ -409,3 +409,37 @@ def test_empty_post_acceptance_commit_is_not_integration_proof(accepted_checkout
     assert result.exit_code == 1, result.output
     assert json.loads(result.output)["error_code"] == "OWNED_SOURCE_DRIFT"
     assert tuple(snapshot(root) for root in accepted_checkouts) == before
+
+
+@pytest.mark.parametrize("accepted_checkouts", ["invariant"], indirect=True)
+def test_acceptance_residual_cannot_rewrite_canonical_event_inputs(accepted_checkouts):
+    _primary, owned, _sibling = accepted_checkouts
+    path = owned / "kitty-specs" / SLUG / "status.events.jsonl"
+    events = [json.loads(line) for line in path.read_text().splitlines()]
+    events[-1]["reason"] = "An unaccepted replacement of the canonical review input"
+    path.write_text("\n".join(json.dumps(row) for row in events) + "\n", encoding="utf-8")
+    git(owned, "add", str(path))
+    # Amend only the disposable fixture's genuine final acceptance residual.
+    git(owned, "commit", "--amend", "--no-edit", "-q")
+    before = tuple(snapshot(root) for root in accepted_checkouts)
+    result = invoke_merge(owned, "--dry-run")
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.output)["error_code"] == "OWNED_SOURCE_DRIFT"
+    assert tuple(snapshot(root) for root in accepted_checkouts) == before
+
+
+def test_status_formatting_commit_is_not_canonical_completion(accepted_checkouts):
+    _primary, owned, _sibling = accepted_checkouts
+    mission = owned / "kitty-specs" / SLUG
+    snapshot_path = mission / "status.json"
+    snapshot_path.write_text(json.dumps(json.loads(snapshot_path.read_text()), indent=4) + "\n", encoding="utf-8")
+    events_path = mission / "status.events.jsonl"
+    with events_path.open("a", encoding="utf-8") as stream:
+        stream.write("\n")
+    git(owned, "add", str(snapshot_path), str(events_path))
+    git(owned, "commit", "-qm", "fixture: status formatting without terminal events")
+    before = tuple(snapshot(root) for root in accepted_checkouts)
+    result = invoke_merge(owned, "--dry-run")
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.output)["error_code"] == "OWNED_SOURCE_DRIFT"
+    assert tuple(snapshot(root) for root in accepted_checkouts) == before

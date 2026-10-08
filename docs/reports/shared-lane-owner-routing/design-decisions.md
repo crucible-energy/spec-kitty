@@ -58,4 +58,8 @@ updated: '2026-10-08'
 - Local acceptance custody is not external issuer authentication. Only the
   producer's bounded acceptance record/residual shape is admitted; metadata,
   criterion/verification inputs and canonical review history stay bound. Later
-  substantive drift refuses even on a clean target branch.
+  intervening commits refuse even when subsequent commits restore the exact
+  accepted bytes. Each producer follow-up must have the exact preceding parent,
+  allowed changed paths and expected metadata, criterion inputs and review
+  prefix. Beyond that boundary only one canonical terminal transaction is
+  admitted; its actual integration proof must equal the boundary commit.
