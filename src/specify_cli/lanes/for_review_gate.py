@@ -251,4 +251,3 @@ def resolve_owned_review_base(feature_dir: Path, checkout_root: Path) -> str:
             "Owned review base must be an ancestor of HEAD in the selected checkout.",
         )
     return base_commit
-
