@@ -143,6 +143,11 @@ _EXPECTED_FLAGS: dict[str, frozenset[str]] = {
             "--keep-worktree",
             "--auto-retry",
             "--no-auto-retry",
+            # Explicit-owned local completion forwards the selected root and
+            # actor before primary lookup; JSON is scoped to that route.
+            "--owned-checkout",
+            "--actor",
+            "--json",
         }
     ),
     "finalize-tasks": frozenset(

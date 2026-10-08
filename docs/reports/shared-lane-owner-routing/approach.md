@@ -33,7 +33,8 @@ composition or workspace resolution. Source snapshots of protected fixture
 checkouts must remain unchanged at every step. Private baseline source comes from
 an immutable Git archive, not another checkout or a global install.
 
-The fixed production source is `0de4fdda43c6bd1baf48066a5fdde0cb45fa69d6`.
+The earlier independently qualified production source is
+`0de4fdda43c6bd1baf48066a5fdde0cb45fa69d6`.
 The scoped stable run passes 744 tests across native next/bridge/composition,
 explicit-checkout commands, workspace context, issued prompts and owned lifecycle
 routing. Architecture checks pass 214 tests with one existing skip, including the ten-case terminology
@@ -42,3 +43,18 @@ passes the production and test scope without added suppressions. These are sourc
 contract checks; neither installed CLI adoption nor the active 3body mission was
 executed or changed. Additional public recovery/identity refusals are checked
 separately and retained in the final validation receipt.
+
+The bounded follow-up adds explicit-owned local completion to `merge` and its
+agent wrapper. Its causal public-CLI test is separately committed at `1ac27b7a4`:
+the accepted disposable fixture reaches the parser's missing `--owned-checkout`
+refusal. The previously retained actual owner preview also looked for `lanes.json`
+in the protected primary. A root-selector patch alone would still demand lane
+branches that a single-branch mission never created.
+
+The new completion leaf validates the selected owner, real target, committed
+acceptance, unchanged source/contracts and canonical independent review. It uses
+normal DoneEvidence guards and the existing effective-root transaction to commit
+all terminal events together. Acceptance's bounded provenance/residual sequence
+is checked structurally; a producer commit label cannot authorize changed source,
+verification inputs or review history. The current qualified installation remains
+unchanged, and tests never terminalize the actual accepted 3body mission.

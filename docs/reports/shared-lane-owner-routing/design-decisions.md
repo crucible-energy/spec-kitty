@@ -44,3 +44,18 @@ updated: '2026-10-08'
   workspace projection, reproduced against the immutable base. Its known Path
   field now uses the module's existing annotated-local idiom. No runtime coercion,
   cast, check suppression or relaxed configuration was introduced.
+
+- Explicit-owned merge is a separate single-branch completion leaf. The ordinary
+  lane executor and flagless location guard retain their existing behavior.
+  Completion has no branch-consolidation effects, never retargets the mission,
+  preserves refs/worktrees, and binds a present local target commit. Remote PR
+  delivery and generic birth-number/audit/retrospective gates remain separate.
+- The existing status batch retains its same-WP default. Owned completion opts
+  into distinct unforced DONE requests and a read-only precondition rechecked
+  under the existing mission lock. Every request uses the canonical preparation
+  guard, and all events share the transaction's commit/rollback unit. No reviewer
+  is synthesized: the event-sourced `review_result` supplies actual approval.
+- Local acceptance custody is not external issuer authentication. Only the
+  producer's bounded acceptance record/residual shape is admitted; metadata,
+  criterion/verification inputs and canonical review history stay bound. Later
+  substantive drift refuses even on a clean target branch.

@@ -5,7 +5,8 @@ updated: '2026-10-08'
 
 # Validation and delivery evidence
 
-Production source is fixed at `0de4fdda43c6bd1baf48066a5fdde0cb45fa69d6`;
+The earlier production qualification is fixed at
+`0de4fdda43c6bd1baf48066a5fdde0cb45fa69d6`;
 `2cc7a3311` adds public recovery/identity refusal tests; `21afc9300` adds shared
 owned review-base authority and command quoting. The final source has a normalized
 file ending and is held unchanged throughout final qualification.
@@ -92,3 +93,35 @@ paths with unrelated work excluded.
 Private operator logs and coverage JSON are retained in the parent chat's `work/`
 directory under `spec-kitty-*`. Review requires this fixed aggregate diff; these
 checks grant neither review approval nor permission to overwrite an installed CLI.
+
+## Explicit-owned local completion follow-up
+
+The separate red test commit `1ac27b7a4` reaches a genuinely finalized,
+implemented, independently approved and accepted disposable mission through
+public commands. The pre-fix public merge parser refuses `--owned-checkout`.
+The actual owner missing-primary-lanes preview remains retained as a distinct
+baseline failure, with before/after source, HEAD and index preservation proofs.
+
+Source validation for the follow-up is recorded separately in the final PR
+receipt. The earlier 744-case/214-case qualification above is not approval of
+this later source. No qualified installed source or actual 3body owner state is
+changed by the fixtures.
+
+The stable follow-up passes 30 public owned-completion cases, including actual
+approval/acceptance, read-only preview, repeated completion, two-WP atomic
+completion, dirty primary/sibling preservation, source arrival before lock,
+commit-hook rollback, drift and unsupported-option refusals. It also passes 136
+adjacent cases across transactional status emission, transaction rollback,
+legacy routing, context guards, ordinary merge and agent delegation/goldens.
+Architecture passes 148 cases with two existing skips. Strict mypy passes ten
+source files (including the required typed dependencies); Ruff and whitespace
+checks pass. Extended structural lint checks 799 pages with zero violations.
+
+The stock Typer 0.27.3 parser vendors Click. Both immutable c32 golden-only and
+full adjacent baseline runs reproduce 15 false helper failures (13 and 121
+passes respectively). Test-only compatibility commit `7165559e1` uses native
+public Typer classes and the parser's own context, preserving all prior exact
+option/default/visibility assertions: 28 unchanged golden cases pass against
+immutable c32. The completion increment separately adds only its explicit merge
+options to the two golden sets. No dependency, production shim, assertion or
+skip policy is changed to repair that helper.

@@ -1595,8 +1595,16 @@ def emit_status_transition_batch_transactional(
     sync_dossier: bool = True,
     operation: str | None = None,
     capability: GuardCapability = GuardCapability.STANDARD,
+    completion_precondition: Callable[[], None] | None = None,
 ) -> list[StatusEvent]:
-    """Validate, append, commit, then fan out a same-WP transition batch."""
+    """Validate, append, commit, then fan out a same-WP transition batch.
+
+    Explicit-owned completion may supply a read-only precondition. It runs
+    under the transaction lock before preparation or writes, and permits one
+    ordinary, unforced DONE request per WP in the same owned mission. Every
+    request still passes the canonical transition guard. Other callers retain
+    the historical same-WP contract.
+    """
     if not requests:
         return []
 
@@ -1607,9 +1615,25 @@ def emit_status_transition_batch_transactional(
         raise TypeError(
             "transactional status batch requires feature_dir/mission_dir, mission_slug, and wp_id"
         )
+    completing = completion_precondition is not None
+    if completing and (
+        first.effective_root is None
+        or any(
+            request.to_lane != Lane.DONE or request.force
+            or request.annotation_delta is not None
+            or request.effective_root != first.effective_root
+            for request in requests
+        )
+        or len({request.wp_id for request in requests}) != len(requests)
+    ):
+        raise TypeError("completion batch requires distinct unforced DONE requests in one owned checkout")
 
     identity = _identity_for_request(first)
     if not _transaction_topology_available(identity, mission_slug):
+        if first.effective_root is not None:
+            from mission_runtime import ActionContextError
+
+            raise ActionContextError("OWNED_TRANSACTION_UNAVAILABLE", "Owned mission requires transactional status metadata.")
         # WP04/FR-004 (rows 7-8): same coord-vs-primary decision as the single
         # site, routed through the ONE _emit_via_non_transactional_fallback so
         # this batch function never branches coord-vs-primary in place.
@@ -1624,17 +1648,20 @@ def emit_status_transition_batch_transactional(
     # WP04/FR-004: explicit legacy fallback for transaction lock only (not event field).
     _txn_mission_id_batch = identity.mission_id or f"legacy-{mission_slug}"
     with BookkeepingTransaction.acquire(
-        repo_root=identity.repo_root,
+        repo_root=identity.primary_root or identity.repo_root,
         mission_id=_txn_mission_id_batch,
         mission_slug=mission_slug,
         mid8=identity.mid8,
         destination_ref=identity.destination_ref,
         operation=operation or f"status transition batch {first.wp_id}",
         capability=capability,
+        effective_root=identity.repo_root if identity.primary_root is not None else None,
     ) as txn:
+        if completion_precondition is not None:
+            completion_precondition()
         # WP04: identity.mission_id is str | None; None replaces the old "legacy-" sentinel.
         mission_id_for_event = identity.mission_id
-        from_lane = str(_emit._derive_from_lane(txn.feature_dir, first.wp_id))
+        from_lanes: dict[str, str] = {}
         built: list[tuple[StatusEvent, TransitionRequest]] = []
         started_at = now_utc()
 
@@ -1651,18 +1678,31 @@ def emit_status_transition_batch_transactional(
         # (We work this out here, not earlier, because the transaction above just
         # registered the coordination worktree with git, and canonicalize_feature_dir
         # only keeps the coordination folder once that registration exists.)
-        first_feature_dir = canonicalize_feature_dir(first_feature_dir_raw)
+        first_feature_dir = (
+            first_feature_dir_raw.resolve() if first.effective_root is not None
+            else canonicalize_feature_dir(first_feature_dir_raw)
+        )
 
         for request in requests:
             request_feature_dir = request.feature_dir or request.mission_dir
             request_mission_slug = request.mission_slug or request._legacy_mission_slug
             if (
                 request_feature_dir is None
-                or canonicalize_feature_dir(request_feature_dir) != first_feature_dir
+                or (
+                    request_feature_dir.resolve() if first.effective_root is not None
+                    else canonicalize_feature_dir(request_feature_dir)
+                ) != first_feature_dir
                 or request_mission_slug != mission_slug
-                or request.wp_id != first.wp_id
+                or request.wp_id is None
+                or (not completing and request.wp_id != first.wp_id)
+                or request.effective_root != first.effective_root
+                or (completing and request.repo_root != first.repo_root)
             ):
                 raise TypeError("transactional status batch only supports one feature/mission/wp")
+
+            from_lane = from_lanes.get(request.wp_id)
+            if from_lane is None:
+                from_lane = str(_emit._derive_from_lane(txn.feature_dir, request.wp_id))
 
             event, resolved_lane = _prepare_event(
                 feature_dir=txn.feature_dir,
@@ -1673,10 +1713,10 @@ def emit_status_transition_batch_transactional(
                 at=(started_at + timedelta(microseconds=len(built))).isoformat(),
             )
             if event is None:
-                from_lane = resolved_lane
+                from_lanes[request.wp_id] = resolved_lane
                 continue
             built.append((event, request))
-            from_lane = resolved_lane
+            from_lanes[request.wp_id] = resolved_lane
 
         durability_unit: list[StatusEvent | InnerStateChanged] = []
         annotations: list[InnerStateChanged | None] = []

@@ -76,6 +76,10 @@ EXPECTED_PARSER_LONG_FLAGS = frozenset(
         "--yes",
         "--skip-review-artifact-check",
         "--note",
+        # Explicit-owned local completion adds two visible options. The
+        # ordinary lane flag set, defaults and JSON preview remain intact.
+        "--owned-checkout",
+        "--actor",
     }
 )
 

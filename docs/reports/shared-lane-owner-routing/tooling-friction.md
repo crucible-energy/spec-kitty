@@ -49,3 +49,24 @@ updated: '2026-10-08'
 - A supplementary coverage collection shared the default data location with an
   in-flight same-source run. Final coverage qualification uses a separate explicit
   data file and the frozen source so that no overlapping collection is its basis.
+
+- The actual owned merge preview folded to the protected primary and refused
+  its missing `lanes.json` before effects. No public external-GitHub-completion
+  command exists; this repair does not invent one. Explicit-owned completion
+  records local integration on the existing target, with remote delivery separate.
+- New fixtures initially lacked required project directories and metadata; those
+  setup failures are retained separately from the causal missing-option failure.
+  An intermediate assertion incorrectly expected DoneEvidence in status.json;
+  the canonical terminal event is its actual durable owner. No event/model state
+  was altered to satisfy that assertion.
+- The initial refusal response read the wrong property on ActionContextError;
+  the exact `code` is now retained. A later identity check incorrectly treated
+  off-axis annotations as lane events; the fixed check uses actual lane-event
+  identities and annotation WP membership. Failed runs remain separate from the
+  stable final proof. The canonical metadata-reader census is tightened for two
+  new routed reads, with its four-site allowance unchanged.
+- The existing golden helpers mistook the stock vendored Typer parser for an
+  unrelated external Click class. Immutable c32 reproduces the failures. The
+  separately authorized test-only repair uses native parser types/context and
+  passes all unchanged baseline expectations; it is distinct from the new
+  completion options and changes no production compatibility or dependencies.
