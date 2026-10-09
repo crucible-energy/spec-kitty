@@ -12,12 +12,17 @@ Each cell of the resolver's contract, on real git fixtures:
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from mission_runtime import MissionArtifactKind
+from mission_runtime import ActionContextError, MissionArtifactKind, OwnedCheckout
+from specify_cli.core.owned_mission import resolve_owned_mission
+from specify_cli.review.artifacts import ReviewCycleArtifact
+from specify_cli.status.models import Lane, StatusEvent
+from specify_cli.status.store import append_event
 from specify_cli.coordination.surface_resolver import (
     CoordinationBranchDeleted,
     CoordinationWorktreeUnmaterialized,
@@ -130,3 +135,132 @@ def test_retrospective_kind_is_refused(tmp_path: Path) -> None:
     """RETROSPECTIVE has its own home authority; the handed-dir resolver must not mint a second one."""
     with pytest.raises(ValueError, match="RETROSPECTIVE"):
         resolve_partition_read_dir(tmp_path, MissionArtifactKind.RETROSPECTIVE)
+
+
+@pytest.fixture
+def owned_partition_mission(tmp_path: Path) -> tuple[Path, OwnedCheckout]:
+    """A validated linked checkout with readable same-slug primary decoys."""
+    repository = tmp_path / "primary"
+    repository.mkdir()
+    _git(repository, "init", "-q", "-b", "main")
+    _git(repository, "config", "user.name", "Test")
+    _git(repository, "config", "user.email", "test@example.invalid")
+    _git(repository, "config", "commit.gpgsign", "false")
+    (repository / "README.md").write_text("seed\n", encoding="utf-8")
+    _git(repository, "add", "README.md")
+    _git(repository, "commit", "-qm", "seed")
+
+    checkout = tmp_path / "owned"
+    _git(repository, "worktree", "add", "-qb", "work", str(checkout))
+    slug = "owned-read-01M2A900"
+    mission = checkout / "kitty-specs" / slug
+    mission.mkdir(parents=True)
+    (mission / "meta.json").write_text(
+        json.dumps(
+            {
+                "mission_id": "01M2A900000000000000000001",
+                "mission_slug": slug,
+                "slug": slug,
+                "mission_type": "software-dev",
+                "topology": "single_branch",
+                "target_branch": "work",
+                "flattened": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    _git(checkout, "add", "kitty-specs")
+    _git(checkout, "commit", "-qm", "owned mission")
+    owned = resolve_owned_mission(repository, checkout, slug)
+    primary = repository / "kitty-specs" / slug
+    primary.mkdir(parents=True)
+    (primary / "meta.json").write_text('{"mission_id": "PRIMARY_DECOY"}', encoding="utf-8")
+
+    for directory, cycle in ((mission, 1), (primary, 2)):
+        feedback = directory / "tasks" / "WP01-core" / f"review-cycle-{cycle}.md"
+        feedback.parent.mkdir(parents=True)
+        ReviewCycleArtifact(
+            cycle_number=cycle,
+            wp_id="WP01",
+            mission_slug=slug,
+            reviewer_agent="reviewer",
+            reviewed_at="2026-10-09T00:00:00Z",
+            affected_files=[],
+            reproduction_command="pytest tests/specify_cli/missions/test_partition_read_dir.py -q",
+            body=f"Review from {directory.parent.parent.name}\n",
+        ).write(feedback)
+        append_event(
+            directory,
+            StatusEvent(
+                event_id=f"review-{cycle}",
+                mission_slug=slug,
+                wp_id="WP01",
+                from_lane=Lane.IN_REVIEW,
+                to_lane=Lane.IN_PROGRESS,
+                at="2026-10-09T00:00:00+00:00",
+                actor="reviewer",
+                force=False,
+                execution_mode="worktree",
+                review_ref=f"review-cycle://{slug}/WP01-core/review-cycle-{cycle}.md",
+            ),
+        )
+    return primary, owned
+
+
+@pytest.mark.parametrize("selector", ["owned", "primary"])
+@pytest.mark.parametrize("kind", [_STATUS, MissionArtifactKind.PRIMARY_METADATA])
+def test_owned_partition_reads_selected_checkout(
+    owned_partition_mission: tuple[Path, OwnedCheckout],
+    selector: str,
+    kind: MissionArtifactKind,
+) -> None:
+    primary, owned = owned_partition_mission
+    handed_dir = owned.mission_dir if selector == "owned" else primary
+
+    resolved = resolve_partition_read_dir(handed_dir, kind, owned=owned)
+
+    assert resolved == owned.mission_dir
+    filename = "status.events.jsonl" if kind is _STATUS else "meta.json"
+    assert (resolved / filename).read_text(encoding="utf-8") != (primary / filename).read_text(encoding="utf-8")
+
+
+def test_owned_partition_refuses_other_mission(
+    owned_partition_mission: tuple[Path, OwnedCheckout],
+) -> None:
+    primary, owned = owned_partition_mission
+    other_mission = primary.with_name("other-mission-01M2B900")
+    other_mission.mkdir()
+
+    with pytest.raises(ActionContextError, match="owned fact is for mission"):
+        resolve_partition_read_dir(other_mission, _STATUS, owned=owned)
+
+
+def test_owned_partition_refuses_retrospective(
+    owned_partition_mission: tuple[Path, OwnedCheckout],
+) -> None:
+    _, owned = owned_partition_mission
+
+    with pytest.raises(ValueError, match="RETROSPECTIVE"):
+        resolve_partition_read_dir(owned.mission_dir, MissionArtifactKind.RETROSPECTIVE, owned=owned)
+
+
+@pytest.mark.parametrize("selector", ["owned", "primary"])
+def test_owned_review_feedback_reads_selected_log_and_artifact(
+    owned_partition_mission: tuple[Path, OwnedCheckout],
+    selector: str,
+) -> None:
+    from specify_cli.cli.commands.agent.workflow_cores import resolve_review_feedback_context
+
+    primary, owned = owned_partition_mission
+    handed_dir = owned.mission_dir if selector == "owned" else primary
+
+    result = resolve_review_feedback_context(handed_dir, "WP01", "", owned=owned)
+
+    expected_file = owned.mission_dir / "tasks" / "WP01-core" / "review-cycle-1.md"
+    assert result == (
+        True,
+        f"review-cycle://{owned.mission_slug}/WP01-core/review-cycle-1.md",
+        expected_file,
+        "canonical",
+    )
+    assert ReviewCycleArtifact.from_file(expected_file).body == "Review from owned\n"
