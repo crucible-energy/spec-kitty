@@ -1,5 +1,6 @@
 ---
 title: 'Explicit owned single-branch recovery: tooling friction'
+description: 'Records SDK recovery tooling failures, corrected validation environments and retained evidence from the owned single branch repair.'
 type: explanation
 audience: software-engineer
 doc_status: point_in_time

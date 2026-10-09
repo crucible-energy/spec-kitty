@@ -1,5 +1,6 @@
 ---
 title: 'Explicit owned single-branch recovery: decisions'
+description: 'Explains ownership, history, archive and transaction boundaries for explicit conversion of an archived legacy lane into an owned single branch.'
 type: explanation
 audience: software-engineer
 doc_status: point_in_time

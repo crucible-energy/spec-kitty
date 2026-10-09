@@ -1,5 +1,6 @@
 ---
 title: 'Explicit owned single-branch recovery: issue matrix'
+description: 'Tracks the owner, implementation scope and review responsibilities for the explicit owned single branch recovery issue.'
 type: reference
 audience: software-engineer
 doc_status: point_in_time

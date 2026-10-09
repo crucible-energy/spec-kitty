@@ -1,5 +1,6 @@
 ---
 title: 'Explicit owned single-branch recovery: approach'
+description: 'Records delegated scope, governance context and the initial failing acceptance test for explicit recovery of one archived legacy code lane.'
 type: explanation
 audience: software-engineer
 doc_status: point_in_time
