@@ -1969,10 +1969,12 @@ def patch_target_checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> di
     return {"root": root, "git": git, "main": main, "base": base, "head": head, "merge": merge, "event": event, "event_file": event_file}
 
 
-@pytest.mark.parametrize("checkout", ["merge", "null-merge", "head", "fork-head", "head-merge-env", "head-unavailable-merge", "target-advance"])
+@pytest.mark.parametrize(
+    "checkout", ["merge", "null-merge", "stale-merge", "stale-head-merge-env", "head", "fork-head", "head-merge-env", "head-unavailable-merge", "target-advance"]
+)
 def test_non_main_pr_freeze_uses_exact_published_target(patch_target_checkout: dict[str, Any], monkeypatch: pytest.MonkeyPatch, checkout: str) -> None:
     case = patch_target_checkout
-    if checkout in {"head", "fork-head", "head-merge-env", "head-unavailable-merge"}:
+    if checkout in {"head", "fork-head", "head-merge-env", "head-unavailable-merge", "stale-head-merge-env"}:
         case["git"]("checkout", "-q", "--detach", case["head"])
         if checkout in {"head", "fork-head"}:
             monkeypatch.setenv("GITHUB_SHA", case["head"])
@@ -1985,6 +1987,12 @@ def test_non_main_pr_freeze_uses_exact_published_target(patch_target_checkout: d
             case["event"]["pull_request"]["head"]["repo"]["full_name"] = "crucible-energy/spec-kitty"
     if checkout == "null-merge":
         case["event"]["pull_request"]["merge_commit_sha"] = None
+    if checkout in {"stale-merge", "stale-head-merge-env"}:
+        tree = case["git"]("rev-parse", f"{case['merge']}^{{tree}}")
+        stale = case["git"]("commit-tree", tree, "-p", case["base"], "-p", case["head"], "-m", "earlier background test merge")
+        assert stale != case["merge"]
+        assert case["git"]("rev-list", "--parents", "-n", "1", stale).split() == [stale, case["base"], case["head"]]
+        case["event"]["pull_request"]["merge_commit_sha"] = stale
     if checkout == "target-advance":
         tree = case["git"]("rev-parse", f"{case['base']}^{{tree}}")
         tip = case["git"]("commit-tree", tree, "-p", case["base"], "-m", "target advanced after event")
