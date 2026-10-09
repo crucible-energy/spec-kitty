@@ -1,8 +1,10 @@
 ---
 title: 'Owned analysis and implementation: bounded fix approach'
 description: 'Implementation scope, outside-in findings and validation approach for the explicitly delegated SDK dependency fix in issue 5882.'
+doc_status: draft
+audience: docs/context/audience/internal/maintainer.md
 type: explanation
-updated: '2026-10-08'
+updated: '2026-10-09'
 ---
 
 # Approach — #5882

@@ -1,8 +1,10 @@
 ---
 title: 'Owned analysis and implementation: engineering decisions'
 description: 'Rationale and assumptions for carrying validated checkout ownership through analysis transactions and guarded implementation.'
+doc_status: draft
+audience: docs/context/audience/internal/maintainer.md
 type: explanation
-updated: '2026-10-08'
+updated: '2026-10-09'
 ---
 
 # Engineering Decisions — #5882

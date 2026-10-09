@@ -1,6 +1,8 @@
 ---
 title: 'Consumer asset isolation implementation findings'
 description: 'Observed UX effects and execution constraints for issue 72.'
+doc_status: draft
+audience: docs/context/audience/internal/maintainer.md
 type: reference
 updated: '2026-10-09'
 ---
@@ -52,3 +54,27 @@ was retired after exact source, digest and result preservation.
 
 The fourth case requires a clean committed source checkout; it remains a required
 post-commit gate, without an exclusion or bypass.
+
+## Documentation structural gate and scoped consumer acceptance
+
+PR 75's docs shard found missing `doc_status` on the four new documents and
+four inherited owned-analysis reports. The two existing live structural checks
+reproduced the eight violations on source `45a4afa0a`; exact baseline `e6c71493a`
+already lacked the four owned-analysis status fields.
+[Issue 77](https://github.com/crucible-energy/spec-kitty/issues/77) records that
+inherited metadata gap. All eight pages now carry `draft`, a canonical maintainer
+audience reference, and a current metadata review date. These metadata changes
+make no completion or default-release claim.
+
+**Root-reported consumer acceptance:** the separately installed, noneditable
+source-45a wheel and its 2149-file installation manifest were verified. Scoped
+current analysis returned exit 0, `ready`, `stale: false`, committing
+`a19d8346e41eb7bad163c3286be66b9f6849293c`. The same configuration's canonical
+owned `implement WP01` returned exit 0 and claimed focused `fix-cycle1`.
+This qualifies that source candidate's consumer window. It establishes no
+native/default installed CLI or production qualification. The docs-only
+coherence increment does not rebuild or repoint that qualified runtime.
+
+The metadata correction runs the complete structural-lint test file and normal
+docs lint, rather than treating spelling/changelog lint as structural proof.
+Implementation, packaging and archive bytes remain unchanged in this increment.

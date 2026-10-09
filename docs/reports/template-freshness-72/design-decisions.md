@@ -1,6 +1,8 @@
 ---
 title: 'Consumer asset isolation decisions'
 description: 'The approved scope and the trust boundaries it preserves.'
+doc_status: draft
+audience: docs/context/audience/internal/maintainer.md
 type: reference
 updated: '2026-10-09'
 ---

@@ -1,6 +1,8 @@
 ---
 title: 'Isolate assets for a pinned CLI consumer'
 description: 'Give a qualified consumer its own generated assets without changing native agent configuration.'
+doc_status: draft
+audience: docs/context/audience/internal/maintainer.md
 type: how-to
 updated: '2026-10-09'
 ---

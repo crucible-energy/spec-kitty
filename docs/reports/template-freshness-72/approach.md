@@ -1,6 +1,8 @@
 ---
 title: 'Template freshness: controlled reproduction'
 description: 'Separate the observed incident from the reproduced shared-runtime collision.'
+doc_status: draft
+audience: docs/context/audience/internal/maintainer.md
 type: explanation
 updated: '2026-10-09'
 ---
