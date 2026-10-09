@@ -441,3 +441,138 @@ def test_resolve_base_ref_skips_when_neither_ref_resolves(tmp_path: Path) -> Non
         _resolve_base_ref(repo)
     with pytest.raises(pytest.skip.Exception):
         _base_registry(cwd=repo)
+
+
+@pytest.fixture
+def published_registry_checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """A real non-main PR target owns a registry absent on old origin/main."""
+    import sys
+    from scripts.ci import gate_selection
+    from tests.architectural import test_archive_root_byte_identical as authority
+
+    repo = tmp_path / "published-registry"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "seed.txt").write_text("old main lacks registry\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "old main")
+    main = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "remote", "add", "origin", "https://github.com/crucible-energy/spec-kitty.git")
+    _git(repo, "update-ref", "refs/remotes/origin/main", main)
+    registry = repo / ".github/ci-module-registry.yml"
+    registry.parent.mkdir()
+    base_registry = {
+        "modules": [{"module": "fixture_module", "shard_count": 1, "test_dirs": ["tests/demo"], "roots": ["src/demo/**"]}],
+        "out_of_matrix_test_dirs": [],
+        "_test_marker": "published-target",
+    }
+    registry.write_text(yaml.safe_dump(base_registry))
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "published registry baseline")
+    base = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "update-ref", "refs/remotes/origin/patch-registry", base)
+    head_registry = json.loads(json.dumps(base_registry))
+    head_registry["modules"][0].update(shard_count=2, test_dirs=["tests/demo", "tests/extra"])
+    head_registry["_test_marker"] = "head-current"
+    registry.write_text(yaml.safe_dump(head_registry))
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "PR registry changes")
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    tree = _git(repo, "rev-parse", "HEAD^{tree}").stdout.strip()
+    merge = _git(repo, "commit-tree", tree, "-p", base, "-p", head, "-m", "runner merge").stdout.strip()
+    _git(repo, "checkout", "-q", "--detach", merge)
+    event = {
+        "number": 81,
+        "repository": {"full_name": "crucible-energy/spec-kitty"},
+        "pull_request": {
+            "number": 81,
+            "base": {"ref": "patch-registry", "sha": base, "repo": {"full_name": "crucible-energy/spec-kitty"}},
+            "head": {"sha": head, "repo": {"full_name": "crucible-energy/spec-kitty"}},
+            "merge_commit_sha": None,
+        },
+    }
+    event_file = tmp_path / "event.json"
+    event_file.write_text(json.dumps(event))
+    for key, value in {
+        "CI": "true",
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REPOSITORY": "crucible-energy/spec-kitty",
+        "GITHUB_BASE_REF": "patch-registry",
+        "GITHUB_REF": "refs/pull/81/merge",
+        "GITHUB_SHA": merge,
+        "GITHUB_EVENT_PATH": str(event_file),
+    }.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(authority, "REPO_ROOT", repo)
+    monkeypatch.setattr(sys.modules[__name__], "_REPO_ROOT", repo)
+    monkeypatch.setattr(sys.modules[__name__], "_load_registry", lambda: yaml.safe_load(registry.read_text()))
+    monkeypatch.setattr(gate_selection, "DEFAULT_REGISTRY_PATH", registry)
+    floor = repo / "capture-floor.txt"
+    floor.write_text("2026-10-01T00:00:00Z\n")
+    monkeypatch.setattr(sys.modules[__name__], "_CAPTURE_FLOOR_PATH", floor)
+    timings = {
+        "module_capture_provenance": {"fixture_module": {"unique_tests_measured": 2, "captured_at": "2026-10-09T00:00:00Z"}},
+        "module_test_durations": {"fixture_module": [1.0, 2.0]},
+        "module_test_count": {"fixture_module": 2},
+    }
+    monkeypatch.setattr(sys.modules[__name__], "_load_timings", lambda: timings)
+    return {
+        "root": repo,
+        "base": base,
+        "head": head,
+        "event": event,
+        "event_file": event_file,
+        "registry": registry,
+        "head_registry": head_registry,
+        "timings": timings,
+    }
+
+
+@pytest.mark.parametrize("capture", ["fresh", "stale", "parity", "missing"])
+def test_non_main_registry_base_keeps_t015_nonvacuous(published_registry_checkout: dict[str, Any], capture: str) -> None:
+    case = published_registry_checkout
+    assert _resolve_base_ref(case["root"]) == case["base"]
+    assert _base_registry(cwd=case["root"])["_test_marker"] == "published-target"
+    if capture == "fresh":
+        test_evidence_parity_and_freshness_for_changed_modules()
+        return
+    if capture == "stale":
+        case["timings"]["module_capture_provenance"]["fixture_module"]["captured_at"] = "2026-09-01T00:00:00Z"
+    elif capture == "parity":
+        case["timings"]["module_test_count"]["fixture_module"] = 1
+    else:
+        case["timings"]["module_capture_provenance"] = {}
+    with pytest.raises(AssertionError, match="evidence parity/freshness violations"):
+        test_evidence_parity_and_freshness_for_changed_modules()
+
+
+def test_non_main_registry_base_keeps_t019_nonvacuous(published_registry_checkout: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
+    from scripts.ci import gate_selection
+
+    case = published_registry_checkout
+    assert _base_registry(cwd=case["root"])["_test_marker"] == "published-target"
+    test_expanded_test_dirs_are_selected_per_pr()
+    lost_routing = case["root"] / ".github/lost-routing.yml"
+    rows = json.loads(json.dumps(case["head_registry"]))
+    rows["modules"][0]["test_dirs"] = ["tests/demo"]
+    lost_routing.write_text(yaml.safe_dump(rows))
+    monkeypatch.setattr(gate_selection, "DEFAULT_REGISTRY_PATH", lost_routing)
+    with pytest.raises(AssertionError, match="tests/extra/synthetic_test.py does not select"):
+        test_expanded_test_dirs_are_selected_per_pr()
+
+
+@pytest.mark.parametrize("tamper", ["target-ref", "event-head", "wrong-cwd"])
+def test_non_main_registry_base_refuses_tamper(published_registry_checkout: dict[str, Any], tamper: str, tmp_path: Path) -> None:
+    case = published_registry_checkout
+    if tamper == "target-ref":
+        _git(case["root"], "update-ref", "-d", "refs/remotes/origin/patch-registry")
+    elif tamper == "event-head":
+        case["event"]["pull_request"]["head"]["sha"] = case["base"]
+        case["event_file"].write_text(json.dumps(case["event"]))
+    cwd = case["root"]
+    if tamper == "wrong-cwd":
+        cwd = tmp_path / "other-checkout"
+        _init_repo_with_registry(cwd, branch="main", marker="different-checkout")
+    with pytest.raises(pytest.fail.Exception, match="PR|checkout"):
+        _resolve_base_ref(cwd)
