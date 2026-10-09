@@ -100,3 +100,15 @@ excluding the intentionally converted manifest. The first matrix retained 32
 passes and this one failure. Subsequent focused boundaries passed 18 tests in
 167.77 seconds, including unchanged executable modes, hidden/reverted history,
 unsupported changes and same-input repeat/finalization. Final gates remain pending.
+
+Observed: hosted checks on https://github.com/crucible-energy/spec-kitty/pull/87
+found a Git-custody serialization shape covered by the existing DRG writer gate.
+The domain correction retains validated wire evidence; it does not register a
+fake graph writer, rename the edge collection or change the gate.
+
+Observed: the disposable archive helper's module-local autouse fixture did not
+apply when the helper was imported by the upgrade corpus tests. A complete
+synthetic non-main workflow event reproduced the shared helper's remote-identity
+failure. Its local context must be scoped inside the helper itself, with outer
+hosted metadata restored and the literal-CI unreachable-base control retained.
+No credentials or real source text are included in the reproduction packet.

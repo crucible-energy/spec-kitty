@@ -47,3 +47,20 @@ privacy, raw corruption, unsafe paths, active history, races and repeat/rollback
 Hidden merges and intermediate reverts require their actual raw variants even when
 the final historical tree is unchanged. Full successor qualification remains an
 external receipt so recording its outcome cannot change the frozen candidate.
+
+## Hosted boundary correction
+
+Observed: source candidate `c663dcf` passed its recorded local source, baseline,
+owning and documentation gates, then the hosted checks on
+https://github.com/crucible-energy/spec-kitty/pull/87 exposed two additional
+boundaries. The existing DRG discovery gate rejected model serialization over
+the custody parent-edge collection. An imported disposable-repository helper
+also inherited the real workflow's non-main PR event, even though that fixture
+deliberately has no configured remote. The two named counterfactuals reproduced
+RED; the full external logs remain tied to the original source.
+
+The correction compares original wire history only after duplicate-key rejection
+and strict closed-model validation. Git evidence has no DRG serialization policy.
+The shared recovery helper declares its temporary local fixture context and
+restores the real hosted context after its checks. Real PR identity and archive
+preservation guards remain unchanged. Revised-source qualification stays external.

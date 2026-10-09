@@ -172,6 +172,45 @@ def run_gate(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     gate.test_no_preexisting_archived_file_was_modified()
 
 
+def test_shared_gate_declares_local_fixture_and_restores_hosted_context(archive_repo: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Imported helpers must not apply a real workflow event to a fake repo."""
+    head = git(archive_repo, "rev-parse", "HEAD").decode().strip()
+    event_path = tmp_path / "hosted-event.json"
+    event_path.write_text(
+        json.dumps(
+            {
+                "number": 87,
+                "repository": {"full_name": "crucible-energy/spec-kitty"},
+                "pull_request": {
+                    "number": 87,
+                    "base": {"ref": "patch-base", "sha": head, "repo": {"full_name": "crucible-energy/spec-kitty"}},
+                    "head": {"sha": head},
+                },
+            }
+        )
+    )
+    hosted = {
+        "CI": "true",
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REPOSITORY": "crucible-energy/spec-kitty",
+        "GITHUB_BASE_REF": "patch-base",
+        "GITHUB_REF": "refs/pull/87/head",
+        "GITHUB_SHA": head,
+        "GITHUB_EVENT_PATH": str(event_path),
+    }
+    for key, value in hosted.items():
+        monkeypatch.setenv(key, value)
+    original_root = gate.REPO_ROOT
+    with pytest.raises(pytest.fail.Exception, match="target repository has no configured remote"):
+        gate._non_main_pr_base_rev()
+    run_gate(archive_repo, monkeypatch)
+    assert {key: os.environ.get(key) for key in hosted} == hosted
+    assert original_root == gate.REPO_ROOT
+    with pytest.raises(pytest.fail.Exception, match="target repository has no configured remote"):
+        gate._non_main_pr_base_rev()
+
+
 @pytest.mark.parametrize(
     "attack,reason",
     [

@@ -54,3 +54,12 @@ updated: '2026-10-09'
 14. A closed manifest uses bare hexadecimal SHA-256 values. The canonical exact
     byte digest helper's provenance prefix is removed only for this wire format;
     historical receipt digests retain their existing representation.
+15. Custody equality uses the original strict-validated wire collections rather
+    than reserializing their typed models. Parent edges are Git evidence, not a
+    DRG document; preserving their exact field shape and list order avoids a
+    second serialization policy or normalization boundary.
+16. The imported archive-preservation helper uses a temporary monkeypatch context
+    for its disposable Git repository. It clears only hosted PR metadata, retains
+    literal `CI` failure behavior and restores both metadata and repository root
+    on exit. The real hosted PR resolver remains fail closed, including before
+    and after the local helper call.
