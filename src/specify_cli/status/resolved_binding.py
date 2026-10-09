@@ -1,13 +1,14 @@
 """Resolved-binding carrier for the dispatch→claim linkage (FR-014 / IC-08).
 
-The *genuinely dispatch-resolved* runtime identity — which model the routing
-catalog recommended and which profile the registry resolved — lives only on the
+The dispatch-resolved profile identity lives on the
 invocation/Op path (``invocation/executor.py`` ``RoutingRecommendation`` /
 ``registry.resolve``, recorded in ``invocation/record.py`` keyed by
 ``invocation_id``). This module carries that resolution from the CLI claim
 commands (``--model``/``--profile``/``--invocation-id`` on
 ``cli/commands/agent/workflow.py``) into the claim seams so the claim-time emit
-records the WP's **resolved binding**.
+records the WP's **resolved binding**. Catalog model recommendations are
+advisory and cannot populate actual model/provider slots. The CLI records
+explicit absence until genuine model-execution evidence is available.
 
 The single load-bearing rule (C-007 / INV-6): every field here originates from
 the dispatch resolver / ``registry.resolve`` / the Op record — **NEVER** a copy
@@ -77,16 +78,8 @@ class ResolvedBinding:
         """
         return WPInnerStateDelta(
             role=role,
-            agent_profile=(
-                self.agent_profile
-                if self.agent_profile is not None
-                else RESOLVED_PROFILE_ABSENT
-            ),
-            agent_profile_version=(
-                self.agent_profile_version
-                if self.agent_profile_version is not None
-                else RESOLVED_PROFILE_VERSION_ABSENT
-            ),
+            agent_profile=(self.agent_profile if self.agent_profile is not None else RESOLVED_PROFILE_ABSENT),
+            agent_profile_version=(self.agent_profile_version if self.agent_profile_version is not None else RESOLVED_PROFILE_VERSION_ABSENT),
             model=self.model if self.model is not None else RESOLVED_MODEL_ABSENT,
             provider=self.provider if self.provider is not None else RESOLVED_PROVIDER_ABSENT,
         )

@@ -1286,13 +1286,13 @@ def _require_current_analysis_report(feature_dir: Path, repo_root: Path, mission
 
 #: Help text for the dispatch→claim resolved-binding options (FR-014). Shared by
 #: ``implement()`` and ``review()`` so the wording stays canonical in both.
-_MODEL_OPT_HELP = "Dispatch-resolved model asserted against the correlated Op record (requires --invocation-id; never the frontmatter recommendation)"
+_MODEL_OPT_HELP = "Execution model assertion; refused until actual execution evidence exists (dispatch recommendations do not prove execution)"
 _PROFILE_OPT_HELP = (
     "Agent profile id — a dispatch registry / Op record profile or a local "
     "charter profile (the same ids `agent profile show` resolves). When "
     "omitted, the work package's frontmatter agent_profile is used."
 )
-_INVOCATION_ID_OPT_HELP = "Correlated Op record ULID whose mission, WP, action, profile, and model are authoritative"
+_INVOCATION_ID_OPT_HELP = "Correlated Op record ULID whose mission, WP, action and profile prove dispatch identity; model recommendations are advisory"
 
 
 def _read_op_started_event(invocation_id: str, repo_root: Path) -> OpStartedEvent:
@@ -1396,29 +1396,6 @@ def _resolved_profile_version(profile_id: str | None, repo_root: Path) -> str | 
         ) from exc
 
 
-def _resolved_model_provider(model_id: str | None) -> str | None:
-    """Look up a dispatch model's provider in the canonical routing catalog."""
-    if model_id is None:
-        return None
-    try:
-        from charter.model_routing import load as routing_load
-
-        loaded = routing_load()
-        if loaded is None:
-            raise ValueError("the canonical routing catalog is unavailable")
-        model = next(
-            (candidate for candidate in loaded.catalog.models if candidate.id == model_id),
-            None,
-        )
-        if model is None:
-            raise ValueError("model is absent from the canonical routing catalog")
-        return str(model.provider)
-    except Exception as exc:
-        raise ValueError(
-            f"Could not resolve dispatched model {model_id!r}: {exc}"
-        ) from exc
-
-
 def _resolve_dispatch_binding(
     *,
     model: str | None,
@@ -1429,23 +1406,21 @@ def _resolve_dispatch_binding(
     wp_id: str | None = None,
     action: str | None = None,
 ) -> ResolvedBinding:
-    """Build the genuinely dispatch-resolved binding for a claim seam (FR-014, T037).
+    """Resolve profile provenance without inventing model execution evidence.
 
-    Sources the resolved ``model`` + ``agent_profile`` from the invocation/Op
-    path — the ``--model``/``--profile`` values the orchestrator threaded from
-    ``invocation/executor.py``'s winning candidate + ``registry.resolve``, and,
-    when ``--invocation-id`` is supplied, the authoritative ``profile_id`` read
-    back from the Op record. Any supplied value that disagrees with the durable
-    Op evidence is rejected; no caller label silently overrides provenance.
+    A correlated Op proves dispatch identity and profile selection. Dispatch
+    does not call a model: both new recommendations and historical ``model_id``
+    values are advisory. No execution-evidence producer exists at this seam, so
+    model/provider remain explicitly absent and ``--model`` is refused.
 
     **NEVER** reads the frontmatter ``agent_profile`` string (C-007 / INV-6) —
     this function has no access to frontmatter by construction, so a resolved
     binding can never be a frontmatter copy. When no dispatch context was
     supplied, returns an explicit-absence binding: the claim seam records the
-    model-absent sentinel rather than fabricating one (SC-011).
+    model-absent sentinel rather than fabricating one (SC-011). Existing ledger
+    history is read without rewriting it.
     """
     resolved_profile = profile
-    resolved_model: str | None = None
     if invocation_id:
         event = _read_op_started_event(invocation_id, repo_root)
         _validate_op_claim_correlation(
@@ -1455,29 +1430,23 @@ def _resolve_dispatch_binding(
             action=action,
         )
         op_profile = event.profile_id
-        op_model = event.model_id
         if profile is not None and profile != op_profile:
             raise ValueError(
                 "Dispatch Op profile does not match --profile: "
                 f"recorded={op_profile!r}, supplied={profile!r}"
             )
-        if model is not None and model != op_model:
-            raise ValueError(
-                "Dispatch Op model does not match --model: "
-                f"recorded={op_model!r}, supplied={model!r}"
-            )
         resolved_profile = op_profile
-        resolved_model = op_model
-    elif model is not None:
+    if model is not None:
         raise ValueError(
-            "--model cannot be recorded as resolved actual without correlated "
-            "durable dispatch evidence; pass --invocation-id"
+            "--model cannot be recorded as resolved actual without model execution "
+            "evidence; dispatch recommendations and historical Op model_id values "
+            "do not prove execution. Omit --model."
         )
     return ResolvedBinding(
         agent_profile=resolved_profile,
         agent_profile_version=_resolved_profile_version(resolved_profile, repo_root),
-        model=resolved_model,
-        provider=_resolved_model_provider(resolved_model),
+        model=None,
+        provider=None,
     )
 
 

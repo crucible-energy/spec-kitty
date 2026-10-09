@@ -14,10 +14,11 @@
 # Envelope shape (mission do-dispatch-open-op-lifecycle, decision
 # 01KTSJEQANMNEV16WMSAJP6FR1 — no wire-compat with the pre-mission envelope;
 # SaaS handlers are unimplemented, #1720/#1693):
-#   Envelope dicts are rebuilt 1:1 from the v2 Op event models
+#   Envelope dicts project the v2 Op event models
 #   (contracts/op-record-events.md):
-#   ProfileInvocationStarted:   event_type + all OpStartedEvent fields
-#                               (None fields omitted; request_text policy-gated)
+#   ProfileInvocationStarted:   event_type + OpStartedEvent fields except
+#                               model_id/recommended_model_id (local advice);
+#                               None omitted; request_text policy-gated
 #   ProfileInvocationCompleted: event_type + all OpCompletedEvent fields incl.
 #                               closed_by (evidence_ref omitted when None and
 #                               policy-gated)
@@ -154,8 +155,7 @@ def _projection_rule_for(record: OpEvent) -> Any | None:
         event_kind = EventKind(record.event)
     except ValueError:
         logger.warning(
-            "Op %s has an unrecognised event kind %r; not projecting it "
-            "(no projection-policy row applies)",
+            "Op %s has an unrecognised event kind %r; not projecting it (no projection-policy row applies)",
             record.invocation_id,
             record.event,
         )
@@ -169,8 +169,7 @@ def _projection_rule_for(record: OpEvent) -> Any | None:
         mode = ModeOfWork(raw_mode)
     except ValueError:
         logger.warning(
-            "Op %s declares an unrecognised mode_of_work %r; not projecting it "
-            "(the record's disclosure policy cannot be determined)",
+            "Op %s declares an unrecognised mode_of_work %r; not projecting it (the record's disclosure policy cannot be determined)",
             record.invocation_id,
             raw_mode,
         )
@@ -191,16 +190,19 @@ def _build_started_event_dict(
     record: OpStartedEvent,
     rule: Any,
 ) -> dict[str, object]:
-    """Envelope built 1:1 from the v2 OpStartedEvent (op-record-events.md).
+    """Policy projection of the v2 OpStartedEvent (op-record-events.md).
 
     No wire-compat with the pre-mission envelope (decision
     01KTSJEQANMNEV16WMSAJP6FR1). Optional fields (router_confidence,
-    mission_id, wp_id, model_id) are omitted when absent, mirroring the on-disk
-    JSONL shape. request_text is policy-gated
+    mission_id, wp_id) are omitted when absent. Advisory model fields stay in
+    local history; they are not execution evidence or hosted contract fields.
+    request_text is policy-gated
     (projection_policy.include_request_text).
     """
     event_dict: dict[str, object] = record.model_dump(exclude_none=True)
     del event_dict["event"]
+    event_dict.pop("model_id", None)
+    event_dict.pop("recommended_model_id", None)
     event_dict["event_type"] = "ProfileInvocationStarted"
     if not rule.include_request_text:
         event_dict.pop("request_text", None)
@@ -233,9 +235,7 @@ def _send_event(client: Any, event_dict: dict[str, object]) -> None:
         asyncio.run(client.send_event(event_dict))
 
 
-def _log_propagation_error(
-    repo_root: Path, record: OpEvent, error: str
-) -> None:
+def _log_propagation_error(repo_root: Path, record: OpEvent, error: str) -> None:
     """Append propagation failure to the local error log.  Never raises."""
     try:
         error_log = repo_root / PROPAGATION_ERRORS_PATH
@@ -265,9 +265,7 @@ class InvocationSaaSPropagator:
 
     def __init__(self, repo_root: Path) -> None:
         self._repo_root = repo_root
-        self._executor: ThreadPoolExecutor = ThreadPoolExecutor(
-            max_workers=1, thread_name_prefix="invocation-saas"
-        )
+        self._executor: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="invocation-saas")
         self._pending: list[Future[None]] = []
         atexit.register(self._shutdown)
 

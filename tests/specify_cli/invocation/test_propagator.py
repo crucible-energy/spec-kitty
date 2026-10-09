@@ -143,10 +143,11 @@ def test_propagator_sends_invocation_id_in_event_dict(tmp_path: pytest.TempPathF
 
 
 def test_started_envelope_field_set_follows_v2_contract(tmp_path: pytest.TempPathFactory) -> None:
-    """Started envelope is built 1:1 from OpStartedEvent (op-record-events.md).
+    """Started envelope projects OpStartedEvent (op-record-events.md).
 
     None fields (router_confidence, mission_id, wp_id) are omitted; the v2
-    fields governance_context_available and mode_of_work are present.
+    fields governance_context_available and mode_of_work are present; advisory
+    model fields stay local.
     """
     record = make_started_record()
     captured: list[dict[str, object]] = []
@@ -175,6 +176,25 @@ def test_started_envelope_field_set_follows_v2_contract(tmp_path: pytest.TempPat
         "governance_context_available": True,
         "started_at": "2026-04-21T10:00:00Z",
     }
+
+
+@pytest.mark.parametrize("field", ["model_id", "recommended_model_id"])
+def test_advisory_model_fields_remain_local(tmp_path, field: str) -> None:
+    record = make_started_record().model_copy(update={field: "claude-opus-4-6"})
+    assert json.loads(record.to_jsonl_line())[field] == "claude-opus-4-6"
+    captured: list[dict[str, object]] = []
+    with patch("specify_cli.invocation.propagator._get_saas_client") as mock_factory:
+        mock_client = MagicMock()
+
+        async def mock_send(event_dict: dict[str, object]) -> None:
+            captured.append(event_dict)
+
+        mock_client.send_event = mock_send
+        mock_factory.return_value = mock_client
+        _propagate_one(record, tmp_path)
+    assert len(captured) == 1
+    assert "model_id" not in captured[0]
+    assert "recommended_model_id" not in captured[0]
 
 
 def test_completed_envelope_field_set_follows_v2_contract(tmp_path: pytest.TempPathFactory) -> None:

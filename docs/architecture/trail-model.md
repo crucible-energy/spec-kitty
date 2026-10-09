@@ -2,7 +2,7 @@
 title: Trail Model
 description: 'Operator reference for the Phase 4 trail model: how every standalone spec-kitty dispatch writes an auditable JSONL trail for accountability, SaaS coherence, and provenance.'
 doc_status: active
-updated: '2026-09-30'
+updated: '2026-10-09'
 type: explanation
 audience: docs/context/audience/internal/system-architect.md
 related:
@@ -35,11 +35,16 @@ When `spec-kitty profile-invocation complete` is called, a `completed` event is 
 This is the unconditional minimum — it is always written, regardless of SaaS connectivity, charter state, or sync configuration. The data model is defined in `src/specify_cli/invocation/record.py`.
 
 Mission-scoped dispatchers may also record `mission_id`, `wp_id`, and the
-catalog-winning `model_id` on the `started` event. An implement or review claim
+catalog-winning advisory `recommended_model_id` on the `started` event.
+An implement or review claim
 that supplies `--invocation-id` treats those values as a provenance assertion:
-the requested ULID and the record's embedded ID, mission, WP, action, profile,
-and model must agree exactly. Uncorrelated legacy records remain readable, but
-cannot prove a resolved model actual for a claim.
+the requested ULID and the record's embedded ID, mission, WP, action and profile
+must agree exactly. Dispatch makes no model call: neither the recommendation
+nor historical `model_id` values prove model execution. Claims record explicit
+absence for actual model/provider and reject `--model` assertions until an
+execution-evidence producer exists. Historical JSONL remains unchanged.
+Both advisory model fields stay local and are omitted from the dormant hosted
+projection; no hosted transport or compatibility qualification is implied.
 
 ## Mode-of-Work Taxonomy
 
