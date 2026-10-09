@@ -334,16 +334,19 @@ def _resolve_status_state_read_dir(feature_dir: Path, *, owned: OwnedCheckout | 
     (#5180), shared with the move-task verdict read and the post-merge
     review-artifact gate: COORD husk under a materialised coord topology,
     PRIMARY otherwise, and the handed *feature_dir* itself on a phantom
-    partition or with no derivable workspace root. The imports stay lazy to
-    keep this pure core's import surface unchanged.
+    partition or with no derivable workspace root. A validated ``owned`` fact
+    is forwarded to that same authority to select the owned partition. The
+    imports stay lazy to keep this pure core's import surface unchanged.
     """
-    from mission_runtime import MissionArtifactKind, placement_seam
+    from mission_runtime import MissionArtifactKind
 
     from specify_cli.missions._read_path_resolver import resolve_partition_read_dir
 
+    resolved: Path
     if owned is not None:
-        return placement_seam(owned.repository_root, feature_dir.name, owned=owned).read_dir(MissionArtifactKind.STATUS_STATE)
-    resolved: Path = resolve_partition_read_dir(feature_dir, MissionArtifactKind.STATUS_STATE)
+        resolved = resolve_partition_read_dir(feature_dir, MissionArtifactKind.STATUS_STATE, owned=owned)
+    else:
+        resolved = resolve_partition_read_dir(feature_dir, MissionArtifactKind.STATUS_STATE)
     return resolved
 
 
@@ -433,7 +436,8 @@ def _resolve_review_cycle_sub_artifact_dir(feature_dir: Path, wp_slug: str, *, o
     from specify_cli.review.cycle import _review_cycle_wp_dir
 
     if owned is not None:
-        return _review_cycle_wp_dir(owned.repository_root, feature_dir.name, wp_slug, owned=owned)
+        resolved_owned: Path = _review_cycle_wp_dir(owned.repository_root, feature_dir.name, wp_slug, owned=owned)
+        return resolved_owned
     try:
         main_repo_root = resolve_canonical_root(feature_dir)
     except WorkspaceRootNotFound:
