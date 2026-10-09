@@ -106,6 +106,10 @@ def get_global_command_dir(agent_key: str) -> Path:
         "llxprt" → ~/Library/Preferences/llxprt-code/commands/ (macOS)
     """
     from specify_cli.core.config import AGENT_COMMAND_CONFIG
+    from kernel.paths import consumer_agent_asset_root
+
+    if (private_root := consumer_agent_asset_root()) is not None:
+        return private_root / str(AGENT_COMMAND_CONFIG[agent_key]["dir"])
 
     if agent_key == "opencode":
         custom_config_dir = os.environ.get("OPENCODE_CONFIG_DIR")

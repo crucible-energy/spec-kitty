@@ -472,7 +472,9 @@ def _command_parent_receipts(assessment: OwnerAssessment) -> dict[Path, SkillPat
 
 
 def _agent_config_identity() -> str:
-    return json.dumps({"agents": AGENT_SKILL_CONFIG, "global_home": str(Path.home())}, sort_keys=True, separators=(",", ":"))
+    from kernel.paths import consumer_agent_asset_root
+
+    return json.dumps({"agents": AGENT_SKILL_CONFIG, "global_home": str(consumer_agent_asset_root() or Path.home())}, sort_keys=True, separators=(",", ":"))
 
 
 def _skill_bytes_state(content: bytes, mode: int) -> FileState:

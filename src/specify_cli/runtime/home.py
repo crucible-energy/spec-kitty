@@ -15,9 +15,11 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import cast
 
 import kernel.paths
 from kernel.paths import is_windows
+from kernel.paths import consumer_agent_asset_root
 
 
 def get_kittify_home() -> Path:
@@ -32,13 +34,16 @@ def get_kittify_home() -> Path:
     The ``SPEC_KITTY_HOME`` environment variable always wins regardless of
     platform.
     """
+    # Validate an explicit consumer scope before any owner can bootstrap.
+    consumer_agent_asset_root()
     if env_home := os.environ.get("SPEC_KITTY_HOME"):
         return Path(env_home)
 
     if is_windows():
         from specify_cli.paths import get_runtime_root  # noqa: PLC0415
 
-        return get_runtime_root().base
+        # The lazy package facade is Any; RuntimeRoot.base is a Path.
+        return cast(Path, get_runtime_root().base)
 
     return Path.home() / ".kittify"
 

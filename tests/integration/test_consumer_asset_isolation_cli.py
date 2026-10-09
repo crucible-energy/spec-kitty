@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import json
+from specify_cli.runtime.asset_preparation import digest
 
 import pytest
 
@@ -18,11 +19,23 @@ from tests.integration.test_analysis_bootstrap_templates_cli import (
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo, pytest.mark.real_worktree_detection, pytest.mark.real_drain_posture]
 
 
-def snapshot(root: Path) -> dict[str, tuple[bytes | None, int, int, int]]:
+def snapshot(root: Path) -> dict[str, tuple[str | None, int, int, int, int]]:
     return {
-        path.relative_to(root).as_posix(): (path.read_bytes() if path.is_file() else None, path.lstat().st_mode, path.lstat().st_ino, path.lstat().st_mtime_ns)
+        path.relative_to(root).as_posix(): (
+            digest(path.read_bytes()) if path.is_file() else None,
+            path.lstat().st_mode,
+            path.lstat().st_ino,
+            path.lstat().st_mtime_ns,
+            path.lstat().st_ctime_ns,
+        )
         for path in root.rglob("*")
     }
+
+
+def assert_unchanged(root: Path, before: dict[str, tuple[str | None, int, int, int, int]]) -> None:
+    after = snapshot(root)
+    changed = sorted(name for name in before.keys() | after.keys() if before.get(name) != after.get(name))
+    assert not changed, f"Shared assets changed: {changed[:20]}"
 
 
 def test_consumer_record_implement_survives_shared_runtime_replacement(prepared_owner: OwnedCheckouts, cold_environment: dict[str, str], tmp_path: Path) -> None:
@@ -37,7 +50,7 @@ def test_consumer_record_implement_survives_shared_runtime_replacement(prepared_
     recorded = recording(prepared_owner, env)
     assert recorded.returncode == 0, recorded.stdout + recorded.stderr
     assert json.loads(recorded.stdout)["commit_status"] == "committed"
-    assert snapshot(shared) == shared_before, "consumer startup must have zero shared-user asset effects"
+    assert_unchanged(shared, shared_before)
     private = Path(env["SPEC_KITTY_HOME"])
     assert (private / "agent-assets/.claude/commands/spec-kitty.analyze.md").is_file()
     assert (private / "agent-assets/.agents/skills/spk-doctrine-profile-load/SKILL.md").is_file()
@@ -67,8 +80,8 @@ def test_consumer_record_implement_survives_shared_runtime_replacement(prepared_
     )
     assert claimed.returncode == 0, claimed.stdout + claimed.stderr
     assert selected_template(env).stat() == template_before
-    assert snapshot(private / "agent-assets") == assets_before
-    assert snapshot(shared) == shared_after_foreign_write
+    assert_unchanged(private / "agent-assets", assets_before)
+    assert_unchanged(shared, shared_after_foreign_write)
     assert primary_state(prepared_owner) == primary_before
 
 
@@ -88,7 +101,17 @@ def test_invalid_consumer_configuration_refuses_before_effects(
     result = cli(prepared_owner.owned_root, env, "agent", "profile", "list", "--json")
     assert result.returncode != 0, result.stdout + result.stderr
     assert "SPEC_KITTY" in result.stdout + result.stderr
-    assert snapshot(shared) == before
+    assert_unchanged(shared, before)
     assert not destination.exists()
     assert not (prepared_owner.owned_root / "relative-runtime").exists()
     assert primary_state(prepared_owner) == primary_before
+
+
+@pytest.mark.parametrize("change", ["altered", "retarget_home", "equal_byte_replacement", "leaf_symlink"])
+def test_scoped_consumer_keeps_selected_template_custody_guard(
+    prepared_owner: OwnedCheckouts, cold_environment: dict[str, str], tmp_path: Path, change: str
+) -> None:
+    from tests.integration.test_analysis_bootstrap_templates_cli import test_post_report_selection_changes_refuse_without_claim as post_report_refusal
+
+    env = dict(cold_environment, SPEC_KITTY_ASSET_SCOPE="consumer")
+    post_report_refusal(prepared_owner, env, tmp_path, change)

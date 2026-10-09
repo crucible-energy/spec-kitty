@@ -23,3 +23,22 @@ def test_consumer_paths_share_one_explicit_home(tmp_path: Path, monkeypatch: pyt
         root = get_primary_global_skill_root(agent)
         assert root is not None and root.is_relative_to(home / "agent-assets")
     assert not list(home.iterdir()), "path selection is read-only"
+
+
+def test_user_scope_keeps_native_agent_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SPEC_KITTY_ASSET_SCOPE", "user")
+    root = tmp_path / "opencode"
+    monkeypatch.setenv("OPENCODE_CONFIG_DIR", str(root))
+    assert get_global_command_dir("opencode") == root / "commands"
+
+
+def test_retained_preparation_rejects_scope_change(monkeypatch: pytest.MonkeyPatch, canonical_home: None) -> None:
+    from specify_cli.runtime.asset_preparation import check_assets
+    from specify_cli.runtime.bootstrap import assess_runtime
+
+    monkeypatch.setenv("SPEC_KITTY_ASSET_SCOPE", "consumer")
+    assessment = assess_runtime()
+    assert assessment.complete
+    monkeypatch.setenv("SPEC_KITTY_ASSET_SCOPE", "user")
+    diagnostics = check_assets(assessment)
+    assert diagnostics and diagnostics[0].code == "precondition_changed"
