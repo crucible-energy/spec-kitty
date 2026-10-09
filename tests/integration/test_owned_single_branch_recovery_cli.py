@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
@@ -10,6 +11,7 @@ from typing import Any
 
 import pytest
 from typer.testing import CliRunner
+from kernel.content_digest import sha256_digest
 
 from specify_cli.cli.commands.agent.mission import app as mission_app
 from specify_cli.cli.commands.migrate_cmd import app as migrate_app
@@ -37,21 +39,30 @@ def test_historical_ref_recognition_uses_canonical_identity(branch: str, namespa
 
 
 @pytest.fixture
-def recovery_owner(make_owned_checkouts: Callable[..., OwnedCheckouts], monkeypatch: pytest.MonkeyPatch) -> tuple[OwnedCheckouts, Path]:
+def recovery_owner(
+    make_owned_checkouts: Callable[..., OwnedCheckouts], monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> tuple[OwnedCheckouts, Path]:
     checkouts = make_owned_checkouts(wp_ids=("WP01", "WP02", "WP03", "WP04", "WP05"))
     root, dossier = checkouts.owned_root, checkouts.mission_dir
     monkeypatch.delenv("SPECIFY_REPO_ROOT", raising=False)
     monkeypatch.chdir(root)
     _git(root, "worktree", "add", "--detach", str(root.parent / "unrelated-detached"), _git(checkouts.repository_root, "rev-parse", "HEAD"))
     (root / "src").mkdir()
+    custody_paths = ["data/performance-manifest.json", "docs/contracts/branch-contracts.md"] if getattr(request, "param", None) == "custody" else []
+    for extra in custody_paths:
+        (root / extra).parent.mkdir(parents=True, exist_ok=True)
+        (root / extra).write_text("inherited numeric projection: 1\n")
     (dossier / "tasks.md").write_text("# Tasks\n\n" + "\n".join(f"## WP{i:02}\n\nNo dependencies.\n" for i in range(1, 6)))
     for index in range(1, 6):
         wp = f"WP{index:02}"
         source = f"src/contract{index}.py"
         (root / source).write_text("inherited source\n")
         path = dossier / "tasks" / f"{wp}-owned.md"
+        files = [source, *custody_paths] if index == 1 else [source]
         path.write_text(
-            path.read_text().replace("owned_files: []", f"owned_files: [{source}]").replace("authoritative_surface: app.py", f"authoritative_surface: {source}")
+            path.read_text()
+            .replace("owned_files: []", f"owned_files: [{', '.join(files)}]")
+            .replace("authoritative_surface: app.py", f"authoritative_surface: {source}")
         )
     owned = resolve_owned_mission(checkouts.repository_root, root, checkouts.mission_slug, allowed_topologies=LIFECYCLE_OWNED_TOPOLOGIES)
     with write_checkout_claim_lock(root):
@@ -73,7 +84,7 @@ def recovery_owner(make_owned_checkouts: Callable[..., OwnedCheckouts], monkeypa
         )
     manifest = read_lanes_json(dossier)
     assert manifest is not None
-    manifest.lanes[0] = replace(manifest.lanes[0], lane_id="lane-a", write_scope=tuple(f"src/contract{i}.py" for i in range(1, 6)))
+    manifest.lanes[0] = replace(manifest.lanes[0], lane_id="lane-a", write_scope=(*(f"src/contract{i}.py" for i in range(1, 6)), *custody_paths))
     write_lanes_json(dossier, manifest)
     _git(root, "add", ".")
     _git(root, "commit", "-qm", "historical execution base")
@@ -125,6 +136,170 @@ def invoke(checkouts: OwnedCheckouts, proof: Path, *args: str) -> Any:
         migrate_app,
         ["owned-single-branch", "--mission", checkouts.mission_slug, "--owned-checkout", str(checkouts.owned_root), "--proof", str(proof), "--json", *args],
     )
+
+
+def invoke_root(checkouts: OwnedCheckouts, proof: Path, *args: str) -> Any:
+    import sys
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(sys, "argv", ["spec-kitty"])
+        import specify_cli
+
+        return CliRunner().invoke(
+            specify_cli.app,
+            [
+                "migrate",
+                "owned-single-branch",
+                "--mission",
+                checkouts.mission_slug,
+                "--owned-checkout",
+                str(checkouts.owned_root),
+                "--proof",
+                str(proof),
+                "--json",
+                *args,
+            ],
+        )
+
+
+def custody_manifest(checkouts: OwnedCheckouts, proof: dict[str, Any], directory: Path) -> Path:
+    """Independent fixture census uses real Git, without production verification helpers."""
+    root = checkouts.owned_root
+    manifest = read_lanes_json(checkouts.mission_dir)
+    assert manifest is not None
+    scope = sorted(manifest.lanes[0].write_scope)
+    refs = []
+    commits: set[str] = set()
+    for row in proof["historical_refs"]:
+        selected = sorted(_git(root, "rev-list", proof["historical_base"] + ".." + row["sha"]).splitlines())
+        refs.append({**row, "commits": selected})
+        commits.update(selected)
+    blobs: dict[str, dict[str, Any]] = {}
+
+    def blob(oid: str) -> None:
+        if oid in blobs:
+            return
+        raw = subprocess.run(["git", "cat-file", "blob", oid], cwd=root, capture_output=True, check=True).stdout
+        digest = sha256_digest(raw)
+        relative = "blobs/" + digest
+        (directory / relative).parent.mkdir(parents=True, exist_ok=True)
+        (directory / relative).write_bytes(raw)
+        blobs[oid] = {"oid": oid, "sha256": digest, "bytes": len(raw), "file": relative}
+
+    def tree(revision: str, path: str) -> dict[str, str]:
+        mode, _kind, oid_path = _git(root, "ls-tree", revision, "--", path).split(" ", 2)
+        oid, _path = oid_path.split("\t", 1)
+        blob(oid)
+        return {"mode": mode, "oid": oid}
+
+    edges = []
+    changed: set[str] = set()
+    for commit in sorted(commits):
+        for parent in _git(root, "rev-list", "--parents", "-n1", commit).split()[1:]:
+            changes = []
+            for line in _git(root, "diff", "--name-status", "--no-renames", parent, commit, "--", *scope).splitlines():
+                status, path = line.split("\t", 1)
+                assert status == "M"
+                changes.append({"path": path, "before": tree(parent, path), "after": tree(commit, path)})
+                changed.add(path)
+            edges.append({"commit": commit, "parent": parent, "changes": sorted(changes, key=lambda row: row["path"])})
+    tips = []
+    for revision in sorted({proof["historical_base"], proof["owner_head"], *(row["sha"] for row in refs)}):
+        for path in sorted(changed):
+            tips.append({"revision": revision, "path": path, **tree(revision, path)})
+    data = {
+        "schema_version": 1,
+        "mission_id": manifest.mission_id,
+        "mission_slug": checkouts.mission_slug,
+        "owner_root": str(root),
+        "owner_branch": checkouts.target_branch,
+        "owner_head": proof["owner_head"],
+        "planning_commit_sha": proof["planning_commit_sha"],
+        "historical_base": proof["historical_base"],
+        "scope": scope,
+        "refs": sorted(refs, key=lambda row: row["ref"]),
+        "edges": sorted(edges, key=lambda row: (row["commit"], row["parent"])),
+        "tips": tips,
+        "blobs": sorted(blobs.values(), key=lambda row: row["oid"]),
+    }
+    path = directory / "manifest.json"
+    path.write_text(json.dumps(data, sort_keys=True))
+    return path
+
+
+@pytest.fixture
+def preserved_owner(recovery_owner: tuple[OwnedCheckouts, Path]) -> tuple[OwnedCheckouts, Path, Path]:
+    checkouts, proof_path = recovery_owner
+    root = checkouts.owned_root
+    proof = json.loads(proof_path.read_text())
+    historical = proof["historical_refs"][0]
+    _git(root, "checkout", "-b", "codex/fixture-history-left", historical["sha"])
+    for relative in ("data/performance-manifest.json", "docs/contracts/branch-contracts.md"):
+        (root / relative).write_text("historical numeric projection: 2\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "historical regular projections")
+    _git(root, "checkout", "-b", "codex/fixture-history-right", historical["sha"])
+    (checkouts.mission_dir / "historical-planning.md").write_text("parallel retained planning\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "parallel retained planning")
+    _git(root, "merge", "--no-ff", "-m", "retain both historical parent edges", "codex/fixture-history-left")
+    historical["sha"] = _git(root, "rev-parse", "HEAD")
+    _git(root, "update-ref", historical["ref"], historical["sha"])
+    _git(root, "checkout", checkouts.target_branch)
+    for relative in ("data/performance-manifest.json", "docs/contracts/branch-contracts.md"):
+        (root / relative).write_text("current reviewed projection: 3\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "current owner projections; original planning pin retained")
+    proof["owner_head"] = _git(root, "rev-parse", "HEAD")
+    directory = proof_path.parent / "raw-custody"
+    directory.mkdir()
+    manifest = custody_manifest(checkouts, proof, directory)
+    proof.update(schema_version=2, source_disposition="preserved_unapplied", custody={"path": str(manifest), "sha256": sha256_digest(manifest.read_bytes())})
+    proof_path.write_text(json.dumps(proof))
+    return checkouts, proof_path, manifest
+
+
+@pytest.mark.parametrize("recovery_owner", ["custody"], indirect=True)
+def test_preserved_unapplied_root_cli_custody_and_finalize(
+    preserved_owner: tuple[OwnedCheckouts, Path, Path], make_r_snapshot: Callable[[OwnedCheckouts], RSnapshotter]
+) -> None:
+    checkouts, proof_path, manifest_path = preserved_owner
+    proof = json.loads(proof_path.read_text())
+    strict = {key: value for key, value in proof.items() if key not in {"custody", "source_disposition"}}
+    strict["schema_version"] = 1
+    strict_path = proof_path.parent / "strict-proof.json"
+    strict_path.write_text(json.dumps(strict))
+    before = state(checkouts)
+    snapshotter = make_r_snapshot(checkouts)
+    shared_before = snapshotter.take()
+    assert invoke_root(checkouts, strict_path, "--dry-run").exit_code == 1
+    assert state(checkouts) == before
+    raw_before = {path.relative_to(manifest_path.parent): path.read_bytes() for path in manifest_path.parent.rglob("*") if path.is_file()}
+    current = {name: (checkouts.owned_root / name).read_bytes() for name in json.loads(manifest_path.read_text())["scope"]}
+    preview = invoke_root(checkouts, proof_path, "--dry-run")
+    assert preview.exit_code == 0, preview.output
+    assert json.loads(preview.output)["result"] == "would_convert"
+    assert state(checkouts) == before
+    snapshotter.assert_unchanged(shared_before, snapshotter.take())
+    applied = invoke_root(checkouts, proof_path)
+    assert applied.exit_code == 0, applied.output
+    receipt = json.loads((checkouts.mission_dir / "recovery/owned-single-branch.json").read_text())
+    assert receipt["preserved"]["source_disposition"] == "preserved_unapplied"
+    assert receipt["preserved"]["custody_manifest_sha256"] == proof["custody"]["sha256"]
+    assert state(checkouts)[1] == before[1]
+    assert state(checkouts)[3] == before[3]
+    assert {name: (checkouts.owned_root / name).read_bytes() for name in current} == current
+    assert {path.relative_to(manifest_path.parent): path.read_bytes() for path in manifest_path.parent.rglob("*") if path.is_file()} == raw_before
+    head = _git(checkouts.owned_root, "rev-parse", "HEAD")
+    repeated = invoke_root(checkouts, proof_path)
+    assert repeated.exit_code == 0, repeated.output
+    assert json.loads(repeated.output)["result"] == "already_converted"
+    assert _git(checkouts.owned_root, "rev-parse", "HEAD") == head
+    finalized = CliRunner().invoke(mission_app, ["finalize-tasks", "--mission", checkouts.mission_slug, "--owned-checkout", str(checkouts.owned_root), "--json"])
+    assert finalized.exit_code == 0, finalized.output
+    final_manifest = read_lanes_json(checkouts.mission_dir)
+    assert final_manifest is not None
+    assert final_manifest.planning_commit_sha == proof["planning_commit_sha"]
 
 
 def state(checkouts: OwnedCheckouts) -> tuple[str, str, bytes, bytes]:

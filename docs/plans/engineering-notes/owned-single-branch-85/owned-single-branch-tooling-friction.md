@@ -77,3 +77,12 @@ caller. Four named regressions reproduced these failures locally in 72.69 second
 The repair routes identity and recognition through the canonical naming authority
 and keeps the parser record internal. No dead-symbol allowlist or gate suppression
 was added. Qualification of this source increment is retained in external receipts.
+
+Observed: the strict merged command refused the actual consumer's two scoped
+historical projection changes. A prior lane-only audit was insufficient for the
+expanded ownership union. The complete parent-edge diagnostic retained both the
+modifying commit and the merge edge, plus base/tip/current raw variants, without
+claiming admission. The successor's real root CLI acceptance reproduced one
+schema-2 refusal in 58.26 seconds; its schema-1 zero-effect control also refused.
+The initial RED log remains external. Test fixture hashing uses the canonical
+content-digest helper rather than a parallel algorithm or lint suppression.

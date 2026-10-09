@@ -36,3 +36,14 @@ updated: '2026-10-09'
    historical ref recognition compares canonical parsed mission identities rather
    than composing a lane prefix. The workspace parser's record type is private;
    its public parser remains the production entry point.
+10. The separately scoped successor adds explicit schema-2 `preserved_unapplied`
+    custody. Schema 1 keeps its zero-work contract. Typed checkout authority still
+    governs conversion; canonical WP review remains implementation approval.
+11. Closed custody binds the entire reconstructed scope, retained refs, all
+    post-base commits and every parent edge, including empty edges, merges and
+    intermediate reverts. It preserves before/after/tip/current raw blob versions.
+    Unknown paths, commits, blobs or caller approval/generation flags refuse.
+12. Initial custody supports only regular modifications with unchanged `100644`
+    or `100755` modes. Presence changes, mode transitions, renames, copies and
+    nonregular entries refuse. External evidence is bounded and read without
+    following symlinks; apply and idempotency must requalify that evidence.
