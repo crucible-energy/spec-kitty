@@ -52,7 +52,7 @@ FILE_COUNT = 10_000
 SLASH = "/"
 HOME_ROOT = SLASH + "ho" + "me" + SLASH
 AT = "@"
-FIVE_LEFT_OUT = ("request_text", "model_id", "governance_context_hash", "governance_context_available", "router_confidence")
+LEFT_OUT_FIELDS = ("request_text", "model_id", "recommended_model_id", "governance_context_hash", "governance_context_available", "router_confidence")
 
 
 class UnexpectedWrite(AssertionError):
@@ -142,7 +142,7 @@ def started_event(
     mission: str | None = None,
     wp: str | None = None,
 ) -> dict[str, Any]:
-    """A v2 ``started`` line with every field of the record, the five left-out ones carrying text a leak would show."""
+    """A v2 ``started`` line with every field of the record, the left-out ones carrying text a leak would show."""
     event: dict[str, Any] = {
         "event": "started",
         "invocation_id": ulid(number),
@@ -156,6 +156,7 @@ def started_event(
         "router_confidence": "exact",
         "started_at": started_at,
         "model_id": "model-of-the-agent",
+        "recommended_model_id": "local-advisory-model",
     }
     if mission is not None:
         event["mission_id"] = mission
@@ -1110,7 +1111,14 @@ def row12_problems(env: Env) -> list[str]:
 
 
 def description_lacks(description: str, names: Sequence[str]) -> list[str]:
-    return [name for name in names if name not in description]
+    return [name for name in names if re.search(rf"\b{re.escape(name)}\b", description) is None]
+
+
+def test_description_fields_do_not_match_suffixes_of_other_fields() -> None:
+    names = ("model_id", "recommended_model_id")
+    assert description_lacks("recommended_model_id", names) == ["model_id"]
+    assert description_lacks("model_id", names) == ["recommended_model_id"]
+    assert description_lacks("model_id, recommended_model_id", names) == []
 
 
 def row13_problems(env: Env) -> list[str]:
@@ -1118,17 +1126,18 @@ def row13_problems(env: Env) -> list[str]:
     repo = env.fresh()
     write_op(repo, 1, closed={})
     served = probe.call(repo).body["items"][0]
-    probe.expect(not set(FIVE_LEFT_OUT) & set(served), "a field left out on purpose is served")
+    probe.expect(not set(LEFT_OUT_FIELDS) & set(served), "a field left out on purpose is served")
     probe.expect(set(served) == set(item_of(1)), "the served members are not exactly the thirteen of the schema")
     probe.expect(len(served) == 13, "OpsInvocation has not 13 members")
-    for name in FIVE_LEFT_OUT:
+    for name in LEFT_OUT_FIELDS:
         planted = {**served, name: "value"}
         probe.expect(env.errors("OpsInvocation", planted) != [], f"the closed schema accepts a payload carrying {name}")
     probe.expect(env.errors("OpsInvocation", served) == [], "control: the real item fails its schema")
     description = yaml.safe_load((MODULE_DIR / "schemas" / "OpsInvocation.yaml").read_text(encoding="utf-8"))["description"]
-    probe.expect(description_lacks(description, FIVE_LEFT_OUT) == [], "the real description lacks a name of a left-out field")
-    for name in FIVE_LEFT_OUT:
-        probe.expect(description_lacks(description.replace(name, "x"), FIVE_LEFT_OUT) == [name], f"a description lacking {name} is not reported")
+    probe.expect(description_lacks(description, LEFT_OUT_FIELDS) == [], "the real description lacks a name of a left-out field")
+    for name in LEFT_OUT_FIELDS:
+        changed = re.sub(rf"\b{re.escape(name)}\b", "x", description)
+        probe.expect(description_lacks(changed, LEFT_OUT_FIELDS) == [name], f"a description lacking {name} is not reported")
     return probe.problems
 
 
@@ -1790,7 +1799,7 @@ def test_a_url_that_the_parser_refuses_is_not_a_url() -> None:
 
 def test_the_started_record_is_served_or_left_out_field_by_field() -> None:
     served = {"invocation_id", "profile_id", "action", "actor", "mode_of_work", "started_at", "mission_id", "wp_id"}
-    assert set(OpStartedEvent.model_fields) == served | set(FIVE_LEFT_OUT) | {"event"}
+    assert set(OpStartedEvent.model_fields) == served | set(LEFT_OUT_FIELDS) | {"event"}
 
 
 def test_the_cursor_round_trips_only_for_its_own_filter() -> None:

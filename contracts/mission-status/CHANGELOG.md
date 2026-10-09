@@ -104,7 +104,7 @@ pushed by a maintainer. Until then the breaking-change job has no baseline and r
   `advisory`, `mission_step`, `query`), `OpsInvocationStatus` (`open`, `closed`), `OpsOutcome` (`done`,
   `failed`, `abandoned`), `OpsClosedBy` (`agent`, `doctor_sweep`), `OpsEvidenceKind` (`repo_path`, `url`,
   `text`), `OpsRefusalCode` (`ops_unreadable`) and `OpsRefusal`, the response `OpsUnreadable` (500), the
-  parameter `OpsProfile` and the tag `Ops`. The record fields `request_text`, `model_id`,
+  parameter `OpsProfile` and the tag `Ops`. The record fields `request_text`, `model_id`, `recommended_model_id`,
   `governance_context_hash`, `governance_context_available` and `router_confidence` are left out on
   purpose, and the closed schema rejects a payload that carries one.
 - One read behaviour readers will meet: Op records with legacy or malformed content are skipped and counted in

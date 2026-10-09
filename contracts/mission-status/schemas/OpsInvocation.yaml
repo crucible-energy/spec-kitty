@@ -5,7 +5,7 @@ description: >-
   the closure spine holds a record for its id, and then closed; an open Op has no outcome, closer,
   completion instant or evidence. A record of an older shape or an unreadable record is never
   served as an Op; it is skipped and counted. Record fields left out on purpose, because they are
-  free text, model identity or internal routing state: request_text, model_id,
+  free text, advisory model identity or internal routing state: request_text, model_id, recommended_model_id,
   governance_context_hash, governance_context_available and router_confidence. The schema is closed,
   so a payload carrying any of them is invalid.
 type: object

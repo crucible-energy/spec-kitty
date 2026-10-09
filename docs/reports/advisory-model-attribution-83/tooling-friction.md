@@ -28,6 +28,16 @@ their exclusions in place. CI's existing formatter ratchet rejected both stale
 entries. Removing those entries strengthens the existing format gate; no test
 or enforcement is added. The named ratchet is included in repair validation.
 
+The subsequent contract-tools gate found the reference Ops reader's exhaustive
+field-classification contract had not named `recommended_model_id`. The reader
+already builds a closed whitelist and does not serve advice. Its fixture now
+plants the new field, the exclusion classification and schema description name
+it, and the existing row proves it is withheld and rejected by the closed schema.
+This qualifies a contract/reference seam, not a live hosted read service.
+The description checker now matches whole field names, preventing `model_id`
+from matching the suffix of `recommended_model_id`; independent review and a
+direct negative/control regression cover that collision.
+
 ## Known Limitations
 
 There is no genuine model-execution evidence producer on this dispatch path.

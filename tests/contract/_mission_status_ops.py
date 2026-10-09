@@ -456,7 +456,7 @@ def closure_of(own: OwnFile, spine: Mapping[str, Closure]) -> Closure | Skipped 
 
 
 def served_op(own: OwnFile, closure: Closure | None, tools: ContractTools) -> ServedOp:
-    """The payload of one Op (FR-017); ``request_text``, ``model_id`` and the routing fields never leave the reader."""
+    """The payload of one Op (FR-017); ``request_text``, advisory model fields and the routing fields never leave the reader."""
     started = own.started
     item: dict[str, Any] = {
         "invocationId": started.invocation_id,
