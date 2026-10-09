@@ -100,7 +100,7 @@ class TestInvokeWithProfileHint:
         assert data["event"] == "started"
         assert data["profile_id"] == "implementer-fixture"
 
-    def test_invoke_persists_catalog_winning_model_in_started_event(
+    def test_invoke_persists_advisory_catalog_choice_without_execution_model(
         self,
         tmp_path: Path,
     ) -> None:
@@ -137,7 +137,8 @@ class TestInvokeWithProfileHint:
             .read_text(encoding="utf-8")
             .splitlines()[0]
         )
-        assert record["model_id"] == "claude-opus-4-6"
+        assert record["recommended_model_id"] == "claude-opus-4-6"
+        assert "model_id" not in record
 
 
 class TestInvokeNoRouterNoHintRaises:

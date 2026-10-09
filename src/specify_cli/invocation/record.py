@@ -58,7 +58,10 @@ class OpStartedEvent(BaseModel):
     started_at: str = Field(min_length=1)  # ISO-8601 UTC
     mission_id: str | None = None
     wp_id: str | None = None
+    # Historical dispatch records put an advisory catalog choice here. Keep it
+    # readable for audit; it is never evidence of actual model execution.
     model_id: str | None = Field(default=None, min_length=1)
+    recommended_model_id: str | None = Field(default=None, min_length=1)
 
     model_config = {"frozen": True}
 

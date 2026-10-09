@@ -203,8 +203,8 @@ def test_resolve_dispatch_binding_uses_correlated_durable_op_evidence(
     ) == ResolvedBinding(
         agent_profile="python-pedro",
         agent_profile_version="1.0",
-        model="claude-opus-4-6",
-        provider="anthropic",
+        model=None,
+        provider=None,
     )
 
 
