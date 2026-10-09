@@ -17,8 +17,7 @@ from specify_cli.lanes.models import LanesManifest
 from specify_cli.lanes.persistence import lanes_json_lock, read_lanes_json
 from specify_cli.migration.owned_single_branch_proof import RecoveryError, RecoveryProof, digest, load_proof, read_regular, verify_history
 from specify_cli.ownership.validation import build_wp_manifests, validate_all, validate_glob_matches
-from specify_cli.status import read_authored_wp_frontmatter, read_events_from_text, write_checkout_claim_lock
-from specify_cli.status.wp_metadata import wp_task_files
+from specify_cli.status import read_authored_wp_frontmatter, read_events_from_text, wp_task_files, write_checkout_claim_lock
 
 __all__ = ["recover_owned_single_branch"]
 

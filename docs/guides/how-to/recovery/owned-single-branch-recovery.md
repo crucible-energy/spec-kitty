@@ -3,6 +3,7 @@ title: 'Recover an archived legacy lane into an owned single-branch checkout'
 description: 'Qualify pinned historical source and archived state before explicit lane conversion.'
 type: how-to
 audience: software-engineer
+doc_status: active
 updated: '2026-10-09'
 ---
 

@@ -2,6 +2,7 @@
 title: 'Explicit owned single-branch recovery: issue matrix'
 type: reference
 audience: software-engineer
+doc_status: point_in_time
 updated: '2026-10-09'
 ---
 

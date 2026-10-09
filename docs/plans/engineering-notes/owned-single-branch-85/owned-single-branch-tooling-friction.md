@@ -2,6 +2,7 @@
 title: 'Explicit owned single-branch recovery: tooling friction'
 type: explanation
 audience: software-engineer
+doc_status: point_in_time
 updated: '2026-10-09'
 ---
 
@@ -58,3 +59,13 @@ run passed 254 tests in 200.09 seconds; strict typing passed for five source fil
 These source results precede the final lightweight documentation checks. Complete
 logs and frozen-source hashes are external; no source result was reused across a
 meaningful code change. Token usage and cost are unknown.
+
+Observed: PR CI reported six introduced contract failures after the local gates:
+the new JSON command lacked classification, one metadata helper bypassed the
+already exported status facade, parser fixtures used a shared temporary-root
+literal, completion data was stale, and the five new pages lacked lifecycle
+frontmatter with one guide outside sanctioned sections. The six named gates
+reproduced RED in 9.71 seconds. Repairs use the existing facade and explicit JSON
+case, virtual wire paths, the canonical completion generator, active guide routing
+and point-in-time engineering-note routing. No gate exemptions or CI changes were
+introduced. Subsequent source and documentation qualification is recorded externally.

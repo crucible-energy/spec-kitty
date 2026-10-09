@@ -2,6 +2,7 @@
 title: 'Explicit owned single-branch recovery: decisions'
 type: explanation
 audience: software-engineer
+doc_status: point_in_time
 updated: '2026-10-09'
 ---
 
