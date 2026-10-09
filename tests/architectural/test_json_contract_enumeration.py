@@ -200,6 +200,7 @@ PARSEABLE: dict[str, tuple[tuple[str, ...], int, str]] = {
     "migrate backfill-provenance": (("--dry-run",), 1, "badmatrix"),
     "migrate backfill-wp-status": ((), 1, "outside"),
     "migrate charter-encoding": (("--dry-run",), 1, "badencoding"),
+    "migrate owned-single-branch": (("--mission", "missing", "--proof", "missing-proof.json"), 1, "outside"),
     "moments drain status": ((), 0, "total"),
     "moments status": ((), 0, "total"),
     "plan": ((), 1, "outside"),

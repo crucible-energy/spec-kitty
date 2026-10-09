@@ -2,7 +2,7 @@
 title: Recovery & Troubleshooting
 description: "Recover from implementation crashes and interrupted merges, and troubleshoot merge failures."
 doc_status: active
-updated: '2026-08-15'
+updated: '2026-10-09'
 type: explanation
 related:
 - docs/operations/recovery-index.md
@@ -15,6 +15,7 @@ Recover from implementation crashes and interrupted merges, and troubleshoot mer
 - [Recover from an Implementation Crash](recover-from-implementation-crash.md) — How to recover from an implementation crash with Spec Kitty 3.2: Learn how to restore a work package that is stuck in inprogress after an agent crash or.
 - [Recover from an Interrupted Consolidation](recover-from-interrupted-merge.md) — How to recover from an interrupted consolidation with Spec Kitty 3.2: Learn how to resume or abort a spec-kitty consolidate run that was interrupted before it completed.
 - [How to Troubleshoot Merge Issues](troubleshoot-merge.md) — How to troubleshoot spec-kitty consolidate with Spec Kitty 3.2: resume or abort a stopped run and fix the refusals operators meet most, each with its command.
+- [Recover an Archived Legacy Owned Lane](owned-single-branch-recovery.md) — Verify pinned history and preserved state before explicit conversion to owned single-branch execution.
 
 ## See also
 

@@ -325,17 +325,24 @@ def tree_entry(cwd: Path, ref: str, path: str, *, env: Env = None, timeout: floa
     return next((entry for entry in entries if entry.path == wanted), None)
 
 
-def blob_at(cwd: Path, ref: str, path: str, *, env: Env = None, timeout: float | None = None) -> bytes | None:
+def blob_at(cwd: Path, ref: str, path: str, *, env: Env = None, timeout: float | None = None, max_bytes: int | None = None) -> bytes | None:
     """Bytes of ``<ref>:<path>``, or ``None`` when *ref* is readable and does not track *path*.
 
     *path* is relative to the checkout root (``ls-tree --full-tree``), like :func:`tree_entry`.
 
     Raises:
         GitCommandError: *ref* or the blob could not be read (also a timeout or a git that did not start).
+        ValueError: the optional byte bound is invalid or the immutable blob exceeds it.
     """
     entry = tree_entry(cwd, ref, path, env=env, timeout=timeout)
     if entry is None:
         return None
+    if max_bytes is not None:
+        if max_bytes < 0:
+            raise ValueError("Blob byte bound must be nonnegative")
+        raw_size = run_git(cwd, "cat-file", "-s", entry.oid, env=env, timeout=timeout).stdout.strip()
+        if not raw_size.isdigit() or int(raw_size) > max_bytes:
+            raise ValueError("Git blob exceeds its bounded read size")
     # Read the blob the listing named, so both reads answer for the same commit.
     return run_git(cwd, "cat-file", "blob", entry.oid, env=env, timeout=timeout).stdout
 

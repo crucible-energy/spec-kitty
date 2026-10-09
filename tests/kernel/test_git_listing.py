@@ -379,6 +379,31 @@ def test_blob_at_is_none_when_the_ref_does_not_track_the_path(tmp_path: Path) ->
     assert run.call_count == 1
 
 
+@pytest.mark.parametrize("size", [b"8", b"not-a-size"])
+def test_blob_at_bounds_immutable_size_before_read(tmp_path: Path, size: bytes) -> None:
+    oid = "587be6b4c3f93f93c489c0111bba5596147a26cb"
+    raw = f"100644 blob {oid}\tsrc/a\x00".encode()
+    results = [GitResult(returncode=0, stdout=raw, stderr=b""), GitResult(returncode=0, stdout=size, stderr=b"")]
+    with patch.object(listing, "run_git", side_effect=results) as run, pytest.raises(ValueError, match="bounded read size"):
+        listing.blob_at(tmp_path, "HEAD", "src/a", max_bytes=7)
+    assert run.call_count == 2
+    assert run.call_args.args[1:] == ("cat-file", "-s", oid)
+
+
+def test_blob_at_accepts_exact_bound_and_rejects_negative(tmp_path: Path) -> None:
+    oid = "587be6b4c3f93f93c489c0111bba5596147a26cb"
+    raw = f"100644 blob {oid}\tsrc/a\x00".encode()
+    results = [
+        GitResult(returncode=0, stdout=raw, stderr=b""),
+        GitResult(returncode=0, stdout=b"7", stderr=b""),
+        GitResult(returncode=0, stdout=b"payload", stderr=b""),
+    ]
+    with patch.object(listing, "run_git", side_effect=results):
+        assert listing.blob_at(tmp_path, "HEAD", "src/a", max_bytes=7) == b"payload"
+    with _stub(raw), pytest.raises(ValueError, match="nonnegative"):
+        listing.blob_at(tmp_path, "HEAD", "src/a", max_bytes=-1)
+
+
 def test_blob_at_propagates_git_failure(tmp_path: Path) -> None:
     failure = GitCommandError(argv=("ls-tree",), cwd=tmp_path, returncode=128, stderr="fatal: bad ref")
     with patch.object(listing, "run_git", side_effect=failure), pytest.raises(GitCommandError):
