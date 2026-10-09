@@ -20,3 +20,13 @@ updated: '2026-10-09'
    failure. Repeating a committed conversion requires its qualifying receipt.
 6. Previously uncommitted historical files remain unknown. Conversion does not
    claim their recovery, nor any implementation approval.
+7. Canonical status and path decoding use `kernel.git`. Its bounded NUL-safe
+   workspace parser retains detached HEADs and literal byte wire labels. The
+   explicit read-only `worktree list` query remains in the guarded recovery caller,
+   as the existing negative control permits. Both parsing ownership and C-007's
+   destructive-argv guard remain unchanged. Immutable blob bounds are optional;
+   ordinary blob callers and migration/topology behavior keep their contracts.
+8. Independent review reproductions tightened full-history source probes,
+   duplicate-key/privacy handling, detached-workspace refusal, ordered archive
+   containment and pre-read byte bounds. The selected raw archive is byte-identical;
+   other historical streams' raw lines must be included in order with multiplicity.

@@ -58,6 +58,7 @@ from specify_cli.cli.console import console
 from specify_cli.cli.console import err_console
 
 from kernel.paths import is_windows
+from specify_cli.cli.commands.migrate.owned_single_branch import owned_single_branch
 from specify_cli.core.paths import locate_project_root
 from specify_cli.paths import get_runtime_root, render_runtime_path
 from specify_cli.paths.windows_migrate import MigrationOutcome
@@ -70,6 +71,10 @@ app = typer.Typer(
     no_args_is_help=False,
     invoke_without_command=True,
 )
+
+
+app.command(name="owned-single-branch")(owned_single_branch)
+
 
 # Hoisted flag/help/label literals for the backfill-runtime-state command (S1192):
 # option strings, help text, and summary labels would otherwise repeat across the

@@ -15,3 +15,46 @@ used; the delegated issue/tracers are the bootstrap record, not an invented Op.
 Observed: a dedicated frozen-lock SDK environment was provisioned in this checkout.
 The first acceptance run was interrupted during slow collection; no RED proof was
 claimed from that interrupted attempt. Full output and startup sample were retained.
+
+Observed: the initial Python 3.11 diagnostic was interrupted while the repository's
+wall-clock AST scanner ran; it did not establish a runtime qualification failure.
+The independently owned environment
+was rebuilt from the frozen lock with the existing pinned Python 3.13.11 interpreter;
+no global interpreter, installed SDK package or consumer configuration was changed.
+The dedicated source CLI uses a private consumer asset home.
+
+Observed: the first focused authority gate reported raw status listing and workspace
+output parsing outside `kernel.git`, after 122 checks passed. Those introduced
+findings were fixed through canonical status entries and a narrow Git-owner inventory
+reader. No allowance or suppression was added. The rerun before the final bounded
+blob change passed 95 checks; that earlier receipt is not the final candidate's gate.
+
+Measured: intermediate new-module statement coverage was 89%, below the required
+acceptance bar. Material owner-head, dirty-work, membership, ownership, idempotency
+qualification and bounded-read refusal cases were added. Final results are recorded
+externally after the source/docs freeze, so a passing receipt cannot modify its
+validated candidate. Independent source review and actual consumer qualification
+remain the parent's responsibility.
+
+Observed: the first shared baseline invocation incorrectly injected the private
+consumer asset home into tests that already isolate HOME. It reported 12 failures
+and 2,437 passes in 318.62 seconds; it also reused Python 3.13 against the source's
+tracked 3.11.15 request. The invocation was corrected, without editing valid tests,
+using a separate frozen-lock 3.11.15 environment and the canonical fixture homes.
+The final `make test-fast` passed 2,449 tests with five skips and three existing
+warning emissions in 254.36 seconds. The original failure output remains retained.
+
+Observed: the owning subsystem gate caught the new workspace query inside
+`kernel.git` through C-007 after 848 passes. The query moved to the guarded caller;
+the kernel keeps byte/path parsing, with literal protocol labels rather than argv
+encoding. Both guards stayed unchanged. The final full kernel/migration run passed
+850 tests with six skips in 111.13 seconds.
+
+Measured: the earlier 372-line coverage report omitted the existing command
+registration module, so it was limited evidence. The final fresh measurement
+includes all six changed source files: 346 of 373 executable changed lines covered
+(92.76%), passing the 90% diff gate. The final relevant regression/authority/layer
+run passed 254 tests in 200.09 seconds; strict typing passed for five source files.
+These source results precede the final lightweight documentation checks. Complete
+logs and frozen-source hashes are external; no source result was reused across a
+meaningful code change. Token usage and cost are unknown.

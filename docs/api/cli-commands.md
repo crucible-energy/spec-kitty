@@ -2917,6 +2917,8 @@ _Migration commands: update .kittify/ layout and backfill identity fields in leg
 │ --help     -h        Show this message and exit.                             │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Commands ───────────────────────────────────────────────────────────────────╮
+│ owned-single-branch        Explicitly recover one archived legacy code lane  │
+│                            in its owned checkout.                            │
 │ backfill-identity          Write a ULID mission_id into any meta.json that   │
 │                            lacks one.                                        │
 │ backfill-merge-commit      Record a GitHub PR's real merge commit as a       │
@@ -3497,6 +3499,34 @@ _Migration commands: update .kittify/ layout and backfill identity fields in leg
 │ --dry-run            Preview which recorded snapshot hashes would be         │
 │                      re-baselined, without writing                           │
 │ --help     -h        Show this message and exit.                             │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+## spec-kitty migrate owned-single-branch
+
+```
+ Usage: spec-kitty migrate owned-single-branch [OPTIONS]
+
+ Explicitly recover one archived legacy code lane in its owned checkout.
+
+ Example: spec-kitty migrate owned-single-branch --mission H --owned-checkout P
+ --proof evidence.json --dry-run --json. Never refreshes a planning pin.
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --mission                 TEXT  Exact mission handle to recover.          │
+│                                    [required]                                │
+│ *  --proof                   PATH  Closed JSON evidence with pinned owner,   │
+│                                    history, archive and claim refs.          │
+│                                    [required]                                │
+│    --owned-checkout          PATH  Run against an owned checkout: a linked   │
+│                                    checkout that owns this mission. Refuses  │
+│                                    the repository root checkout, lane        │
+│                                    worktrees and coordination worktrees.     │
+│    --dry-run                       Verify the conversion without writing or  │
+│                                    committing.                               │
+│    --json                          Emit conversion or refusal evidence as    │
+│                                    JSON.                                     │
+│    --help            -h            Show this message and exit.               │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
