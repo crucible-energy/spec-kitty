@@ -124,3 +124,27 @@ Optional merge metadata now receives syntax/type validation only. Runner SHA,
 actual parent graph, exact raw head, published target, event-file and same-base
 archive/exemption checks remain required. No retry, fetch, runtime or CI change
 resolves this defect; the independently qualified source-45a runtime stays fixed.
+
+Two inherited recovery fixture families replaced the gate repository with local
+Git histories while retaining the runner's unrelated hosted PR event. Both
+existing positive entry points reproduced the configured-remote refusal; their
+fixture bytes match `e6c71493a`. The issue-76 follow-up records that interaction.
+Those two files now explicitly clear only GitHub PR admission metadata per test.
+They retain `CI`, including the unreachable-base refusal under literal `true`,
+and all archive tamper, receipt, replay and guard self-mutation assertions.
+Hosted target authority remains independently exercised in the owning gate.
+This declares fixture context; it adds no runtime fallback or archive exemption.
+
+The registry evidence gate also assumed organization `origin/main`, which lacks
+its registry on this published patch lineage. [Issue 81](https://github.com/crucible-energy/spec-kitty/issues/81)
+records the two actual CI failures. Real Git regressions reproduce wrong review
+base selection and caller-checkout admission before correction. T015/T019 now
+reuse the archive owner's validated base, with checkout binding and immutable
+SHA reads. Local unit context is explicit; capture freshness/parity and actual
+routing remain nonvacuous under controlled mutations.
+
+The separately owned status-read corrections in source `07ed5e270` were reviewed
+and focused-tested by their owner. Final combined source includes those runtime
+changes; this fixture/gate increment does not qualify or rebuild the installed
+source-45a consumer. Actual hosted source-695 archive success is root-reported;
+actual CI of the final combined source remains required.

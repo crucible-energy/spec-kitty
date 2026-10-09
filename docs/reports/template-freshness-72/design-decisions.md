@@ -62,3 +62,11 @@ Audience: the source reviewer and consumer operator.
   The field may be null or stale; its type/format remains validated, but it has
   no baseline or checkout authority. Actual merge HEAD still equals runner SHA
   and has exact ordered base/head parents; raw HEAD still equals event head.
+
+- **Registry review-base authority (issue 81):** T015/T019 reuse the archive
+  owner's exact validated non-main event base and require the same checkout.
+  Registry bytes read at that SHA ignore Git replacement objects. Ordinary
+  `origin/main` then `main` fallback remains unchanged. Only the three toy local
+  resolver tests explicitly clear hosted metadata; live evidence/selection
+  guards keep it. Real Git fixtures retain changed-row freshness/parity,
+  expanded-directory routing and target/head/checkout tamper controls.
