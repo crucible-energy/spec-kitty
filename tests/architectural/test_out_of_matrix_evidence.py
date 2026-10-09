@@ -22,17 +22,13 @@ into an always-on architectural gate, so the mission's outcome cannot silently r
   the base ref) is durably, re-runnably selected per-PR by
   :func:`scripts.ci.gate_selection.select_modules` (Renata F3 / Paula F3).
 
-T015 and T019 both diff the live registry against the resolved base ref (see
-``_resolve_base_ref``: ``origin/main`` preferred, ``main`` as fallback -- a fresh
-CI checkout via ``actions/checkout`` is a detached HEAD with no local
-``refs/heads/main``, only ``refs/remotes/origin/main``, so a bare ``main`` lookup
-errors there; this mirrors the ``origin/main``-preferred convention
-``test_archive_root_byte_identical.py``'s ``_PORT_BASE_REF`` already uses in the
-same arch-heavy CI job). When neither ref resolves in the checkout, that is a
-checkout/environment condition, not a code-invariant violation, so the base-diff
-tests SKIP rather than hard-error. On ``main`` itself that diff is empty (zero net
-diff post-merge) -- both guards are written to pass vacuously in that case rather
-than red every PR forever after this mission lands.
+T015 and T019 both diff the live registry against the review base. Advertised
+non-main GitHub PRs reuse the archive gate's validated event base and bind that
+authority to the same checkout. In other contexts, ``origin/main`` is preferred,
+with ``main`` as fallback. A fresh detached CI checkout may lack local ``main``.
+When neither ordinary ref resolves, the base-diff tests SKIP as before; malformed
+non-main hosted metadata refuses without fallback. On ``main`` itself the diff
+is empty, so these transitional checks pass vacuously post-merge.
 
 **Honest framing: T015/T019 are transitional, not enduring.** Both diff against a
 base ref and no-op (return early) once head == base -- so post-merge, on ``main``
@@ -63,12 +59,14 @@ import pytest
 import yaml
 
 from scripts.ci.gate_selection import select_modules
+from tests.architectural import test_archive_root_byte_identical as archive_authority
 from tests.architectural.test_module_shard_registry import (
     _REPO_ROOT,
     _load_registry,
     _load_timings,
     _modules,
 )
+from tests.architectural.test_upgrade_recovery_preservation import clear_hosted_pr_context
 
 pytestmark = [pytest.mark.architectural]
 
@@ -103,13 +101,16 @@ _BASE_REF_CANDIDATES: tuple[str, ...] = ("origin/main", "main")
 
 
 def _resolve_base_ref(cwd: Path) -> str:
-    """Return the first candidate in ``_BASE_REF_CANDIDATES`` that resolves to a commit in ``cwd``.
+    """Use validated non-main review authority; preserve ordinary ref fallback.
 
-    A missing base ref is a checkout/environment condition, not a code-invariant
-    violation -- when neither candidate resolves, this skips the calling test
-    rather than raising, so the base-diff gates (T015/T019) never hard-error on a
-    checkout that simply lacks both refs.
+    The hosted authority belongs to its own checkout. Invalid hosted metadata
+    refuses; only missing ordinary refs retain the existing checkout skip.
     """
+    event_base = archive_authority._non_main_pr_base_rev()
+    if event_base is not None:
+        if cwd.resolve() != archive_authority.REPO_ROOT.resolve():
+            pytest.fail("PR registry base authority belongs to a different checkout")
+        return event_base
     for ref in _BASE_REF_CANDIDATES:
         probe = subprocess.run(
             ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
@@ -123,8 +124,9 @@ def _resolve_base_ref(cwd: Path) -> str:
     pytest.skip(f"base ref ({' / '.join(_BASE_REF_CANDIDATES)}) not resolvable in this checkout; pre-merge parity check cannot run")
 
 
-def _base_registry(*, cwd: Path = _REPO_ROOT) -> dict[str, Any]:
+def _base_registry(*, cwd: Path | None = None) -> dict[str, Any]:
     """The registry as committed on the resolved base ref -- the mission's before-picture."""
+    cwd = _REPO_ROOT if cwd is None else cwd
     ref = _resolve_base_ref(cwd)
     result = subprocess.run(
         ["git", "show", f"{ref}:.github/ci-module-registry.yml"],
@@ -132,6 +134,7 @@ def _base_registry(*, cwd: Path = _REPO_ROOT) -> dict[str, Any]:
         text=True,
         cwd=cwd,
         check=True,
+        env={**os.environ, "GIT_NO_REPLACE_OBJECTS": "1"} if re.fullmatch(r"[0-9a-f]{40}", ref) else None,
     )
     payload = yaml.safe_load(result.stdout)
     assert isinstance(payload, dict), f"{ref}:.github/ci-module-registry.yml did not parse to a mapping"
@@ -408,7 +411,13 @@ def _init_repo_with_registry(repo: Path, *, branch: str, marker: str) -> str:
     return _git(repo, "rev-parse", "HEAD").stdout.strip()
 
 
-def test_resolve_base_ref_prefers_origin_main_when_both_exist_and_differ(tmp_path: Path) -> None:
+@pytest.fixture
+def ordinary_local_git_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Only the three ordinary local resolver counterfactuals use this context."""
+    clear_hosted_pr_context(monkeypatch)
+
+
+def test_resolve_base_ref_prefers_origin_main_when_both_exist_and_differ(tmp_path: Path, ordinary_local_git_context: None) -> None:
     """When ``origin/main`` and local ``main`` both resolve to different commits, origin/main wins."""
     repo = tmp_path / "repo"
     main_sha = _init_repo_with_registry(repo, branch="main", marker="main-branch")
@@ -422,7 +431,7 @@ def test_resolve_base_ref_prefers_origin_main_when_both_exist_and_differ(tmp_pat
     assert registry["_test_marker"] == "origin-branch"
 
 
-def test_resolve_base_ref_falls_back_to_main_when_origin_absent(tmp_path: Path) -> None:
+def test_resolve_base_ref_falls_back_to_main_when_origin_absent(tmp_path: Path, ordinary_local_git_context: None) -> None:
     """When no ``origin/main`` ref exists, the resolver falls back to local ``main``."""
     repo = tmp_path / "repo"
     _init_repo_with_registry(repo, branch="main", marker="main-only")
@@ -432,7 +441,7 @@ def test_resolve_base_ref_falls_back_to_main_when_origin_absent(tmp_path: Path) 
     assert registry["_test_marker"] == "main-only"
 
 
-def test_resolve_base_ref_skips_when_neither_ref_resolves(tmp_path: Path) -> None:
+def test_resolve_base_ref_skips_when_neither_ref_resolves(tmp_path: Path, ordinary_local_git_context: None) -> None:
     """When neither ``origin/main`` nor ``main`` resolves, the resolver SKIPS -- a checkout condition, not a red."""
     repo = tmp_path / "repo"
     _init_repo_with_registry(repo, branch="trunk", marker="trunk-only")
@@ -441,3 +450,138 @@ def test_resolve_base_ref_skips_when_neither_ref_resolves(tmp_path: Path) -> Non
         _resolve_base_ref(repo)
     with pytest.raises(pytest.skip.Exception):
         _base_registry(cwd=repo)
+
+
+@pytest.fixture
+def published_registry_checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """A real non-main PR target owns a registry absent on old origin/main."""
+    import sys
+    from scripts.ci import gate_selection
+    from tests.architectural import test_archive_root_byte_identical as authority
+
+    repo = tmp_path / "published-registry"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "seed.txt").write_text("old main lacks registry\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "old main")
+    main = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "remote", "add", "origin", "https://github.com/crucible-energy/spec-kitty.git")
+    _git(repo, "update-ref", "refs/remotes/origin/main", main)
+    registry = repo / ".github/ci-module-registry.yml"
+    registry.parent.mkdir()
+    base_registry = {
+        "modules": [{"module": "fixture_module", "shard_count": 1, "test_dirs": ["tests/demo"], "roots": ["src/demo/**"]}],
+        "out_of_matrix_test_dirs": [],
+        "_test_marker": "published-target",
+    }
+    registry.write_text(yaml.safe_dump(base_registry))
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "published registry baseline")
+    base = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "update-ref", "refs/remotes/origin/patch-registry", base)
+    head_registry = json.loads(json.dumps(base_registry))
+    head_registry["modules"][0].update(shard_count=2, test_dirs=["tests/demo", "tests/extra"])
+    head_registry["_test_marker"] = "head-current"
+    registry.write_text(yaml.safe_dump(head_registry))
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "PR registry changes")
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    tree = _git(repo, "rev-parse", "HEAD^{tree}").stdout.strip()
+    merge = _git(repo, "commit-tree", tree, "-p", base, "-p", head, "-m", "runner merge").stdout.strip()
+    _git(repo, "checkout", "-q", "--detach", merge)
+    event = {
+        "number": 81,
+        "repository": {"full_name": "crucible-energy/spec-kitty"},
+        "pull_request": {
+            "number": 81,
+            "base": {"ref": "patch-registry", "sha": base, "repo": {"full_name": "crucible-energy/spec-kitty"}},
+            "head": {"sha": head, "repo": {"full_name": "crucible-energy/spec-kitty"}},
+            "merge_commit_sha": None,
+        },
+    }
+    event_file = tmp_path / "event.json"
+    event_file.write_text(json.dumps(event))
+    for key, value in {
+        "CI": "true",
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REPOSITORY": "crucible-energy/spec-kitty",
+        "GITHUB_BASE_REF": "patch-registry",
+        "GITHUB_REF": "refs/pull/81/merge",
+        "GITHUB_SHA": merge,
+        "GITHUB_EVENT_PATH": str(event_file),
+    }.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(authority, "REPO_ROOT", repo)
+    monkeypatch.setattr(sys.modules[__name__], "_REPO_ROOT", repo)
+    monkeypatch.setattr(sys.modules[__name__], "_load_registry", lambda: yaml.safe_load(registry.read_text()))
+    monkeypatch.setattr(gate_selection, "DEFAULT_REGISTRY_PATH", registry)
+    floor = repo / "capture-floor.txt"
+    floor.write_text("2026-10-01T00:00:00Z\n")
+    monkeypatch.setattr(sys.modules[__name__], "_CAPTURE_FLOOR_PATH", floor)
+    timings = {
+        "module_capture_provenance": {"fixture_module": {"unique_tests_measured": 2, "captured_at": "2026-10-09T00:00:00Z"}},
+        "module_test_durations": {"fixture_module": [1.0, 2.0]},
+        "module_test_count": {"fixture_module": 2},
+    }
+    monkeypatch.setattr(sys.modules[__name__], "_load_timings", lambda: timings)
+    return {
+        "root": repo,
+        "base": base,
+        "head": head,
+        "event": event,
+        "event_file": event_file,
+        "registry": registry,
+        "head_registry": head_registry,
+        "timings": timings,
+    }
+
+
+@pytest.mark.parametrize("capture", ["fresh", "stale", "parity", "missing"])
+def test_non_main_registry_base_keeps_t015_nonvacuous(published_registry_checkout: dict[str, Any], capture: str) -> None:
+    case = published_registry_checkout
+    assert _resolve_base_ref(case["root"]) == case["base"]
+    assert _base_registry(cwd=case["root"])["_test_marker"] == "published-target"
+    if capture == "fresh":
+        test_evidence_parity_and_freshness_for_changed_modules()
+        return
+    if capture == "stale":
+        case["timings"]["module_capture_provenance"]["fixture_module"]["captured_at"] = "2026-09-01T00:00:00Z"
+    elif capture == "parity":
+        case["timings"]["module_test_count"]["fixture_module"] = 1
+    else:
+        case["timings"]["module_capture_provenance"] = {}
+    with pytest.raises(AssertionError, match="evidence parity/freshness violations"):
+        test_evidence_parity_and_freshness_for_changed_modules()
+
+
+def test_non_main_registry_base_keeps_t019_nonvacuous(published_registry_checkout: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
+    from scripts.ci import gate_selection
+
+    case = published_registry_checkout
+    assert _base_registry(cwd=case["root"])["_test_marker"] == "published-target"
+    test_expanded_test_dirs_are_selected_per_pr()
+    lost_routing = case["root"] / ".github/lost-routing.yml"
+    rows = json.loads(json.dumps(case["head_registry"]))
+    rows["modules"][0]["test_dirs"] = ["tests/demo"]
+    lost_routing.write_text(yaml.safe_dump(rows))
+    monkeypatch.setattr(gate_selection, "DEFAULT_REGISTRY_PATH", lost_routing)
+    with pytest.raises(AssertionError, match="tests/extra/synthetic_test.py does not select"):
+        test_expanded_test_dirs_are_selected_per_pr()
+
+
+@pytest.mark.parametrize("tamper", ["target-ref", "event-head", "wrong-cwd"])
+def test_non_main_registry_base_refuses_tamper(published_registry_checkout: dict[str, Any], tamper: str, tmp_path: Path) -> None:
+    case = published_registry_checkout
+    if tamper == "target-ref":
+        _git(case["root"], "update-ref", "-d", "refs/remotes/origin/patch-registry")
+    elif tamper == "event-head":
+        case["event"]["pull_request"]["head"]["sha"] = case["base"]
+        case["event_file"].write_text(json.dumps(case["event"]))
+    cwd = case["root"]
+    if tamper == "wrong-cwd":
+        cwd = tmp_path / "other-checkout"
+        _init_repo_with_registry(cwd, branch="main", marker="different-checkout")
+    with pytest.raises(pytest.fail.Exception, match="PR|checkout"):
+        _resolve_base_ref(cwd)

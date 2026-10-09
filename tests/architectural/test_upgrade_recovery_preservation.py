@@ -27,6 +27,22 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 pytestmark = [pytest.mark.architectural, pytest.mark.git_repo]
 
 
+def clear_hosted_pr_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Declare a disposable Git fixture's local context, preserving CI itself."""
+    for key in ("GITHUB_ACTIONS", "GITHUB_EVENT_NAME", "GITHUB_REPOSITORY", "GITHUB_BASE_REF", "GITHUB_REF", "GITHUB_SHA", "GITHUB_EVENT_PATH"):
+        monkeypatch.delenv(key, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def local_git_fixture_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These disposable histories model local Git custody, not a hosted PR.
+
+    Preserve CI itself: the literal-CI unreachable-base control remains loud.
+    Hosted target authority is covered by the archive gate's real Git tests.
+    """
+    clear_hosted_pr_context(monkeypatch)
+
+
 @pytest.hookimpl(tryfirst=True)
 def pytest_fixture_setup(fixturedef: pytest.FixtureDef[object], request: SubRequest) -> Path | None:
     """Opt-in execution binding for the supplied frozen venv, including xdist.

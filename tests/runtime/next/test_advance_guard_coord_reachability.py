@@ -237,23 +237,39 @@ class TestT011Fr010RaiseAndCatch:
 
 class TestT012NoOpRegressionPins:
     def test_single_branch_topology_anchored_call_is_a_no_op(self, tmp_path: Path) -> None:
-        """This mission's own checkout IS ``single_branch`` topology -- a
-        live dogfood fixture, not a synthetic one. Anchoring resolves to the
-        SAME directory ``feature_dir`` already denotes for a PRIMARY-partition
-        kind, for every topology (per ``PlacementSeam.read_dir``'s own
-        contract), so the anchored and un-anchored answers must agree."""
-        this_repo_root = Path(__file__).resolve().parents[3]
-        this_feature_dir = this_repo_root / "kitty-specs" / "runtime-advance-guard-topology-wp-completion-01M1W6VZ"
-        assert (this_feature_dir / "tasks").is_dir()
+        """Use one real owner rather than a historical task snapshot (#74)."""
+        from mission_runtime import MissionArtifactKind, placement_seam
 
-        unanchored = bridge_guards._should_advance_wp_step("implement", this_feature_dir)
-        anchored = bridge_guards._should_advance_wp_step(
-            "implement",
-            this_feature_dir,
-            repo_root=this_repo_root,
-            mission_slug=this_feature_dir.name,
+        repo_root = tmp_path / "single-owner"
+        repo_root.mkdir()
+        _git(repo_root, "init", "-q", "-b", "single-owner")
+        _git(repo_root, "config", "user.email", "fixture@example.invalid")
+        _git(repo_root, "config", "user.name", "Fixture")
+        _git(repo_root, "config", "commit.gpgsign", "false")
+        (repo_root / ".kittify").mkdir()
+        (repo_root / ".kittify/config.yaml").write_text("agents:\n  available: [claude]\n")
+        mission_dir = repo_root / "kitty-specs/single-branch-noop"
+        (mission_dir / "tasks").mkdir(parents=True)
+        (mission_dir / "meta.json").write_text(
+            json.dumps(
+                {
+                    "mission_id": "01KWZ46V5P3QY7M8N0RAB4CDEF",
+                    "mission_slug": mission_dir.name,
+                    "mission_type": "software-dev",
+                    "target_branch": "single-owner",
+                    "topology": "single_branch",
+                }
+            )
         )
+        (mission_dir / "tasks/WP01-sample.md").write_text("---\nwork_package_id: WP01\ntitle: Sample\n---\n# WP01\n")
+        (mission_dir / "status.events.jsonl").touch()
+        _git(repo_root, "add", ".")
+        _git(repo_root, "commit", "-qm", "single-branch owner fixture")
 
+        assert placement_seam(repo_root, mission_dir.name).read_dir(MissionArtifactKind.WORK_PACKAGE_TASK) == mission_dir
+        unanchored = bridge_guards._should_advance_wp_step("implement", mission_dir)
+        anchored = bridge_guards._should_advance_wp_step("implement", mission_dir, repo_root=repo_root, mission_slug=mission_dir.name)
+        assert unanchored is False, "the existing uninitialized WP must block advancement"
         assert anchored == unanchored
 
     def test_anchored_no_tasks_dir_case_still_advances(self, tmp_path: Path) -> None:

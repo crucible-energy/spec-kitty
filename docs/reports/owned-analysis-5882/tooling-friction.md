@@ -1,8 +1,10 @@
 ---
 title: 'Owned analysis and implementation: tooling friction'
 description: 'Observed governance placement, test-harness and static-tooling limits during the bounded dependency implementation.'
+doc_status: draft
+audience: docs/context/audience/internal/maintainer.md
 type: explanation
-updated: '2026-10-08'
+updated: '2026-10-09'
 ---
 
 # Tooling Friction — #5882

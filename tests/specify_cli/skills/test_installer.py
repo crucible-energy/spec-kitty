@@ -1712,6 +1712,8 @@ def _install_raise_on_no_follow(monkeypatch: pytest.MonkeyPatch) -> None:
             raise NotImplementedError("utime: follow_symlinks unavailable on this platform")
         real_utime(path, *args, **kwargs)  # type: ignore[arg-type]
 
+    # Simulate capability discovery as well as syscall behavior (#73).
+    monkeypatch.setattr(os, "supports_follow_symlinks", os.supports_follow_symlinks - {os.chmod, os.utime})
     monkeypatch.setattr(Path, "chmod", chmod_guard)
     monkeypatch.setattr(os, "utime", utime_guard)
 

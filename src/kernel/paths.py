@@ -308,6 +308,26 @@ def get_packs_root_default() -> Path:
     return get_built_in_pack_root().parent
 
 
+def consumer_agent_asset_root() -> Path | None:
+    """Select private agent assets, or retain native user roots by default.
+
+    This only selects paths. Existing asset owners retain ancestry, ownership,
+    content and apply-time checks. Consumer scope takes precedence over native
+    agent configuration roots; it never changes those agents' configuration.
+    """
+    scope = os.environ.get("SPEC_KITTY_ASSET_SCOPE", "user")
+    if scope == "user":
+        return None
+    if scope != "consumer":
+        raise ValueError("SPEC_KITTY_ASSET_SCOPE must be 'user' or 'consumer'")
+    if not os.environ.get("SPEC_KITTY_HOME"):
+        raise ValueError("SPEC_KITTY_ASSET_SCOPE=consumer requires an absolute SPEC_KITTY_HOME")
+    home = get_kittify_home()
+    if not home.is_absolute() or ".." in home.parts:
+        raise ValueError("SPEC_KITTY_ASSET_SCOPE=consumer requires an absolute SPEC_KITTY_HOME without '..'")
+    return home / "agent-assets"
+
+
 def get_runtime_state_root() -> Path:
     """Return the spec-kitty runtime STATE root for the current platform.
 
@@ -338,6 +358,8 @@ def get_runtime_state_root() -> Path:
     Returns:
         Path: Absolute path to the runtime state root.
     """
+    # Scope admission precedes even pre-import environment/auth state reads.
+    consumer_agent_asset_root()
     if env_home := os.environ.get("SPEC_KITTY_HOME"):
         return Path(env_home)
 
@@ -541,6 +563,7 @@ def repo_tree_path(file_path: Path, repo_root: Path) -> tuple[Path, str]:
 __all__ = [
     "BUILT_IN_PACK_SIBLING_PATTERN",
     "MISSION_ASSETS_SIBLING_PATTERN",
+    "consumer_agent_asset_root",
     "get_built_in_pack_root",
     "get_kittify_home",
     "get_package_asset_root",

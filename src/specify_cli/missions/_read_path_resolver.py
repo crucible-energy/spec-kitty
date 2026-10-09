@@ -1804,7 +1804,12 @@ def resolve_feature_dir_for_mission(
     return Path(context.feature_dir)
 
 
-def resolve_partition_read_dir(feature_dir: Path, kind: MissionArtifactKind) -> Path:
+def resolve_partition_read_dir(
+    feature_dir: Path,
+    kind: MissionArtifactKind,
+    *,
+    owned: OwnedCheckout | None = None,
+) -> Path:
     """Resolve the mission dir that OWNS ``kind`` for the handed ``feature_dir``.
 
     The single handed-dir partition read authority (#5180): the post-merge
@@ -1823,6 +1828,13 @@ def resolve_partition_read_dir(feature_dir: Path, kind: MissionArtifactKind) -> 
     mission slug for both the primary ``kitty-specs/<slug>`` and the coord husk
     ``…-coord/kitty-specs/<slug>``, so the answer is the same whichever surface
     the caller holds.
+
+    With a validated ``owned`` checkout, the placement seam resolves the
+    fact's own partition without discovering an ambient workspace root. The
+    handed dir selects the mission by name; it may be a same-slug primary
+    directory. The seam refuses a different mission identity, and the fact's
+    validated containment determines the read home. The ordinary degrades
+    below apply only when no ownership fact is supplied.
 
     Two degrades return the handed ``feature_dir`` itself:
 
@@ -1851,6 +1863,12 @@ def resolve_partition_read_dir(feature_dir: Path, kind: MissionArtifactKind) -> 
 
     if kind is MissionArtifactKind.RETROSPECTIVE:
         raise ValueError("resolve_partition_read_dir does not resolve RETROSPECTIVE; use specify_cli.retrospective.writer.resolve_retrospective_home")
+
+    if owned is not None:
+        from mission_runtime import placement_seam
+
+        resolved_owned: Path = placement_seam(owned.repository_root, feature_dir.name, owned=owned).read_dir(kind)
+        return resolved_owned
 
     try:
         repo_root = resolve_canonical_root(feature_dir)

@@ -9,6 +9,7 @@ from pathlib import Path
 import stat
 
 from specify_cli.tool_surface.operations import FileState
+from kernel.paths import consumer_agent_asset_root
 
 from specify_cli.core.config import AGENT_SKILL_CONFIG, SKILL_CLASS_WRAPPER
 
@@ -41,7 +42,7 @@ def get_primary_global_skill_root(agent_key: str) -> Path | None:
         return None
 
     normalized = root.strip("/")
-    return Path.home() / normalized
+    return (consumer_agent_asset_root() or Path.home()) / normalized
 
 
 def iter_installable_agents() -> list[str]:

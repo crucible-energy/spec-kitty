@@ -18,6 +18,8 @@ inputs and independently reviewed blob/receipt pins; it does not repin WP11.
 Both index and working tree are checked against merge-base(HEAD, main), where
 ``main`` is resolved against THIS repository's own remote (by URL), never
 blindly against whatever ref the local clone happens to call ``origin/main``.
+Advertised non-main GitHub PRs instead bind their exact validated event base;
+the archive freeze and exemption ratchet share that review frontier.
 """
 
 from __future__ import annotations
@@ -847,7 +849,123 @@ def _port_base_candidate_refs() -> list[str]:
     return _select_port_base_refs(_live_remote_urls())
 
 
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate event key")
+        result[key] = value
+    return result
+
+
+def _read_pr_event() -> dict[str, Any]:
+    event_path = Path(os.environ.get("GITHUB_EVENT_PATH", ""))
+    if not event_path.is_absolute():
+        raise ValueError("absolute event file required")
+    fd = os.open(event_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as stream:
+        before = os.fstat(stream.fileno())
+        if not stat.S_ISREG(before.st_mode) or before.st_size > 1024 * 1024:
+            raise ValueError("bounded regular event file required")
+        data = stream.read(1024 * 1024 + 1)
+        after = os.fstat(stream.fileno())
+        if len(data) > 1024 * 1024 or any(
+            getattr(before, key) != getattr(after, key) for key in ("st_dev", "st_ino", "st_mode", "st_size", "st_mtime_ns", "st_ctime_ns")
+        ):
+            raise ValueError("event file changed during read")
+    event: object = json.loads(data, object_pairs_hook=_unique_json_object)
+    if not isinstance(event, dict):
+        raise ValueError("event object required")
+    return event
+
+
+def _validate_pr_identity(event: dict[str, Any], base_ref: str) -> tuple[str, str]:
+    pr = event["pull_request"]
+    base, head = pr["base"], pr["head"]
+    number = event["number"]
+    if type(number) is not int or number <= 0 or type(pr["number"]) is not int or pr["number"] != number:
+        raise ValueError("invalid PR number")
+    repository = os.environ.get("GITHUB_REPOSITORY", "")
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+        raise ValueError("invalid target repository")
+    if event["repository"]["full_name"] != repository or base["repo"]["full_name"] != repository:
+        raise ValueError("target repository mismatch")
+    if not any(_remote_repo_slug(url) == repository for url in _live_remote_urls().values()):
+        raise ValueError("target repository has no configured remote")
+    if base["ref"] != base_ref:
+        raise ValueError("target ref mismatch")
+    if os.environ.get("GITHUB_REF") not in {f"refs/pull/{number}/merge", f"refs/pull/{number}/head"}:
+        raise ValueError("PR ref mismatch")
+    base_sha, head_sha, merge_sha = base["sha"], head["sha"], pr.get("merge_commit_sha")
+    for sha in (base_sha, head_sha, os.environ.get("GITHUB_SHA", ""), *(() if merge_sha is None else (merge_sha,))):
+        if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}", sha):
+            raise ValueError("invalid commit SHA")
+    # Background mergeability metadata can be null or stale relative to the
+    # workflow's merge branch. Validate its shape, never its checkout identity.
+    return base_sha, head_sha
+
+
+def _validate_pr_checkout(base_sha: str, head_sha: str) -> None:
+    for sha in (base_sha, head_sha):
+        result = _run_git(["rev-parse", "--verify", f"{sha}^{{commit}}"])
+        if result.returncode or result.stdout.strip() != sha:
+            raise ValueError("unreachable event commit")
+    checkout = _run_git(["rev-parse", "--verify", "HEAD^{commit}"])
+    if checkout.returncode:
+        raise ValueError("unreachable checkout")
+    checkout_sha = checkout.stdout.strip()
+    github_sha = os.environ["GITHUB_SHA"]
+    if checkout_sha == head_sha:
+        if _run_git(["merge-base", "--is-ancestor", base_sha, head_sha]).returncode:
+            raise ValueError("raw head must include the target base")
+    else:
+        parents = _run_git(["rev-list", "--parents", "-n", "1", checkout_sha])
+        if checkout_sha != github_sha or parents.returncode or parents.stdout.split() != [checkout_sha, base_sha, head_sha]:
+            raise ValueError("checkout is not the exact event merge")
+
+
+def _validate_pr_target(base_ref: str, base_sha: str) -> None:
+    """Require the event base in the configured target branch's published history."""
+    repository = os.environ["GITHUB_REPOSITORY"]
+    for remote, url in _live_remote_urls().items():
+        if _remote_repo_slug(url) != repository:
+            continue
+        target = _run_git(["rev-parse", "--verify", f"refs/remotes/{remote}/{base_ref}^{{commit}}"])
+        if target.returncode == 0 and _run_git(["merge-base", "--is-ancestor", base_sha, target.stdout.strip()]).returncode == 0:
+            return
+    raise ValueError("event base is not in a reachable published target ref")
+
+
+def _non_main_pr_base_rev() -> str | None:
+    """Bind a hosted non-main review frontier to its exact event base.
+
+    Main retains canonical remote authority, including GitHub's documented
+    empty fork payloads. Non-main empty payloads refuse: we cannot correlate
+    their base/head identities. Raw head checkouts must include the target
+    base as an ancestor; their synthetic merge object need not be fetched.
+    Environment and event data are correlated checkout metadata, not a new
+    cryptographic attestation or a user-configurable baseline override.
+    """
+    if os.environ.get("GITHUB_ACTIONS") != "true" or os.environ.get("GITHUB_EVENT_NAME") != "pull_request":
+        return None
+    try:
+        base_ref = os.environ.get("GITHUB_BASE_REF", "")
+        if not base_ref or _run_git(["check-ref-format", f"refs/heads/{base_ref}"]).returncode:
+            raise ValueError("missing or invalid advertised target ref")
+        if base_ref == "main":
+            return None
+        base_sha, head_sha = _validate_pr_identity(_read_pr_event(), base_ref)
+        _validate_pr_target(base_ref, base_sha)
+        _validate_pr_checkout(base_sha, head_sha)
+        return base_sha
+    except (OSError, ValueError, TypeError, KeyError, IndexError) as error:
+        pytest.fail(f"PR archive base refused: {error}")
+
+
 def _port_base_rev() -> str | None:
+    event_base = _non_main_pr_base_rev()
+    if event_base is not None:
+        return event_base
     for ref in _port_base_candidate_refs():
         result = _run_git(["merge-base", "HEAD", ref])
         if result.returncode == 0 and result.stdout.strip():
@@ -1130,6 +1248,11 @@ def _require_conflict_marker_exemption_baseline() -> frozenset[str]:
     so an unreachable base fails exactly like the byte-identical freeze test
     already does, never silently defaulting to an empty baseline."""
     base_rev = _require_port_base_rev()
+    event_base = _non_main_pr_base_rev()
+    if event_base is not None:
+        if event_base != base_rev:
+            pytest.fail("PR archive base changed between baseline reads")
+        return _resolve_exemption_baseline(REPO_ROOT, base_rev, _CONFLICT_MARKER_SCAN_EXEMPTIONS, landed_candidate_refs=lambda: [base_rev])
     return _resolve_exemption_baseline(REPO_ROOT, base_rev, _CONFLICT_MARKER_SCAN_EXEMPTIONS)
 
 
@@ -1783,3 +1906,222 @@ def test_archive_freeze_gate_uses_the_exp_port_base_without_import_time_skip() -
         )
         for node in guarded_nodes.values()
     )
+
+
+@pytest.fixture
+def patch_target_checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """A published patch base already contains archive changes absent on main."""
+    root = tmp_path / "repo"
+    root.mkdir()
+    _git_init_fixture_repo(root)
+
+    def git(*args: str) -> str:
+        return subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, text=True).stdout.strip()
+
+    archive = root / "kitty-specs/history/spec.md"
+    archive.parent.mkdir(parents=True)
+    archive.write_text("main history\n")
+    gate = root / _CONFLICT_MARKER_GUARD_RELATIVE_PATH
+    gate.parent.mkdir(parents=True)
+    gate.write_text(f"{_CONFLICT_MARKER_EXEMPTION_CONSTANT_NAME} = frozenset({{'main-only'}})\n")
+    _git_commit_all(root, "main baseline")
+    main = git("rev-parse", "HEAD")
+    git("remote", "add", "origin", "https://github.com/crucible-energy/spec-kitty.git")
+    git("update-ref", "refs/remotes/origin/main", main)
+    archive.write_text("published patch history\n")
+    gate.write_text(f"{_CONFLICT_MARKER_EXEMPTION_CONSTANT_NAME} = frozenset({{'landed'}})\n")
+    _git_commit_all(root, "published patch baseline")
+    base = git("rev-parse", "HEAD")
+    git("branch", "patch-base")
+    git("update-ref", "refs/remotes/origin/patch-base", base)
+    (root / "change.txt").write_text("review frontier\n")
+    _git_commit_all(root, "PR head")
+    head = git("rev-parse", "HEAD")
+    git("checkout", "-q", "patch-base")
+    git("merge", "--no-ff", "-q", "-m", "synthetic PR merge", head)
+    merge = git("rev-parse", "HEAD")
+    event: dict[str, Any] = {
+        "number": 75,
+        "repository": {"full_name": "crucible-energy/spec-kitty"},
+        "pull_request": {
+            "number": 75,
+            "base": {"ref": "patch-base", "sha": base, "repo": {"full_name": "crucible-energy/spec-kitty"}},
+            "head": {"sha": head, "repo": {"full_name": "contributor/spec-kitty"}},
+            "merge_commit_sha": merge,
+        },
+    }
+    event_file = tmp_path / "event.json"
+    event_file.write_text(json.dumps(event))
+    for key, value in {
+        "CI": "true",
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REPOSITORY": "crucible-energy/spec-kitty",
+        "GITHUB_BASE_REF": "patch-base",
+        "GITHUB_REF": "refs/pull/75/merge",
+        "GITHUB_SHA": merge,
+        "GITHUB_EVENT_PATH": str(event_file),
+    }.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", root)
+    return {"root": root, "git": git, "main": main, "base": base, "head": head, "merge": merge, "event": event, "event_file": event_file}
+
+
+@pytest.mark.parametrize(
+    "checkout", ["merge", "null-merge", "stale-merge", "stale-head-merge-env", "head", "fork-head", "head-merge-env", "head-unavailable-merge", "target-advance"]
+)
+def test_non_main_pr_freeze_uses_exact_published_target(patch_target_checkout: dict[str, Any], monkeypatch: pytest.MonkeyPatch, checkout: str) -> None:
+    case = patch_target_checkout
+    if checkout in {"head", "fork-head", "head-merge-env", "head-unavailable-merge", "stale-head-merge-env"}:
+        case["git"]("checkout", "-q", "--detach", case["head"])
+        if checkout in {"head", "fork-head"}:
+            monkeypatch.setenv("GITHUB_SHA", case["head"])
+            monkeypatch.setenv("GITHUB_REF", "refs/pull/75/head")
+        elif checkout == "head-unavailable-merge":
+            # actions/checkout of head.sha need not retain the merge object.
+            case["event"]["pull_request"]["merge_commit_sha"] = "e" * 40
+            monkeypatch.setenv("GITHUB_SHA", "e" * 40)
+        if checkout == "head":
+            case["event"]["pull_request"]["head"]["repo"]["full_name"] = "crucible-energy/spec-kitty"
+    if checkout == "null-merge":
+        case["event"]["pull_request"]["merge_commit_sha"] = None
+    if checkout in {"stale-merge", "stale-head-merge-env"}:
+        tree = case["git"]("rev-parse", f"{case['merge']}^{{tree}}")
+        stale = case["git"]("commit-tree", tree, "-p", case["base"], "-p", case["head"], "-m", "earlier background test merge")
+        assert stale != case["merge"]
+        assert case["git"]("rev-list", "--parents", "-n", "1", stale).split() == [stale, case["base"], case["head"]]
+        case["event"]["pull_request"]["merge_commit_sha"] = stale
+    if checkout == "target-advance":
+        tree = case["git"]("rev-parse", f"{case['base']}^{{tree}}")
+        tip = case["git"]("commit-tree", tree, "-p", case["base"], "-m", "target advanced after event")
+        case["git"]("update-ref", "refs/remotes/origin/patch-base", tip)
+    case["event_file"].write_text(json.dumps(case["event"]))
+    test_no_preexisting_archived_file_was_modified()
+    assert _require_port_base_rev() == case["base"]
+    assert _require_conflict_marker_exemption_baseline() == frozenset({"landed"})
+    with pytest.raises(AssertionError, match="allowlist grew"):
+        _assert_exemption_set_is_shrink_only(frozenset({"landed", "new"}), _require_conflict_marker_exemption_baseline())
+    archive = case["root"] / "kitty-specs/history/spec.md"
+    archive.write_text("unreviewed rewrite\n")
+    with pytest.raises(AssertionError, match="ordinary archive history changed"):
+        test_no_preexisting_archived_file_was_modified()
+    case["git"]("add", "kitty-specs/history/spec.md")
+    with pytest.raises(AssertionError, match="ordinary archive history changed"):
+        test_no_preexisting_archived_file_was_modified()
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        "missing-file",
+        "empty-event",
+        "symlink",
+        "oversized",
+        "duplicate-key",
+        "foreign-repo",
+        "foreign-remote",
+        "wrong-ref",
+        "wrong-base-ref",
+        "missing-base-ref",
+        "invalid-base-ref",
+        "bad-sha",
+        "unreachable-base",
+        "wrong-head",
+        "bad-merge-sha",
+        "wrong-github-sha",
+        "reversed-parents",
+        "head-descendant",
+        "head-without-base",
+        "missing-target-ref",
+        "base-is-head",
+        "unpublished-ancestor",
+    ],
+)
+def test_non_main_pr_metadata_refuses_without_fallback(patch_target_checkout: dict[str, Any], monkeypatch: pytest.MonkeyPatch, corruption: str) -> None:
+    case = patch_target_checkout
+    event = case["event"]
+    file = case["event_file"]
+    _corrupt_pr_metadata(case, monkeypatch, corruption)
+    _corrupt_pr_graph(case, monkeypatch, corruption)
+    file.write_text(json.dumps(event))
+    if corruption == "missing-file":
+        file.unlink()
+    elif corruption == "empty-event":
+        file.write_text("{}")
+    elif corruption == "symlink":
+        target = file.with_suffix(".target")
+        file.rename(target)
+        file.symlink_to(target)
+    elif corruption == "oversized":
+        file.write_text(" " * (1024 * 1024 + 1))
+    elif corruption == "duplicate-key":
+        file.write_text('{"number":75,"number":76}')
+    with pytest.raises(pytest.fail.Exception, match="PR archive base"):
+        _require_port_base_rev()
+
+
+def _corrupt_pr_metadata(case: dict[str, Any], monkeypatch: pytest.MonkeyPatch, corruption: str) -> None:
+    event = case["event"]
+    if corruption == "foreign-repo":
+        event["repository"]["full_name"] = "other/spec-kitty"
+    elif corruption == "foreign-remote":
+        case["git"]("remote", "set-url", "origin", "https://github.com/other/spec-kitty.git")
+    elif corruption == "wrong-ref":
+        monkeypatch.setenv("GITHUB_REF", "refs/pull/76/merge")
+    elif corruption == "wrong-base-ref":
+        event["pull_request"]["base"]["ref"] = "other-base"
+    elif corruption == "missing-base-ref":
+        monkeypatch.delenv("GITHUB_BASE_REF")
+    elif corruption == "invalid-base-ref":
+        monkeypatch.setenv("GITHUB_BASE_REF", "../main")
+    elif corruption == "bad-sha":
+        event["pull_request"]["base"]["sha"] = "HEAD"
+    elif corruption == "unreachable-base":
+        event["pull_request"]["base"]["sha"] = "f" * 40
+    elif corruption == "wrong-head":
+        event["pull_request"]["head"]["sha"] = case["main"]
+
+
+def _corrupt_pr_graph(case: dict[str, Any], monkeypatch: pytest.MonkeyPatch, corruption: str) -> None:
+    event = case["event"]
+    if corruption == "missing-target-ref":
+        case["git"]("update-ref", "-d", "refs/remotes/origin/patch-base")
+    elif corruption == "base-is-head":
+        case["git"]("checkout", "-q", "--detach", case["head"])
+        event["pull_request"]["base"]["sha"] = case["head"]
+        monkeypatch.setenv("GITHUB_SHA", case["head"])
+    elif corruption == "unpublished-ancestor":
+        case["git"]("checkout", "-q", "--detach", case["head"])
+        event["pull_request"]["base"]["sha"] = case["head"]
+        (case["root"] / "unpublished.txt").write_text("unpublished child\n")
+        _git_commit_all(case["root"], "unpublished child")
+        head = case["git"]("rev-parse", "HEAD")
+        event["pull_request"]["head"]["sha"] = head
+        event["pull_request"]["merge_commit_sha"] = None
+        monkeypatch.setenv("GITHUB_SHA", head)
+    elif corruption == "bad-merge-sha":
+        event["pull_request"]["merge_commit_sha"] = "HEAD"
+    elif corruption == "wrong-github-sha":
+        monkeypatch.setenv("GITHUB_SHA", case["head"])
+    elif corruption == "reversed-parents":
+        tree = case["git"]("rev-parse", "HEAD^{tree}")
+        merge = case["git"]("commit-tree", tree, "-p", case["head"], "-p", case["base"], "-m", "reversed merge")
+        case["git"]("checkout", "-q", "--detach", merge)
+        event["pull_request"]["merge_commit_sha"] = merge
+        monkeypatch.setenv("GITHUB_SHA", merge)
+    elif corruption in {"head-descendant", "head-without-base"}:
+        case["git"]("checkout", "-q", "--detach", case["head"] if corruption == "head-descendant" else case["main"])
+        (case["root"] / "other.txt").write_text("other commit\n")
+        _git_commit_all(case["root"], "other head")
+        sha = case["git"]("rev-parse", "HEAD")
+        monkeypatch.setenv("GITHUB_REF", "refs/pull/75/head")
+        monkeypatch.setenv("GITHUB_SHA", sha)
+        if corruption == "head-without-base":
+            event["pull_request"]["head"]["sha"] = sha
+
+
+def test_main_pr_empty_fork_payload_preserves_canonical_resolution(patch_target_checkout: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
+    case = patch_target_checkout
+    monkeypatch.setenv("GITHUB_BASE_REF", "main")
+    case["event_file"].write_text("{}")
+    assert _require_port_base_rev() == case["main"]

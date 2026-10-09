@@ -10,9 +10,20 @@ import pytest
 
 from specify_cli.audit.classifiers.status_json import classify_status_json
 from tests.architectural import test_archive_root_byte_identical as gate
-from tests.architectural.test_upgrade_recovery_preservation import export_tree, git
+from tests.architectural.test_upgrade_recovery_preservation import clear_hosted_pr_context, export_tree, git
 
 pytestmark = [pytest.mark.architectural, pytest.mark.git_repo]
+
+
+@pytest.fixture(autouse=True)
+def local_git_fixture_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    """This historical replay is local Git custody, not the caller's hosted PR.
+
+    CI remains untouched; only unrelated hosted PR admission metadata clears.
+    """
+    clear_hosted_pr_context(monkeypatch)
+
+
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = "f2be03af4889c89184fdb3a4aeb90fc3f90b3a87"
 DIRECTORY = "kitty-specs/dead-port-disposition-01M1VRA2"

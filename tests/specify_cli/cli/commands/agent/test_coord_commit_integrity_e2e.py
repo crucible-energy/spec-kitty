@@ -93,8 +93,9 @@ def test_incomplete_triple_coord_topology_fails_loud_never_reaches_legacy(
     status_path.write_text('{"before":true}\n', encoding="utf-8")
 
     class _StubSeam:
-        def __init__(self, repo_root: Path, mission_slug: str) -> None:
+        def __init__(self, repo_root: Path, mission_slug: str, *, owned: mission_runtime.OwnedCheckout | None = None) -> None:
             del repo_root, mission_slug
+            assert owned is None, "this coordination fixture exercises ordinary placement"
 
         def write_target(self, kind: MissionArtifactKind) -> CommitTarget:
             return CommitTarget(ref="kitty/mission-demo-coord")
@@ -157,8 +158,9 @@ def test_complete_triple_still_routes_modern_not_guarded(
     (feature_dir / "status.json").write_text("{}\n", encoding="utf-8")
 
     class _StubSeam:
-        def __init__(self, repo_root: Path, mission_slug: str) -> None:
+        def __init__(self, repo_root: Path, mission_slug: str, *, owned: mission_runtime.OwnedCheckout | None = None) -> None:
             del repo_root, mission_slug
+            assert owned is None, "this coordination fixture exercises ordinary placement"
 
         def write_target(self, kind: MissionArtifactKind) -> CommitTarget:
             return CommitTarget(ref="kitty/mission-demo-coord")
