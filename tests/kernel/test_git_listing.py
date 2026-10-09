@@ -208,6 +208,46 @@ def test_tree_paths(tmp_path: Path) -> None:
     assert P("a b/f") in paths and isinstance(paths, frozenset)
 
 
+def test_repository_ignore_query_pins_repository_only_policy_and_lossless_paths(tmp_path: Path) -> None:
+    with _stub(b"derived outputs/\0line\nbreak.ignored\0bad\xff.ignored\0") as run:
+        paths = listing.repository_ignored_paths(tmp_path, env={"E": "1"}, timeout=5)
+    assert _argv(run) == ("ls-files", "--full-name", "--others", "--ignored", "--directory", "--exclude-per-directory=.gitignore", "-z", "--")
+    assert run.call_args.kwargs == {"env": {"E": "1"}, "timeout": 5}
+    assert paths[:2] == (P("derived outputs"), P("line\nbreak.ignored"))
+    assert str(paths[2]).encode("utf-8", "surrogateescape") == b"bad\xff.ignored"
+
+
+@pytest.mark.parametrize("stdout,stderr", [(b"unterminated", b""), (b"\0", b""), (b"../escape\0", b""), (b"", b"Cannot read repository ignore policy")])
+def test_repository_ignore_query_rejects_ambiguous_records(tmp_path: Path, stdout: bytes, stderr: bytes) -> None:
+    with (
+        patch.object(listing, "run_git", return_value=GitResult(0, stdout, stderr)),
+        pytest.raises(ValueError, match="ignore classification|repository-relative path"),
+    ):
+        listing.repository_ignored_paths(tmp_path)
+
+
+@pytest.mark.parametrize("failed", [False, True])
+def test_repository_selection_policy_uses_private_absent_index_and_cleans_it(tmp_path: Path, failed: bool) -> None:
+    private_index: Path | None = None
+
+    def observed_git(cwd: Path, *args: str, **kwargs) -> GitResult:
+        nonlocal private_index
+        private_index = Path(kwargs["env"]["GIT_INDEX_FILE"])
+        assert private_index.parent.is_dir() and not private_index.exists()
+        assert kwargs["env"]["E"] == "1"
+        assert "--exclude-standard" not in args and "--exclude-per-directory=.gitignore" in args
+        assert "--directory" in args and "--ignored" in args
+        return GitResult(0, b"explicit-directory/\0", b"Unverifiable policy" if failed else b"")
+
+    with patch.object(listing, "run_git", side_effect=observed_git):
+        if failed:
+            with pytest.raises(ValueError, match="Ambiguous repository ignore classification"):
+                listing.repository_ignored_paths(tmp_path, index_independent=True, env={"E": "1"})
+        else:
+            assert listing.repository_ignored_paths(tmp_path, index_independent=True, env={"E": "1"}) == (P("explicit-directory"),)
+    assert private_index is not None and not private_index.parent.exists()
+
+
 def test_changed_paths(tmp_path: Path) -> None:
     with _stub(b"a b/f\x00") as run:
         assert listing.changed_paths(tmp_path, "A", "B", cached=True, diff_filter="U") == (P("a b/f"),)

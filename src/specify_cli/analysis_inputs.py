@@ -3,6 +3,8 @@
 Runtime/status/cache outputs are deliberately not inputs. Explicit authority
 references are included even when absent; directory membership is represented
 by the set of entries, so adding a new authority also invalidates a report.
+Implicit untracked descendants ignored by repository .gitignore policy are
+pruned; tracked and explicitly selected inputs and ignore policy remain material.
 """
 
 from __future__ import annotations
@@ -28,6 +30,67 @@ from kernel.paths import get_package_asset_root
 
 class MaterialInputError(ValueError):
     """The declared dependency closure cannot be safely represented."""
+
+
+@dataclass(frozen=True)
+class _SourceMembership:
+    head: frozenset[Path]
+    index: dict[Path, tuple[str, int, str | None]]
+    ignored: tuple[Path, ...]
+    selection_policy: tuple[Path, ...]
+
+    def ignored_path(self, path: Path) -> bool:
+        return any(path == ignored or path.is_relative_to(ignored) for ignored in self.ignored)
+
+    def ignored_selection(self, path: Path) -> bool:
+        return any(path == ignored or path.is_relative_to(ignored) for ignored in self.selection_policy)
+
+    def descendants(self, path: Path) -> frozenset[Path]:
+        return frozenset(tracked for tracked in self.head | set(self.index) if tracked != path and tracked.is_relative_to(path))
+
+    def snapshot(self, root: Path, paths: set[Path]) -> str:
+        from specify_cli.analysis_report import _sha256_text
+
+        rows = [(path.relative_to(root).as_posix(), path in self.head, self.index.get(path)) for path in sorted(paths)]
+        digest: str = _sha256_text(json.dumps(rows, sort_keys=True))
+        return digest
+
+
+def _source_membership(root: Path) -> _SourceMembership | None:
+    """Non-Git callers retain all inputs; failed/ambiguous Git probes never prune."""
+    from kernel.git import GitCommandError, index_entries, run_git, tree_paths
+    from kernel.git.listing import repository_ignored_paths
+    from specify_cli.gitignore_manager import _has_git_control_path
+
+    try:
+        if any(os.environ.get(key) for key in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")):
+            raise MaterialInputError("Environment-selected Git membership authority is unsupported")
+        probe = run_git(root, "rev-parse", "--is-inside-work-tree", "--show-prefix", check=False, timeout=10)
+        if probe.returncode == 128 and not _has_git_control_path(root) and b"not a git repository" in probe.stderr:
+            return None
+        if probe.returncode != 0 or probe.stdout != b"true\n\n":
+            raise MaterialInputError("Git source membership root is ambiguous or unavailable")
+        _safe_path(root, root / ".gitignore")
+        entries = index_entries(root, tags=True, timeout=10)
+        if any(entry.stage != 0 or entry.tag != "H" for entry in entries):
+            raise MaterialInputError("Unsupported source membership index flags or conflict")
+        head_probe = run_git(root, "rev-parse", "--verify", "--quiet", "HEAD", check=False, timeout=10)
+        if head_probe.returncode not in (0, 1):
+            raise MaterialInputError("Git source membership HEAD is unavailable")
+        head = tree_paths(root, "HEAD", timeout=10) if head_probe.returncode == 0 else frozenset()
+        for path in {root / str(path) for path in head} | {root / str(entry.path) for entry in entries}:
+            if path.name == ".gitignore":
+                _safe_path(root, path)
+        return _SourceMembership(
+            frozenset(root / str(path) for path in head),
+            {root / str(entry.path): (entry.mode, entry.stage, entry.tag) for entry in entries},
+            tuple(root / str(path) for path in repository_ignored_paths(root, timeout=10)),
+            tuple(root / str(path) for path in repository_ignored_paths(root, index_independent=True, timeout=10)),
+        )
+    except MaterialInputError:
+        raise
+    except (GitCommandError, OSError, ValueError) as exc:
+        raise MaterialInputError("Git source membership classification failed") from exc
 
 
 def _mapping(path: Path) -> dict[str, Any]:
@@ -116,13 +179,22 @@ def _material_closure(
     *,
     paths: set[Path] | None = None,
     aliases: dict[Path, dict[str, str | None]] | None = None,
+    membership: _SourceMembership | None = None,
 ) -> tuple[set[Path], dict[Path, dict[str, str | None]]]:
     """Visit canonical content once, retaining link identity without alias copies."""
     paths = set() if paths is None else paths
     aliases = {} if aliases is None else aliases
     active: set[Path] = set()
+    explicit = set(selected)
+    protected = explicit | (membership.head | set(membership.index) if membership is not None else set())
+    protected.update(parent for path in tuple(protected) for parent in path.parents if parent.is_relative_to(root))
+    forced = {path for path in explicit if membership is not None and membership.ignored_selection(path)}
 
-    def include(path: Path) -> None:
+    def policy(directory: Path) -> None:
+        if membership is not None:
+            include(directory / ".gitignore", explicit_path=True)
+
+    def include(path: Path, *, explicit_path: bool = False) -> None:
         if path in active:
             raise MaterialInputError("Analysis authority symlink creates a directory cycle")
         if path in paths:
@@ -134,10 +206,19 @@ def _material_closure(
             include(target)
             return
         path = _safe_path(root, path)
+        if (
+            membership is not None
+            and not explicit_path
+            and path not in protected
+            and not any(path.is_relative_to(parent) for parent in forced)
+            and membership.ignored_path(path)
+        ):
+            return
         if path.is_dir():
             paths.add(path)
             active.add(path)
             try:
+                policy(path)
                 for child in sorted(path.iterdir()):
                     include(child)
             finally:
@@ -148,7 +229,14 @@ def _material_closure(
             paths.add(path)
 
     for path in selected:
+        for parent in reversed([parent for parent in path.parents if parent.is_relative_to(root)]):
+            policy(_safe_path(root, parent))
         include(path)
+        if membership is not None:
+            # Disk traversal alone loses dirty tracked deletions, including
+            # files removed from the index but still owned by HEAD.
+            for tracked in membership.descendants(path):
+                include(tracked)
     return paths, aliases
 
 
@@ -437,11 +525,12 @@ def collect_material_inputs(feature_dir: Path, repo_root: Path) -> dict[str, dic
     selected.extend(_source_paths(charter, root))
     # Resolution may read Mission metadata and project/pack definitions. Restore
     # validation of all selected prerequisites before those content readers run.
-    paths, aliases = _material_closure(root, selected, canonical)
+    membership = _source_membership(root)
+    paths, aliases = _material_closure(root, selected, canonical, membership=membership)
     selections: dict[str, dict[str, str | None]] = {}
     proofs: dict[Path, _TemplateObservation] = {}
     templates = _resolved_template_paths(root, feature_dir, selections, proofs)
-    paths, aliases = _material_closure(root, templates, canonical, paths=paths, aliases=aliases)
+    paths, aliases = _material_closure(root, templates, canonical, paths=paths, aliases=aliases, membership=membership)
     result: dict[str, dict[str, str | None]] = {}
     for path in sorted(paths):
         relative = path.relative_to(root).as_posix()
@@ -455,4 +544,16 @@ def collect_material_inputs(feature_dir: Path, repo_root: Path) -> dict[str, dic
         if _observe_template(path) != observed:
             raise MaterialInputError("Selected template changed during input collection")
     result.update(selections)
+    if membership is not None:
+        current = _source_membership(root)
+        if current is None:
+            raise MaterialInputError("Git source membership disappeared during collection")
+        final_paths, final_aliases = _material_closure(root, selected + templates, canonical, membership=current)
+        snapshot = membership.snapshot(root, paths)
+        if final_paths != paths or final_aliases != aliases or current.snapshot(root, final_paths) != snapshot:
+            raise MaterialInputError("Git source membership changed during collection")
+        for path in paths:
+            if path.name == ".gitignore" and _entry(path, root, feature_dir) != result[f"material:{path.relative_to(root).as_posix()}"]:
+                raise MaterialInputError("Repository ignore policy changed during collection")
+        result["git:source-membership"] = {"path": None, "sha256": snapshot}
     return result

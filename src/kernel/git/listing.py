@@ -18,6 +18,8 @@ pure functions so they can be tested against captured git output.
 from __future__ import annotations
 
 import unicodedata
+import os
+from tempfile import TemporaryDirectory
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,6 +41,7 @@ __all__ = [
     "is_tracked",
     "log_paths",
     "numstat_entries",
+    "repository_ignored_paths",
     "status_entries",
     "tracked_paths",
     "tree_entries",
@@ -454,6 +457,35 @@ def tracked_paths(
 ) -> tuple[GitPath, ...]:
     """Paths tracked in the index (under *cwd* when it is a subdirectory, as ``git ls-files`` scopes)."""
     return parse_paths_z(_git(cwd, ["ls-files", "--full-name", "-z"], pathspecs, glob=glob, env=env, timeout=timeout))
+
+
+def repository_ignored_paths(cwd: Path, *, index_independent: bool = False, env: Env = None, timeout: float | None = None) -> tuple[GitPath, ...]:
+    """Untracked ignored files/directories, using only repository .gitignore rules.
+
+    Deliberately omit ``--exclude-standard``: personal ``core.excludesFile`` and
+    mutable ``info/exclude`` cannot establish repository source membership.
+    Directory records may cover descendants. The default is a live untracked
+    inventory; it is not an exact directory-policy verdict when tracked children
+    prevent directory collapsing. ``index_independent=True`` evaluates the same
+    repository rules without real index membership suppressing directory records,
+    for explicit-selection policy. This read-only query uses a private nonexistent
+    index; it neither alters the real index nor creates a checkout. Missing paths
+    remain the caller's explicit sentinels. No fallback on query failure.
+    """
+    if index_independent:
+        with TemporaryDirectory(prefix="source-policy-") as scratch:
+            isolated = dict(os.environ if env is None else env)
+            isolated["GIT_INDEX_FILE"] = str(Path(scratch) / "absent-index")
+            return repository_ignored_paths(cwd, env=isolated, timeout=timeout)
+    result = run_git(
+        cwd, "ls-files", "--full-name", "--others", "--ignored", "--directory", "--exclude-per-directory=.gitignore", "-z", "--", env=env, timeout=timeout
+    )
+    if result.stderr:
+        raise ValueError("Ambiguous repository ignore classification")
+    raw = result.stdout
+    if raw and (not raw.endswith(_NUL) or raw.startswith(_NUL) or _NUL + _NUL in raw):
+        raise ValueError("Truncated repository ignore classification")
+    return parse_paths_z(raw)
 
 
 def index_entries(

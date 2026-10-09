@@ -115,3 +115,58 @@ Audience: the SDK orchestrator.
 - This rework reused the existing bounded source launchers and offline strict
   environment. No additional test/tooling failure or new baseline diagnostic
   was accepted. All targeted children reached actual exits without timeout.
+
+## Source-membership continuation
+
+- The operator's native command progressed past template provenance but listed
+  compiler caches/emitted binaries as `DIRTY_ANALYSIS_INPUT`. Both real SDK
+  root-CLI recording modes reproduced this on a clean Git fixture with 200
+  ignored artifacts. This was membership failure, not a dirty native source
+  checkout; no cache cleanup or native workaround was attempted.
+- A read-only delegated Python Pedro investigation loaded its actual profile and
+  implement doctrine, and identified that effective-ignore status alone cannot
+  establish repository policy provenance. The canonical listing seam is extended
+  by one repository-only ignore query; no alternate Git parser is added to the
+  collector. Its completed log is `sdk-membership-delegated-investigation.log`.
+- A probe confirmed that verbose `check-ignore -z` requires stdin. That route was
+  not introduced: the repository-only `ls-files` query expresses the required
+  authority directly, reusing existing NUL parsing and excluding mutable personal
+  policy without staging temporary repositories or rewriting Git configuration.
+- A new kernel test initially triggered Ruff PT011 for a broad `ValueError`
+  assertion; its chained CLI test command did not run. The assertion now names
+  the expected malformed-path/classification diagnostics. No rule was suppressed.
+- Strict mypy exposed one introduced snapshot-return inference error. An explicit
+  typed digest local fixed it; the final check has only the unchanged #5917
+  `_entry` diagnostic. Offline uv reused the provisioned checker environment.
+- A later alias regression safely refused a linked metadata ancestor, but the
+  membership helper had obscured its original symlink diagnostic. It now
+  preserves `MaterialInputError` directly. The final focused regression run
+  passes the original zero-read alias controls without weakening their assertions.
+- Tracked missing descendants cannot be recovered from disk traversal alone.
+  The closure now retains HEAD/index-owned missing source as sentinels. The
+  associated control includes a tracked ignored file deleted from disk and a
+  staged index removal. Locality cleanup kept the closure under the existing
+  complexity ceiling with a source-membership descendant query; no gate or
+  checker configuration changed.
+
+## B3 explicit-directory rework
+
+- Read the operator's exact B3 note and retained
+  `renata-membership-explicit-dir-cli-20261008T235100Z.log` / `.exit.json`.
+  The real CLI returned 0 / `committed`, with `EXPLICIT_CHILD_RETAINED: False`
+  and `TRACKED_CHILD_RETAINED: True`. This was an actual omitted-authority
+  acceptance, not an eventual-refusal diagnostic problem.
+- New red-first tests produced four failures and one pass. Both recording modes
+  accepted the omitted authority; tracked/deleted-child collector snapshots
+  ignored byte changes. Staged removal passed because it changed enumeration
+  into a directory record, exposing the membership-dependent policy inference.
+- A direct effective-policy probe initially assumed repository provenance but
+  observed the external `info/exclude` parent rule. That diagnostic assumption
+  was corrected into a regression control for the repository-only policy view.
+  The fix uses no effective-exclude shortcut, second ignore-pattern parser or
+  temporary Git repository.
+- The index-independent query owns only a temporary directory and absent-index
+  pathname, with cleanup on success and error. The source/HEAD/index snapshots
+  continue to use the actual index. Existing source launchers and offline typing
+  environment were reused; no installation, native operation or heavyweight
+  sweep was performed.

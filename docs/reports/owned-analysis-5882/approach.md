@@ -105,3 +105,41 @@ now come from the already-selected proofs; each must contribute a
 digest-verified row. The full-collector reproduction uses temporary copied
 package assets and the real canonical path/definition resolvers. Independent
 re-review is pending; this pass changes only those two production seams.
+
+## Repository source-membership continuation at 761fcfc39
+
+The operator independently approved the preceding template B1/B2 repair and
+normally committed/pushed it as `761fcfc3982dcf1f75c70bb60c1c444015ab3a50`.
+This continuation began with a clean SDK checkout at that commit on the same
+branch. It preserves that commit and remains uncommitted for independent review.
+
+The next native refusal was `failed_before_write / DIRTY_ANALYSIS_INPUT`, naming
+ignored `zig/.zig-cache/*` and `zig/zig-out/*` outputs despite clean Git status.
+The declared native authority remains `docs` plus `zig`. Real root-CLI fixtures
+reproduced the refusal with 200 ignored output files and the tracked canonical
+`zig/docs -> ../docs` alias; no native command or producer behavior was run.
+
+The collector now separates explicit selections, tracked membership and implicit
+descendants. Its only pruning authority is Git's repository `.gitignore` policy,
+queried through `kernel.git.listing`. Tracked/HEAD-owned inputs, explicit ignored
+references and nonignored additions remain material. Policy files, absent policy
+sentinels and source membership are pinned and rechecked; generated output bytes
+and incidental output membership are not. The transaction dirt guard is unchanged.
+
+A separate profile-loaded Python Pedro investigation confirmed the canonical
+Git-query ownership and the unsafe-excludes boundary. Existing template,
+canonical-alias, complete-manifest and receipt guards retain their authority.
+
+### Renata B3: explicit-directory policy is not live untracked inventory
+
+Renata's retained root-CLI reproduction committed a report that kept a tracked
+child but omitted an uncommitted child of explicitly referenced `zig/.zig-cache`.
+New failing-first tests reproduced that outcome in both owned recording modes
+and showed unchanged collector snapshots after explicit-child byte changes.
+
+The Git seam now supports an index-independent repository-policy view using a
+private absent index for a read-only query. Explicit-directory retention uses
+that policy view; implicit pruning still uses the live untracked inventory.
+Both views use only repository `.gitignore` rules. Tracked-child presence,
+deletion or staged removal can no longer change explicit-subtree retention.
+The real index, protected checkout and approved `761fcfc39` commit are preserved.

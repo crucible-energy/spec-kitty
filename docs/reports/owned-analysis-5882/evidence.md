@@ -777,6 +777,264 @@ and unchanged initial HEAD. The final source review checked metadata-only
 classification, required membership derived before traversal, digest/identity
 verification before row contribution, and retained final observations.
 
+## Source-membership correction from approved 761fcfc39
+
+The operator reported independent approval and normal publication of the previous
+template-provenance B1/B2 repair at
+`761fcfc3982dcf1f75c70bb60c1c444015ab3a50`. The initial SDK audit confirmed a clean
+checkout at that exact HEAD on `fix/owned-analysis-implementation`. This increment
+preserves the commit. Native recording/claim and producer behavior have not run.
+
+### Exact refusal and real root-CLI reproduction
+
+The reported native result was `failed_before_write`, `DIRTY_ANALYSIS_INPUT`, with
+hundreds of `zig/.zig-cache/*` and `zig/zig-out/*` paths despite clean native Git
+status. Native charter authority remains `docs` plus `zig`; no native path was
+edited or narrowed. The new fixture commits those declared authorities, source
+and repository ignore policy, retains the tracked canonical `zig/docs` alias,
+then creates 100 ignored artifacts in each output directory. Its Git status is
+asserted clean before invocation.
+
+Before source edits, both ordinary root-CLI owned recording modes returned the
+same refusal with all 200 ignored artifacts named. After the fix, both record and
+admit WP01 while preserving a dirty primary's HEAD/raw index/sentinels. A real
+pre-commit fixture hook emits additional ignored cache/binary bytes; these remain
+on disk but outside the source manifest. This hook is a test emitter, not a claim
+that native producer behavior or its compatibility checks were executed here.
+
+### Actual bounded execution ledger
+
+From the authorized SDK directory, the test prefix is:
+
+```sh
+T=/var/folders/4g/1bsytq914tscfrn82thwf0r40000gn/T/opencode
+env PYTHONPATH="$PWD/src" PYTHONDONTWRITEBYTECODE=1 TMPDIR="$T" \
+  .venv/bin/python "$T/sdk-template-bound.py" LABEL LIMIT \
+  .venv/bin/python -u "$T/owned-analysis-exit-pytest.py" FILES ARGS
+```
+
+Aliases below denote literal file paths:
+
+| Alias | Path |
+|---|---|
+| CLI | `tests/integration/test_analysis_source_membership_cli.py` |
+| SOURCE | `tests/specify_cli/test_analysis_source_membership.py` |
+| INPUT | `tests/specify_cli/test_analysis_inputs.py` |
+| PROOF | `tests/specify_cli/test_analysis_template_provenance.py` |
+| ALIAS | `tests/integration/test_owned_analysis_alias_cli.py` |
+| TX | `tests/specify_cli/cli/commands/agent/test_analysis_report_transaction.py` |
+| GIT | `tests/kernel/test_git_listing.py` |
+| OWNER | `tests/architectural/test_git_path_listing_owner.py` |
+
+Every listed test child completed without outer timeout; `.log` and `.exit.json`
+artifacts are retained for each label. Counts overlap and are not aggregated.
+
+| LABEL / LIMIT / FILES / ARGS | Actual result / child exit |
+|---|---|
+| `sdk-membership-cli-red / 600 / CLI / -q` | **2 failed**, exit 1, unchanged approved source. Exact 200-file ignored-output refusal in each case. |
+| `sdk-membership-cli-green / 600 / CLI / -q` | **2 passed**, exit 0, initial membership correction. |
+| `sdk-membership-unit-controls / 600 / SOURCE / -q -rs` | **17 passed**, exit 0. |
+| `sdk-membership-focused-regressions / 1500 / SOURCE INPUT PROOF ALIAS TX GIT OWNER / -q -rs` | **196 passed**, one existing legacy-key warning, exit 0. |
+| Initial lint-chained full CLI attempt | Ruff PT011; pytest did not run. No CLI outcome claimed. |
+| `sdk-membership-final-cli / 1500 / CLI / -q -rs` | **10 passed**, exit 0, after negative/policy/race controls. |
+| `sdk-membership-kernel-final / 600 / GIT SOURCE / -q -rs` | **69 passed**, exit 0. |
+| `sdk-membership-final-regressions / 1500 / SOURCE INPUT PROOF ALIAS TX GIT OWNER / -q -rs` | **1 failed, 197 passed**, exit 1: safe metadata-ancestor refusal obscured the expected symlink diagnostic. Fixed in the product helper, not by weakening the test. |
+| `sdk-membership-final-policy-cli / 600 / CLI / -k ignored_outputs -q -rs` | **2 passed, 8 deselected**, exit 0. |
+| `sdk-membership-qualified-regressions / 1500 / SOURCE INPUT PROOF ALIAS TX GIT OWNER / -q -rs` | **198 passed**, one existing legacy-key warning, in 602.54s; pytest main/real child **0/0**. |
+| `sdk-membership-qualified-cli / 1500 / CLI / -q -rs` | **11 passed** in 624.52s; pytest main/real child **0/0**. Includes dirty deletion of a tracked ignored source. |
+
+Final controls cover tracked ignored source changes and deletion, staged removal
+from the index, nonignored untracked additions, explicit ignored file/directory
+authority and catalog references, nested/ancestor ignore policy, committed
+policy/membership admission invalidation, and real pre/post-commit policy races.
+External `info/exclude` and personal excludes cannot conceal untracked material.
+Generated-output writes, additions and removal do not change the input snapshot.
+Visible ignored unsafe links still refuse; a pruned output subtree is not visited.
+An unsafe root ignore-policy symlink refuses before classification or a policy
+content read. Malformed, warning-bearing and failed Git classifications refuse.
+
+### Strict comparison against the preserved approved commit
+
+An unmodified `git archive` extraction of `761fcfc39` source/config lives at
+`$T/sdk-owned-analysis-mypy/base-761fcfc-src`; this is not another Git checkout.
+The following identical strict command ran in the candidate and that archive,
+through the bounded driver with a 240-second limit:
+
+```sh
+env UV_CACHE_DIR="$T/sdk-owned-analysis-mypy/cache" PYTHONDONTWRITEBYTECODE=1 \
+  uv run --offline --no-project --with mypy --with types-jsonschema \
+  --with types-psutil --with types-PyYAML --with types-requests --with types-toml \
+  --python /Users/sam/git/crucible/_worktrees/spec-kitty-owned-checkout-runtime/.venv/bin/python \
+  mypy --strict --no-incremental \
+  --python-executable /Users/sam/git/crucible/_worktrees/spec-kitty-owned-checkout-runtime/.venv/bin/python \
+  --cache-dir="$T/sdk-owned-analysis-mypy/type-cache" \
+  src/specify_cli/analysis_inputs.py src/kernel/git/listing.py
+```
+
+The first candidate reported two diagnostics, including an introduced snapshot
+`no-any-return`; a typed local fixed it without cast/ignore/suppression. Final
+`sdk-membership-qualified-strict`: **1 diagnostic / 2 checked source files**,
+actual exit 1, `_entry` at line 285. `sdk-membership-base-strict`: the identical
+diagnostic at approved-base line 202, actual exit 1.
+
+```sh
+.venv/bin/python "$T/sdk-template-bound.py" sdk-membership-qualified-comparison 30 \
+  .venv/bin/python "$T/sdk-membership-attribute-strict.py" sdk-membership-qualified-strict.log
+```
+
+The comparator exited **0**: exact unchanged statement/message/code match,
+**zero introduced diagnostics**, zero base-only diagnostics. The absolute gate
+remains red on the documented #5917 baseline. No installation or checker change
+was performed; offline uv reused the provisioned ephemeral environment.
+
+### Independent re-review commands and boundary
+
+Use fresh artifact labels from the authorized SDK directory:
+
+```sh
+env PYTHONPATH="$PWD/src" PYTHONDONTWRITEBYTECODE=1 TMPDIR="$T" \
+  .venv/bin/python "$T/sdk-template-bound.py" "review-source-cli-$(date -u +%Y%m%dT%H%M%SZ)" 1500 \
+  .venv/bin/python -u "$T/owned-analysis-exit-pytest.py" \
+  tests/integration/test_analysis_source_membership_cli.py -q -rs
+
+env PYTHONPATH="$PWD/src" PYTHONDONTWRITEBYTECODE=1 TMPDIR="$T" \
+  .venv/bin/python "$T/sdk-template-bound.py" "review-source-proof-$(date -u +%Y%m%dT%H%M%SZ)" 1500 \
+  .venv/bin/python -u "$T/owned-analysis-exit-pytest.py" \
+  tests/specify_cli/test_analysis_source_membership.py \
+  tests/specify_cli/test_analysis_inputs.py \
+  tests/specify_cli/test_analysis_template_provenance.py \
+  tests/integration/test_owned_analysis_alias_cli.py \
+  tests/specify_cli/cli/commands/agent/test_analysis_report_transaction.py \
+  tests/kernel/test_git_listing.py tests/architectural/test_git_path_listing_owner.py -q -rs
+```
+
+This increment changes two source files (`analysis_inputs.py` and the canonical
+Git listing seam), three test files (two new), and these four existing tracers.
+The transaction dirt guard, approved template/alias implementation, native
+authority and canonical status surfaces receive no edits. Independent Renata
+review and actual native recording remain pending. Reports require regeneration
+because the complete manifest now includes policy/membership proof. External
+excludes alone do not qualify output pruning; recognized non-Git library callers
+retain inclusive collection, and ambiguous/redirected/unsupported Git contexts
+refuse. No commit/push, adoption, native cache operation, new SDK checkout,
+installation, CI change or new gate occurred.
+
+Final source-membership audit: Ruff lint passed over both source files and all
+three test files, all five Python files were already formatted, and
+`git diff --check` passed. The final status read contains exactly these nine
+intended paths (including four tracers); branch and HEAD remain
+`fix/owned-analysis-implementation` / `761fcfc3982dcf1f75c70bb60c1c444015ab3a50`.
+Self-review checked repository-only classification, explicit/HEAD/index
+precedence, tracked missing-file sentinels, policy and membership replay,
+unchanged dirt enforcement, and preservation of the approved provenance guards.
+
+## Renata B3: explicit ignored directory with tracked children
+
+The operator's B3 note and retained artifacts
+`renata-membership-explicit-dir-cli-20261008T235100Z.log` / `.exit.json` were read
+before editing. The retained real CLI outcome was exit **0**, `committed`,
+`EXPLICIT_CHILD_RETAINED: False`, `TRACKED_CHILD_RETAINED: True`. Its independent
+test exited 1 because recording accepted omitted uncommitted authority.
+Branch/HEAD were re-audited as the existing owned lane and preserved approved
+`761fcfc3982dcf1f75c70bb60c1c444015ab3a50`, with only the existing bounded diff.
+
+### Genuine failing-first reproduction
+
+Before changing either production seam, the following command ran from the
+authorized SDK checkout using the existing approved source launcher:
+
+```sh
+T=/var/folders/4g/1bsytq914tscfrn82thwf0r40000gn/T/opencode
+env PYTHONPATH="$PWD/src" PYTHONDONTWRITEBYTECODE=1 TMPDIR="$T" \
+  .venv/bin/python "$T/sdk-template-bound.py" sdk-membership-b3-red 600 \
+  .venv/bin/python -u "$T/owned-analysis-exit-pytest.py" \
+  tests/specify_cli/test_analysis_source_membership.py \
+  tests/integration/test_analysis_source_membership_cli.py -k b3 -q
+```
+
+Actual result: **4 failed, 1 passed, 30 deselected**, completed child exit **1**.
+Tracked and deleted-child collector cases returned unchanged snapshots after
+changing ignored explicit authority bytes. Both actual owned recording modes
+returned success/committed rather than `DIRTY_ANALYSIS_INPUT`. The staged-removal
+collector control passed because removal from the real index changed Git's
+directory enumeration. No source guard, bootstrap or authority resolver was
+mocked in these reproductions.
+
+### Fix and focused green
+
+Explicit-directory policy now comes from the canonical repository-only query's
+index-independent view. A private nonexistent index makes policy evaluation
+independent of real tracked/untracked membership; the original live query still
+governs implicit pruning. Neither query uses personal or `info/exclude` policy.
+The actual source/HEAD/index snapshot and dirt guard remain intact.
+
+All test commands below use the exact prefix above, with these labels, limits,
+literal file arguments and flags. Each child completed without timeout; its
+`.log` and `.exit.json` are retained under `T`.
+
+| Label / limit | Files and flags | Actual result / child exit |
+|---|---|---|
+| `sdk-membership-b3-policy-probe / 240` | `tests/specify_cli/test_analysis_source_membership.py -k git_policy_probe -q` | 1 failed, 22 deselected, exit 1: effective Git provenance was the external parent rule. Investigative assertion corrected; this was not the product fix. |
+| `sdk-membership-b3-first-green / 600` | Same two files as red, `-k b3 -q -rs` | **6 passed, 30 deselected**, exit 0. |
+| `sdk-membership-b3-owning-green / 1200` | Literal owning file list below, `-q -rs` | **165 passed**, one existing legacy-key warning, in 711.85s; pytest main/real child **0/0**. |
+| `sdk-membership-b3-cli-green / 600` | `tests/integration/test_analysis_source_membership_cli.py -k 'b3 or ignored_outputs' -q -rs` | **4 passed, 9 deselected** in 274.77s; pytest main/real child **0/0**. |
+
+Owning file arguments, in executed order:
+
+```text
+tests/specify_cli/test_analysis_source_membership.py
+tests/kernel/test_git_listing.py
+tests/specify_cli/test_analysis_inputs.py
+tests/specify_cli/test_analysis_template_provenance.py
+tests/integration/test_owned_analysis_alias_cli.py
+tests/specify_cli/cli/commands/agent/test_analysis_report_transaction.py
+```
+
+Green collector controls retain the full explicit ignored subtree and detect
+byte changes, additions and removal for tracked, deleted and staged-removal
+variants. They retain missing tracked sentinels. Both root-CLI recording modes
+now return `failed_before_write / DIRTY_ANALYSIS_INPUT`, name the ignored explicit
+child, write no report, preserve owner HEAD/events and preserve primary sentinels.
+The two existing broad-authority positives still record and admit WP01 with
+ignored output generation, proving that implicit sibling outputs remain pruned.
+
+Local/global external-parent controls verify the repository-policy result,
+unchanged real-index bytes and selective sibling pruning. Kernel controls verify
+that the private index does not exist during the query, the temporary owner is
+cleaned on success/error, and no `--exclude-standard` path is introduced. The
+165-test run retains the existing alias, package-provenance and receipt/transaction
+controls. No full-directory architectural/e2e/performance sweep was repeated.
+
+### Typing, formatting and disposition
+
+The same two-file offline strict command from the preceding section ran as
+`sdk-membership-b3-strict` with a 240-second bound, targeting
+`src/specify_cli/analysis_inputs.py src/kernel/git/listing.py`. It completed with
+the single unchanged `_entry` diagnostic at line 290, exit 1. The preserved
+approved-base diagnostic is the same statement/message/code at line 202.
+
+```sh
+.venv/bin/python "$T/sdk-template-bound.py" sdk-membership-b3-strict-comparison 30 \
+  .venv/bin/python "$T/sdk-membership-attribute-strict.py" sdk-membership-b3-strict.log
+```
+
+Comparator child exit **0**: one exact unchanged match, **zero introduced
+diagnostics**, zero base-only findings. This remains differential strict
+qualification against #5917, not an absolute strict pass. Ruff lint and format
+checks cover both source files and the three current test files; no suppression
+or checker/gate configuration changed.
+
+**B3 disposition:** addressed by separating index-independent explicit-selection
+policy from live untracked inventory, with red/green evidence above. Independent
+Renata re-review remains pending. No fixing commit, push, adoption, native command
+or new SDK checkout occurred. The total bounded diff remains the same nine paths;
+this rework adds no path and preserves approved `761fcfc39`.
+
+For re-review, use the executed commands/file arguments above with fresh driver
+labels; the driver refuses to overwrite retained evidence. The full existing
+source-membership manifest, ignore-policy snapshots and final replay remain
+mandatory. Private temporary index state is never persisted as report authority.
+
 ## Exact edited surfaces
 
 Source:

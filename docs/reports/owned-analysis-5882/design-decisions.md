@@ -175,3 +175,80 @@ review and the operator's actual native recording remain pending.
 
 Both findings are addressed with red/green evidence; independent re-review is
 still required. No mutable template tier, status source or gate is broadened.
+
+## Repository source membership: ignored outputs are not implicit source
+
+1. **Git owns exclusion, not cache names.** The narrowly necessary
+   `kernel.git.listing.repository_ignored_paths` query uses NUL-delimited
+   `ls-files --others --ignored --directory --exclude-per-directory=.gitignore`.
+   It deliberately omits `--exclude-standard`. Only repository ignore policy
+   can prune implicit untracked descendants; personal `core.excludesFile` and
+   mutable `info/exclude` are not source authority. Inputs hidden only by those
+   external policies remain material and the existing untracked-input dirt guard
+   refuses recording. Changes to unused external excludes do not change source
+   membership or become new external material dependencies.
+2. **Explicit and tracked ownership wins.** The closure protects explicit roots
+   and references, index/HEAD members, and their ancestors before pruning. An
+   explicitly selected ignored directory retains its subtree. Tracked ignored
+   source remains material, even after removal from the index. Missing tracked
+   descendants receive missing-file sentinels so disk traversal cannot conceal
+   dirty deletions. Nonignored untracked additions remain material and cannot
+   acquire authority through a successful report transaction.
+3. **Membership policy is itself material.** Relevant ancestor and visited-directory
+   `.gitignore` files are included even outside the declared source subtree,
+   with absent-file sentinels. Their content is subject to ordinary dirt checks.
+   `git:source-membership` pins included-path HEAD/index membership, mode, stage
+   and tag. It excludes blob IDs so mutable WP bookkeeping does not become a
+   second content authority; the existing static WP-content hash remains canonical.
+4. **One collection must be coherent.** A fresh Git membership observation and
+   closure replay verify included paths, alias identity and membership after
+   hashing. Policy hashes are checked again. Excluded output content, timestamps
+   and incidental membership are never pinned. Failed, malformed, warning-bearing
+   or unsupported Git/index classification refuses. Recognized non-Git library
+   callers retain the original inclusive closure and receive no ignore pruning.
+5. **Source guards precede policy use.** Root and tracked `.gitignore` paths are
+   validated before the ignore query; user symlinks do not become policy sources.
+   Visible source aliases retain exact tracked canonical-alias validation. An
+   already-pruned generated directory is not traversed, including any link inside
+   it. Explicit/tracked descendants prevent pruning and remain subject to the
+   existing strict path and alias rules. Package pins and descriptor-safe global
+   template proof are unaffected.
+
+This changes the complete input key set: existing reports must be regenerated
+under the corrected collector. Git redirection through `GIT_DIR`, `GIT_WORK_TREE`,
+`GIT_INDEX_FILE` or `GIT_COMMON_DIR`, non-root collection inside a Git checkout,
+and unsupported index flags/conflicts refuse rather than supply ambiguous source
+membership. Independent review and actual native recording are still pending for
+this continuation; the approved parent commit is preserved.
+
+## B3 correction: separate selection policy from inventory
+
+- **Live inventory is not an explicit-directory verdict.** With a tracked child,
+  `ls-files --others --ignored --directory` returns ignored child files rather
+  than the ignored directory. Inferring forced subtree retention from those
+  records silently omitted explicit authority. Staged removal changed the record
+  shape again, demonstrating that the old behavior depended on index membership.
+- **Git still owns policy evaluation.** `repository_ignored_paths` adds
+  `index_independent=True` for selection policy. That read-only query evaluates
+  the same repository `.gitignore` rules with a private nonexistent index so
+  tracked entries cannot suppress directory-policy records. It uses the original
+  repository/worktree and never creates a checkout, copies Git metadata or edits
+  ignore files. Temporary-directory ownership and cleanup are scoped to the call;
+  tests verify real-index bytes and cleanup on success and failure.
+- **The two views have distinct jobs.** `_SourceMembership.selection_policy`
+  determines forced explicit subtrees in both closure passes and final replay.
+  Its live `ignored` inventory continues to prune only implicit untracked
+  descendants. Broad `docs`/`zig` authority therefore remains selective, while
+  an explicitly selected ignored directory retains all authority children,
+  including ignored uncommitted additions.
+- **External policy is not promoted.** Both queries deliberately omit
+  `--exclude-standard`. A direct effective `check-ignore` experiment showed
+  `info/exclude` shadowing the repository child rule; that mechanism was not used
+  as the fix. Local and global parent excludes cannot force the broad `zig` root
+  or conceal explicit-child authority. No cache-name condition or dirt-guard
+  exemption is introduced.
+
+B3 is addressed with genuine red-first collector and root-CLI evidence. The
+existing policy/membership snapshot and transaction rechecks remain mandatory;
+independent re-review is pending and no fixing commit exists under the operator's
+no-commit instruction.
