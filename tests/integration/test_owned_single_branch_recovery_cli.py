@@ -23,6 +23,19 @@ from tests.integration.conftest import OwnedCheckouts, _git
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo, pytest.mark.real_worktree_detection]
 
 
+@pytest.mark.parametrize("branch", ["kitty/mission-example-01M1ZYYJ", "kitty/mission-007-example", "kitty/mission-example"])
+@pytest.mark.parametrize("namespace", ["refs/heads/", "refs/remotes/origin/", "refs/spec-kitty/lane-tip/"])
+def test_historical_ref_recognition_uses_canonical_identity(branch: str, namespace: str) -> None:
+    from specify_cli.migration.owned_single_branch_proof import _mission_ref
+
+    assert _mission_ref(namespace + branch, branch)
+    assert _mission_ref(namespace + branch + "-lane-a", branch)
+    assert not _mission_ref(namespace + branch + "-lane-a-extra", branch)
+    assert not _mission_ref(namespace + branch + "-other-lane-a", branch)
+    assert not _mission_ref("refs/tags/" + branch, branch)
+    assert not _mission_ref(namespace + branch, branch + "-lane-a")
+
+
 @pytest.fixture
 def recovery_owner(make_owned_checkouts: Callable[..., OwnedCheckouts], monkeypatch: pytest.MonkeyPatch) -> tuple[OwnedCheckouts, Path]:
     checkouts = make_owned_checkouts(wp_ids=("WP01", "WP02", "WP03", "WP04", "WP05"))

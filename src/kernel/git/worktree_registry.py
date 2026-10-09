@@ -8,11 +8,11 @@ from pathlib import Path
 
 from kernel.git.runner import decode_path
 
-__all__ = ["WorktreeRecord", "parse_worktree_records"]
+__all__ = ["parse_worktree_records"]
 
 
 @dataclass(frozen=True, slots=True)
-class WorktreeRecord:
+class _WorktreeRecord:
     path: Path
     head: str | None
     branch: str | None
@@ -20,12 +20,12 @@ class WorktreeRecord:
     bare: bool
 
 
-def parse_worktree_records(raw: bytes, *, max_records: int = 512) -> tuple[WorktreeRecord, ...]:
+def parse_worktree_records(raw: bytes, *, max_records: int = 512) -> tuple[_WorktreeRecord, ...]:
     """Parse porcelain -z without treating whitespace in a path as syntax."""
     stanzas = [stanza for stanza in raw.split(b"\0\0") if stanza]
     if len(stanzas) > max_records:
         raise ValueError("Workspace inventory exceeds its bounded scope")
-    records: list[WorktreeRecord] = []
+    records: list[_WorktreeRecord] = []
     for stanza in stanzas:
         # Porcelain wire labels are bytes; paths and typed values decode at their boundary.
         fields: dict[bytes, bytes] = {}
@@ -46,5 +46,5 @@ def parse_worktree_records(raw: bytes, *, max_records: int = 512) -> tuple[Workt
         detached = b"detached" in fields
         if (not bare and (head is None or not re.fullmatch(r"[0-9a-f]{40}", head))) or (branch is not None and detached):
             raise ValueError("Workspace inventory has ambiguous HEAD or branch")
-        records.append(WorktreeRecord(Path(decode_path(fields[b"worktree"])), head, branch, detached, bare))
+        records.append(_WorktreeRecord(Path(decode_path(fields[b"worktree"])), head, branch, detached, bare))
     return tuple(records)

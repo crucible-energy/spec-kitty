@@ -70,3 +70,10 @@ reproduced RED in 9.71 seconds. Repairs use the existing facade and explicit JSO
 case, virtual wire paths, the canonical completion generator, active guide routing
 and point-in-time engineering-note routing. No gate exemptions or CI changes were
 introduced. Subsequent source and documentation qualification is recorded externally.
+
+Observed: a later hosted architectural run found a transaction identity slice,
+manual lane-prefix recognition and an exported record type without an external
+caller. Four named regressions reproduced these failures locally in 72.69 seconds.
+The repair routes identity and recognition through the canonical naming authority
+and keeps the parser record internal. No dead-symbol allowlist or gate suppression
+was added. Qualification of this source increment is retained in external receipts.

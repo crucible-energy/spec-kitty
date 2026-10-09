@@ -13,6 +13,7 @@ from specify_cli.coordination.transaction import BookkeepingTransaction
 from specify_cli.core.owned_mission import require_unstaged_index
 from specify_cli.core.paths import load_meta_fail_closed
 from specify_cli.lanes.compute import compute_lanes, is_repo_root_lane
+from specify_cli.lanes.branch_naming import resolve_mid8
 from specify_cli.lanes.models import LanesManifest
 from specify_cli.lanes.persistence import lanes_json_lock, read_lanes_json
 from specify_cli.migration.owned_single_branch_proof import RecoveryError, RecoveryProof, digest, load_proof, read_regular, verify_history
@@ -156,7 +157,7 @@ def recover_owned_single_branch(owned: OwnedCheckout, proof_path: Path, *, dry_r
             repo_root=owned.repository_root,
             mission_id=preview.previous.mission_id or "",
             mission_slug=owned.mission_slug,
-            mid8=(preview.previous.mission_id or "")[:8],
+            mid8=resolve_mid8(owned.mission_slug, mission_id=preview.previous.mission_id),
             destination_ref=owned.write_branch,
             operation="owned single branch recovery",
             owned=owned,

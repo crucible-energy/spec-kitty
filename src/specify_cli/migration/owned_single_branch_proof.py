@@ -23,6 +23,7 @@ from kernel.no_follow import fd_relative_dir_ops_supported
 from mission_runtime import OwnedCheckout
 from specify_cli.status import read_events_from_text
 from specify_cli.lanes.models import LanesManifest
+from specify_cli.lanes.branch_naming import parse_mission_slug_from_branch
 
 __all__ = ["RecoveryError", "RecoveryProof", "digest", "load_proof", "read_regular", "verify_history"]
 
@@ -148,7 +149,9 @@ def _mission_ref(ref: str, branch: str) -> bool:
         name = ref.removeprefix("refs/spec-kitty/lane-tip/")
     else:
         return False
-    return name == branch or name.startswith(branch + "-lane-")
+    expected = parse_mission_slug_from_branch(branch)
+    parsed = parse_mission_slug_from_branch(name)
+    return expected is not None and expected.lane_id is None and parsed is not None and parsed.slug == expected.slug and parsed.mid8_token == expected.mid8_token
 
 
 def _verify_processes(owned: OwnedCheckout, content: bytes) -> None:

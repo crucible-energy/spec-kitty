@@ -32,3 +32,7 @@ updated: '2026-10-09'
    duplicate-key/privacy handling, detached-workspace refusal, ordered archive
    containment and pre-read byte bounds. The selected raw archive is byte-identical;
    other historical streams' raw lines must be included in order with multiplicity.
+9. Transaction identity uses the failover-aware `resolve_mid8` authority. Retained
+   historical ref recognition compares canonical parsed mission identities rather
+   than composing a lane prefix. The workspace parser's record type is private;
+   its public parser remains the production entry point.
