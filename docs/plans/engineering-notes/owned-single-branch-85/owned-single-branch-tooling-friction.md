@@ -86,3 +86,17 @@ claiming admission. The successor's real root CLI acceptance reproduced one
 schema-2 refusal in 58.26 seconds; its schema-1 zero-effect control also refused.
 The initial RED log remains external. Test fixture hashing uses the canonical
 content-digest helper rather than a parallel algorithm or lint suppression.
+
+Observed: the canonical digest helper returns a provenance prefix, while the
+closed custody wire format requires bare hexadecimal SHA-256 values. A root CLI
+diagnostic retained exception classes and source locations only; it exposed the
+format mismatch without logging source bytes or malformed proof values. The
+fixture and wire comparison now remove that formatting prefix explicitly.
+
+Observed: a repeat control changed authored WP ownership while the retained lane
+kept the same scope union. Scope equality alone did not bind the original authored
+inputs. The verifier now also checks the qualifying receipt's frozen input hashes,
+excluding the intentionally converted manifest. The first matrix retained 32
+passes and this one failure. Subsequent focused boundaries passed 18 tests in
+167.77 seconds, including unchanged executable modes, hidden/reverted history,
+unsupported changes and same-input repeat/finalization. Final gates remain pending.

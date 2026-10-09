@@ -48,10 +48,14 @@ def recovery_owner(
     monkeypatch.chdir(root)
     _git(root, "worktree", "add", "--detach", str(root.parent / "unrelated-detached"), _git(checkouts.repository_root, "rev-parse", "HEAD"))
     (root / "src").mkdir()
-    custody_paths = ["data/performance-manifest.json", "docs/contracts/branch-contracts.md"] if getattr(request, "param", None) == "custody" else []
+    custody_paths = (
+        ["data/performance-manifest.json", "docs/contracts/branch-contracts.md"] if getattr(request, "param", None) in {"custody", "custody_executable"} else []
+    )
     for extra in custody_paths:
         (root / extra).parent.mkdir(parents=True, exist_ok=True)
         (root / extra).write_text("inherited numeric projection: 1\n")
+        if getattr(request, "param", None) == "custody_executable":
+            (root / extra).chmod(0o755)
     (dossier / "tasks.md").write_text("# Tasks\n\n" + "\n".join(f"## WP{i:02}\n\nNo dependencies.\n" for i in range(1, 6)))
     for index in range(1, 6):
         wp = f"WP{index:02}"
@@ -180,7 +184,7 @@ def custody_manifest(checkouts: OwnedCheckouts, proof: dict[str, Any], directory
         if oid in blobs:
             return
         raw = subprocess.run(["git", "cat-file", "blob", oid], cwd=root, capture_output=True, check=True).stdout
-        digest = sha256_digest(raw)
+        digest = sha256_digest(raw).removeprefix("sha256:")
         relative = "blobs/" + digest
         (directory / relative).parent.mkdir(parents=True, exist_ok=True)
         (directory / relative).write_bytes(raw)
@@ -232,6 +236,9 @@ def preserved_owner(recovery_owner: tuple[OwnedCheckouts, Path]) -> tuple[OwnedC
     checkouts, proof_path = recovery_owner
     root = checkouts.owned_root
     proof = json.loads(proof_path.read_text())
+    for claim in proof["claim_refs"]:
+        _git(root, "update-ref", claim, proof["owner_head"])
+        proof["claim_refs"][claim] = proof["owner_head"]
     historical = proof["historical_refs"][0]
     _git(root, "checkout", "-b", "codex/fixture-history-left", historical["sha"])
     for relative in ("data/performance-manifest.json", "docs/contracts/branch-contracts.md"):
@@ -254,12 +261,16 @@ def preserved_owner(recovery_owner: tuple[OwnedCheckouts, Path]) -> tuple[OwnedC
     directory = proof_path.parent / "raw-custody"
     directory.mkdir()
     manifest = custody_manifest(checkouts, proof, directory)
-    proof.update(schema_version=2, source_disposition="preserved_unapplied", custody={"path": str(manifest), "sha256": sha256_digest(manifest.read_bytes())})
+    proof.update(
+        schema_version=2,
+        source_disposition="preserved_unapplied",
+        custody={"path": str(manifest), "sha256": sha256_digest(manifest.read_bytes()).removeprefix("sha256:")},
+    )
     proof_path.write_text(json.dumps(proof))
     return checkouts, proof_path, manifest
 
 
-@pytest.mark.parametrize("recovery_owner", ["custody"], indirect=True)
+@pytest.mark.parametrize("recovery_owner", ["custody", "custody_executable"], indirect=True)
 def test_preserved_unapplied_root_cli_custody_and_finalize(
     preserved_owner: tuple[OwnedCheckouts, Path, Path], make_r_snapshot: Callable[[OwnedCheckouts], RSnapshotter]
 ) -> None:
@@ -286,7 +297,10 @@ def test_preserved_unapplied_root_cli_custody_and_finalize(
     receipt = json.loads((checkouts.mission_dir / "recovery/owned-single-branch.json").read_text())
     assert receipt["preserved"]["source_disposition"] == "preserved_unapplied"
     assert receipt["preserved"]["custody_manifest_sha256"] == proof["custody"]["sha256"]
-    assert state(checkouts)[1] == before[1]
+    owner_ref = "refs/heads/" + checkouts.target_branch
+    original_refs = dict(line.split(" ", 1) for line in before[1].splitlines())
+    current_refs = dict(line.split(" ", 1) for line in state(checkouts)[1].splitlines())
+    assert {ref: sha for ref, sha in current_refs.items() if ref != owner_ref} == {ref: sha for ref, sha in original_refs.items() if ref != owner_ref}
     assert state(checkouts)[3] == before[3]
     assert {name: (checkouts.owned_root / name).read_bytes() for name in current} == current
     assert {path.relative_to(manifest_path.parent): path.read_bytes() for path in manifest_path.parent.rglob("*") if path.is_file()} == raw_before
@@ -300,6 +314,7 @@ def test_preserved_unapplied_root_cli_custody_and_finalize(
     final_manifest = read_lanes_json(checkouts.mission_dir)
     assert final_manifest is not None
     assert final_manifest.planning_commit_sha == proof["planning_commit_sha"]
+    assert next(iter(proof["claim_refs"].values())) != proof["planning_commit_sha"]
 
 
 def state(checkouts: OwnedCheckouts) -> tuple[str, str, bytes, bytes]:

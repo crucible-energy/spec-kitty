@@ -39,3 +39,11 @@ merge and separate current source versions. The schema-1 control must refuse wit
 zero effects; explicit schema-2 custody must account for every commit and parent
 edge before preview or conversion. The initial root acceptance reproduced RED;
 source implementation and successor qualification are pending.
+
+Implementation uses the existing canonical Git entry/tree queries and closed
+typed custody models. Every parent edge is reconstructed before manifest equality
+and raw byte verification. Root CLI counterexamples cover incomplete/extra census,
+privacy, raw corruption, unsafe paths, active history, races and repeat/rollback.
+Hidden merges and intermediate reverts require their actual raw variants even when
+the final historical tree is unchanged. Full successor qualification remains an
+external receipt so recording its outcome cannot change the frozen candidate.

@@ -47,3 +47,10 @@ updated: '2026-10-09'
     or `100755` modes. Presence changes, mode transitions, renames, copies and
     nonregular entries refuse. External evidence is bounded and read without
     following symlinks; apply and idempotency must requalify that evidence.
+13. Current scoped working bytes and executable modes are checked against the
+    pinned owner tree, including files hidden from ordinary status by index hints.
+    Repeat allows the conversion's metadata commit while requiring owner ancestry,
+    no later scoped source commits and unchanged frozen authored/event/meta inputs.
+14. A closed manifest uses bare hexadecimal SHA-256 values. The canonical exact
+    byte digest helper's provenance prefix is removed only for this wire format;
+    historical receipt digests retain their existing representation.
