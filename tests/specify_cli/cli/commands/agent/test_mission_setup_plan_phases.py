@@ -1176,7 +1176,7 @@ def test_warn_commit_failed_recipe_names_to_branch(capsys: pytest.CaptureFixture
         commit_message="chore: spec",
         to_branch="kitty/mission-demo-lane-a",
     )
-    output = re.sub(r"\x1b\[[0-9;]*m", "", capsys.readouterr().out)
+    output = " ".join(re.sub(r"\x1b\[[0-9;]*m", "", capsys.readouterr().out).split())
     assert "--to-branch kitty/mission-demo-lane-a" in output
 
 

@@ -78,3 +78,35 @@ coherence increment does not rebuild or repoint that qualified runtime.
 The metadata correction runs the complete structural-lint test file and normal
 docs lint, rather than treating spelling/changelog lint as structural proof.
 Implementation, packaging and archive bytes remain unchanged in this increment.
+
+## Hosted readiness gates
+
+PR 75's archive job compared its published patch target with organization main,
+including old archive divergence outside the PR delta. The gate assumed a main
+review boundary. [Issue 76](https://github.com/crucible-energy/spec-kitty/issues/76)
+records the owning defect; no archive bytes or exemptions are repaired here.
+A real Git regression through the existing byte-freeze entry point reproduces
+that wrong boundary and pins strict non-main event correlation. Main authority
+and its documented empty fork payload compatibility remain unchanged. Non-main
+empty payloads and raw heads without target-base ancestry remain unsupported.
+
+The execution-context shard also exposed stubs missing the existing optional
+`owned` argument and a record-analysis flag pin missing `--owned-checkout`.
+Both complete fixture files and owning CLI modules match exact published
+baseline `e6c71493a`; the two unchanged entry points reproduced both failures.
+[Issue 78](https://github.com/crucible-energy/spec-kitty/issues/78) records those
+stale contracts before their correction. The stubs now assert ordinary placement
+and the golden pin admits the already-existing option. These readiness changes
+leave runtime implementation, packaging, CI workflows and the separately
+qualified source-45a installed consumer unchanged. Source publication and owning
+gates remain separate from release or production acceptance; actual incident
+actor, model, tokens and cost remain unknown.
+
+The expanded owning fast tier found one more baseline fixture: Rich wraps the
+correct recovery recipe between `--to-branch` and its value when the isolated
+xdist path is long. The fixture and rendering helper match exact `e6c71493a`.
+[Issue 79](https://github.com/crucible-energy/spec-kitty/issues/79) records the
+failure before correction. The one assertion now normalizes display whitespace
+after ANSI removal, retaining its exact target-branch requirement. This verifies
+recipe tokens; multiline command copyability remains a separate UX concern and
+is not qualified by that assertion. No recovery recipe or runtime code changes.

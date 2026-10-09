@@ -36,3 +36,19 @@ Audience: the source reviewer and consumer operator.
   change correct production guards. This extends only two existing test files:
   installer unsupported-host capability simulation and the advance-guard's
   historical live-checkout assumption. The asset-path source scope is unchanged.
+
+- **Hosted patch review frontier (issue 76):** archive preservation uses the
+  exact event base for an advertised non-main GitHub PR only after bounded
+  event, environment, target repository/remote and local Git correlation.
+  The event base must belong to the exact remote target ref’s published history;
+  later target advances are allowed.
+  Synthetic merges require exact ordered base/head parents; raw head checkouts
+  require the exact event head and target-base ancestry. Checkout does not
+  rewrite GitHub environment, and a raw head need not have the synthetic merge
+  object available. The byte freeze and landed exemption lookup use the same
+  base. No fetch, arbitrary base override or archive exemption is introduced.
+- **Compatibility boundary:** default-main reviews keep the existing canonical
+  main resolver, including GitHub's documented empty fork event payloads.
+  Empty non-main payloads refuse because their exact event base/head cannot be
+  correlated. Populated fork-head fixtures prove that bounded case, rather than
+  all real fork behavior. Missing or malformed advertised target metadata fails.
