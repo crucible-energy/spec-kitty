@@ -18,6 +18,6 @@ RED first: the real migration subgroup acceptance fixture requests an explicit
 stream and distinct historical/current source trees. Ordinary finalization must
 remain fail-closed before explicit conversion and succeed afterward without refresh.
 
-Complete local check output lives outside the candidate under
-`/Users/sam/.local/share/aletheia/release-receipts/sdk-owned-single-branch-recovery/`.
+Complete local check output lives in an independently owned external release-receipt
+store, outside the candidate. Exact locations are recorded in the external receipts.
 Source review, PR publication and consumer qualification belong to the parent.
