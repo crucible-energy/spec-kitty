@@ -52,3 +52,13 @@ Audience: the source reviewer and consumer operator.
   Empty non-main payloads refuse because their exact event base/head cannot be
   correlated. Populated fork-head fixtures prove that bounded case, rather than
   all real fork behavior. Missing or malformed advertised target metadata fails.
+
+- **Runner graph authority (observed 2026-10-09):** PR 75's archive job on source
+  `8a8e8ead2` passed runner SHA, exact ordered event parents and published target
+  checks, then refused a differing optional webhook `merge_commit_sha`. That
+  equality assumption was incorrect. GitHub documents [background mergeability
+  computation and state-dependent merge metadata](https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request),
+  while [Actions identifies `GITHUB_SHA` with the workflow merge branch](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request).
+  The field may be null or stale; its type/format remains validated, but it has
+  no baseline or checkout authority. Actual merge HEAD still equals runner SHA
+  and has exact ordered base/head parents; raw HEAD still equals event head.

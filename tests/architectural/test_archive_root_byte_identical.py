@@ -879,7 +879,7 @@ def _read_pr_event() -> dict[str, Any]:
     return event
 
 
-def _validate_pr_identity(event: dict[str, Any], base_ref: str) -> tuple[str, str, str | None]:
+def _validate_pr_identity(event: dict[str, Any], base_ref: str) -> tuple[str, str]:
     pr = event["pull_request"]
     base, head = pr["base"], pr["head"]
     number = event["number"]
@@ -900,10 +900,12 @@ def _validate_pr_identity(event: dict[str, Any], base_ref: str) -> tuple[str, st
     for sha in (base_sha, head_sha, os.environ.get("GITHUB_SHA", ""), *(() if merge_sha is None else (merge_sha,))):
         if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}", sha):
             raise ValueError("invalid commit SHA")
-    return base_sha, head_sha, merge_sha
+    # Background mergeability metadata can be null or stale relative to the
+    # workflow's merge branch. Validate its shape, never its checkout identity.
+    return base_sha, head_sha
 
 
-def _validate_pr_checkout(base_sha: str, head_sha: str, merge_sha: str | None) -> None:
+def _validate_pr_checkout(base_sha: str, head_sha: str) -> None:
     for sha in (base_sha, head_sha):
         result = _run_git(["rev-parse", "--verify", f"{sha}^{{commit}}"])
         if result.returncode or result.stdout.strip() != sha:
@@ -916,14 +918,10 @@ def _validate_pr_checkout(base_sha: str, head_sha: str, merge_sha: str | None) -
     if checkout_sha == head_sha:
         if _run_git(["merge-base", "--is-ancestor", base_sha, head_sha]).returncode:
             raise ValueError("raw head must include the target base")
-        if merge_sha is not None and github_sha not in {head_sha, merge_sha}:
-            raise ValueError("synthetic merge metadata mismatch")
     else:
         parents = _run_git(["rev-list", "--parents", "-n", "1", checkout_sha])
         if checkout_sha != github_sha or parents.returncode or parents.stdout.split() != [checkout_sha, base_sha, head_sha]:
             raise ValueError("checkout is not the exact event merge")
-        if merge_sha is not None and merge_sha != checkout_sha:
-            raise ValueError("event merge commit mismatch")
 
 
 def _validate_pr_target(base_ref: str, base_sha: str) -> None:
@@ -956,9 +954,9 @@ def _non_main_pr_base_rev() -> str | None:
             raise ValueError("missing or invalid advertised target ref")
         if base_ref == "main":
             return None
-        base_sha, head_sha, merge_sha = _validate_pr_identity(_read_pr_event(), base_ref)
+        base_sha, head_sha = _validate_pr_identity(_read_pr_event(), base_ref)
         _validate_pr_target(base_ref, base_sha)
-        _validate_pr_checkout(base_sha, head_sha, merge_sha)
+        _validate_pr_checkout(base_sha, head_sha)
         return base_sha
     except (OSError, ValueError, TypeError, KeyError, IndexError) as error:
         pytest.fail(f"PR archive base refused: {error}")
@@ -2029,7 +2027,7 @@ def test_non_main_pr_freeze_uses_exact_published_target(patch_target_checkout: d
         "bad-sha",
         "unreachable-base",
         "wrong-head",
-        "wrong-merge",
+        "bad-merge-sha",
         "wrong-github-sha",
         "reversed-parents",
         "head-descendant",
@@ -2101,8 +2099,8 @@ def _corrupt_pr_graph(case: dict[str, Any], monkeypatch: pytest.MonkeyPatch, cor
         event["pull_request"]["head"]["sha"] = head
         event["pull_request"]["merge_commit_sha"] = None
         monkeypatch.setenv("GITHUB_SHA", head)
-    elif corruption == "wrong-merge":
-        event["pull_request"]["merge_commit_sha"] = case["head"]
+    elif corruption == "bad-merge-sha":
+        event["pull_request"]["merge_commit_sha"] = "HEAD"
     elif corruption == "wrong-github-sha":
         monkeypatch.setenv("GITHUB_SHA", case["head"])
     elif corruption == "reversed-parents":

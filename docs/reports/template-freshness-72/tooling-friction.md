@@ -110,3 +110,17 @@ failure before correction. The one assertion now normalizes display whitespace
 after ANSI removal, retaining its exact target-branch requirement. This verifies
 recipe tokens; multiline command copyability remains a separate UX concern and
 is not qualified by that assertion. No recovery recipe or runtime code changes.
+
+## Webhook merge metadata timing
+
+The source-8a archive job returned three refusals solely because optional webhook
+merge metadata differed from the checked-out runner merge. The exact graph and
+published target had already passed. The earlier equality requirement conflated
+background PR mergeability metadata with the workflow's merge branch.
+[Issue 76's updated RCA](https://github.com/crucible-energy/spec-kitty/issues/76#issuecomment-6079170114)
+records this design mistake before correction. Real Git fixtures reproduce two
+refusals using distinct merge SHAs with identical ordered parents and tree.
+Optional merge metadata now receives syntax/type validation only. Runner SHA,
+actual parent graph, exact raw head, published target, event-file and same-base
+archive/exemption checks remain required. No retry, fetch, runtime or CI change
+resolves this defect; the independently qualified source-45a runtime stays fixed.
