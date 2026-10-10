@@ -1,7 +1,10 @@
 ---
+title: Owned acceptance verdict implementation log
+description: Records the owned acceptance verdict repair, its validation and the documentation taxonomy correction required by CI.
 type: explanation
+doc_status: point_in_time
 updated: 2026-10-10
-audience: software-engineer
+audience: ../../context/audience/internal/maintainer.md
 ---
 # Owned acceptance verdict repair
 
@@ -115,3 +118,47 @@ each sequential run; a mismatch invalidates qualification.
 - Negative-invariant command execution retains the existing configured-command
   authority and semantics; routing a command does not qualify its authored proof.
 - Provider tokens and cost for this repair are unavailable.
+
+
+## Documentation CI correction — 2026-10-10
+
+### User Experience Findings
+
+- **Observed:** the documentation job `114227612628` for
+  https://github.com/crucible-energy/spec-kitty/pull/88 failed the two live
+  structural-lint tests on source `c3d26bd566b429a469c9b4892531af094829586f`.
+  This log lacked `doc_status`, lived outside the canonical point-in-time
+  section, and introduced an unsanctioned `implementation-log/` section.
+- **Observed:** the same two failures were reproduced locally before this
+  correction. Original focused acceptance/ownership gates did not cover the
+  documentation subsystem; that omitted gate allowed these defects through
+  local qualification. Their passing evidence remains valid for its recorded
+  scope and does not establish documentation or CI readiness.
+
+- **Observed:** an additional exact-page metadata check rejected the first
+  repository-relative audience reference. The canonical audience checker resolves
+  references relative to the page directory, so the corrected metadata uses
+  `../../context/audience/internal/maintainer.md`. The structural suite alone does
+  not prove this audience-reference contract.
+
+### Engineering Decisions
+
+- Move this independently owned record to
+  `docs/plans/engineering-notes/2026-10-10-59-owned-acceptance-verdict.md`.
+  The policy's `plans/engineering-notes/` home is relative to the `docs/` root;
+  a repository-root `plans/` directory would not satisfy that taxonomy.
+- Preserve the historical body above and accepted source/receipt history.
+  Add honest `doc_status: point_in_time`, a title, a description, and the
+  existing maintainer audience catalog reference. No linter policy, allowlist,
+  test, product code, or automated enforcement is changed.
+- Run the owning documentation subsystem and its structural checks for this
+  correction, plus the required increment gates in the pinned environment.
+  Record the resulting proof externally after this document is frozen.
+
+### Known Limitations
+
+- The original accepted source commit and receipts remain historical evidence;
+  their old log path is not the current canonical home.
+- Local checks and publication do not prove the replacement GitHub job passed,
+  that this PR merged, or that a consumer SDK was installed. Those require
+  fresh owner-qualified evidence for the corrected source revision.
