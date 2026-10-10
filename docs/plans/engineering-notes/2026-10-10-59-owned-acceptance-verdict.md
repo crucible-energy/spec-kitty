@@ -162,3 +162,58 @@ each sequential run; a mismatch invalidates qualification.
 - Local checks and publication do not prove the replacement GitHub job passed,
   that this PR merged, or that a consumer SDK was installed. Those require
   fresh owner-qualified evidence for the corrected source revision.
+
+## CLI golden-contract correction — 2026-10-10
+
+### User Experience Findings
+
+- **Observed:** execution-context shard `114227615309` for
+  https://github.com/crucible-energy/spec-kitty/pull/88 failed the exact
+  acceptance-verdict flag-surface test and its removal control: the registered
+  command exposed the intentionally implemented `--owned-checkout` option,
+  while the expected flag mirror omitted it.
+- **Observed:** both failures were reproduced locally on delivered revision
+  `37c5247360d50b617d956e8e2baef1dde7ef3957` before editing the contract.
+  The earlier local qualification omitted this full mission CLI golden module;
+  the source/ownership checks and their review did not prove that golden
+  contract was current. Their narrower evidence is preserved honestly.
+
+### Engineering Decisions
+
+- Add only `--owned-checkout` to the acceptance-verdict expected flag set.
+  Its authority remains the implemented, ownership-validated command and
+  canonical public help. This is a contract mirror amendment, not an expansion
+  of runtime authority, topology support, or an execution allowlist.
+- Preserve exact full-set equality and its missing/extra diagnostics. Keep the
+  existing `--negative-invariant` removal control and parameterize it with the
+  new `--owned-checkout` control. Each starts from the real introspected command,
+  verifies the complete contract, and proves a removed flag is reported as
+  missing and makes that exact equality fail. Remove obsolete flag-count wording.
+- Run the entire registered mission CLI golden module, changed-log metadata and
+  documentation checks, formatting/lint and the required pinned baseline.
+  Product code, other expected flag sets, policy and prior receipts stay intact.
+
+### Known Limitations
+
+- The canceled CLI shards in the failed aggregate have no passing qualification;
+  cancellation is not evidence of successful tests.
+- Local correction gates do not prove replacement GitHub jobs passed or grant
+  whole-PR merge, SDK release, consumer installation or Aletheia acceptance.
+  Those require fresh evidence bound to the corrected published revision.
+
+### Real-checker review correction
+
+- **Observed:** root review found that the inherited removal control only
+  computed copied set differences and asserted inequality. It never invoked the
+  actual flag-surface checker with the missing option, so future weakening of
+  that checker could pass the control despite breaking its intended guarantee.
+- **Decision:** retain real-command introspection and its exact sanity check,
+  then supply the captured surface minus each removed flag through the existing
+  getter. Invoke the actual `test_command_exposes_exact_flag_surface` checker
+  under `pytest.raises(AssertionError)` and assert its exact missing/extra
+  diagnostics for both flags. No product code or policy changes are required.
+- **Limitation:** the earlier golden/docs checks qualify only their weaker
+  captured candidate. The already-started baseline was deliberately terminated
+  and joined before the test/log amendment; its diagnostic output is retained
+  and is not passing baseline evidence. Final proof binds the strengthened
+  frozen candidate after review.
