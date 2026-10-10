@@ -172,7 +172,8 @@ def run_gate(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     gate.test_no_preexisting_archived_file_was_modified()
 
 
-def test_shared_gate_declares_local_fixture_and_restores_hosted_context(archive_repo: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+@pytest.mark.parametrize("corrupt", [False, True])
+def test_shared_gate_declares_local_fixture_and_restores_hosted_context(archive_repo: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, corrupt: bool) -> None:
     """Imported helpers must not apply a real workflow event to a fake repo."""
     head = git(archive_repo, "rev-parse", "HEAD").decode().strip()
     event_path = tmp_path / "hosted-event.json"
@@ -201,10 +202,20 @@ def test_shared_gate_declares_local_fixture_and_restores_hosted_context(archive_
     }
     for key, value in hosted.items():
         monkeypatch.setenv(key, value)
+    outer_root = tmp_path / "outer-hosted-context"
+    outer_root.mkdir()
+    git(outer_root, "init", "--initial-branch=main")
+    monkeypatch.setattr(gate, "REPO_ROOT", outer_root)
     original_root = gate.REPO_ROOT
     with pytest.raises(pytest.fail.Exception, match="target repository has no configured remote"):
         gate._non_main_pr_base_rev()
-    run_gate(archive_repo, monkeypatch)
+    if corrupt:
+        path = archive_repo / "kitty-ops/lifecycle.jsonl"
+        path.write_bytes(b"X" + path.read_bytes()[1:])
+        with pytest.raises(AssertionError, match="historical byte prefix"):
+            run_gate(archive_repo, monkeypatch)
+    else:
+        run_gate(archive_repo, monkeypatch)
     assert {key: os.environ.get(key) for key in hosted} == hosted
     assert original_root == gate.REPO_ROOT
     with pytest.raises(pytest.fail.Exception, match="target repository has no configured remote"):
