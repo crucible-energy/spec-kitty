@@ -112,3 +112,19 @@ synthetic non-main workflow event reproduced the shared helper's remote-identity
 failure. Its local context must be scoped inside the helper itself, with outer
 hosted metadata restored and the literal-CI unreachable-base control retained.
 No credentials or real source text are included in the reproduction packet.
+
+Observed: Git 2.55 runs detached automatic maintenance after fixture commits.
+The notice cases exposed object-directory and maintenance-lock snapshot changes.
+The actual three-case synchronous per-invocation control passed with complete
+snapshots and captured maintenance exits. No snapshot path was excluded and no
+global or repository-user setting changed.
+
+Measured: the integrated full-corpus case passed alone in 238.53 seconds
+(236.57-second call). Complete canonical qualification then finished with
+1,210 passes, two skips and one 240-second timeout during a healthy control audit.
+The whole-case sequence includes eleven independent public CLI scans. No scan,
+attack or healthy control can be removed without weakening its preservation and
+anti-hollowing evidence. A narrowly documented 600-second test marker retains the
+180-second per-CLI bounds and default 240-second authority. The earlier blanket
+600-second diagnostic was deliberately stopped and joined after 36.789 seconds;
+it never counted as canonical acceptance. All raw diagnostics remain external.

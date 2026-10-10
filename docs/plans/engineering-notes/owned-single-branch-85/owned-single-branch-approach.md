@@ -64,3 +64,21 @@ and strict closed-model validation. Git evidence has no DRG serialization policy
 The shared recovery helper declares its temporary local fixture context and
 restores the real hosted context after its checks. Real PR identity and archive
 preservation guards remain unchanged. Revised-source qualification stays external.
+
+## Local qualification boundaries
+
+Observed: complete upgrade qualification of the correction for
+https://github.com/crucible-energy/spec-kitty/pull/87 exposed detached fixture
+setup maintenance: Git 2.55 changed `.git/objects` and its maintenance lock
+after the read-only before-snapshot. The same three notice counterfactuals
+passed with per-invocation synchronous maintenance and unchanged complete
+filesystem snapshots. Global and repository-user settings remain untouched.
+
+The complete canonical run then passed 1,210 cases and skipped two, with one
+240-second timeout during a healthy full-corpus control audit. That integrated
+case performs eleven independent public CLI audits plus preservation checks;
+its serial call took 236.57 seconds. A finite 600-second marker applies only to
+this case. Every assertion, full-corpus membership check, attack and healthy
+control remains, as does the 180-second limit on each CLI call. The default
+240-second authority remains unchanged. Targeted and complete qualification
+of this test change remains pending in the external receipt store.

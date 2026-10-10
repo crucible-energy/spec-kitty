@@ -151,6 +151,11 @@ def inventory(repo: Path) -> dict[str, tuple[int, int, str]]:
     return result
 
 
+# Eleven independent full-corpus CLI audits plus raw-preservation gates form
+# one sequence. Its measured serial call took 236.57s; a two-worker run reached
+# the default 240s limit in a healthy control. Preserve every control and each
+# CLI's 180s bound, with a finite longer limit only for this integrated test.
+@pytest.mark.timeout(600)
 def test_original_full_corpus_residue_then_recovered_and_landed_corpus_passes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

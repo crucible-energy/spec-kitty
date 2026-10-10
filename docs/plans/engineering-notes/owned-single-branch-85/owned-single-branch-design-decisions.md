@@ -63,3 +63,13 @@ updated: '2026-10-09'
     literal `CI` failure behavior and restores both metadata and repository root
     on exit. The real hosted PR resolver remains fail closed, including before
     and after the local helper call.
+17. Local qualification joins automatic Git maintenance through per-invocation
+    `maintenance.autoDetach=false`. The actual notice cases preserve their whole
+    filesystem snapshots, including Git object storage and maintenance locks.
+    This controls disposable setup work without altering global or user settings.
+18. The integrated historical corpus sequence retains eleven full public CLI
+    audits, complete membership, raw preservation and every attack/control pair.
+    Its measured serial call took 236.57 seconds; the complete two-worker run
+    reached the canonical 240-second test limit in a healthy control. Only this
+    test receives a finite 600-second marker under the documented pytest policy.
+    Each CLI call remains bounded at 180 seconds; the default remains 240 seconds.
