@@ -167,9 +167,12 @@ def test_protected_gitlink_remains_rejected(archive_repo: Path, root: str, at_ro
 
 
 def run_gate(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(gate, "REPO_ROOT", repo)
-    gate.test_archive_baseline_is_non_empty()
-    gate.test_no_preexisting_archived_file_was_modified()
+    """Check a disposable history without borrowing the host's PR authority."""
+    with monkeypatch.context() as fixture_context:
+        clear_hosted_pr_context(fixture_context)
+        fixture_context.setattr(gate, "REPO_ROOT", repo)
+        gate.test_archive_baseline_is_non_empty()
+        gate.test_no_preexisting_archived_file_was_modified()
 
 
 @pytest.mark.parametrize("corrupt", [False, True])

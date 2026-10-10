@@ -18,7 +18,7 @@ def _raw_digest(content: bytes) -> str:
     return digest(content).removeprefix("sha256:")
 
 
-def _load_manifest(owned: OwnedCheckout, proof: CustodyRecoveryProof) -> tuple[Path, bytes, CustodyManifest]:
+def _load_manifest(owned: OwnedCheckout, proof: CustodyRecoveryProof) -> tuple[Path, bytes, CustodyManifest, dict[str, object]]:
     path = Path(proof.custody.path)
     if not path.is_absolute() or path.is_relative_to(owned.owned_root) or path.is_relative_to(owned.repository_root):
         raise RecoveryError("Custody must be an explicit external store")
@@ -26,10 +26,11 @@ def _load_manifest(owned: OwnedCheckout, proof: CustodyRecoveryProof) -> tuple[P
     if _raw_digest(content) != proof.custody.sha256:
         raise RecoveryError("Custody manifest identity changed")
     try:
-        manifest = CustodyManifest.model_validate(read_closed_object(content))
+        wire = read_closed_object(content)
+        manifest = CustodyManifest.model_validate(wire)
     except ValueError:
         raise RecoveryError("Invalid closed custody manifest") from None
-    return path, content, manifest
+    return path, content, manifest, wire
 
 
 def _verify_catalog(owned: OwnedCheckout, directory: Path, manifest: CustodyManifest, objects: dict[str, tuple[str, str]]) -> None:
@@ -82,7 +83,7 @@ def _verify_current_source(owned: OwnedCheckout, owner_head: str, scope: list[st
 
 def verify_source_custody(owned: OwnedCheckout, proof: CustodyRecoveryProof, refs: dict[str, str], scope: list[str], mission_id: str | None) -> dict[str, str]:
     """Reconstruct complete history and compare every closed custody identity."""
-    path, content, manifest = _load_manifest(owned, proof)
+    path, content, manifest, wire = _load_manifest(owned, proof)
     branch = run_git(owned.owned_root, "branch", "--show-current", timeout=15).stdout.decode("utf-8").strip()
     if (
         manifest.mission_id != mission_id
@@ -96,11 +97,10 @@ def verify_source_custody(owned: OwnedCheckout, proof: CustodyRecoveryProof, ref
     ):
         raise RecoveryError("Custody identity or full scope differs from the pinned owner")
     census = reconstruct_source_history(owned, proof.historical_base, proof.owner_head, refs, scope)
-    recorded = {
-        "refs": [row.model_dump() for row in manifest.refs],
-        "edges": [row.model_dump() for row in manifest.edges],
-        "tips": [row.model_dump() for row in manifest.tips],
-    }
+    # Closed typed validation precedes equality against the original wire lists.
+    # These are Git history identities, not DRG graph documents. Reserializing
+    # models would introduce a second normalization policy at a custody boundary.
+    recorded = {name: wire[name] for name in ("refs", "edges", "tips")}
     observed = {"refs": census.refs, "edges": census.edges, "tips": census.tips}
     if not census.objects or recorded != observed:
         raise RecoveryError("Custody omits or adds retained history identities")
