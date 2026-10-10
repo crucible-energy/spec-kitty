@@ -16,7 +16,8 @@ from specify_cli.lanes.compute import compute_lanes, is_repo_root_lane
 from specify_cli.lanes.branch_naming import resolve_mid8
 from specify_cli.lanes.models import LanesManifest
 from specify_cli.lanes.persistence import lanes_json_lock, read_lanes_json
-from specify_cli.migration.owned_single_branch_proof import RecoveryError, RecoveryProof, digest, load_proof, read_regular, verify_history
+from specify_cli.migration.owned_single_branch_proof import CustodyRecoveryProof, RecoveryError, RecoveryEvidence, digest, load_proof, read_regular, verify_history
+from specify_cli.ownership.models import OwnershipManifest
 from specify_cli.ownership.validation import build_wp_manifests, validate_all, validate_glob_matches
 from specify_cli.status import read_authored_wp_frontmatter, read_events_from_text, wp_task_files, write_checkout_claim_lock
 
@@ -43,23 +44,9 @@ def _snapshot(owned: OwnedCheckout) -> dict[str, str]:
     return {path.relative_to(owned.owned_root).as_posix(): digest(read_regular(path)) for path in paths}
 
 
-def _plan(owned: OwnedCheckout, proof: RecoveryProof, proof_bytes: bytes) -> _Plan:
-    require_unstaged_index(owned)
-    if _git(owned, "rev-parse", "HEAD") != proof.owner_head or _git(owned, "branch", "--show-current") != owned.write_branch:
-        raise RecoveryError("Owner HEAD or branch differs from the pinned proof")
-    if status_entries(owned.owned_root, untracked="all", timeout=15):
-        raise RecoveryError("Owned checkout must be clean before explicit conversion")
-    meta = load_meta_fail_closed(owned.mission_dir)
-    if not meta or meta.get("coordination_branch") or meta.get("topology") != "single_branch":
-        raise RecoveryError("Recovery requires a single_branch mission without coordination")
-    previous = read_lanes_json(owned.mission_dir)
-    if previous is None or len(previous.lanes) != 1 or is_repo_root_lane(previous.lanes[0]):
-        raise RecoveryError("Recovery requires exactly one legacy code lane")
-    if previous.mission_id != meta.get("mission_id") or previous.mission_slug != owned.mission_slug or previous.target_branch != meta.get("target_branch"):
-        raise RecoveryError("Legacy manifest identity or target differs from the owned mission")
-    if previous.planning_commit_sha != proof.planning_commit_sha:
-        raise RecoveryError("Original planning pin differs from the proof; refresh is forbidden")
-    run_git(owned.owned_root, "merge-base", "--is-ancestor", proof.planning_commit_sha, proof.owner_head, timeout=15)
+def _production_ownership(owned: OwnedCheckout, previous: LanesManifest) -> tuple[dict[str, OwnershipManifest], dict[str, list[str]], list[str]]:
+    if len(previous.lanes) != 1:
+        raise RecoveryError("Original lane membership is invalid")
     frontmatters = {}
     for path in wp_task_files(owned.mission_dir / "tasks"):
         read_regular(path)
@@ -81,6 +68,28 @@ def _plan(owned: OwnedCheckout, proof: RecoveryProof, proof_bytes: bytes) -> _Pl
     for path in scope:
         if Path(path).is_absolute() or ".." in Path(path).parts or path.startswith(":"):
             raise RecoveryError("Production scope is ambiguous or escapes the owner")
+    return ownership, dependencies, scope
+
+
+def _plan(owned: OwnedCheckout, proof: RecoveryEvidence, proof_bytes: bytes) -> _Plan:
+    require_unstaged_index(owned)
+    if _git(owned, "rev-parse", "HEAD") != proof.owner_head or _git(owned, "branch", "--show-current") != owned.write_branch:
+        raise RecoveryError("Owner HEAD or branch differs from the pinned proof")
+    if status_entries(owned.owned_root, untracked="all", timeout=15):
+        raise RecoveryError("Owned checkout must be clean before explicit conversion")
+    meta = load_meta_fail_closed(owned.mission_dir)
+    if not meta or meta.get("coordination_branch") or meta.get("topology") != "single_branch":
+        raise RecoveryError("Recovery requires a single_branch mission without coordination")
+    previous = read_lanes_json(owned.mission_dir)
+    if previous is None or len(previous.lanes) != 1 or is_repo_root_lane(previous.lanes[0]):
+        raise RecoveryError("Recovery requires exactly one legacy code lane")
+    if previous.mission_id != meta.get("mission_id") or previous.mission_slug != owned.mission_slug or previous.target_branch != meta.get("target_branch"):
+        raise RecoveryError("Legacy manifest identity or target differs from the owned mission")
+    if previous.planning_commit_sha != proof.planning_commit_sha:
+        raise RecoveryError("Original planning pin differs from the proof; refresh is forbidden")
+    run_git(owned.owned_root, "merge-base", "--is-ancestor", proof.planning_commit_sha, proof.owner_head, timeout=15)
+    ownership, dependencies, scope = _production_ownership(owned, previous)
+    membership = previous.lanes[0].wp_ids
     preserved = verify_history(owned, proof, previous.mission_branch, scope)
     # Parse current state too; conversion never rewrites or repairs event envelopes.
     read_events_from_text(owned.mission_dir, read_regular(owned.mission_dir / "status.events.jsonl").decode("utf-8"))
@@ -116,7 +125,7 @@ def _plan(owned: OwnedCheckout, proof: RecoveryProof, proof_bytes: bytes) -> _Pl
     return _Plan(previous, replacement_bytes, (json.dumps(receipt, indent=2, sort_keys=True) + "\n").encode(), snapshot)
 
 
-def _already_converted(owned: OwnedCheckout, proof: RecoveryProof, proof_bytes: bytes) -> bool:
+def _already_converted(owned: OwnedCheckout, proof: RecoveryEvidence, proof_bytes: bytes) -> bool:
     manifest = read_lanes_json(owned.mission_dir)
     if manifest is None or len(manifest.lanes) != 1 or not is_repo_root_lane(manifest.lanes[0]):
         return False
@@ -132,7 +141,18 @@ def _already_converted(owned: OwnedCheckout, proof: RecoveryProof, proof_bytes: 
         raise RecoveryError("Converted manifest differs from the qualifying receipt")
     if status_entries(owned.owned_root, untracked="all", timeout=15):
         raise RecoveryError("Owned checkout is dirty")
-    verify_history(owned, proof, str(receipt["original_lanes"]["mission_branch"]), receipt["scope"])
+    scope = receipt["scope"]
+    if isinstance(proof, CustodyRecoveryProof):
+        current_snapshot = _snapshot(owned)
+        converted_path = (owned.mission_dir / "lanes.json").relative_to(owned.owned_root).as_posix()
+        if {key: value for key, value in current_snapshot.items() if key != converted_path} != {
+            key: value for key, value in receipt["snapshot"].items() if key != converted_path
+        }:
+            raise RecoveryError("Frozen authored or event inputs differ from the qualifying receipt")
+        _ownership, _dependencies, current_scope = _production_ownership(owned, LanesManifest.from_dict(receipt["original_lanes"]))
+        if current_scope != scope:
+            raise RecoveryError("Current authored ownership differs from the qualifying receipt")
+    verify_history(owned, proof, str(receipt["original_lanes"]["mission_branch"]), scope)
     if manifest.planning_commit_sha != proof.planning_commit_sha:
         raise RecoveryError("Original planning pin changed after conversion")
     return True
@@ -173,5 +193,11 @@ def recover_owned_single_branch(owned: OwnedCheckout, proof_path: Path, *, dry_r
             raise RecoveryError("Owner HEAD or branch changed before apply")
         transaction.write_artifact(owned.mission_dir / "lanes.json", plan.replacement)
         transaction.write_artifact(owned.mission_dir / _RECEIPT, plan.receipt)
+        if isinstance(proof, CustodyRecoveryProof):
+            expected = json.loads(plan.receipt)
+            if read_regular(proof_path, limit=65_536) != proof_bytes:
+                raise RecoveryError("Proof changed before conversion commit")
+            if verify_history(owned, proof, plan.previous.mission_branch, expected["scope"]) != expected["preserved"]:
+                raise RecoveryError("Custody or source changed before conversion commit")
         receipt = transaction.commit("Recover legacy owned lane as explicit single branch")
     return {"success": True, "result": "converted", "commit_sha": receipt.commit_sha, "receipt": str(owned.mission_dir / _RECEIPT)}

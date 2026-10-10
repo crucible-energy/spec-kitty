@@ -25,7 +25,7 @@ from specify_cli.status import read_events_from_text
 from specify_cli.lanes.models import LanesManifest
 from specify_cli.lanes.branch_naming import parse_mission_slug_from_branch
 
-__all__ = ["RecoveryError", "RecoveryProof", "digest", "load_proof", "read_regular", "verify_history"]
+__all__ = ["RecoveryError", "RecoveryEvidence", "digest", "load_proof", "read_closed_object", "read_regular", "verify_history"]
 
 Sha = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{40}$")]
 
@@ -48,10 +48,7 @@ class ArchivedStatus(_ClosedModel):
     path: str
 
 
-class RecoveryProof(_ClosedModel):
-    """All three bases are explicit; absent or additional inputs refuse."""
-
-    schema_version: Literal[1]
+class _PinnedProof(_ClosedModel):
     owner_head: Sha
     planning_commit_sha: Sha
     historical_base: Sha
@@ -60,7 +57,27 @@ class RecoveryProof(_ClosedModel):
     claim_refs: dict[str, Sha]
 
 
-def load_proof(content: bytes) -> RecoveryProof:
+class RecoveryProof(_PinnedProof):
+    """Original strict zero-source-work contract."""
+
+    schema_version: Literal[1]
+
+
+class _CustodyReference(_ClosedModel):
+    path: Annotated[str, StringConstraints(min_length=1, max_length=4096)]
+    sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+
+
+class CustodyRecoveryProof(_PinnedProof):
+    schema_version: Literal[2]
+    source_disposition: Literal["preserved_unapplied"]
+    custody: _CustodyReference
+
+
+RecoveryEvidence = RecoveryProof | CustodyRecoveryProof
+
+
+def read_closed_object(content: bytes) -> dict[str, object]:
     """Reject duplicate keys at every depth before closed typed validation.
 
     The repository's metadata JSON reader permits duplicates, and its legacy
@@ -83,8 +100,18 @@ def load_proof(content: bytes) -> RecoveryProof:
         data = json.loads(content, object_pairs_hook=pairs, parse_constant=nonfinite)
         if not isinstance(data, dict) or type(data.get("schema_version")) is not int:
             raise RecoveryError("Invalid proof object")
-        return RecoveryProof.model_validate(data)
+        return data
     except (ValueError, ValidationError, UnicodeDecodeError, RecursionError):
+        raise RecoveryError("Invalid closed recovery proof") from None
+
+
+def load_proof(content: bytes) -> RecoveryEvidence:
+    try:
+        data = read_closed_object(content)
+        if data["schema_version"] == 1:
+            return RecoveryProof.model_validate(data)
+        return CustodyRecoveryProof.model_validate(data)
+    except (ValueError, ValidationError):
         raise RecoveryError("Invalid closed recovery proof") from None
 
 
@@ -93,7 +120,7 @@ def digest(data: bytes) -> str:
     return sha256_digest(data)
 
 
-def read_regular(path: Path, *, limit: int = 8_388_608) -> bytes:
+def read_regular(path: Path, *, limit: int = 8_388_608, executable: bool | None = None) -> bytes:
     """Read bounded regular bytes through held, non-following directory descriptors.
 
     Platforms lacking descriptor-relative no-follow reads refuse. Caller-approved
@@ -114,6 +141,8 @@ def read_regular(path: Path, *, limit: int = 8_388_608) -> bytes:
             before = os.fstat(handle.fileno())
             if not stat.S_ISREG(before.st_mode) or before.st_size > limit:
                 raise RecoveryError("Evidence must be a bounded regular file")
+            if executable is not None and bool(before.st_mode & stat.S_IXUSR) != executable:
+                raise RecoveryError("Current source mode differs from the pinned tree")
             content = handle.read(limit + 1)
             after = os.fstat(handle.fileno())
             named = os.stat(path.name, dir_fd=directory, follow_symlinks=False)
@@ -166,7 +195,7 @@ def _verify_processes(owned: OwnedCheckout, content: bytes) -> None:
                 raise RecoveryError(f"Historical process {pid} is active or ambiguous")
 
 
-def _historical_refs(owned: OwnedCheckout, proof: RecoveryProof, branch: str) -> dict[str, str]:
+def _historical_refs(owned: OwnedCheckout, proof: RecoveryEvidence, branch: str) -> dict[str, str]:
     """Ref census is complete, so omissions never read as absent work."""
     if not branch:
         raise RecoveryError("Historical branch is required")
@@ -202,7 +231,7 @@ def _verify_workspaces(owned: OwnedCheckout, branch: str, tips: set[str]) -> Non
                 raise RecoveryError("Detached workspace ancestry is unknown")
 
 
-def verify_history(owned: OwnedCheckout, proof: RecoveryProof, branch: str, scope: list[str]) -> dict[str, str]:
+def verify_history(owned: OwnedCheckout, proof: RecoveryEvidence, branch: str, scope: list[str]) -> dict[str, str]:
     """Verify complete refs, zero source commits, archives and inactive workspaces."""
     if not scope:
         raise RecoveryError("Production scope is required")
@@ -221,11 +250,17 @@ def verify_history(owned: OwnedCheckout, proof: RecoveryProof, branch: str, scop
     if any(Path(path).is_absolute() or ".." in Path(path).parts or path.startswith(":") for path in scope):
         raise RecoveryError("Historical production scope is ambiguous")
     _text(owned, "rev-parse", "--verify", proof.historical_base + "^{commit}")
-    for ref, tip in actual.items():
-        run_git(owned.owned_root, "merge-base", "--is-ancestor", proof.historical_base, tip, timeout=15)
-        run_git(owned.owned_root, "diff", "--quiet", proof.historical_base, tip, "--", *scope, timeout=15)
-        if _text(owned, "log", "--full-history", "--max-count=1", "--format=%H", proof.historical_base + ".." + tip, "--", *scope):
-            raise RecoveryError(f"Historical ref {ref} contains post-base source commits")
+    source_custody: dict[str, str] = {}
+    if isinstance(proof, CustodyRecoveryProof):
+        from specify_cli.migration.owned_source_custody import verify_source_custody
+
+        source_custody = verify_source_custody(owned, proof, actual, scope, current_lanes.mission_id)
+    else:
+        for ref, tip in actual.items():
+            run_git(owned.owned_root, "merge-base", "--is-ancestor", proof.historical_base, tip, timeout=15)
+            run_git(owned.owned_root, "diff", "--quiet", proof.historical_base, tip, "--", *scope, timeout=15)
+            if _text(owned, "log", "--full-history", "--max-count=1", "--format=%H", proof.historical_base + ".." + tip, "--", *scope):
+                raise RecoveryError(f"Historical ref {ref} contains post-base source commits")
     _verify_workspaces(owned, branch, set(actual.values()))
     relative = Path(archive.path)
     if relative.is_absolute() or ".." in relative.parts:
@@ -251,4 +286,5 @@ def verify_history(owned: OwnedCheckout, proof: RecoveryProof, branch: str, scop
         "archived_status_sha256": digest(content),
         "claim_refs_sha256": digest(claims.encode()),
         "historical_refs_sha256": digest(json.dumps(actual, sort_keys=True).encode()),
+        **source_custody,
     }

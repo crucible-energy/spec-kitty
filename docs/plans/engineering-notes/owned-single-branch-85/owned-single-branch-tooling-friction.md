@@ -77,3 +77,54 @@ caller. Four named regressions reproduced these failures locally in 72.69 second
 The repair routes identity and recognition through the canonical naming authority
 and keeps the parser record internal. No dead-symbol allowlist or gate suppression
 was added. Qualification of this source increment is retained in external receipts.
+
+Observed: the strict merged command refused the actual consumer's two scoped
+historical projection changes. A prior lane-only audit was insufficient for the
+expanded ownership union. The complete parent-edge diagnostic retained both the
+modifying commit and the merge edge, plus base/tip/current raw variants, without
+claiming admission. The successor's real root CLI acceptance reproduced one
+schema-2 refusal in 58.26 seconds; its schema-1 zero-effect control also refused.
+The initial RED log remains external. Test fixture hashing uses the canonical
+content-digest helper rather than a parallel algorithm or lint suppression.
+
+Observed: the canonical digest helper returns a provenance prefix, while the
+closed custody wire format requires bare hexadecimal SHA-256 values. A root CLI
+diagnostic retained exception classes and source locations only; it exposed the
+format mismatch without logging source bytes or malformed proof values. The
+fixture and wire comparison now remove that formatting prefix explicitly.
+
+Observed: a repeat control changed authored WP ownership while the retained lane
+kept the same scope union. Scope equality alone did not bind the original authored
+inputs. The verifier now also checks the qualifying receipt's frozen input hashes,
+excluding the intentionally converted manifest. The first matrix retained 32
+passes and this one failure. Subsequent focused boundaries passed 18 tests in
+167.77 seconds, including unchanged executable modes, hidden/reverted history,
+unsupported changes and same-input repeat/finalization. Final gates remain pending.
+
+Observed: hosted checks on https://github.com/crucible-energy/spec-kitty/pull/87
+found a Git-custody serialization shape covered by the existing DRG writer gate.
+The domain correction retains validated wire evidence; it does not register a
+fake graph writer, rename the edge collection or change the gate.
+
+Observed: the disposable archive helper's module-local autouse fixture did not
+apply when the helper was imported by the upgrade corpus tests. A complete
+synthetic non-main workflow event reproduced the shared helper's remote-identity
+failure. Its local context must be scoped inside the helper itself, with outer
+hosted metadata restored and the literal-CI unreachable-base control retained.
+No credentials or real source text are included in the reproduction packet.
+
+Observed: Git 2.55 runs detached automatic maintenance after fixture commits.
+The notice cases exposed object-directory and maintenance-lock snapshot changes.
+The actual three-case synchronous per-invocation control passed with complete
+snapshots and captured maintenance exits. No snapshot path was excluded and no
+global or repository-user setting changed.
+
+Measured: the integrated full-corpus case passed alone in 238.53 seconds
+(236.57-second call). Complete canonical qualification then finished with
+1,210 passes, two skips and one 240-second timeout during a healthy control audit.
+The whole-case sequence includes eleven independent public CLI scans. No scan,
+attack or healthy control can be removed without weakening its preservation and
+anti-hollowing evidence. A narrowly documented 600-second test marker retains the
+180-second per-CLI bounds and default 240-second authority. The earlier blanket
+600-second diagnostic was deliberately stopped and joined after 36.789 seconds;
+it never counted as canonical acceptance. All raw diagnostics remain external.

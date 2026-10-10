@@ -36,3 +36,40 @@ updated: '2026-10-09'
    historical ref recognition compares canonical parsed mission identities rather
    than composing a lane prefix. The workspace parser's record type is private;
    its public parser remains the production entry point.
+10. The separately scoped successor adds explicit schema-2 `preserved_unapplied`
+    custody. Schema 1 keeps its zero-work contract. Typed checkout authority still
+    governs conversion; canonical WP review remains implementation approval.
+11. Closed custody binds the entire reconstructed scope, retained refs, all
+    post-base commits and every parent edge, including empty edges, merges and
+    intermediate reverts. It preserves before/after/tip/current raw blob versions.
+    Unknown paths, commits, blobs or caller approval/generation flags refuse.
+12. Initial custody supports only regular modifications with unchanged `100644`
+    or `100755` modes. Presence changes, mode transitions, renames, copies and
+    nonregular entries refuse. External evidence is bounded and read without
+    following symlinks; apply and idempotency must requalify that evidence.
+13. Current scoped working bytes and executable modes are checked against the
+    pinned owner tree, including files hidden from ordinary status by index hints.
+    Repeat allows the conversion's metadata commit while requiring owner ancestry,
+    no later scoped source commits and unchanged frozen authored/event/meta inputs.
+14. A closed manifest uses bare hexadecimal SHA-256 values. The canonical exact
+    byte digest helper's provenance prefix is removed only for this wire format;
+    historical receipt digests retain their existing representation.
+15. Custody equality uses the original strict-validated wire collections rather
+    than reserializing their typed models. Parent edges are Git evidence, not a
+    DRG document; preserving their exact field shape and list order avoids a
+    second serialization policy or normalization boundary.
+16. The imported archive-preservation helper uses a temporary monkeypatch context
+    for its disposable Git repository. It clears only hosted PR metadata, retains
+    literal `CI` failure behavior and restores both metadata and repository root
+    on exit. The real hosted PR resolver remains fail closed, including before
+    and after the local helper call.
+17. Local qualification joins automatic Git maintenance through per-invocation
+    `maintenance.autoDetach=false`. The actual notice cases preserve their whole
+    filesystem snapshots, including Git object storage and maintenance locks.
+    This controls disposable setup work without altering global or user settings.
+18. The integrated historical corpus sequence retains eleven full public CLI
+    audits, complete membership, raw preservation and every attack/control pair.
+    Its measured serial call took 236.57 seconds; the complete two-worker run
+    reached the canonical 240-second test limit in a healthy control. Only this
+    test receives a finite 600-second marker under the documented pytest policy.
+    Each CLI call remains bounded at 180 seconds; the default remains 240 seconds.

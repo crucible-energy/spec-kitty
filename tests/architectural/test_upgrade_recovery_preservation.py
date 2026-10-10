@@ -167,9 +167,62 @@ def test_protected_gitlink_remains_rejected(archive_repo: Path, root: str, at_ro
 
 
 def run_gate(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(gate, "REPO_ROOT", repo)
-    gate.test_archive_baseline_is_non_empty()
-    gate.test_no_preexisting_archived_file_was_modified()
+    """Check a disposable history without borrowing the host's PR authority."""
+    with monkeypatch.context() as fixture_context:
+        clear_hosted_pr_context(fixture_context)
+        fixture_context.setattr(gate, "REPO_ROOT", repo)
+        gate.test_archive_baseline_is_non_empty()
+        gate.test_no_preexisting_archived_file_was_modified()
+
+
+@pytest.mark.parametrize("corrupt", [False, True])
+def test_shared_gate_declares_local_fixture_and_restores_hosted_context(archive_repo: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, corrupt: bool) -> None:
+    """Imported helpers must not apply a real workflow event to a fake repo."""
+    head = git(archive_repo, "rev-parse", "HEAD").decode().strip()
+    event_path = tmp_path / "hosted-event.json"
+    event_path.write_text(
+        json.dumps(
+            {
+                "number": 87,
+                "repository": {"full_name": "crucible-energy/spec-kitty"},
+                "pull_request": {
+                    "number": 87,
+                    "base": {"ref": "patch-base", "sha": head, "repo": {"full_name": "crucible-energy/spec-kitty"}},
+                    "head": {"sha": head},
+                },
+            }
+        )
+    )
+    hosted = {
+        "CI": "true",
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REPOSITORY": "crucible-energy/spec-kitty",
+        "GITHUB_BASE_REF": "patch-base",
+        "GITHUB_REF": "refs/pull/87/head",
+        "GITHUB_SHA": head,
+        "GITHUB_EVENT_PATH": str(event_path),
+    }
+    for key, value in hosted.items():
+        monkeypatch.setenv(key, value)
+    outer_root = tmp_path / "outer-hosted-context"
+    outer_root.mkdir()
+    git(outer_root, "init", "--initial-branch=main")
+    monkeypatch.setattr(gate, "REPO_ROOT", outer_root)
+    original_root = gate.REPO_ROOT
+    with pytest.raises(pytest.fail.Exception, match="target repository has no configured remote"):
+        gate._non_main_pr_base_rev()
+    if corrupt:
+        path = archive_repo / "kitty-ops/lifecycle.jsonl"
+        path.write_bytes(b"X" + path.read_bytes()[1:])
+        with pytest.raises(AssertionError, match="historical byte prefix"):
+            run_gate(archive_repo, monkeypatch)
+    else:
+        run_gate(archive_repo, monkeypatch)
+    assert {key: os.environ.get(key) for key in hosted} == hosted
+    assert original_root == gate.REPO_ROOT
+    with pytest.raises(pytest.fail.Exception, match="target repository has no configured remote"):
+        gate._non_main_pr_base_rev()
 
 
 @pytest.mark.parametrize(
