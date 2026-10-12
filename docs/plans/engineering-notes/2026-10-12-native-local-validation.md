@@ -37,3 +37,7 @@ No native gate, installed hook, equivalence proof, Linux/Windows execution, rele
 ## Validation And Delivery
 
 The actual planning phase completed successfully. Focused terminology validation and the existing read-only decision verifier passed; document structure, spelling, audience/description, referenced-path, and whitespace checks passed after correcting one audience path. Independent review remains pending. Retain results externally so recording checks does not mutate the validated candidate. The next action is to deliver this planning increment and obtain the existing owner's independent review before actual work-package implementation. Codespell 2.4.3 was already cached and executed without installing or changing dependencies. Failed diagnostics remain retained separately from corrected passes.
+
+## Independent Plan Review
+
+The workflow owner reviewed exact revision `69288c99a383be790c9320e7c715162c4679de82`. Two findings are addressed in the plan and contract: original process-group disposal cannot establish cleanup of session/group escapes or hard peak resource limits, and reuse needs a positive matching-input check with explicit relevant closure and paired drift invalidation. Unknown containment stays unqualified; unknown closure executes fresh. Native changed-statement coverage requires genuine instrumentation and denominator evidence, not Python-only XML. Revised planning validation and fixed-revision review remain pending.
