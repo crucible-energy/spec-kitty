@@ -170,7 +170,7 @@ _EXPECTED_FLAGS: dict[str, frozenset[str]] = {
     "finalize-tasks": frozenset({"--mission", "--json", "--validate-only", "--target-branch", "--owned-checkout", "--refresh-planning-commit", "--allow-orphaned"}),
     "repair": frozenset({"--mission"}),
     # 2026-08-04 landing fold (PR #3175, fold-golden-flag-surface): re-pinned
-    # to add the six negative-invariant-mode flags (--negative-invariant,
+    # to add the negative-invariant-mode flags (--negative-invariant,
     # --description, --verification-command, --scope, --execute/--no-execute)
     # introduced by commit e5612270693b129f81368d89debd8abcd689736e ("feat:
     # post-consolidation write surface + deterministic authoring finish",
@@ -180,6 +180,8 @@ _EXPECTED_FLAGS: dict[str, frozenset[str]] = {
     # simply never joined them. `missing: []` on the prior pin proved nothing
     # was removed, only added — this re-pin closes that gap per DIRECTIVE_044
     # (contract amended in place, not treated as append-only drift).
+    # Issue 59 (2026-10-10): join the intentionally supported, documented
+    # owned-checkout option to this exact contract; preserve symmetric equality.
     "acceptance-verdict": frozenset(
         {
             "--mission",
@@ -195,6 +197,7 @@ _EXPECTED_FLAGS: dict[str, frozenset[str]] = {
             "--scope",
             "--execute",
             "--no-execute",
+            "--owned-checkout",
         }
     ),
 }
@@ -277,19 +280,21 @@ def test_command_exposes_exact_flag_surface(command: str) -> None:
     )
 
 
-def test_acceptance_verdict_flag_removal_reported_as_missing() -> None:
+@pytest.mark.parametrize("removed_flag", ["--negative-invariant", "--owned-checkout"])
+def test_acceptance_verdict_flag_removal_reported_as_missing(removed_flag: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """T010 regression: a flag dropped from the ACTUAL surface reds as `missing`.
 
     `test_command_exposes_exact_flag_surface` asserts full set equality
     (``actual == expected``), which is symmetric by construction: it can
     catch a flag being silently ADDED (``extra``) as well as one being
     silently REMOVED (``missing``). This is proven concretely for
-    ``acceptance-verdict`` (rather than assumed) by simulating one of its six
-    re-pinned flags disappearing from the command's real, introspected
+    ``acceptance-verdict`` (rather than assumed) by simulating a contracted
+    flag, including the owned-checkout option, disappearing from its introspected
     surface — without touching ``acceptance_verdict.py`` itself, which stays
     untouched per T010's binding constraint — and confirming the same
-    ``expected - actual`` computation the parametrized test relies on
-    reports exactly that flag under ``missing``, not silently.
+    actual parametrized checker raises and reports that exact flag under
+    ``missing``. Copied set arithmetic alone would not detect a future
+    weakening of the checker itself.
     """
     expected = set(_EXPECTED_FLAGS["acceptance-verdict"])
     actual = _command_flag_tokens("acceptance-verdict")
@@ -299,20 +304,24 @@ def test_acceptance_verdict_flag_removal_reported_as_missing() -> None:
     # vacuous (a real drift would already be masking the injected one).
     assert actual == expected
 
-    simulated_flag_dropped_from_command = "--negative-invariant"
-    simulated_actual = actual - {simulated_flag_dropped_from_command}
+    simulated_actual = actual - {removed_flag}
 
     missing = expected - simulated_actual
     extra = simulated_actual - expected
-    assert missing == {simulated_flag_dropped_from_command}, (
-        f"removing a contracted flag from the command's actual surface must surface it under `missing`; got missing={sorted(missing)}"
-    )
+    assert missing == {removed_flag}, f"removing a contracted flag from the command's actual surface must surface it under `missing`; got missing={sorted(missing)}"
     assert not extra, f"unexpected extra reported: {sorted(extra)}"
-    # The exact top-level assertion the real, parametrized test performs
-    # (`actual == expected`) must itself go red under the simulated removal —
-    # a half-contract that only compares "is actual a subset of expected"
-    # would NOT catch this.
-    assert simulated_actual != expected
+
+    def captured_flag_tokens(command: str) -> set[str]:
+        assert command == "acceptance-verdict"
+        return simulated_actual
+
+    monkeypatch.setattr(f"{__name__}._command_flag_tokens", captured_flag_tokens)
+    # Exercise the real gate: subset-only weakening must make this control red.
+    with pytest.raises(AssertionError) as error:
+        test_command_exposes_exact_flag_surface("acceptance-verdict")
+    diagnostic = str(error.value)
+    assert f"  missing: ['{removed_flag}']" in diagnostic
+    assert "  extra:   []" in diagnostic
 
 
 @pytest.mark.parametrize("command,name", sorted(_EXPECTED_POSITIONALS.items()))

@@ -2,7 +2,7 @@
 title: Agent Subcommand Reference
 description: Reference for spec-kitty agent subcommands. Learn how agent-only actions like config, status, decision, and retrospect behave in workflows.
 doc_status: active
-updated: '2026-10-04'
+updated: '2026-10-10'
 ---
 # Agent Subcommand Reference
 
@@ -76,6 +76,24 @@ unchanged.
 The `COORD_STATUS_SURFACE_DIVERGED` message contains both recovery commands with the real
 paths and the Mission slug filled in. Do not retry the write unchanged: it refuses again until the worktree log
 holds every committed event.
+
+## Acceptance verdicts in an owned checkout
+
+For a `single_branch` Mission held in a registered linked checkout, use
+`agent mission acceptance-verdict --mission <handle> --owned-checkout <path>`.
+The shared validator rejects repository-root, foreign, coordination and lane
+claims before checks or writes. When invoked inside a valid owning checkout,
+the flag may be omitted: flagless adoption rejects a same-selector primary copy
+with a different mission identity. An explicit claim selects the identity in the
+claimed checkout.
+
+Both criterion and negative-invariant modes resolve one owner matrix location
+and commit through the existing locked writer. Invariant checks inspect the
+owner checkout; repeated identical criterion records leave bytes and HEAD
+unchanged. Owned JSON includes `stale_repository_root_copy` (null when absent);
+human output warns when a stale primary copy exists. Unowned coordinated and
+flat calls retain their existing routing. Recording a verdict does not establish
+acceptance or release readiness by itself.
 
 <!-- BEGIN GENERATED -->
 # Agent Subcommand Reference
@@ -173,6 +191,14 @@ _Commands for AI agents to execute spec-kitty mission actions programmatically_
 │                                                      registering (FR-008;    │
 │                                                      default: on)            │
 │                                                      [default: execute]      │
+│    --owned-checkout                            PATH  Run against an owned    │
+│                                                      checkout: a linked      │
+│                                                      checkout that owns this │
+│                                                      mission. Refuses the    │
+│                                                      repository root         │
+│                                                      checkout, lane          │
+│                                                      worktrees and           │
+│                                                      coordination worktrees. │
 │    --json                                            Output JSON format      │
 │    --help                  -h                        Show this message and   │
 │                                                      exit.                   │
@@ -856,6 +882,14 @@ _Mission lifecycle commands for AI agents_
 │                                                      registering (FR-008;    │
 │                                                      default: on)            │
 │                                                      [default: execute]      │
+│    --owned-checkout                            PATH  Run against an owned    │
+│                                                      checkout: a linked      │
+│                                                      checkout that owns this │
+│                                                      mission. Refuses the    │
+│                                                      repository root         │
+│                                                      checkout, lane          │
+│                                                      worktrees and           │
+│                                                      coordination worktrees. │
 │    --json                                            Output JSON format      │
 │    --help                  -h                        Show this message and   │
 │                                                      exit.                   │

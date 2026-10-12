@@ -48,6 +48,8 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+
+from mission_runtime import OwnedCheckout
 from rich.markup import escape
 
 from specify_cli.acceptance.matrix import (
@@ -60,6 +62,13 @@ from specify_cli.acceptance.matrix import (
     read_acceptance_matrix,
 )
 from specify_cli.agent_tasks_ports import RealRender
+from specify_cli.cli.commands._owned_checkout import (
+    OwnedCheckoutOption,
+    echo_stale_copy_warning,
+    resolve_owned_or_refuse,
+    stale_copy_payload,
+    success_false_envelope,
+)
 from specify_cli.cli.console import console
 from specify_cli.cli.selector_resolution import resolve_mission_handle
 from specify_cli.coordination.commit_outcome import (
@@ -97,7 +106,7 @@ def _emit_error(message: str, *, json_output: bool) -> None:
         console.print(f"{_RED_ERROR_PREFIX}{escape(message)}")
 
 
-def _matrix_write_dir(repo_root: Path, mission_slug: str) -> Path:
+def _matrix_write_dir(repo_root: Path, mission_slug: str, *, owned: OwnedCheckout | None = None) -> Path:
     """Resolve the matrix's WRITE surface via the ONE kind-aware write-location authority.
 
     WP10 (T057, binding correction -- lost-update fix): this command's two
@@ -122,7 +131,7 @@ def _matrix_write_dir(repo_root: Path, mission_slug: str) -> Path:
     """
     from mission_runtime import MissionArtifactKind, placement_seam
 
-    location = placement_seam(repo_root, mission_slug).write_dir(MissionArtifactKind.ACCEPTANCE_MATRIX)
+    location = placement_seam(repo_root, mission_slug, owned=owned).write_dir(MissionArtifactKind.ACCEPTANCE_MATRIX)
     return location.path
 
 
@@ -360,6 +369,7 @@ def _run_criterion_mode(
     actor: str | None,
     evidence: str | None,
     json_output: bool,
+    owned: OwnedCheckout | None = None,
 ) -> None:
     index_by_id = {c.criterion_id: idx for idx, c in enumerate(matrix.criteria)}
     if criterion not in index_by_id:
@@ -390,6 +400,7 @@ def _run_criterion_mode(
         matrix_dir=matrix_dir,
         splice=lambda fresh: _splice_criterion_update(fresh, criterion, updated),
         commit=True,
+        owned=owned,
         entry_id=criterion,
         message=f"chore(acceptance): record {criterion}={result} for {mission_slug}",
     )
@@ -406,6 +417,7 @@ def _run_criterion_mode(
         "destination_surface": write_result.destination_surface,
         "commit_hash": write_result.commit_hash,
         **commit_outcome_payload(write_result),
+        **(stale_copy_payload(owned) if owned is not None else {}),
     }
     if json_output:
         _emit_json(payload)
@@ -430,6 +442,7 @@ def _run_negative_invariant_mode(
     scope: str | None,
     execute: bool,
     json_output: bool,
+    owned: OwnedCheckout | None = None,
 ) -> None:
     """FR-007 register + FR-008 execute, in one deterministic invocation."""
     _register_negative_invariant(
@@ -454,7 +467,7 @@ def _run_negative_invariant_mode(
         # judged row is used below — every sibling result the check happens
         # to (re-)compute here is discarded in favour of the fresh re-read
         # (FR-001: a verdict write changes only the row it owns).
-        matrix.negative_invariants = enforce_negative_invariants(repo_root, matrix.negative_invariants)
+        matrix.negative_invariants = enforce_negative_invariants(owned.owned_root if owned is not None else repo_root, matrix.negative_invariants)
 
     judged = next(ni for ni in matrix.negative_invariants if ni.invariant_id == invariant_id)
 
@@ -464,6 +477,7 @@ def _run_negative_invariant_mode(
         matrix_dir=matrix_dir,
         splice=lambda fresh: _replace_or_append_negative_invariant(fresh, judged),
         commit=True,
+        owned=owned,
         entry_id=invariant_id,
         message=f"chore(acceptance): register negative invariant {invariant_id} for {mission_slug}",
     )
@@ -480,6 +494,7 @@ def _run_negative_invariant_mode(
         "destination_surface": write_result.destination_surface,
         "commit_hash": write_result.commit_hash,
         **commit_outcome_payload(write_result),
+        **(stale_copy_payload(owned) if owned is not None else {}),
     }
     if json_output:
         _emit_json(payload)
@@ -541,6 +556,7 @@ def acceptance_verdict(
             help="Run the invariant's verification immediately after registering (FR-008; default: on)",
         ),
     ] = True,
+    owned_checkout: OwnedCheckoutOption = None,
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON format")] = False,
 ) -> None:
     """Record an acceptance-criterion verdict, or register/execute a negative
@@ -561,10 +577,26 @@ def acceptance_verdict(
         _emit_error(str(exc), json_output=json_output)
         raise typer.Exit(1) from None
 
-    resolved = resolve_mission_handle(mission, repo_root, json_mode=json_output)
-    mission_slug = resolved.mission_slug
+    from specify_cli.core.owned_mission import LIFECYCLE_OWNED_TOPOLOGIES
 
-    matrix_dir = _matrix_write_dir(repo_root, mission_slug)
+    owned = resolve_owned_or_refuse(
+        repo_root,
+        owned_checkout,
+        mission,
+        cwd=Path.cwd().resolve(),
+        allowed_topologies=LIFECYCLE_OWNED_TOPOLOGIES,
+        json_output=json_output,
+        envelope=success_false_envelope,
+    )
+    if owned is not None:
+        repo_root = owned.repository_root
+        mission_slug = owned.mission_slug
+        if not json_output:
+            echo_stale_copy_warning(owned)
+    else:
+        mission_slug = resolve_mission_handle(mission, repo_root, json_mode=json_output).mission_slug
+
+    matrix_dir = _matrix_write_dir(repo_root, mission_slug, owned=owned)
     matrix = read_acceptance_matrix(matrix_dir)
     if matrix is None:
         _emit_error(
@@ -588,6 +620,7 @@ def acceptance_verdict(
                 scope=scope,
                 execute=execute,
                 json_output=json_output,
+                owned=owned,
             )
             return
 
@@ -603,6 +636,7 @@ def acceptance_verdict(
             actor=actor,
             evidence=evidence,
             json_output=json_output,
+            owned=owned,
         )
     except FeatureStatusLockTimeoutError as exc:
         # #4858 (C-012/FR-015): fail CLOSED on a lock-acquisition timeout —

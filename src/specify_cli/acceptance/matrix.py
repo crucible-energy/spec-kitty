@@ -569,6 +569,7 @@ def locked_reread_splice_and_write(
     entry_id: str | None = None,
     message: str | None = None,
     timeout: float | None = None,
+    owned: OwnedCheckout | None = None,
 ) -> tuple[AcceptanceMatrix, WriteSeamResult | Path]:
     """The ONE locked read-modify-write critical section for the acceptance matrix.
 
@@ -583,6 +584,9 @@ def locked_reread_splice_and_write(
     as both the re-read base and the write target (C-004): the lock key is
     ``matrix_dir.name`` -- never re-derived inside this function or after the
     lock is released.
+
+    ``owned`` carries the caller's already validated checkout fact unchanged
+    into the committing writer. This seam does not mint or reinterpret it.
 
     Under :func:`specify_cli.status.feature_status_lock` (NFR-002's bounded
     ``timeout`` -- read at CALL TIME via the ``timeout`` parameter, never
@@ -630,6 +634,7 @@ def locked_reread_splice_and_write(
                 fresh_matrix,
                 entry_id=entry_id,
                 message=message,
+                owned=owned,
             )
         else:
             write_result = write_acceptance_matrix(matrix_dir, fresh_matrix)
