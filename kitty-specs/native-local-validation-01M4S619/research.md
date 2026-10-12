@@ -21,3 +21,9 @@ Decision: Bind executable, launcher, and source alongside staged tree, specifica
 ## Dependencies And Review
 
 No package installation, upgrade, or new registry dependency is chosen here. Reuse frozen existing dependencies and the installed Zig 0.16 toolchain after identity verification. If implementation discovers a dependency change, apply the owning supply-chain procedure and record adversarial findings before readiness. Independent plan review is requested from the existing workflow owner; no unperformed squad pass is claimed. Platform, budget, and publication proof remain pending implementation.
+
+## Independent Plan Review Disposition
+
+Accepted: the existing Darwin helper qualifies original-group disposal and sampled usage, not session escape containment or hard peak RSS. The plan and contract now state that boundary and require real changed-group/session escape controls with refusal or explicit missing qualification; no unowned process signaling or unrelated infrastructure is introduced.
+
+Changed: evidence reuse now includes a positive matching-input per-check control and paired candidate, dependency, tool, specification, and environment invalidation. Every check needs a proved relevant input closure; otherwise it executes fresh. A former global-candidate receipt cannot qualify a new staged tree. Native coverage still requires actual native instrumentation and denominator evidence; Python-only XML is insufficient.

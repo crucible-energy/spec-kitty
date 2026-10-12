@@ -60,6 +60,18 @@ Reuse the reviewed Temet `tools/zig/owned_process_group.zig` from revision `7d99
 
 The versioned specification declares finite wall, cleanup, output, process, and memory budgets for each check. Retain every produced byte up to the declared execution quota in private raw logs; excerpts have a separate display limit. A quota breach terminates the owned run, retains produced evidence, and refuses explicitly. No truncation may yield a passing receipt. Retention and cleanup policies remove only terminal, owned resources; incomplete cleanup remains a failure with a recoverable path.
 
+### Supervision Qualification Boundary
+
+The imported Darwin helper observes and disposes members of its original process group. Its `group_disposed` result does not prove containment or cleanup of descendants that change process group or create another session. Its process and resident-memory maxima are samples, not hard peak limits; short-lived excess between observations can remain unobserved. Preserve these exact meanings in receipts and UI. Do not convert sampled usage into a hard resource-enforcement claim.
+
+Add real changed-group and `setsid` escape controls alongside ordinary descendants. Qualify each supervised command and platform against the required ownership contract. An unsupported containment/supervision boundary refuses acceptance or remains explicitly unqualified; group disposal alone cannot satisfy the all-owned-children terminal requirement. If stronger ownership support is needed, extend a bounded owning backend with identity-safe controls, without signaling unrelated processes or introducing a separate VM or service merely for this gate. Missing ownership proof is a qualification gap to address, not a passing outcome.
+
+### Relevant Input Closure And Positive Reuse
+
+Each check declares its relevant input closure: candidate files and modes, transitive first-party imports/configuration, base-dependent inputs, executable/launcher/source and specification, toolchain, locked and observed dependencies, relevant environment, platform, and command/budgets. An unproved closure selects fresh execution conservatively. A receipt for an old global candidate cannot qualify a new staged tree. Assemble the current receipt from current bindings and only individually reusable check evidence whose complete relevant closure matches and whose policy permits reuse.
+
+Prove positive matching-input reuse on the same fixture, paired with candidate, dependency, tool, specification, and environment drift invalidation. Observe actual check execution or suppression and its effect, rather than labeling a receipt lookup as saved work. Recheck complete current-candidate bindings before acceptance, including when selected check evidence was reused. No token, time, or cost savings are claimed without comparable measured evidence.
+
 ## Project Structure
 
 Planned new surfaces: `tools/validation/gates.json`, `tools/zig/local_validation.zig`, focused candidate/selection/receipt/process modules under `tools/zig/`, a thin launcher under `scripts/validation/`, integration fixtures under `tests/local_validation/`, and a documented pre-commit integration preserving existing hook customizations. Reuse `scripts/git-hooks/pre-commit-task-workflow.sh` guards where applicable. Existing consumers in `scripts/ci/`, `tests/ci/`, and `tests/architectural/` migrate to the local authority. Exact ownership paths are finalized by actual tasks before implementation.
@@ -102,7 +114,7 @@ Mission artifacts: this plan, `research.md`, `data-model.md`, `contracts/local-v
 
 ## Validation And Rollout
 
-Commit a real failing acceptance increment first. On shared fixtures, prove both accepted passing commits and rejected failing commits, partial staging in both directions, native tooling drift, candidate/base drift, malformed and missing tools, selection equivalence, linked worktrees, path handling, concurrency, cancellation, descendant cleanup, quota breach, and evidence reuse refusal. Run required affected architecture, completion, docs, format, type, and coverage gates. Retain immutable external candidate receipts; recording a pass must not modify the candidate.
+Commit a real failing acceptance increment first. On shared fixtures, prove both accepted passing commits and rejected failing commits, partial staging in both directions, native tooling drift, candidate/base drift, malformed and missing tools, selection equivalence, linked worktrees, path handling, concurrency, cancellation, descendant cleanup, quota breach, changed-group and session escape, positive matching-input per-check reuse, and drift invalidation. Run required affected architecture, completion, docs, format, type, and coverage gates. Retain immutable external candidate receipts; recording a pass must not modify the candidate.
 
 Hosted retirement is the final implementation concern: independently review selection and actual validator behavior, qualify required platform/full/release modes, retain explicit packaging and documentation publication, refresh actual branch protection/rulesets, and reconcile governing guidance. A missing platform or publication credential is a named blocker for that qualification, not a reason to claim equivalence. Default-main integration and Temet adoption follow the owning review workflow and remain distinct from compatible-line delivery.
 

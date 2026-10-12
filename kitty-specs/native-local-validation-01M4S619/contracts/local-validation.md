@@ -11,3 +11,7 @@ Read paths as bytes through NUL-delimited Git interfaces. Pass commands as argv 
 Explicit publication modes require matching release qualification and configured credentials without exposing credentials. Missing prerequisites refuse that action. Commit mode cannot publish. Missing required Linux or Windows results do not become passing Darwin qualification.
 
 Raw logs retain produced diagnostics up to the check's execution quota. Display excerpts have a separate limit. Crossing either execution quota or time/process/memory budget refuses, joins owned children, and retains produced evidence. Evidence without a matching final binding or cleanup disposition is unusable for acceptance.
+
+Supervision receipts distinguish original-group disposal, observed descendants, and platform-qualified containment. Darwin process/RSS samples are labeled sampled observations. A detached or changed-group descendant control must refuse or remain explicitly unqualified unless the owning backend proves the required terminal ownership; `group_disposed` alone is insufficient. No unowned process may be signaled.
+
+Reuse has a positive path: a completed check with a proved matching relevant input closure and permitted policy can supply that check's evidence. Pair this with candidate/dependency/tool/specification/environment drift controls. Unproved closure runs fresh. Reuse never accepts an old global-candidate receipt as current-candidate proof, and current complete bindings are rechecked before acceptance.
