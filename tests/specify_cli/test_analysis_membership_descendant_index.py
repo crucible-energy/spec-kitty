@@ -1,9 +1,14 @@
 """Membership descendant authority remains exact without rescanning per query."""
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Set
 from pathlib import Path
+from typing import TypeVar
 
 from specify_cli.analysis_inputs import _SourceMembership
+
+
+T = TypeVar("T")
+S = TypeVar("S")
 
 
 def test_descendants_preserve_head_index_and_path_boundaries(tmp_path: Path) -> None:
@@ -28,13 +33,13 @@ def test_descendants_preserve_head_index_and_path_boundaries(tmp_path: Path) -> 
 def test_repeated_authority_queries_do_not_rescan_membership(tmp_path: Path) -> None:
     observations = {"visits": 0}
 
-    class ObservedMembership(frozenset[Path]):
-        def __iter__(self) -> Iterator[Path]:
+    class ObservedMembership(frozenset[T]):
+        def __iter__(self) -> Iterator[T]:
             for path in super().__iter__():
                 observations["visits"] += 1
                 yield path
 
-        def __or__(self, other: frozenset[Path] | set[Path]) -> frozenset[Path]:
+        def __or__(self, other: Set[S], /) -> frozenset[T | S]:
             return ObservedMembership(super().__or__(other))
 
     root = tmp_path / "repo"

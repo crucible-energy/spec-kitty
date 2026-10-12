@@ -14,6 +14,7 @@ import os
 import hashlib
 import stat
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 from typing import Any
 
@@ -45,8 +46,17 @@ class _SourceMembership:
     def ignored_selection(self, path: Path) -> bool:
         return any(path == ignored or path.is_relative_to(ignored) for ignored in self.selection_policy)
 
+    @cached_property
+    def _descendants_by_parent(self) -> dict[Path, frozenset[Path]]:
+        """Index this observation once, including HEAD-owned index deletions."""
+        descendants: dict[Path, set[Path]] = {}
+        for tracked in self.head | set(self.index):
+            for parent in tracked.parents:
+                descendants.setdefault(parent, set()).add(tracked)
+        return {parent: frozenset(paths) for parent, paths in descendants.items()}
+
     def descendants(self, path: Path) -> frozenset[Path]:
-        return frozenset(tracked for tracked in self.head | set(self.index) if tracked != path and tracked.is_relative_to(path))
+        return self._descendants_by_parent.get(path, frozenset())
 
     def snapshot(self, root: Path, paths: set[Path]) -> str:
         from specify_cli.analysis_report import _sha256_text
@@ -287,7 +297,8 @@ def _entry(path: Path, root: Path, feature_dir: Path) -> dict[str, str | None]:
             raise MaterialInputError(f"Invalid WP definition: {path.name}") from exc
         static = {key: value for key, value in metadata.items() if key not in MUTABLE_FIELDS}
         return {"path": relative, "sha256": _sha256_text(json.dumps(static, sort_keys=True, default=str) + "\n" + body)}
-    return _artifact_hash_entry(path, root)
+    entry: dict[str, str | None] = _artifact_hash_entry(path, root)
+    return entry
 
 
 def _source_paths(charter: dict[str, Any], root: Path) -> list[Path]:
