@@ -132,9 +132,12 @@ def _lane(depends_on_lanes: tuple[str, ...] = ()) -> ExecutionLane:
 
 
 def test_seam_is_sole_parent_computer() -> None:
+    from specify_cli.lanes.worktree_allocator import plan_lane_allocation
+
     source = inspect.getsource(allocate_lane_worktree)
 
-    assert "resolve_lane_base_or_refuse(" in source
+    assert "plan_lane_allocation(" in source
+    assert "resolve_lane_base_or_refuse(" in inspect.getsource(plan_lane_allocation)
     assert "_guard_base_honorable(" not in source
     assert "_resolve_lane_parent(" not in source
     assert "coordination_branch if" not in source

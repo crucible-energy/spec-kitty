@@ -552,6 +552,7 @@ def list_ready(
 # their decorators; the latter two stay here for #5532.
 _COMMAND_TABLE: tuple[tuple[str, Callable[..., None]], ...] = (
     ("resolve-workspace", wp_lifecycle.resolve_workspace),
+    ("preflight-implementation", wp_lifecycle.preflight_implementation),
     ("start-implementation", wp_lifecycle.start_implementation),
     ("start-review", wp_lifecycle.start_review),
     ("transition", wp_lifecycle.transition),

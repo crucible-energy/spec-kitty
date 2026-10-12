@@ -118,7 +118,9 @@ from kernel.clock import now_utc_iso
 # index still stages a committed path; a refinement of ``SAFE_COMMIT_RECOVERY_FAILED``, which
 # keeps meaning the commit may not have landed). New ``error_code`` values on existing verbs,
 # so a minor bump; no field is removed or renamed.
-CONTRACT_VERSION = "1.14.0"
+# 1.15.0: read-only normal LANES preflight-implementation; allocation also refuses
+# occupied lanes and workspaces with mismatched repository or branch identity.
+CONTRACT_VERSION = "1.15.0"
 MIN_PROVIDER_VERSION = "0.1.0"
 
 # Banned flags: enforced by parse_and_validate_policy() below (a policy whose

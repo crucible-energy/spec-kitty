@@ -959,6 +959,67 @@ def _backfill_context_if_missing(
     persist_lane_context(repo_root, context)
 
 
+@dataclass(frozen=True)
+class LaneAllocationPlan:
+    """Read-only allocation decision; never a reservation or merge verdict."""
+
+    lane: ExecutionLane
+    workspace_path: Path
+    branch: str
+    decision: LaneBaseDecision
+    coordination_branch: str | None
+    target_tip: str | None
+
+
+def plan_lane_allocation(
+    repo_root: Path,
+    mission_slug: str,
+    wp_id: str,
+    lanes_manifest: LanesManifest,
+    base: str | None = None,
+) -> LaneAllocationPlan:
+    """Resolve the same prerequisites and route used immediately by allocation.
+
+    Reads only: no hooks, branches, contexts, worktrees, or claims are written.
+    Reconciliation and post-materialization ancestry remain execution gates.
+    """
+    from specify_cli.lanes.admission import ensure_lane_unoccupied, ensure_lane_workspace_identity
+
+    topology = _stored_topology_for_fail_closed_guard(repo_root, mission_slug)
+    if topology is not None:
+        assert_topology_matches_manifest(topology, has_code_lanes=has_code_lanes(lanes_manifest), mission_slug=mission_slug)
+    lane = lanes_manifest.lane_for_wp(wp_id)
+    if lane is None:
+        raise LaneNotFoundError(f"{wp_id} is not assigned to any execution lane in lanes.json")
+    workspace, branch = predict_lane_worktree(repo_root, mission_slug, lane.lane_id)
+    ensure_lane_unoccupied(repo_root, mission_slug, wp_id, lane)
+    if workspace.exists():
+        coordination = None
+        route = LaneAllocationRoute.REUSE
+    else:
+        coordination = _read_coordination_branch(repo_root, mission_slug)
+        if _branch_exists(repo_root, branch):
+            route = LaneAllocationRoute.CRASH_RECOVERY
+        else:
+            _refuse_if_lane_destroyed(repo_root, mission_slug, wp_id, lane.lane_id, branch, lanes_manifest.target_branch)
+            route = LaneAllocationRoute.FRESH_COORD if coordination is not None else LaneAllocationRoute.FRESH_LEGACY
+    decision = resolve_lane_base_or_refuse(
+        base=base,
+        route=route,
+        coordination_branch=coordination,
+        mission_branch=lanes_manifest.mission_branch,
+        wp_id=wp_id,
+        lane=lane,
+        planning_sha=lanes_manifest.planning_commit_sha,
+        repo_root=repo_root,
+        branch=branch,
+    )
+    if route is LaneAllocationRoute.REUSE:
+        ensure_lane_workspace_identity(repo_root, workspace, branch)
+        _validate_worktree_clean(workspace, lane.lane_id)
+    return LaneAllocationPlan(lane, workspace, branch, decision, coordination, capture_branch_tip(repo_root, lanes_manifest.target_branch))
+
+
 def allocate_lane_worktree(
     repo_root: Path,
     mission_slug: str,
@@ -1023,45 +1084,12 @@ def allocate_lane_worktree(
             git mutation (#5100 IC-02 / WP05 T022): no worktree, no branch,
             no directory is created.
     """
-    # #5100 IC-02 / WP05 (T022): the fail-closed writer chokepoint promised
-    # by ``mission_runtime.assert_topology_matches_manifest``'s own
-    # docstring. Checked FIRST, before ``lane_for_wp`` or any git mutation
-    # below, so an unmigrated single_branch mission whose ``lanes.json``
-    # still carries a code lane (a hand-written or pre-#5100 manifest) can
-    # never reach ``git worktree add``. A mission with no ``meta.json`` at
-    # all (see :func:`_stored_topology_for_fail_closed_guard`) has no stored
-    # topology to violate, so the guard is skipped rather than enforced
-    # against a manufactured default.
-    _guard_topology = _stored_topology_for_fail_closed_guard(repo_root, mission_slug)
-    if _guard_topology is not None:
-        assert_topology_matches_manifest(
-            _guard_topology,
-            has_code_lanes=has_code_lanes(lanes_manifest),
-            mission_slug=mission_slug,
-        )
-
-    lane = lanes_manifest.lane_for_wp(wp_id)
-    if lane is None:
-        raise LaneNotFoundError(f"{wp_id} is not assigned to any execution lane in lanes.json")
-
-    # C-006 (#4827/WP03): capture the TARGET-BRANCH tip ONCE, for every
-    # _merge_recorded_planning_commit call below to classify the recorded pin
-    # against -- NEVER a lane worktree's own HEAD (that is a different
-    # question, the pre-existing "is this lane already merged?" no-op gate;
-    # see classify_recorded_pin's own C-006 docstring note and #2993). Reuses
-    # the canonical `capture_branch_tip` (returns `None` on failure, never the
-    # "unknown" sentinel `implement_support._rev_parse` uses for frontmatter
-    # display) so an unresolvable target branch degrades the classifier to
-    # `INDETERMINATE` -- the pre-#4827 behaviour -- rather than misclassifying.
-    target_tip = capture_branch_tip(repo_root, lanes_manifest.target_branch)
-
-    # Placement (path + branch) comes from the single predict seam — the write
-    # authority and the read-only mirrors must never diverge on this decision.
-    # Raises ValueError for the canonical planning (repo-root) lane -- before
-    # any git mutation, and before the recorder install below (a repo-root
-    # lane, and a caller testing against a non-git path, must never pay for
-    # or fail on a hooks-dir probe that is meaningless for it).
-    worktree_path, branch = predict_lane_worktree(repo_root, mission_slug, lane.lane_id)
+    # Recompute immediately before effects; a prior public preflight grants no claim.
+    plan = plan_lane_allocation(repo_root, mission_slug, wp_id, lanes_manifest, base)
+    lane = plan.lane
+    worktree_path, branch = plan.workspace_path, plan.branch
+    target_tip = plan.target_tip
+    decision = plan.decision
 
     # #5115/WP07 (FR-018/FR-024): install the lane-tip recorder hooks here --
     # the SINGLE choke point every CODE-lane route (FRESH/REUSE/CRASH_
@@ -1076,18 +1104,7 @@ def allocate_lane_worktree(
 
     install_lane_tip_recorder(repo_root)
 
-    if worktree_path.exists():
-        # FL1 (D3): an existing lane worktree cannot be re-parented onto a
-        # newly-supplied base — the seam refuses BEFORE reuse side effects.
-        resolve_lane_base_or_refuse(
-            base=base,
-            route=LaneAllocationRoute.REUSE,
-            coordination_branch=None,
-            mission_branch=lanes_manifest.mission_branch,
-            wp_id=wp_id,
-        )
-        # Reuse existing lane worktree — validate it is clean first.
-        _validate_worktree_clean(worktree_path, lane.lane_id)
+    if decision.route is LaneAllocationRoute.REUSE:
         # FR-009 (#2993) reuse-path self-heal: a lane created before this fix
         # (or before a later finalize-tasks re-run recorded a newer SHA) picks
         # up the recorded planning commit here. Idempotent no-op once merged.
@@ -1120,7 +1137,7 @@ def allocate_lane_worktree(
     # #2514 (WP04): hoisted above the crash-recovery branch below so BOTH the
     # recovery path and the fresh-create path see the same two values without
     # recomputing them twice — see ``_register_sparse_checkout_if_coord``.
-    coordination_branch = _read_coordination_branch(repo_root, mission_slug)
+    coordination_branch = plan.coordination_branch
     # Route through the authoritative resolver (WP03 / FR-009, F-1). The
     # former raising ``mid8`` + try/except is replaced by resolve_mid8's
     # decline-to-``""`` contract; ``or None`` preserves the prior ``None``
@@ -1133,16 +1150,7 @@ def allocate_lane_worktree(
     # would fail with "branch already exists").  Prune stale worktree registry
     # entries first so git does not reject the re-attachment on the grounds
     # that the branch is "already checked out" in the now-gone worktree.
-    if _branch_exists(repo_root, branch):
-        # FL2 (D3): a branch that already exists (worktree dir gone) cannot
-        # be re-parented by re-attaching — the seam refuses BEFORE recovery.
-        resolve_lane_base_or_refuse(
-            base=base,
-            route=LaneAllocationRoute.CRASH_RECOVERY,
-            coordination_branch=coordination_branch,
-            mission_branch=lanes_manifest.mission_branch,
-            wp_id=wp_id,
-        )
+    if decision.route is LaneAllocationRoute.CRASH_RECOVERY:
         subprocess.run(
             ["git", "worktree", "prune"],
             cwd=str(repo_root),
@@ -1171,35 +1179,8 @@ def allocate_lane_worktree(
         _backfill_context_if_missing(repo_root, mission_slug, wp_id, lane, worktree_path, branch, lanes_manifest)
         return worktree_path, branch
 
-    # #4889 (P0) fail-closed pre-flight: neither the branch nor the worktree
-    # exists at this point (the REUSE / CRASH_RECOVERY gates above already
-    # returned otherwise). Before falling through to a FRESH route, refuse to
-    # silently re-cut an empty lane over a WP whose prior committed work is
-    # still non-terminal and unreachable from the target branch.
-    _refuse_if_lane_destroyed(
-        repo_root,
-        mission_slug,
-        wp_id,
-        lane.lane_id,
-        branch,
-        lanes_manifest.target_branch,
-    )
-
-    # Fresh routes resolve their parent through the single seam before either
-    # creation helper runs. Detached-base and dependency refusals therefore
-    # leave no half-created lane, and no route computes a parent ref inline.
-    if coordination_branch is not None:
-        decision = resolve_lane_base_or_refuse(
-            base=base,
-            route=LaneAllocationRoute.FRESH_COORD,
-            coordination_branch=coordination_branch,
-            mission_branch=lanes_manifest.mission_branch,
-            wp_id=wp_id,
-            lane=lane,
-            planning_sha=lanes_manifest.planning_commit_sha,
-            repo_root=repo_root,
-            branch=branch,
-        )
+    if decision.route is LaneAllocationRoute.FRESH_COORD:
+        assert coordination_branch is not None
         _ensure_branch_exists(
             repo_root,
             coordination_branch,
@@ -1222,17 +1203,6 @@ def allocate_lane_worktree(
             short_id,
         )
     else:
-        decision = resolve_lane_base_or_refuse(
-            base=base,
-            route=LaneAllocationRoute.FRESH_LEGACY,
-            coordination_branch=None,
-            mission_branch=lanes_manifest.mission_branch,
-            wp_id=wp_id,
-            lane=lane,
-            planning_sha=lanes_manifest.planning_commit_sha,
-            repo_root=repo_root,
-            branch=branch,
-        )
         _ensure_mission_branch(
             repo_root,
             decision.topology_parent_ref,
@@ -1807,7 +1777,7 @@ def _git_status_entries(worktree_path: Path) -> tuple[StatusEntry, ...]:
             probe as a clean checkout).
     """
     try:
-        return status_entries(worktree_path, untracked=None)
+        return status_entries(worktree_path, untracked=None, optional_locks=False)
     except GitCommandError as exc:
         raise RuntimeError(f"git status failed in {worktree_path}: {exc.stderr.strip()}") from exc
 

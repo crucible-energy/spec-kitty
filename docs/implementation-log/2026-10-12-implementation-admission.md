@@ -20,11 +20,19 @@ Owner: Samuel Goff. Implementation: Python Pedro, Op `01M4S13FKF2S2SBKMYH74M6P5M
 
 ## Known Limitations
 
-- The public admission command and shared safety correction are not implemented yet. Acceptance tests are being run against the unchanged compatible base.
+- Implementation is present but not yet delivered or independently reviewed. A preflight is an observation, not a reservation; claim authorization, dependency readiness, reconciliation compatibility, and post-materialization ancestry remain execution gates.
 - No actual Temet lane allocation, LoRA training, model evaluation, or production serving is established by these host checks.
 
 ## Validation And Delivery
 
 Observed RED on the unchanged production base: the public start accepted a second WP while another WP in the same lane was `in_progress`, and accepted the predicted workspace on an unexpected branch. The additive preflight returned the existing structured `USAGE_ERROR`. All three desired assertions failed; there were no collection or fixture failures. The first run took 61.65 seconds. Formatting and lint pass for the acceptance file. Snapshots compare retained bytes directly; no charter hashing helper is reused for unrelated Git/file integrity.
 
-Pending: separate RED commit, implementation, focused tests, strict typing, formatting, relevant architecture checks, independent review, PR delivery, and immutable consumer qualification.
+The separate RED commit is `9a30ac6d5` and is pushed to the explicitly selected `origin` branch. The first implementation run exposed an incorrect status-kind identifier, which was corrected. The next focused run passed all selected admission, base, recovery, coordination, and structural-seam controls. Expanded controls then exposed an uncaught existing `DirtyWorktreeError` on the additive preflight; it was corrected by matching the actual allocator's typed refusal boundary. Failed diagnostics are retained separately from successful evidence.
+
+The safety correction reuses the existing lane-mate status reader in `checkout_occupancy.py`. It protects claimed, implementation, review, and blocked work regardless of actor, permits approved sequential reuse, and excludes the same WP for compatible resume. Cached Git topology is refreshed before identity validation. The shared cleanliness probe now uses Git's existing `optional_locks=False` contract so preflight does not refresh the index. The API contract, actual help-derived CLI reference, and public documentation describe the additive command and tightened refusal behavior.
+
+Pending final frozen-candidate checks, changed-line coverage, self-review, independent review, PR delivery, and immutable consumer qualification. Final check receipts live outside the candidate so recording outcomes does not change the validated tree.
+
+The broad gate exposed two intentional compatibility changes against the former warning-only implement contract. Updated controls preserve the advisory reader and review behavior, while implementation refuses other outstanding WPs, including identical actor strings. A separate public CLI RED captured VCS metadata changes before refusal and was committed as `d3ef4a605`. The shared planner now runs in the existing read-only claim preflight before planning and VCS writes.
+
+Normal implementation holds the existing checkout claim lock across preflight, allocation, and claim. Its owning-repository input anchors missing-lane locks in the verified repository without creating a husk; existing checkouts cannot select a foreign lock authority. The lock-order and same-WP contracts remain intact. Public competing-start and held-lock controls passed in the focused iteration; final receipts must bind the subsequent ownership hardening and frozen candidate.

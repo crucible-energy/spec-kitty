@@ -27,7 +27,14 @@ from typing import Any
 from kernel.git import GitPath
 from mission_runtime import MissionArtifactKind, MissionTopology, OwnedCheckout, is_single_branch, placement_seam, resolve_topology, single_branch_write_ref
 
-__all__ = ["SharedWorkspaceWriter", "dirty_paths", "in_progress_wps_in_write_checkout", "is_single_branch_repo_root_lane", "shared_workspace_writers"]
+__all__ = [
+    "SharedWorkspaceWriter",
+    "dirty_paths",
+    "in_progress_wps_in_write_checkout",
+    "is_single_branch_repo_root_lane",
+    "lane_workspace_claimants",
+    "shared_workspace_writers",
+]
 
 #: Lanes in which a WP counts as a writer of its workspace (advisory #5099 warning).
 _WRITER_LANES: frozenset[str] = frozenset({"in_progress", "in_review"})
@@ -271,7 +278,9 @@ def _writers_in_write_checkout(
     return occupied
 
 
-def _lane_mates_writing(repo_root: Path, mission_slug: str, wp_id: str, lane_wp_ids: Sequence[str]) -> list[SharedWorkspaceWriter]:
+def _lane_mates_writing(
+    repo_root: Path, mission_slug: str, wp_id: str, lane_wp_ids: Sequence[str], *, lanes: Collection[str] = _WRITER_LANES
+) -> list[SharedWorkspaceWriter]:
     """Other WPs of the same lane worktree that are ``in_progress`` / ``in_review``."""
     from specify_cli.status import read_events as _read_events
     from specify_cli.status import reduce as _reduce_events
@@ -284,10 +293,21 @@ def _lane_mates_writing(repo_root: Path, mission_slug: str, wp_id: str, lane_wp_
     for other in mates:
         state = snapshot.work_packages.get(other)
         lane = str(state.get("lane")) if state else ""
-        if lane in _WRITER_LANES:
+        if lane in lanes:
             actor = state.get("actor") if state else None
             writers.append(SharedWorkspaceWriter(mission_slug, other, lane, str(actor) if actor else None))
     return writers
+
+
+def lane_workspace_claimants(repo_root: Path, mission_slug: str, wp_id: str, lane_wp_ids: Sequence[str]) -> list[SharedWorkspaceWriter]:
+    """Outstanding other-WP claims in a normal lane, regardless of actor.
+
+    Reuses the canonical status reader behind the shared-workspace advisory.
+    Completed approval releases sequential reuse; a historical context pointer
+    alone does not hold the lane. Blocked work remains protected until explicitly
+    resolved or canceled, because its implementation may still need the workspace.
+    """
+    return _lane_mates_writing(repo_root, mission_slug, wp_id, lane_wp_ids, lanes=("claimed", "in_progress", "for_review", "in_review", "blocked"))
 
 
 def shared_workspace_writers(

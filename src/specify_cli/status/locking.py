@@ -347,11 +347,17 @@ _STATUS_LOCK_SUFFIX = ".status.lock"
 _CHECKOUT_DIGEST_LENGTH = 16
 
 
-def _checkout_claim_lock_path(write_checkout: Path) -> Path:
+def _checkout_claim_lock_path(write_checkout: Path, repo_root: Path | None = None) -> Path:
     identity = os.path.normcase(str(write_checkout.resolve()))
     digest = hashlib.sha1(identity.encode("utf-8"), usedforsecurity=False).hexdigest()[:_CHECKOUT_DIGEST_LENGTH]
     key = f"{_CHECKOUT_LOCK_PREFIX}{digest}{_CHECKOUT_LOCK_SUFFIX}"
-    return Path(_git_common_dir(write_checkout) / LOCK_DIRECTORY / f"{key}{_STATUS_LOCK_SUFFIX}")
+    if repo_root is None:
+        common = _git_common_dir(write_checkout)
+    else:
+        common = git_common_dir(repo_root)
+        if write_checkout.exists() and git_common_dir(write_checkout) != common:
+            raise ValueError("The supplied owning repository does not own this write checkout")
+    return Path(common / LOCK_DIRECTORY / f"{key}{_STATUS_LOCK_SUFFIX}")
 
 
 def _is_checkout_claim_lock_key(lock_key: str) -> bool:
@@ -364,16 +370,19 @@ def write_checkout_claim_lock(
     write_checkout: Path,
     *,
     timeout: float = CHECKOUT_CLAIM_LOCK_TIMEOUT_SECONDS,
+    repo_root: Path | None = None,
 ) -> Iterator[Path]:
-    """Serialize WP claims of one write checkout (the single_branch occupancy scan -> claim emit).
+    """Serialize WP claims of one write checkout through admission and claim emit.
 
     Keyed on the case-normalized resolved checkout root under the git common dir.
+    For a not-yet-created execution lane, supply its owning ``repo_root`` so the
+    same lock exists before and after creation, without materializing a husk.
     Lock order is fixed: **this lock first, then any Mission write lock**. Taking it
     while the calling thread already holds any other status lock (and not this
     checkout's lock) raises ``RuntimeError`` naming the held lock keys instead of
     risking a deadlock against a claimant that takes them in the right order.
     """
-    lock_path = _checkout_claim_lock_path(write_checkout)
+    lock_path = _checkout_claim_lock_path(write_checkout, repo_root)
     held = _get_thread_locks()
     foreign = sorted(key for key in held if not _is_checkout_claim_lock_key(key))
     if str(lock_path) not in held and foreign:
