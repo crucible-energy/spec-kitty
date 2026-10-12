@@ -1,7 +1,7 @@
 {
-  "event_count": 4,
-  "last_event_id": "01M4S7E4CMDT1AXJJM4MVQ0J1D",
-  "materialized_at": "2026-10-12T23:33:46.516228+00:00",
+  "event_count": 5,
+  "last_event_id": "01M4S7E52D5NQJ9SYT4Z8ZEPAT",
+  "materialized_at": "2026-10-12T23:33:47.213791+00:00",
   "mission_number": "",
   "mission_slug": "native-local-validation-01M4S619",
   "mission_type": "software-dev",
@@ -15,7 +15,7 @@
     "for_review": 0,
     "in_progress": 0,
     "in_review": 0,
-    "planned": 4
+    "planned": 5
   },
   "work_packages": {
     "WP01": {
@@ -45,6 +45,13 @@
       "lane": "planned",
       "last_event_id": "01M4S7E4CMDT1AXJJM4MVQ0J1D",
       "last_transition_at": "2026-10-12T23:33:46.516228+00:00"
+    },
+    "WP05": {
+      "actor": "finalize-tasks",
+      "force_count": 0,
+      "lane": "planned",
+      "last_event_id": "01M4S7E52D5NQJ9SYT4Z8ZEPAT",
+      "last_transition_at": "2026-10-12T23:33:47.213791+00:00"
     }
   }
 }
