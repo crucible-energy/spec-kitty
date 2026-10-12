@@ -299,3 +299,14 @@ def test_concurrent_public_starts_admit_only_one_wp(lane_repo: tuple[Path, Path,
     assert failures[0]["data"]["error_code"] == "LANE_OCCUPIED"
     states = reduce(read_events(mission)).work_packages
     assert sum(state["lane"] == "in_progress" for state in states.values()) == 1
+
+
+def test_requested_base_refusal_preserves_state_before_cli_planning(lane_repo: tuple[Path, Path, Path]) -> None:
+    from specify_cli import app as root_app
+
+    repo, _, _ = lane_repo
+    before = _snapshot(repo)
+    result = CliRunner().invoke(root_app, ["implement", "WP02", "--mission", SLUG, "--base", "trunk", "--json"], catch_exceptions=False)
+    assert result.exit_code == 1, result.stdout
+    assert "Cannot honor --base" in json.loads(result.stdout)["error"]
+    assert _snapshot(repo) == before
