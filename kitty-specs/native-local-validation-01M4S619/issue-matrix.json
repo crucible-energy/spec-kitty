@@ -1,0 +1,12 @@
+{
+  "mission_id": "01M4S61935GJQVDGMGV37HF1BB",
+  "issues": [
+    {
+      "number": 91,
+      "url": "https://github.com/crucible-energy/spec-kitty/issues/91",
+      "owner": "samuelgoff",
+      "scope": "Native local validation and qualified hosted QA retirement",
+      "status": "claimed"
+    }
+  ]
+}
