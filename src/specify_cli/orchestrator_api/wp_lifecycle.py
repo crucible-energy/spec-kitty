@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 import typer
 
 from specify_cli.core.contract_gate import validate_outbound_payload
+from specify_cli.core.errors import StructuredError
 from specify_cli.status import wp_state_for
 from specify_cli.status import CHECKOUT_CLAIM_LOCK_TIMEOUT_SECONDS, FeatureStatusLockTimeoutError
 from specify_cli.status import Lane
@@ -408,6 +409,72 @@ def _existing_workspace_for_stamp(cmd: str, main_repo_root: Path, mission: str, 
         _fail(cmd, "TRANSITION_REJECTED", str(exc), {**_common._mission_identity_payload(mission_dir), "wp_id": wp, "reason": str(exc)})
 
 
+def preflight_implementation(
+    mission: str = typer.Option(..., "--mission", help=_HELP_MISSION_SLUG),
+    wp: str = typer.Option(..., "--wp", help=_HELP_WP_ID),
+) -> None:
+    """Read normal LANES allocation prerequisites without allocating or claiming.
+
+    Example: preflight-implementation --mission <mission> --wp WP01.
+    A successful observation is not a reservation or proof of merge/claim success.
+    """
+    from specify_cli.lanes.worktree_allocator import DirtyWorktreeError, LaneNotFoundError, LaneAllocationRoute, plan_lane_allocation
+    from specify_cli.core.vcs.git import capture_branch_tip
+    from kernel.errors import GuardedReadError
+
+    cmd = "preflight-implementation"
+    repo_root = _common._get_main_repo_root()
+    mission_dir = _common._resolve_mission_dir_or_fail(cmd, repo_root, mission)
+    wp_path = _resolve_wp_file(_planning_read_dir(repo_root, mission) / "tasks", wp)
+    if wp_path is None:
+        _fail_wp_not_found(cmd, wp, mission)
+    from specify_cli.lanes.compute import is_repo_root_lane
+
+    try:
+        assignment = _lane_assignment_or_legacy(repo_root, mission, wp)
+        if isinstance(assignment, _StartWorkspace) or is_repo_root_lane(assignment[1]):
+            _fail(cmd, "UNSUPPORTED_CAPABILITY", "Implementation preflight currently supports normal execution lanes only.")
+        manifest, lane = assignment
+        plan = plan_lane_allocation(repo_root, mission, wp, manifest)
+    except (RuntimeError, ValueError, FileNotFoundError, GuardedReadError, DirtyWorktreeError, LaneNotFoundError) as exc:
+        _fail(
+            cmd,
+            "LANE_ALLOCATION_FAILED",
+            str(exc),
+            {
+                **_common._mission_identity_payload(mission_dir),
+                "wp_id": wp,
+                "reason": str(exc),
+                **(exc.to_dict() if hasattr(exc, "to_dict") else {}),
+            },
+        )
+    data: dict[str, Any] = {
+        **_common._mission_identity_payload(mission_dir),
+        "wp_id": wp,
+        "workspace_path": str(plan.workspace_path),
+        "prompt_path": str(wp_path),
+        "lane_id": lane.lane_id,
+        "lane_branch": plan.branch,
+        "route": plan.decision.route.value,
+        "parent_ref": plan.decision.parent_ref,
+        "parent_commit": capture_branch_tip(repo_root, plan.decision.parent_ref),
+        "workspace_commit": capture_branch_tip(repo_root, plan.branch),
+        "target_commit": plan.target_tip,
+        "planning_commit": manifest.planning_commit_sha,
+        "allocation_performed": False,
+        "claim_performed": False,
+        "revalidation_required": True,
+        "remaining_checks": ["dependency readiness", "claim authorization", "post-materialization ancestry", "reconciliation compatibility"],
+        "reconciliation_candidates": {
+            "planning_commit": manifest.planning_commit_sha,
+            "dependency_lanes": list(lane.depends_on_lanes),
+        },
+        "workspace_exists": plan.decision.route is LaneAllocationRoute.REUSE,
+    }
+    validate_outbound_payload(data, "orchestrator_api")
+    _emit(make_envelope(command=cmd, success=True, data=data))
+
+
 def resolve_workspace(
     mission: str = typer.Option(..., "--mission", help=_HELP_MISSION_SLUG),
     wp: str = typer.Option(..., "--wp", help=_HELP_WP_ID),
@@ -447,11 +514,11 @@ def resolve_workspace(
 
 
 def _enter_checkout_claim_lock(stack: ExitStack, cmd: str, main_repo_root: Path, mission: str, mission_dir: Path, wp: str) -> None:
-    """Hold the write-checkout claim lock on *stack* when *wp* claims a single_branch repo-root lane (#5796, plan A7).
+    """Hold the existing checkout claim lock through admission and claim emission.
 
     Entered before the occupancy scan in :func:`_resolve_start_workspace` and kept until
-    *stack* closes, i.e. through the claim emit. Any other WP (lane worktree, legacy
-    Mission, non-single_branch Mission) takes nothing; a Mission whose lanes cannot be
+    *stack* closes, i.e. through the claim emit. Normal execution lanes use the same
+    primitive with their canonical predicted path. Legacy placement takes nothing; a Mission whose lanes cannot be
     read takes nothing here and fails later with its usual error envelope. A lock that
     stays held past the bound fails the command with the ``STATUS_LOCK_HELD`` envelope
     instead of a traceback. A lock-order violation is a programming error and propagates.
@@ -462,17 +529,25 @@ def _enter_checkout_claim_lock(stack: ExitStack, cmd: str, main_repo_root: Path,
 
     try:
         assignment = _lane_assignment_or_legacy(main_repo_root, mission, wp)
-        if isinstance(assignment, _StartWorkspace) or not is_single_branch_repo_root_lane(main_repo_root, mission, assignment[1]):
+        if isinstance(assignment, _StartWorkspace):
             return
+        if not is_single_branch_repo_root_lane(main_repo_root, mission, assignment[1]):
+            from specify_cli.lanes.admission import execution_lane_claim_lock
+
+            claim_lock = execution_lane_claim_lock(main_repo_root, mission, wp, timeout=CHECKOUT_CLAIM_LOCK_TIMEOUT_SECONDS)
+        else:
+            claim_lock = write_checkout_claim_lock(main_repo_root, timeout=CHECKOUT_CLAIM_LOCK_TIMEOUT_SECONDS)
     except (ValueError, FileNotFoundError, GuardedReadError) as exc:
         # Intentional fail-open: an unreadable Mission takes no checkout lock here and
         # fails later with its own envelope.
         logger.debug("no checkout claim lock for %s/%s: %s", mission, wp, exc)
         return
     try:
-        stack.enter_context(write_checkout_claim_lock(main_repo_root, timeout=CHECKOUT_CLAIM_LOCK_TIMEOUT_SECONDS))
+        stack.enter_context(claim_lock)
     except FeatureStatusLockTimeoutError as exc:
         _fail(cmd, "STATUS_LOCK_HELD", str(exc), {**_common._mission_identity_payload(mission_dir), "wp_id": wp, "lock_timeout_seconds": exc.timeout})
+    except StructuredError as exc:
+        _fail(cmd, "LANE_ALLOCATION_FAILED", str(exc), {**_common._mission_identity_payload(mission_dir), "wp_id": wp, **exc.to_dict()})
 
 
 def start_implementation(

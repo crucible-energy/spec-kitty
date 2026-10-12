@@ -117,3 +117,39 @@ def test_two_checkouts_do_not_exclude_each_other(checkout: Path, tmp_path: Path)
     subprocess.run(["git", "init", "-q", "-b", "main"], cwd=other, check=True, capture_output=True)
     with write_checkout_claim_lock(checkout) as first, write_checkout_claim_lock(other, timeout=0.2) as second:
         assert first != second
+
+
+def test_unmaterialized_lane_uses_owner_repository_without_creating_workspace(checkout: Path) -> None:
+    lane = checkout / ".worktrees" / "future-lane"
+    with write_checkout_claim_lock(lane, repo_root=checkout) as lock:
+        assert lock.parent == checkout / ".git" / "spec-kitty-locks"
+        assert not lane.exists()
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(checkout),
+            "-c",
+            "user.email=fixture@example.com",
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "--allow-empty",
+            "-qm",
+            "seed",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(["git", "-C", str(checkout), "worktree", "add", "-qb", "future-lane", str(lane)], check=True, capture_output=True)
+    with write_checkout_claim_lock(lane, repo_root=checkout) as repeated:
+        assert repeated == lock
+
+
+def test_existing_checkout_cannot_select_another_lock_repository(checkout: Path, tmp_path: Path) -> None:
+    other = tmp_path / "other"
+    subprocess.run(["git", "init", "-q", str(other)], check=True, capture_output=True)
+    with pytest.raises(ValueError, match="does not own"), write_checkout_claim_lock(checkout, repo_root=other):
+        pass

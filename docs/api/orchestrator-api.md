@@ -2,7 +2,7 @@
 title: Orchestrator API Reference
 description: Machine-contract API for external orchestration providers.
 doc_status: active
-updated: '2026-10-07'
+updated: '2026-10-12'
 related:
 - docs/api/event-envelope.md
 - docs/migrations/feature-flag-deprecation.md
@@ -30,7 +30,7 @@ It is intentionally stricter than the human-facing CLI:
 
 ## Contract Version
 
-- `CONTRACT_VERSION`: `1.14.0`
+- `CONTRACT_VERSION`: `1.15.0`
 - `MIN_PROVIDER_VERSION`: `0.1.0`
 - Startup probe: `spec-kitty orchestrator-api contract-version`
 - A `--provider-version` below `MIN_PROVIDER_VERSION`, or one that does not
@@ -205,6 +205,7 @@ Removed at the CLI boundary:
 | `mission-state` | no | Query mission state and WP lanes. |
 | `list-ready` | no | List WPs ready to start. |
 | `resolve-workspace` | no | Resolve a WP's existing lane workspace (contract >= 1.2.0). |
+| `preflight-implementation` | no | Inspect normal execution-lane allocation prerequisites (contract >= 1.15.0). |
 | `start-implementation` | yes | Atomically move a WP into implementation. |
 | `start-review` | yes | Claim active review for a WP. |
 | `transition` | yes | Emit one explicit lane transition. |
@@ -775,6 +776,48 @@ Important response fields:
 | `prompt_path` | WP markdown prompt file to feed to the implementation agent. |
 | `to_lane` | Expected to be `in_progress` on a fresh start. |
 | `no_op` | `true` when the same actor already owns the compatible state. |
+
+### Preflight implementation (read-only, contract >= 1.15.0)
+
+```bash
+spec-kitty orchestrator-api preflight-implementation \
+  --mission 077-mission-terminology-cleanup \
+  --wp WP12
+```
+
+The host computes the same normal LANES allocation plan used by actual start.
+It reports placement, allocation route, the proposed parent ref, observed pins,
+and reconciliation candidates. It does not allocate a worktree, install hooks,
+write context, or claim a WP. No `--policy` is required.
+
+An outstanding claim by another WP in the same lane refuses reuse with
+`LANE_ALLOCATION_FAILED` and `data.error_code: LANE_OCCUPIED`. Claimed,
+implementation, review, and blocked work stay protected until resolved through
+the lifecycle. Approval permits sequential reuse; an old context pointer alone
+does not reserve a lane. Same-WP resume remains possible.
+
+A predicted workspace on an unexpected branch, outside the expected Git
+repository, or without its own Git toplevel refuses with
+`data.error_code: LANE_WORKSPACE_MISMATCH`. Dirtiness, base, topology, and
+lost-work refusals use the allocator's existing checks. These same safety checks
+run before real allocation effects.
+
+Unreadable canonical status refuses with `data.error_code: LANE_STATUS_UNREADABLE`.
+The cleanliness probe disables optional Git locks, preserving the index while
+observing tracked and untracked changes.
+
+Success means the observed allocation prerequisites passed. It does not reserve
+the lane or establish claim authorization, dependency readiness, ancestry, or
+merge compatibility; `remaining_checks` names those execution gates, and
+`revalidation_required` is always true. Actual start recomputes the plan against
+current state. The initial command supports normal code lanes; repository-root
+and legacy placements return `UNSUPPORTED_CAPABILITY`.
+
+Actual normal-lane starts hold the existing checkout claim lock across their
+read-only preflight, allocation, and claim. Competing claims use the same
+canonical path and owning Git repository, including before a lane exists.
+An unresolved holder produces `STATUS_LOCK_HELD`; it grants no override.
+The internal implement path checks admission before planning and VCS writes.
 
 ### Resolve an existing workspace (read-only, contract >= 1.2.0)
 

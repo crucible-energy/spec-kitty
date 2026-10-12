@@ -389,9 +389,25 @@ def implement(
         console.print(tracker.render())
         raise typer.Exit(1) from exc
 
+    from specify_cli.lanes.admission import execution_lane_claim_lock
+
+    with execution_lane_claim_lock(ctx.repo_root, ctx.mission_slug, wp_id):
+        _implement_after_detect(ctx, wp_id, base, acknowledge_not_bulk_edit, actor, json_output, tracker)
+
+
+def _implement_after_detect(
+    ctx: implement_phases.ImplementContext,
+    wp_id: str,
+    base: str | None,
+    acknowledge_not_bulk_edit: bool,
+    actor: str | None,
+    json_output: bool,
+    tracker: StepTracker,
+) -> None:
+    """Run validation, allocation, and claim while normal lane admission is locked."""
     tracker.start("validate")
     try:
-        preflight = implement_phases.claim_preflight(ctx, wp_id)
+        preflight = implement_phases.claim_preflight(ctx, wp_id, base)
         implement_phases.commit_planning_artifacts(ctx, wp_id, preflight)
         implement_phases.run_bulk_edit_gate(ctx, wp_id, acknowledge_not_bulk_edit)
         implement_phases.build_operational_context(ctx, wp_id, actor)

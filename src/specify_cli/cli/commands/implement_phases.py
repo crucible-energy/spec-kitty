@@ -357,7 +357,7 @@ def detect_context(mission: str, wp_id: str, repo_root: Path, auto_commit: bool 
     return ImplementContext(repo_root, auto_commit, mission_slug, feature_dir, wp_file, declared_deps)
 
 
-def claim_preflight(ctx: ImplementContext, wp_id: str) -> ClaimPreflight:
+def claim_preflight(ctx: ImplementContext, wp_id: str, base: str | None = None) -> ClaimPreflight:
     """Target branch, protected-branch refusal, status and lanes surfaces, dependency gate."""
     repo_root, mission_slug, auto_commit, declared_deps = ctx.repo_root, ctx.mission_slug, ctx.auto_commit, ctx.declared_deps
     planning_branch = workspace_context.resolve_mission_target_branch(mission_slug, repo_root)
@@ -389,6 +389,16 @@ def claim_preflight(ctx: ImplementContext, wp_id: str) -> ClaimPreflight:
     # not-yet-ready dependencies BEFORE any workspace allocation.
     _claim_snapshot = reduce_status_events(read_events(_status_feature_dir))
     dependency_graph.ensure_wp_claim_preconditions(wp_id, declared_deps, _claim_snapshot.work_packages)
+    from specify_cli.lanes.compute import is_repo_root_lane
+    from specify_cli.lanes.persistence import read_lanes_json
+    from specify_cli.lanes.worktree_allocator import plan_lane_allocation
+
+    manifest = read_lanes_json(_lanes_feature_dir)
+    lane = manifest.lane_for_wp(wp_id) if manifest is not None else None
+    if manifest is not None and lane is not None and not is_repo_root_lane(lane):
+        workspace = resolve_workspace_for_wp(repo_root, mission_slug, wp_id, write_intent=True)
+        effective_base, _ = implement_support.resolve_effective_base(repo_root, base, workspace)
+        plan_lane_allocation(repo_root, mission_slug, wp_id, manifest, effective_base)
     return ClaimPreflight(planning_branch, _status_feature_dir, _lanes_feature_dir)
 
 

@@ -19,6 +19,7 @@ pytestmark = pytest.mark.architectural
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ALLOCATOR = _REPO_ROOT / "src" / "specify_cli" / "lanes" / "worktree_allocator.py"
 _SEAM = "resolve_lane_base_or_refuse"
+_PLAN = "plan_lane_allocation"
 _ROUTE_ENUM = "LaneAllocationRoute"
 _EXPECTED_ROUTES = frozenset(
     {"FRESH_COORD", "FRESH_LEGACY", "REUSE", "CRASH_RECOVERY"},
@@ -113,6 +114,18 @@ def _seam_derived_names(
         ):
             seam_decisions.update(target.id for target in assignment.targets if isinstance(target, ast.Name))
 
+    plans = {
+        target.id
+        for assignment in assignments
+        if isinstance(assignment.value, ast.Call) and _call_name(assignment.value) == _PLAN
+        for target in assignment.targets
+        if isinstance(target, ast.Name)
+    }
+    for assignment in assignments:
+        value = assignment.value
+        if isinstance(value, ast.Attribute) and value.attr == "decision" and isinstance(value.value, ast.Name) and value.value.id in plans:
+            seam_decisions.update(target.id for target in assignment.targets if isinstance(target, ast.Name))
+
     parent_ref_names: set[str] = set()
     for assignment in assignments:
         if _is_parent_ref_of_seam(assignment.value, seam_decisions):
@@ -187,6 +200,7 @@ def _route_coverage(tree: ast.Module) -> set[str]:
     """Collect route enum members passed to the seam."""
 
     routes: set[str] = set()
+    enclosing = _enclosing_functions(tree)
     for node in ast.walk(tree):
         if not (isinstance(node, ast.Call) and _is_seam_call(node)):
             continue
@@ -196,6 +210,17 @@ def _route_coverage(tree: ast.Module) -> set[str]:
             value = keyword.value
             if isinstance(value, ast.Attribute) and isinstance(value.value, ast.Name) and value.value.id == _ROUTE_ENUM:
                 routes.add(value.attr)
+            elif isinstance(value, ast.Name):
+                function = enclosing.get(id(node))
+                if function is None:
+                    continue
+                for assignment in ast.walk(function):
+                    if isinstance(assignment, ast.Assign) and any(isinstance(target, ast.Name) and target.id == value.id for target in assignment.targets):
+                        routes.update(
+                            member.attr
+                            for member in ast.walk(assignment.value)
+                            if isinstance(member, ast.Attribute) and isinstance(member.value, ast.Name) and member.value.id == _ROUTE_ENUM
+                        )
     return routes
 
 
@@ -277,6 +302,12 @@ def test_allocator_defines_the_anchored_symbols() -> None:
     tree = _parse(_ALLOCATOR)
     assert _defines_symbol(tree, _SEAM)
     assert _defines_symbol(tree, _ROUTE_ENUM)
+    plan = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == _PLAN)
+    decisions, _ = _seam_derived_names(plan)
+    returns = [
+        node for node in ast.walk(plan) if isinstance(node, ast.Return) and isinstance(node.value, ast.Call) and _call_name(node.value) == "LaneAllocationPlan"
+    ]
+    assert returns and all(any(isinstance(arg, ast.Name) and arg.id in decisions for arg in node.value.args) for node in returns)
     for creation_symbol in _CREATION_PARENT_ARG:
         assert _defines_symbol(tree, creation_symbol)
 

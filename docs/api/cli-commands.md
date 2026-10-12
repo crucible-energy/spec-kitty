@@ -4800,6 +4800,23 @@ _Machine-contract API for external orchestrators (JSON-first)_
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
+## spec-kitty orchestrator-api preflight-implementation
+
+```
+ Usage: spec-kitty orchestrator-api preflight-implementation [OPTIONS]
+
+ Read normal LANES allocation prerequisites without allocating or claiming.
+
+ Example: preflight-implementation --mission <mission> --wp WP01.
+ A successful observation is not a reservation or proof of merge/claim success.
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --mission          TEXT  Mission slug [required]                          │
+│ *  --wp               TEXT  Work package ID [required]                       │
+│    --help     -h            Show this message and exit.                      │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
 ## spec-kitty orchestrator-api resolve-workspace
 
 ```
