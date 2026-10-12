@@ -3,7 +3,8 @@
 ``agent action implement`` and ``agent action review`` name every OTHER actor that
 holds a WP ``in_progress`` / ``in_review`` in the same resolved workspace: the
 repository root checkout of a single_branch Mission (across Missions), or the
-lane worktree for lanes Missions. Advisory only: nothing is refused (C-004).
+lane worktree for lanes Missions. The reader and review warning remain advisory.
+Implementation admission separately refuses outstanding lane claims (issue 89).
 
 Neither command has a JSON mode (their output is the prompt text), so the warning
 is human output only; the structured entries are :class:`SharedWorkspaceWriter`.
@@ -247,29 +248,34 @@ def _lane_mate_mission(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, wp01_
     return mission, mate_actor
 
 
-def _run_action(verb: str, mission: str, agent: str) -> str:
+def _run_action(verb: str, mission: str, agent: str, *, expected_exit: int = 0) -> str:
     from typer.testing import CliRunner
 
     from specify_cli import app as root_app
 
     extra = ["--allow-sparse-checkout"] if verb == "implement" else []
     result = CliRunner().invoke(root_app, ["agent", "action", verb, "WP01", "--mission", mission, "--agent", agent, *extra])
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == expected_exit, result.output
     return str(result.output)
 
 
-def test_implement_command_warns_about_another_actor_on_its_lane_worktree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_implement_command_refuses_another_wp_before_metadata_changes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     mission, _ = _lane_mate_mission(tmp_path, monkeypatch, wp01_lane="planned", mate_lane="in_progress", mate_actor="alice")
 
-    out = _run_action("implement", mission, "bob")
+    repo = Path.cwd()
+    meta = repo / "kitty-specs" / mission / "meta.json"
+    before = meta.read_bytes()
+    out = _run_action("implement", mission, "bob", expected_exit=1)
 
-    assert f"Warning: {mission}/WP02 is in_progress by alice in this workspace; one writer per checkout." in out
+    assert "outstanding claims: WP02" in out
+    assert meta.read_bytes() == before
+    assert "Lane worktree ready" not in out
 
 
-def test_implement_command_stays_quiet_for_the_same_actor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_implement_command_refuses_other_wp_even_with_same_actor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     mission, _ = _lane_mate_mission(tmp_path, monkeypatch, wp01_lane="planned", mate_lane="in_progress", mate_actor="alice")
 
-    assert "one writer per checkout" not in _run_action("implement", mission, "alice")
+    assert "outstanding claims: WP02" in _run_action("implement", mission, "alice", expected_exit=1)
 
 
 def test_review_command_warns_about_another_actor_on_the_lane_worktree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
