@@ -1,3 +1,10 @@
+---
+title: Implementation Admission
+description: Owning host implementation log for read-only and safe lane admission.
+doc_status: active
+updated: '2026-10-12'
+---
+
 # Implementation Admission
 
 ## Objective And State
@@ -36,3 +43,7 @@ Pending final frozen-candidate checks, changed-line coverage, self-review, indep
 The broad gate exposed two intentional compatibility changes against the former warning-only implement contract. Updated controls preserve the advisory reader and review behavior, while implementation refuses other outstanding WPs, including identical actor strings. A separate public CLI RED captured VCS metadata changes before refusal and was committed as `d3ef4a605`. The shared planner now runs in the existing read-only claim preflight before planning and VCS writes.
 
 Normal implementation holds the existing checkout claim lock across preflight, allocation, and claim. Its owning-repository input anchors missing-lane locks in the verified repository without creating a husk; existing checkouts cannot select a foreign lock authority. The lock-order and same-WP contracts remain intact. Public competing-start and held-lock controls passed in the focused iteration; final receipts must bind the subsequent ownership hardening and frozen candidate.
+
+Remote integration checks exposed four candidate defects: direct imports bypassed the status facade, a now-formatted contract test retained its old formatting exclusion, completion data omitted the additive command, and this log lacked required frontmatter. The correction uses the existing facade, shrinks the stale exclusion, regenerates completion through the canonical command, and adds log metadata. No test invariant or validation threshold is weakened. Sam's explicit direction to replace hosted QA with local Zig tooling and a pre-commit hook is being grounded separately by the workflow owner; this admission increment does not introduce hosted enforcement or claim that replacement is implemented.
+
+The owning structural lint also requires dated engineering records under `docs/plans/`; this log was moved to that sanctioned home with its history preserved. The independent reviewer reproduced an explicit-base reuse refusal after metadata mutation. Its public CLI regression failed on changed metadata and Git status, and was separately committed before the correction. Early claim preflight now receives the requested base and delegates its resolution and refusal to the existing shared seams before planning and operational-context writes. Repository-root planning retains its existing ignored-base semantics.

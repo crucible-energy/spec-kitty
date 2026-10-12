@@ -1299,6 +1299,11 @@
      "hidden": false,
      "deprecated": false
     },
+    "preflight-implementation": {
+     "help": "Read normal LANES allocation prerequisites without allocating or claiming.\n\nExample: preflight-implementation --mission <mission> --wp WP01.\nA successful observation is not a reservation or proof of merge/claim success.",
+     "hidden": false,
+     "deprecated": false
+    },
     "start-implementation": {
      "help": "Composite transition: planned->claimed->in_progress (idempotent).",
      "hidden": false,

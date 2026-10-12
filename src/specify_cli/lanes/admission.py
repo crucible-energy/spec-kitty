@@ -15,7 +15,7 @@ from specify_cli.core.errors import StructuredError
 from specify_cli.core.git_ops import get_current_branch
 from specify_cli.lanes.checkout_occupancy import lane_workspace_claimants
 from specify_cli.lanes.models import ExecutionLane
-from specify_cli.status.locking import CHECKOUT_CLAIM_LOCK_TIMEOUT_SECONDS
+from specify_cli.status import CHECKOUT_CLAIM_LOCK_TIMEOUT_SECONDS
 
 
 class LaneOccupiedError(StructuredError):
@@ -38,7 +38,7 @@ class LaneStatusUnreadableError(StructuredError):
 
 def ensure_lane_unoccupied(repo_root: Path, mission_slug: str, wp_id: str, lane: ExecutionLane) -> None:
     """Refuse another outstanding claim in the same lane; allow same-WP resume."""
-    from specify_cli.status.store import StoreError
+    from specify_cli.status import StoreError
 
     try:
         occupied = lane_workspace_claimants(repo_root, mission_slug, wp_id, lane.wp_ids)

@@ -407,7 +407,7 @@ def _implement_after_detect(
     """Run validation, allocation, and claim while normal lane admission is locked."""
     tracker.start("validate")
     try:
-        preflight = implement_phases.claim_preflight(ctx, wp_id)
+        preflight = implement_phases.claim_preflight(ctx, wp_id, base)
         implement_phases.commit_planning_artifacts(ctx, wp_id, preflight)
         implement_phases.run_bulk_edit_gate(ctx, wp_id, acknowledge_not_bulk_edit)
         implement_phases.build_operational_context(ctx, wp_id, actor)

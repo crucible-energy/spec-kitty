@@ -1149,7 +1149,6 @@ exclude = [
     "tests/contract/test_mission_id_creation_contract.py",
     "tests/contract/test_next_no_implicit_success.py",
     "tests/contract/test_no_selector_guard.py",
-    "tests/contract/test_orchestrator_api.py",
     "tests/contract/test_plan_mission_yaml_validates.py",
     "tests/contract/test_tasks_packages_prompt_guards.py",
     "tests/contract/test_terminology_guards.py",
