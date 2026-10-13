@@ -280,7 +280,7 @@ def test_native_malformed_route_identifiers_refuse(tmp_path: Path, native_select
     assert "InvalidRouting" in result.stderr
 
 
-@pytest.mark.parametrize("failure", ["argv", "platform", "missing_budget", "zero_budget", "unknown_dependency", "cycle"])
+@pytest.mark.parametrize("failure", ["argv", "platform", "missing_budget", "zero_budget", "unknown_dependency", "cycle", "environment_key", "environment_value"])
 def test_native_invalid_check_specs_refuse(tmp_path: Path, native_selector: Path, failure: str) -> None:
     specification: Any = local_specification()
     if failure == "argv":
@@ -293,6 +293,10 @@ def test_native_invalid_check_specs_refuse(tmp_path: Path, native_selector: Path
         specification["checks"]["lint"]["budgets"]["wall_ms"] = 0
     elif failure == "unknown_dependency":
         specification["checks"]["lint"]["dependencies"] = ["missing-check"]
+    elif failure == "environment_key":
+        specification["checks"]["lint"]["environment"]["BAD=NAME"] = "value"
+    elif failure == "environment_value":
+        specification["checks"]["lint"]["environment"]["MODE"] = "bad\u0000value"
     else:
         specification["checks"]["test-runtime"]["dependencies"] = ["test-docs"]
         specification["checks"]["test-docs"]["dependencies"] = ["test-runtime"]

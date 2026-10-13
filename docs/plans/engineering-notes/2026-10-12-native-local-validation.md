@@ -273,17 +273,18 @@ structural fields.
 
 Optional check definitions now receive deterministic structural validation:
 command argument arrays, accepted mode/platform values, environment shape,
-positive required budget fields, dependency references, and dependency-cycle
-detection. Native selection also includes transitive dependencies and
-recomputes code-shard attribution for the expanded check set. Negative controls
+portable environment names and NUL-free values, positive required budget
+fields, dependency references, and dependency-cycle detection. Native selection
+also includes transitive dependencies and recomputes code-shard attribution for
+the expanded check set. Negative controls
 cover malformed argv, unsupported platforms, missing or zero budgets, missing
 dependencies, and cycles. This remains selection/schema support, not command
 execution: the checked-in authority still has routing and module inventory only,
 so command extraction, a qualified executable check matrix, hook integration,
 and hosted-workflow retirement remain open.
 
-The complete `tests/local_validation` suite now passes 99 tests. The combined
+The complete `tests/local_validation` suite now passes 101 tests. The combined
 routing, authority, parity, module-registry, and CI-oracle regression set passes
-219 tests. Zig 0.16 unit tests and formatting, Ruff, strict
+221 tests. Zig 0.16 unit tests and formatting, Ruff, strict
 explicit-package-base mypy, and `git diff --check` also pass. Raw diagnostics
-are retained at `/tmp/native-local-validation-wp01.log`.
+are retained at `/tmp/native-local-validation-wp01-env.log`.

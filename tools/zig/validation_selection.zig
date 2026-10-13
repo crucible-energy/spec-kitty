@@ -124,7 +124,8 @@ fn validateCheck(value: Value) ![]const Value {
     const environment = try object(environment_value);
     var environment_iterator = environment.iterator();
     while (environment_iterator.next()) |entry| {
-        if (entry.key_ptr.len == 0 or entry.value_ptr.* != .string) return error.InvalidChecks;
+        if (!validEnvironmentName(entry.key_ptr.*) or entry.value_ptr.* != .string) return error.InvalidChecks;
+        if (std.mem.indexOfScalar(u8, entry.value_ptr.string, 0) != null) return error.InvalidChecks;
     }
     const budgets_value = fields.get("budgets") orelse return error.InvalidBudget;
     try rejectUnknownFields(budgets_value, &.{ "wall_ms", "cleanup_ms", "stdout_bytes", "stderr_bytes", "sampled_processes", "sampled_resident_bytes" });
@@ -135,6 +136,19 @@ fn validateCheck(value: Value) ![]const Value {
         if (budget != .integer or budget.integer <= 0) return error.InvalidBudget;
     }
     return dependencies;
+}
+
+fn validEnvironmentName(name: []const u8) bool {
+    if (name.len == 0) return false;
+    for (name, 0..) |character, index| {
+        const letter = (character >= 'A' and character <= 'Z') or (character >= 'a' and character <= 'z');
+        if (index == 0) {
+            if (!letter and character != '_') return false;
+        } else if (!letter and character != '_' and !(character >= '0' and character <= '9')) {
+            return false;
+        }
+    }
+    return true;
 }
 
 fn validateCheckGraph(checks: std.json.ObjectMap) !void {
