@@ -117,3 +117,10 @@ def test_duplicate_local_fields_refuse(tmp_path: Path) -> None:
     path.write_text('{"schema_version": 1, "schema_version": 999}')
     with pytest.raises(ValueError, match="Duplicate"):
         load_router(path)
+
+
+def test_unknown_source_stays_conservative_when_a_known_source_is_present(tmp_path: Path) -> None:
+    router = load_router(write_local(tmp_path, local_specification()))
+    selection = select_gates(["src/runtime/worker.py", "src/unknown/new.py"], router=router)
+    assert selection.unmatched_src
+    assert selection.selected_jobs == frozenset({"lint", "test-runtime", "test-docs"})
