@@ -251,3 +251,11 @@ same source. The old router workflow and YAML module registry remain explicit
 migration fixtures; edits to those surfaces conservatively select all modules.
 Focused selection, parity, module-routing, and architecture controls passed 203
 tests. Ruff, explicit-package-bases mypy, Zig formatting, and diff checks passed.
+
+Captured the deterministic workflow inventory at
+`tools/validation/workflow-migration-inventory.json`: 19 workflows, 92 jobs,
+465 steps, and 1,189 explicit unresolved mappings. A focused scan found no
+credential-like static argv. A regression regenerates the artifact from the
+source workflows and verifies it remains non-authoritative, non-runnable, and
+non-validating. This is auditable migration evidence, not proof that hosted
+CI/CD has been replaced.

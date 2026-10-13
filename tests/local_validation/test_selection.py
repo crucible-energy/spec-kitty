@@ -311,6 +311,21 @@ def test_extraction_preserves_commands_and_source_identity(tmp_path: Path) -> No
     assert job["steps"][0]["argv"] == [["python", "-m", "ruff", "check", "."], ["python", "-m", "ruff", "format", "--check", "."]]
 
 
+def test_committed_workflow_inventory_matches_all_current_sources() -> None:
+    """The migration inventory stays reproducible and can never qualify checks."""
+    from scripts.validation.extract_gates import extract_workflows
+
+    repository = Path(__file__).resolve().parents[2]
+    inventory_path = repository / "tools/validation/workflow-migration-inventory.json"
+    committed = json.loads(inventory_path.read_text(encoding="utf-8"))
+    assert committed == extract_workflows(repository)
+    assert committed["authority"] is False
+    assert committed["validation_performed"] is False
+    assert committed["runnable"] is False
+    assert len(committed["workflows"]) == 19
+    assert committed["blockers"]
+
+
 def test_extraction_retains_untranslated_conditions_and_actions(tmp_path: Path) -> None:
     from scripts.validation.extract_gates import extract_workflows
 
