@@ -1,19 +1,23 @@
-"""Single gate-selection authority (FR-016 / #2476).
+"""Local gate-selection authority (FR-016 / #2476).
 
 This module is the one authority for "which shards/gates does a changed-path set
-select". It **parses** the two hand-authored routing authorities straight out of
-the on-disk ``.github/workflows/ci-router.yml``:
+select". By default it reads the versioned local authority at
+``tools/validation/gates.json``. The current hosted router remains available as
+an explicit migration oracle, not the default routing source:
+
+During migration, an explicit YAML path may still parse:
 
 1. the dorny ``changes`` filter block — ``group -> globs[]`` (path -> group), and
 2. the job ``if: needs.changes.outputs.<group>`` gates — group -> job.
 
 It never re-encodes the routing as a second hand-maintained map: that duplication
-is the very #2476 hazard this module exists to close. It is reused by CI routing,
-the WP17 completeness oracle, and WP18 local pre-PR parity — one parser, one
-answer, no drift.
+is the very #2476 hazard this module exists to close. Existing Python consumers,
+the completeness oracle, and local parity reuse the same local authority reader.
+The hosted workflow digest and parity controls pin migration behavior until its
+remaining command and publication mappings are qualified.
 
 Public API:
-    ``load_router(path=None) -> Router``   parse the two authorities.
+    ``load_router(path=None) -> Router``   read the local authority by default.
     ``select_gates(changed_paths, *, router=None, mode="pr") -> GateSelection``
                                             answer the selection question.
 """
@@ -33,6 +37,7 @@ import yaml
 __all__ = [
     "DEFAULT_REGISTRY_PATH",
     "DEFAULT_ROUTER_PATH",
+    "DEFAULT_LOCAL_AUTHORITY_PATH",
     "PROBE_GROUPS",
     "GateSelection",
     "Router",
@@ -44,6 +49,7 @@ __all__ = [
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ROUTER_PATH = _REPO_ROOT / ".github" / "workflows" / "ci-router.yml"
 DEFAULT_REGISTRY_PATH = _REPO_ROOT / ".github" / "ci-module-registry.yml"
+DEFAULT_LOCAL_AUTHORITY_PATH = _REPO_ROOT / "tools" / "validation" / "gates.json"
 
 # The ``any_src`` filter row is the FR-004 fail-closed PROBE (matches any
 # ``src/**``), consumed only by the router's ``unmatched`` step. It is never a
@@ -156,8 +162,8 @@ def _local_router(document: object) -> Router:
 
 
 def load_router(path: Path | None = None) -> Router:
-    """Read local JSON routing, or the retained workflow migration oracle."""
-    source = path or DEFAULT_ROUTER_PATH
+    """Read local routing by default, or an explicit migration fixture."""
+    source = path or DEFAULT_LOCAL_AUTHORITY_PATH
     content = source.read_text(encoding="utf-8")
     if source.suffix == ".json":
         return _local_router(json.loads(content, object_pairs_hook=_unique_fields))
@@ -208,14 +214,24 @@ def select_gates(
 
 
 def _registry_rows(path: Path | None = None) -> list[dict[str, Any]]:
-    """The ``modules[]`` rows from ``.github/ci-module-registry.yml`` (WP08).
+    """The ``modules[]`` rows from the local authority, or an explicit fixture.
 
-    The registry is the single data source for the module set; reading its
-    inventory (``module`` names, ``roots``, ``test_dirs``) here is not a second
-    routing map (the #2476 hazard is re-encoding the path->group filter, which
-    this does not do — src routing still comes from the parsed router)."""
-    registry = yaml.safe_load((path or DEFAULT_REGISTRY_PATH).read_text(encoding="utf-8"))
-    return [dict(row) for row in registry["modules"]]
+    The module universe and route groups are now versioned together in
+    ``tools/validation/gates.json``. The old YAML registry remains available as
+    an explicit migration fixture until its workflow consumers are reconciled."""
+    source = path or DEFAULT_LOCAL_AUTHORITY_PATH
+    content = source.read_text(encoding="utf-8")
+    registry = (
+        json.loads(content, object_pairs_hook=_unique_fields)
+        if source.suffix == ".json"
+        else yaml.safe_load(content)
+    )
+    if not isinstance(registry, dict) or not isinstance(registry.get("modules"), list):
+        raise ValueError("Module authority requires a modules array")
+    rows = registry["modules"]
+    if any(not isinstance(row, dict) for row in rows):
+        raise ValueError("Module authority rows must be objects")
+    return [dict(row) for row in rows]
 
 
 def _registry_module_names(path: Path | None = None) -> frozenset[str]:
@@ -314,7 +330,10 @@ def _modules_for_test_paths(
 def _selection_authority_paths(registry_path: Path | None) -> frozenset[str]:
     """Spellings of the actual definitions whose changes affect every consumer."""
     spellings: set[str] = set()
-    for authority in (DEFAULT_ROUTER_PATH, registry_path or DEFAULT_REGISTRY_PATH):
+    authorities = (DEFAULT_LOCAL_AUTHORITY_PATH, DEFAULT_ROUTER_PATH, DEFAULT_REGISTRY_PATH, registry_path)
+    for authority in authorities:
+        if authority is None:
+            continue
         source = authority if authority.is_absolute() else Path.cwd() / authority
         spellings.update((str(authority), str(source)))
         try:

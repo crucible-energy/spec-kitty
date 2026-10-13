@@ -1,12 +1,11 @@
 """CI-integrity (collection-completeness) oracle — WP17 / FR-016 / #2967.
 
-The collection-completeness / two-authority integrity oracle, rebuilt against
-the **real on-disk** reinstated ``.github/workflows/ci-router.yml``. It answers
-one question — *is any change-class silently gated by nothing?* — and it answers
-it **through the single gate-selection authority** (``scripts/ci/gate_selection``),
-never by re-parsing the workflow YAML itself. That single-authority reuse is the
-whole point of FR-016 / #2476: one parser, one answer, no drift. This module has
-no ``yaml`` import for exactly that reason.
+The collection-completeness oracle reads the versioned local routing authority
+through ``scripts.ci.gate_selection``. It answers one question — *is any
+source-backed change-class silently gated by nothing?* — through the same
+reader used by local parity and existing Python consumers. It does not parse
+workflow YAML. The workflow remains a pinned migration comparison surface; the
+local authority digest and parity controls catch unexplained routing drift.
 
 What the oracle proves, and what it deliberately does NOT:
 

@@ -1,4 +1,321 @@
 {
+  "modules": [
+    {
+      "cov_targets": [
+        "specify_cli.consolidation"
+      ],
+      "module": "consolidation",
+      "roots": [
+        "src/specify_cli/consolidation/**"
+      ],
+      "shard_count": 2,
+      "test_dirs": [
+        "tests/consolidation",
+        "tests/specify_cli/consolidation",
+        "tests/terminus"
+      ],
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "specify_cli.mission",
+        "specify_cli.mission_metadata",
+        "specify_cli.missions",
+        "charter.offering.missions"
+      ],
+      "module": "missions",
+      "roots": [
+        "src/specify_cli/mission.py",
+        "src/specify_cli/mission_metadata.py",
+        "src/specify_cli/missions/**",
+        "src/charter/offering/missions/**"
+      ],
+      "shard_count": 1,
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "specify_cli.post_merge"
+      ],
+      "module": "post_merge",
+      "roots": [
+        "src/specify_cli/post_merge/**"
+      ],
+      "shard_count": 1,
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "specify_cli.release"
+      ],
+      "module": "release",
+      "roots": [
+        "src/specify_cli/release/**"
+      ],
+      "shard_count": 1,
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "specify_cli.status",
+        "specify_cli.coordination"
+      ],
+      "module": "status",
+      "roots": [
+        "src/specify_cli/status/**",
+        "src/specify_cli/coordination/**"
+      ],
+      "shard_count": 1,
+      "test_dirs": [
+        "tests/status",
+        "tests/specify_cli/status",
+        "tests/specify_cli/write_side"
+      ],
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "specify_cli.review"
+      ],
+      "module": "review",
+      "roots": [
+        "src/specify_cli/review/**"
+      ],
+      "shard_count": 1,
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "specify_cli.runtime",
+        "runtime.next",
+        "mission_runtime"
+      ],
+      "module": "next",
+      "roots": [
+        "src/specify_cli/runtime/**",
+        "src/runtime/next/**",
+        "src/mission_runtime/**"
+      ],
+      "shard_count": 2,
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "specify_cli.lanes"
+      ],
+      "module": "lanes",
+      "roots": [
+        "src/specify_cli/lanes/**"
+      ],
+      "shard_count": 1,
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "specify_cli.upgrade"
+      ],
+      "module": "upgrade",
+      "roots": [
+        "src/specify_cli/upgrade/**"
+      ],
+      "shard_count": 4,
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "specify_cli.cli"
+      ],
+      "module": "cli",
+      "roots": [
+        "src/specify_cli/cli/**"
+      ],
+      "shard_count": 2,
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "charter",
+        "specify_cli.charter_runtime"
+      ],
+      "module": "charter",
+      "roots": [
+        "src/charter/**",
+        "src/specify_cli/charter_runtime/**"
+      ],
+      "shard_count": 7,
+      "test_dirs": [
+        "tests/charter",
+        "tests/doctrine"
+      ],
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "specify_cli.agent_utils"
+      ],
+      "module": "agent",
+      "roots": [
+        "src/specify_cli/agent_utils/**"
+      ],
+      "shard_count": 3,
+      "test_dirs": [
+        "tests/agent",
+        "tests/specify_cli/agent_utils"
+      ],
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "kernel"
+      ],
+      "module": "kernel",
+      "roots": [
+        "src/kernel/**"
+      ],
+      "shard_count": 1,
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "glossary"
+      ],
+      "module": "glossary",
+      "roots": [
+        "src/glossary/**"
+      ],
+      "shard_count": 1,
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "mission_runtime",
+        "specify_cli.status",
+        "runtime.next"
+      ],
+      "module": "execution_context",
+      "roots": [
+        "src/mission_runtime/**",
+        "src/specify_cli/status/**",
+        "src/runtime/next/**",
+        "src/specify_cli/cli/commands/agent/**"
+      ],
+      "shard_count": 3,
+      "test_dirs": [
+        "tests/mission_runtime",
+        "tests/runtime",
+        "tests/specify_cli/cli/commands/agent"
+      ],
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "specify_cli",
+        "glossary",
+        "mission_runtime"
+      ],
+      "module": "core_misc",
+      "roots": [
+        "src/kernel/**",
+        "src/charter/offering/**",
+        "src/specify_cli/core/**",
+        "src/specify_cli/coordination/**",
+        "src/specify_cli/doctrine_synthesizer/**",
+        "src/specify_cli/status/**",
+        "src/specify_cli/tool_surface/**",
+        "src/specify_cli/zeitgeist_client/**"
+      ],
+      "shard_count": 5,
+      "test_dirs": [
+        "tests/core",
+        "tests/specify_cli/core",
+        "tests/coordination",
+        "tests/specify_cli/coordination",
+        "tests/decisions",
+        "tests/doctrine_synthesizer",
+        "tests/specify_cli/tool_surface",
+        "tests/specify_cli/asset_preservation",
+        "tests/zeitgeist_client",
+        "tests/calibration",
+        "tests/specify_cli/config",
+        "tests/specify_cli/live_work",
+        "tests/specify_cli/tasks_authoring",
+        "tests/specify_cli/bootstrap",
+        "tests/specify_cli/workspace",
+        "tests/specify_cli/design",
+        "tests/specify_cli/git_commit_scope"
+      ],
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "specify_cli.status",
+        "runtime.next",
+        "charter.offering.missions",
+        "kernel"
+      ],
+      "module": "unit",
+      "roots": [
+        "src/specify_cli/status/**",
+        "src/runtime/next/**",
+        "src/charter/offering/missions/**",
+        "src/kernel/**"
+      ],
+      "shard_count": 1,
+      "test_dirs": [
+        "tests/unit"
+      ],
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "specify_cli.runtime",
+        "charter.offering.missions",
+        "specify_cli.core"
+      ],
+      "module": "specify_cli_runtime",
+      "roots": [
+        "src/specify_cli/runtime/**",
+        "src/charter/offering/missions/**",
+        "src/specify_cli/core/**"
+      ],
+      "shard_count": 1,
+      "test_dirs": [
+        "tests/specify_cli/runtime"
+      ],
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "kernel",
+        "specify_cli.core"
+      ],
+      "module": "ci",
+      "roots": [
+        "scripts/ci/**",
+        ".github/workflows/**"
+      ],
+      "shard_count": 1,
+      "test_dirs": [
+        "tests/ci",
+        "tests/local_validation"
+      ],
+      "tier": "standard"
+    },
+    {
+      "cov_targets": [
+        "specify_cli.auth"
+      ],
+      "module": "auth",
+      "roots": [
+        "src/specify_cli/auth/**"
+      ],
+      "shard_count": 1,
+      "test_dirs": [
+        "tests/auth"
+      ],
+      "tier": "standard"
+    }
+  ],
   "routing": {
     "filters": {
       "agent": [

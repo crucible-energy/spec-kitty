@@ -1,6 +1,5 @@
 """Discriminating local-authority controls against the existing public reader."""
 
-import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -171,9 +170,14 @@ def test_checked_in_authority_matches_pinned_hosted_routing(native_selector: Pat
     local_authority = repository / "tools/validation/gates.json"
     hosted_router = repository / ".github/workflows/ci-router.yml"
     specification = json.loads(local_authority.read_text(encoding="utf-8"))
-    assert specification["source"]["sha256"] == hashlib.sha256(hosted_router.read_bytes()).hexdigest()
+    import hashlib
+
+    assert specification["source"]["sha256"] == hashlib.sha256(hosted_router.read_bytes()).hexdigest()  # noqa: TID251 — exact source-file migration pin, not charter freshness
     local = load_router(local_authority)
     hosted = load_router(hosted_router)
+    assert load_router() == local
+    registry = yaml.safe_load((repository / ".github/ci-module-registry.yml").read_text(encoding="utf-8"))
+    assert specification["modules"] == registry["modules"]
     paths = [
         "src/specify_cli/mission.py",
         "tests/specify_cli/test_mission.py",
@@ -186,6 +190,7 @@ def test_checked_in_authority_matches_pinned_hosted_routing(native_selector: Pat
         expected = select_gates(paths, router=hosted, mode=mode)
         python_actual = select_gates(paths, router=local, mode=mode)
         assert python_actual == expected
+        assert select_gates(paths, mode=mode) == expected
         result = subprocess.run(
             [str(native_selector), str(local_authority), mode, *paths],
             check=True,

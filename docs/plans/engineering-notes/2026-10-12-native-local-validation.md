@@ -244,3 +244,10 @@ platform/runtime bindings, and publication triggers. The JSON file therefore
 establishes routing parity only; it does not claim an executable check matrix,
 pre-commit integration, or hosted-workflow retirement. Those remain open and
 must be reconciled before the hosted workflows can be removed.
+
+The Python gate selector and module selector now read the local JSON authority
+by default, and the CI-integrity oracle and local parity consumer inherit that
+same source. The old router workflow and YAML module registry remain explicit
+migration fixtures; edits to those surfaces conservatively select all modules.
+Focused selection, parity, module-routing, and architecture controls passed 203
+tests. Ruff, explicit-package-bases mypy, Zig formatting, and diff checks passed.
