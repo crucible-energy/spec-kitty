@@ -20,6 +20,7 @@ The spec and canonical issue matrix are committed and pushed. Architecture and c
 - A scaffold bound to the delivery branch could not be committed from its distinct planning branch. Preserve the refused bootstrap identity and authored work; the corrected mission uses its actual planning branch.
 - Public issue-verdict and decision verification do not accept owned-checkout routing. It refused the private mission lookup without a mutation. Canonical matrix construction and supported owned spec-commit avoid inventing a verdict. The existing read-only decision verifier checks the actual owned mission directly; it reports no deferred decisions or markers, without claiming public CLI success.
 - Local parity currently previews HEAD-relative routing, reads hosted YAML, and does not execute staged checks. A hook-path setting alone is insufficient when its directory is absent.
+- The source checkout can report this mission's owned-checkout status, but `agent tasks add-history` refuses with `MISSION_NOT_FOUND`: its write route looks in the primary checkout, which does not contain this branch's mission artifacts. The primary checkout has unrelated active changes, so the event history was left untouched rather than written through an unsupported path.
 - Sam repeatedly requested normal spacing and Oxford commas. Human-facing progress, receipts, and coordination prose must remain readable.
 
 ## Engineering Decisions
@@ -29,6 +30,7 @@ The spec and canonical issue matrix are committed and pushed. Architecture and c
 - Bind staged code and gate tooling, isolate candidate imports, retain raw diagnostics, and require fresh recheck plus joined cleanup before acceptance.
 - Reuse the reviewed Darwin native ownership foundation with a separately qualified streaming adaptation. Unsupported platforms remain explicit qualification gaps.
 - Sam's local migration direction supersedes inherited hosted-only execution assignments. Reconcile governing guidance and actual remote requirements during qualified retirement, preserving publication.
+- A safe `&&`-to-argv extractor extension was discarded after comparing the regenerated inventory with its committed version: none of the 82 statically extracted workflow steps or 1,189 blockers changed. Keep only source transformations that improve the present migration evidence or behavior.
 
 ## Known Limitations
 
