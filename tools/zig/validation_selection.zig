@@ -77,6 +77,96 @@ fn validateSource(value: Value) !void {
     }
 }
 
+fn requiredStrings(fields: std.json.ObjectMap, name: []const u8) ![]const Value {
+    const value = fields.get(name) orelse return error.InvalidChecks;
+    if (value != .array or value.array.items.len == 0) return error.InvalidChecks;
+    for (value.array.items) |item| {
+        if (item != .string or item.string.len == 0) return error.InvalidChecks;
+    }
+    return value.array.items;
+}
+
+fn validateModeAndPlatform(check: std.json.ObjectMap, name: []const u8, allowed: []const []const u8) !void {
+    if (check.get(name)) |value| {
+        const entries = try requiredStrings(check, name);
+        for (entries) |entry| {
+            var supported = false;
+            for (allowed) |candidate| supported = supported or std.mem.eql(u8, entry.string, candidate);
+            if (!supported) return error.UnsupportedCheckTarget;
+        }
+        if (value.array.items.len != entries.len) return error.InvalidChecks;
+    }
+}
+
+fn validateCheck(value: Value) ![]const Value {
+    try rejectUnknownFields(value, &.{ "argv", "modes", "platforms", "dependencies", "environment", "budgets" });
+    const fields = try object(value);
+    const argv_value = fields.get("argv") orelse return error.InvalidCommand;
+    if (argv_value != .array or argv_value.array.items.len == 0) return error.InvalidCommand;
+    const argv = argv_value.array.items;
+    for (argv) |command| {
+        if (command != .array or command.array.items.len == 0) return error.InvalidCommand;
+        for (command.array.items) |argument| {
+            if (argument != .string or std.mem.indexOfScalar(u8, argument.string, 0) != null) return error.InvalidCommand;
+        }
+        if (command.array.items[0].string.len == 0) return error.InvalidCommand;
+    }
+    _ = try requiredStrings(fields, "modes");
+    try validateModeAndPlatform(fields, "modes", &.{ "commit", "full", "release", "docs", "platform" });
+    try validateModeAndPlatform(fields, "platforms", &.{ "macos", "linux", "windows", "all" });
+    const dependency_value = fields.get("dependencies") orelse return error.InvalidChecks;
+    if (dependency_value != .array) return error.InvalidChecks;
+    for (dependency_value.array.items) |dependency| {
+        if (dependency != .string or !validIdentifier(dependency.string)) return error.InvalidDependency;
+    }
+    const dependencies = dependency_value.array.items;
+    const environment_value = fields.get("environment") orelse return error.InvalidChecks;
+    const environment = try object(environment_value);
+    var environment_iterator = environment.iterator();
+    while (environment_iterator.next()) |entry| {
+        if (entry.key_ptr.len == 0 or entry.value_ptr.* != .string) return error.InvalidChecks;
+    }
+    const budgets_value = fields.get("budgets") orelse return error.InvalidBudget;
+    try rejectUnknownFields(budgets_value, &.{ "wall_ms", "cleanup_ms", "stdout_bytes", "stderr_bytes", "sampled_processes", "sampled_resident_bytes" });
+    const budgets = try object(budgets_value);
+    const budget_names = [_][]const u8{ "wall_ms", "cleanup_ms", "stdout_bytes", "stderr_bytes", "sampled_processes", "sampled_resident_bytes" };
+    for (budget_names) |name| {
+        const budget = budgets.get(name) orelse return error.InvalidBudget;
+        if (budget != .integer or budget.integer <= 0) return error.InvalidBudget;
+    }
+    return dependencies;
+}
+
+fn validateCheckGraph(checks: std.json.ObjectMap) !void {
+    var dependencies = std.StringHashMap([]const Value).init(std.heap.page_allocator);
+    defer dependencies.deinit();
+    var iterator = checks.iterator();
+    while (iterator.next()) |entry| {
+        if (!validIdentifier(entry.key_ptr.*)) return error.InvalidChecks;
+        try dependencies.put(entry.key_ptr.*, try validateCheck(entry.value_ptr.*));
+    }
+    var completed = std.StringHashMap(void).init(std.heap.page_allocator);
+    defer completed.deinit();
+    while (completed.count() < checks.count()) {
+        var advanced = false;
+        var entries = dependencies.iterator();
+        while (entries.next()) |entry| {
+            if (completed.contains(entry.key_ptr.*)) continue;
+            var ready = true;
+            for (entry.value_ptr.*) |dependency| {
+                const name = dependency.string;
+                if (!checks.contains(name)) return error.InvalidDependency;
+                ready = ready and completed.contains(name);
+            }
+            if (ready) {
+                try completed.put(entry.key_ptr.*, {});
+                advanced = true;
+            }
+        }
+        if (!advanced) return error.DependencyCycle;
+    }
+}
+
 fn validateOptionalSections(root: std.json.ObjectMap) !void {
     if (root.get("source")) |source| try validateSource(source);
     if (root.get("modules")) |modules| {
@@ -90,15 +180,8 @@ fn validateOptionalSections(root: std.json.ObjectMap) !void {
     }
     if (root.get("checks")) |checks_value| {
         const checks = try object(checks_value);
-        var iterator = checks.iterator();
-        while (iterator.next()) |entry| {
-            if (!validIdentifier(entry.key_ptr.*)) return error.InvalidChecks;
-            try rejectUnknownFields(entry.value_ptr.*, &.{ "argv", "modes", "platforms", "dependencies", "environment", "budgets" });
-            const check_fields = try object(entry.value_ptr.*);
-            if (check_fields.get("budgets")) |budgets| {
-                try rejectUnknownFields(budgets, &.{ "wall_ms", "cleanup_ms", "stdout_bytes", "stderr_bytes", "sampled_processes", "sampled_resident_bytes" });
-            }
-        }
+        if (checks.count() == 0) return error.InvalidChecks;
+        try validateCheckGraph(checks);
     }
 }
 
@@ -203,6 +286,48 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
         if (selected) {
             try jobs.append(allocator, entry.key_ptr.*);
             if (code) try shards.append(allocator, entry.key_ptr.*);
+        }
+    }
+    if (root.get("checks")) |checks_value| {
+        const checks = try object(checks_value);
+        var selected_checks = std.StringHashMap(void).init(allocator);
+        defer selected_checks.deinit();
+        for (jobs.items) |job| {
+            if (!checks.contains(job)) return error.MissingCheck;
+            try selected_checks.put(job, {});
+        }
+        while (true) {
+            var pending: std.ArrayList([]const u8) = .empty;
+            defer pending.deinit(allocator);
+            var selected_iterator = selected_checks.keyIterator();
+            while (selected_iterator.next()) |selected| {
+                const check_value = checks.get(selected.*) orelse return error.MissingCheck;
+                const check = try object(check_value);
+                const dependencies = check.get("dependencies") orelse return error.InvalidChecks;
+                for (dependencies.array.items) |dependency| {
+                    const name = dependency.string;
+                    if (!selected_checks.contains(name)) try pending.append(allocator, name);
+                }
+            }
+            if (pending.items.len == 0) break;
+            for (pending.items) |name| {
+                if (!checks.contains(name)) return error.InvalidDependency;
+                try selected_checks.put(name, {});
+            }
+        }
+        jobs.clearRetainingCapacity();
+        shards.clearRetainingCapacity();
+        var selected_iterator = selected_checks.keyIterator();
+        while (selected_iterator.next()) |selected| {
+            try jobs.append(allocator, selected.*);
+            if (gates.get(selected.*)) |route| {
+                for (route.array.items) |group| {
+                    if (sourceGroup(filters, group.string)) {
+                        try shards.append(allocator, selected.*);
+                        break;
+                    }
+                }
+            }
         }
     }
     std.mem.sort([]const u8, groups.items, {}, ordered);

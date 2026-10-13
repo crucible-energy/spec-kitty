@@ -14,7 +14,7 @@ from scripts.ci.gate_selection import load_router, select_gates
 def local_specification() -> dict[str, object]:
     def check(argv: list[str]) -> dict[str, object]:
         return {
-            "argv": argv,
+            "argv": [argv],
             "modes": ["commit", "full"],
             "platforms": ["macos", "linux", "windows"],
             "dependencies": [],
@@ -165,6 +165,17 @@ def test_native_selection_matches_the_qualified_reader(tmp_path: Path, native_se
     assert actual["validation_performed"] is False
 
 
+def test_native_selection_includes_transitive_check_dependencies(tmp_path: Path, native_selector: Path) -> None:
+    specification: Any = local_specification()
+    specification["checks"]["test-docs"]["dependencies"] = ["test-runtime"]
+    specification["checks"]["test-runtime"]["dependencies"] = ["lint"]
+    path = write_local(tmp_path, specification)
+    result = subprocess.run([str(native_selector), str(path), "pr", "docs/operator.md"], check=True, capture_output=True, text=True, timeout=20)
+    actual = json.loads(result.stdout)
+    assert actual["selected_jobs"] == ["lint", "test-docs", "test-runtime"]
+    assert actual["selected_code_shards"] == ["test-runtime"]
+
+
 def test_checked_in_authority_matches_pinned_hosted_routing(native_selector: Path) -> None:
     """The local selector and its Python consumer preserve the pinned router answer."""
     repository = Path(__file__).resolve().parents[2]
@@ -267,6 +278,29 @@ def test_native_malformed_route_identifiers_refuse(tmp_path: Path, native_select
     assert result.returncode != 0
     assert result.stdout == ""
     assert "InvalidRouting" in result.stderr
+
+
+@pytest.mark.parametrize("failure", ["argv", "platform", "missing_budget", "zero_budget", "unknown_dependency", "cycle"])
+def test_native_invalid_check_specs_refuse(tmp_path: Path, native_selector: Path, failure: str) -> None:
+    specification: Any = local_specification()
+    if failure == "argv":
+        specification["checks"]["lint"]["argv"] = ["python", "-m", "ruff"]
+    elif failure == "platform":
+        specification["checks"]["lint"]["platforms"] = ["plan9"]
+    elif failure == "missing_budget":
+        del specification["checks"]["lint"]["budgets"]["wall_ms"]
+    elif failure == "zero_budget":
+        specification["checks"]["lint"]["budgets"]["wall_ms"] = 0
+    elif failure == "unknown_dependency":
+        specification["checks"]["lint"]["dependencies"] = ["missing-check"]
+    else:
+        specification["checks"]["test-runtime"]["dependencies"] = ["test-docs"]
+        specification["checks"]["test-docs"]["dependencies"] = ["test-runtime"]
+    path = write_local(tmp_path, specification)
+    result = subprocess.run([str(native_selector), str(path), "pr", "src/runtime/worker.py"], capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "selection refused" in result.stderr
 
 
 _NATIVE_API_CONTROLS = r"""

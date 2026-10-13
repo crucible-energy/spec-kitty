@@ -271,12 +271,19 @@ treated dynamic group and job IDs as schema keys; those controls were narrowed
 to invalid identifier forms while retaining refusal coverage for unknown
 structural fields.
 
-This hardens schema handling but does not yet validate every command dependency,
-cycle, platform matrix, budget value, or check's execution binding. The checked-in
-authority still has routing and module inventory only; command extraction and
-the full workflow matrix remain open.
+Optional check definitions now receive deterministic structural validation:
+command argument arrays, accepted mode/platform values, environment shape,
+positive required budget fields, dependency references, and dependency-cycle
+detection. Native selection also includes transitive dependencies and
+recomputes code-shard attribution for the expanded check set. Negative controls
+cover malformed argv, unsupported platforms, missing or zero budgets, missing
+dependencies, and cycles. This remains selection/schema support, not command
+execution: the checked-in authority still has routing and module inventory only,
+so command extraction, a qualified executable check matrix, hook integration,
+and hosted-workflow retirement remain open.
 
-The complete `tests/local_validation` suite now passes 92 tests, including the
-unknown-field and malformed-identifier controls. Zig 0.16 unit tests and
-formatting, Ruff, strict explicit-package-base mypy, and `git diff --check` also
-pass. Raw output is retained at `/tmp/native-local-validation-wp01-20261013.log`.
+The complete `tests/local_validation` suite now passes 99 tests. The combined
+routing, authority, parity, module-registry, and CI-oracle regression set passes
+219 tests. Zig 0.16 unit tests and formatting, Ruff, strict
+explicit-package-base mypy, and `git diff --check` also pass. Raw diagnostics
+are retained at `/tmp/native-local-validation-wp01.log`.
