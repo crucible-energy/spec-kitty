@@ -744,7 +744,7 @@ def test_ci_module_row_claims_the_ci_guard_suites() -> None:
     assert list(row["roots"]) == ["scripts/ci/**", ".github/workflows/**"], (
         "the ci row's roots must be the CI-infrastructure paths whose regressions tests/ci guards"
     )
-    assert list(row.get("test_dirs", [])) == ["tests/ci"], "the ci row must claim tests/ci explicitly"
+    assert list(row.get("test_dirs", [])) == ["tests/ci", "tests/local_validation"], "the ci row must claim its CI and local-validation guard suites explicitly"
 
     recorded = _out_of_matrix_dirs(registry)
     assert "tests/ci" not in recorded, "tests/ci is claimed by the `ci` row -- it must not also be recorded out-of-matrix"
