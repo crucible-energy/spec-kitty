@@ -14,6 +14,7 @@ import re
 import shlex
 import stat
 import sys
+import unicodedata
 from pathlib import Path
 from typing import TypedDict
 
@@ -186,18 +187,27 @@ def _digest(value: object) -> str:
 
 
 def _commands(value: object) -> list[list[str]] | None:
-    if not isinstance(value, str) or not value.strip():
+    if not isinstance(value, str) or not value.strip(" \t\n"):
+        return None
+    # Bash command boundaries and blanks are not Unicode splitlines/strip
+    # boundaries. Refuse other control/separator categories, even inside
+    # quotes, rather than inventing commands or silently changing payloads.
+    if any(character not in " \t\n" and unicodedata.category(character)[0] in {"C", "Z"} for character in value):
         return None
     commands: list[list[str]] = []
-    for line in value.splitlines():
-        if not line.strip():
+    for line in value.split("\n"):
+        if not line.strip(" \t"):
             continue
         # Static argv only: no expansion, operators, globs, assignments, or
         # compound shell syntax. Original source is recoverable by its digest.
         if re.search(r"[$`;&|<>*?{}()\\\[\]~#!]", line):
             return None
         try:
-            argv = shlex.split(line, comments=False)
+            lexer = shlex.shlex(line, posix=True)
+            lexer.whitespace = " \t"
+            lexer.whitespace_split = True
+            lexer.commenters = ""
+            argv = list(lexer)
         except ValueError:
             return None
         if not argv or argv[0] in _SHELL_COMMANDS or not re.fullmatch(r"[A-Za-z0-9_./-]+", argv[0]) or "=" in argv[0]:
