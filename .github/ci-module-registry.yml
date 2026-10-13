@@ -413,6 +413,7 @@ modules:
   shard_count: 1
   test_dirs:
   - tests/ci
+  - tests/local_validation
 - module: auth
   roots:
   - src/specify_cli/auth/**
