@@ -187,3 +187,29 @@ Root causes: the sampler treats unavailable `/proc` identity as ownership and ca
 Decision: fail closed on unknown sampler identity, refuse background startup when identity cannot be established, and preserve foreground fixture sampling as separately bounded work. Extend the existing explicit token-environment contract to ambient GitHub credential spellings, with synthetic sentinel controls and required unrelated-setting preservation. Genuine RED precedes the source repairs. The active workflow owner authorizes these structural prerequisites; no other owner is displaced. Final validation, public disposition, and reviewed publication remain open.
 
 A new failing assertion expanded an environment dictionary into the local diagnostic and tool output. This avoidable diagnostic defect is owned explicitly. The sensitive original is restricted, a redacted failure artifact is retained, and assertions now expose credential key names or comparison booleans rather than environment values. The raw diagnostic is excluded from public review and corpus inputs. No credential value is copied into this log or committed source. The initial failed controls remain failures; safer diagnostic formatting does not repair or qualify the underlying child-environment behavior.
+
+## Fail-Closed Sampler And Credential Repair
+
+The sampler now denies unknown PID identity and requires the exact module and
+sample role before signalling. Background startup refuses when the procfs
+identity backend is unavailable. Mac foreground fixture checks remain usable;
+Linux background execution still needs its actual platform gate. A spawn-failure
+control explicitly supplies the identity-capability fixture so it exercises the
+spawn error rather than passing through the earlier refusal.
+
+The recapture environment removes exact, underscore-prefixed, and case-varied
+workflow/GitHub credential names before adding the designated child credential.
+Unrelated settings remain available. This is the declared GitHub credential
+family boundary, not a claim of universal secret filtering. Diagnostic
+assertions use precomputed booleans to avoid environment expansion.
+
+The disclosed Alpaca key/secret diagnostic incident remains open. Restricted
+originals and redacted derivatives preserve evidence; issuer-supported
+replacement and consumer verification require the actual account/environment
+and credential owner. Local redaction cannot erase the conversation exposure.
+No financial requests or account mutations were performed by these controls.
+
+Sam's two GX10s remain required targets for model training, evaluation, and
+serving qualification. M3 observations identify local Mac tooling only. Neither
+the hardware topology nor a proposed Qwen 35B control establishes the actual
+Aletheia:35B base, adapter compatibility, trained weights, or model improvement.

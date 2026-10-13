@@ -339,6 +339,10 @@ def test_start_then_stop_round_trip(tmp_path: Path, fake_proc: FakeProc) -> None
 
     started = _cli("start", "--interval", "0.05", *common)
     assert started.returncode == 0, started.stderr
+    if not Path("/proc/self/cmdline").exists():
+        assert "identity is unavailable" in started.stdout
+        assert not (tmp_path / "ms.json.pid").exists()
+        return
     assert started.stdout.startswith("memory_sampler started pid=")
     pid = int((tmp_path / "ms.json.pid").read_text(encoding="utf-8").strip())
     try:
@@ -385,7 +389,14 @@ def test_stop_never_signals_pid_zero_or_one(tmp_path: Path, raw_pid: str, monkey
 
 def test_pid_is_sampler_identity_check(tmp_path: Path) -> None:
     assert mod._pid_is_sampler(os.getpid()) is False  # pytest, not the sampler
-    assert mod._pid_is_sampler(2**22 + 12345) is True  # no /proc entry -> cannot verify -> proceed
+    assert mod._pid_is_sampler(2**22 + 12345) is False  # unknown ownership never authorizes a signal
+
+
+@pytest.mark.parametrize("sampler_role", [True, False])
+def test_sampler_identity_matches_the_module_role(monkeypatch: pytest.MonkeyPatch, sampler_role: bool) -> None:
+    arguments = [sys.executable, "-m", mod._SELF_MODULE if sampler_role else "other.module", "sample", "--label", mod._SELF_MODULE]
+    monkeypatch.setattr(mod, "_read_text", lambda path: "\0".join(arguments))
+    assert mod._pid_is_sampler(4242) is sampler_role
 
 
 def test_unknown_sampler_identity_never_authorizes_signal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -457,9 +468,12 @@ def test_start_degrades_to_a_warning_when_spawn_fails(tmp_path: Path, monkeypatc
     def boom(*_args: object, **_kwargs: object) -> None:
         raise OSError("no fork for you")
 
+    monkeypatch.setattr(mod, "_read_text", lambda path: "verified capability fixture")
     monkeypatch.setattr(mod.subprocess, "Popen", boom)
     assert mod.main(["start", "--out", str(tmp_path / "ms.json")]) == 0
-    assert capsys.readouterr().out.startswith("::warning")
+    warning = capsys.readouterr().out
+    assert warning.startswith("::warning")
+    assert "no fork for you" in warning
 
 
 def test_sample_without_meminfo_reports_unavailable(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

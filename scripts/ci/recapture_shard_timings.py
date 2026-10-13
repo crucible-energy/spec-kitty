@@ -400,9 +400,17 @@ def _now_seconds() -> float:
 
 
 def _scrubbed_env() -> dict[str, str]:
-    """A copy of ``os.environ`` with every token variable (:data:`_TOKEN_ENV_VARS`) removed --
-    the base environment for every subprocess, so none inherits the PAT implicitly."""
-    return {key: value for key, value in os.environ.items() if key not in _TOKEN_ENV_VARS}
+    """Remove workflow/GitHub credentials, including prefixed and case variants.
+
+    The subprocess receives its designated credential only after this base
+    environment is constructed; unrelated noncredential settings are retained.
+    """
+    return {key: value for key, value in os.environ.items() if not _is_token_env_key(key)}
+
+
+def _is_token_env_key(key: str) -> bool:
+    normalized = key.upper()
+    return any(normalized == token or normalized.endswith("_" + token) for token in _TOKEN_ENV_VARS)
 
 
 def _push_auth_header(token: str) -> str:

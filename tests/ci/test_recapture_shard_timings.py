@@ -1178,7 +1178,8 @@ def _call_label(call: list[str]) -> str:
 def _expected_env(kind: str) -> dict[str, str]:
     """The exact environment a subprocess of *kind* may receive: the ambient environment minus
     every token variable, plus only the credential that kind needs."""
-    env = {key: value for key, value in os.environ.items() if key not in {SECRET_NAME, "GH_TOKEN", "GITHUB_TOKEN"}}
+    credential_names = (SECRET_NAME, "GH_TOKEN", "GITHUB_TOKEN")
+    env = {key: value for key, value in os.environ.items() if not any(key.upper() == name or key.upper().endswith("_" + name) for name in credential_names)}
     if kind == _GH:
         env["GH_TOKEN"] = FAKE_TOKEN
     elif kind == _REMOTE:

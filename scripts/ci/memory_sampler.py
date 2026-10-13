@@ -374,6 +374,9 @@ def _sample_loop(args: argparse.Namespace, out: Path, proc_root: Path, stop_even
 
 def _run_start(args: argparse.Namespace) -> int:
     out = Path(args.out)
+    if _read_text(Path("/proc/self/cmdline")) is None:
+        print(_warning("process identity is unavailable; refusing background sampler startup"))
+        return 0
     command = [
         sys.executable,
         "-m",
@@ -416,14 +419,16 @@ def _pid_running(pid: int) -> bool:
 
 
 def _pid_is_sampler(pid: int) -> bool:
-    """False only when ``/proc/<pid>/cmdline`` is readable and is not this sampler.
+    """Require a readable, exact module invocation before granting sampler identity.
 
-    Guards against a stale pid file whose pid was reused by an unrelated process. Where
-    ``/proc`` offers no answer (non-Linux, vanished pid) the identity cannot be disproved,
-    so the caller proceeds as before.
+    Unknown identity never authorizes signalling a stale or reused PID. This
+    procfs identity backend supports Linux background sampling only.
     """
     raw = _read_text(Path(f"/proc/{pid}/cmdline"))
-    return raw is None or _SELF_MODULE in raw
+    if raw is None:
+        return False
+    arguments = raw.split("\0")
+    return len(arguments) >= 4 and arguments[1:4] == ["-m", _SELF_MODULE, "sample"]
 
 
 def _terminate_sampler(out: Path) -> None:
