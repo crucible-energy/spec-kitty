@@ -3,6 +3,7 @@
 import json
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -230,6 +231,42 @@ def test_native_unknown_mode_refuses(tmp_path: Path, native_selector: Path) -> N
     result = subprocess.run([str(native_selector), str(specification), "unqualified"], capture_output=True, text=True, timeout=20)
     assert result.returncode != 0
     assert "UnsupportedMode" in result.stderr
+
+
+@pytest.mark.parametrize("section", ["root", "routing", "source", "module", "check", "budget"])
+def test_native_unknown_authority_fields_refuse(tmp_path: Path, native_selector: Path, section: str) -> None:
+    specification: Any = local_specification()
+    if section == "root":
+        specification["surprise"] = True
+    elif section == "routing":
+        specification["routing"]["surprise"] = []
+    elif section == "source":
+        specification["source"] = {"path": ".github/workflows/ci-router.yml", "sha256": "a" * 64, "role": "migration-baseline", "surprise": True}
+    elif section == "module":
+        specification["modules"][0]["surprise"] = True
+    elif section == "check":
+        specification["checks"]["lint"]["surprise"] = True
+    else:
+        specification["checks"]["lint"]["budgets"]["surprise"] = 1
+    path = write_local(tmp_path, specification)
+    result = subprocess.run([str(native_selector), str(path), "pr", "src/runtime/worker.py"], capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "UnknownField" in result.stderr
+
+
+@pytest.mark.parametrize("section", ["filter", "job"])
+def test_native_malformed_route_identifiers_refuse(tmp_path: Path, native_selector: Path, section: str) -> None:
+    specification: Any = local_specification()
+    if section == "filter":
+        specification["routing"]["filters"]["runtime/extra"] = ["src/extra/**"]
+    else:
+        specification["routing"]["job_gates"]["test runtime"] = ["runtime"]
+    path = write_local(tmp_path, specification)
+    result = subprocess.run([str(native_selector), str(path), "pr", "src/runtime/worker.py"], capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "InvalidRouting" in result.stderr
 
 
 _NATIVE_API_CONTROLS = r"""

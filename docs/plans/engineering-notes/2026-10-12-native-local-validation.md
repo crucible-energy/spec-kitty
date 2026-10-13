@@ -259,3 +259,24 @@ credential-like static argv. A regression regenerates the artifact from the
 source workflows and verifies it remains non-authoritative, non-runnable, and
 non-validating. This is auditable migration evidence, not proof that hosted
 CI/CD has been replaced.
+
+## Native Schema Refusal Controls
+
+WP01 now rejects unknown fields at the top level and within source pins,
+routing, module rows, check rows, and check budgets. Native route and check IDs
+must follow the accepted identifier grammar; malformed group references,
+paths, modes, versions, and unsupported glob syntax still refuse. The focused
+negative controls pass against Zig 0.16. The first expanded test draft wrongly
+treated dynamic group and job IDs as schema keys; those controls were narrowed
+to invalid identifier forms while retaining refusal coverage for unknown
+structural fields.
+
+This hardens schema handling but does not yet validate every command dependency,
+cycle, platform matrix, budget value, or check's execution binding. The checked-in
+authority still has routing and module inventory only; command extraction and
+the full workflow matrix remain open.
+
+The complete `tests/local_validation` suite now passes 92 tests, including the
+unknown-field and malformed-identifier controls. Zig 0.16 unit tests and
+formatting, Ruff, strict explicit-package-base mypy, and `git diff --check` also
+pass. Raw output is retained at `/tmp/native-local-validation-wp01-20261013.log`.

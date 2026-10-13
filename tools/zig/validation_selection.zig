@@ -42,6 +42,66 @@ fn ordered(_: void, a: []const u8, b: []const u8) bool {
     return std.mem.lessThan(u8, a, b);
 }
 
+fn validIdentifier(value: []const u8) bool {
+    if (value.len == 0 or !std.ascii.isAlphanumeric(value[0])) return false;
+    for (value[1..]) |character| {
+        if (!std.ascii.isAlphanumeric(character) and character != '_' and character != '-' and character != '.') return false;
+    }
+    return true;
+}
+
+fn rejectUnknownFields(value: Value, allowed: []const []const u8) !void {
+    const fields = try object(value);
+    var iterator = fields.iterator();
+    while (iterator.next()) |entry| {
+        var recognized = false;
+        for (allowed) |name| {
+            if (std.mem.eql(u8, entry.key_ptr.*, name)) {
+                recognized = true;
+                break;
+            }
+        }
+        if (!recognized) return error.UnknownField;
+    }
+}
+
+fn validateSource(value: Value) !void {
+    try rejectUnknownFields(value, &.{ "path", "sha256", "role" });
+    const fields = try object(value);
+    const path = fields.get("path") orelse return error.InvalidSource;
+    const digest = fields.get("sha256") orelse return error.InvalidSource;
+    const role = fields.get("role") orelse return error.InvalidSource;
+    if (path != .string or path.string.len == 0 or digest != .string or digest.string.len != 64 or role != .string or role.string.len == 0) return error.InvalidSource;
+    for (digest.string) |character| {
+        if (!std.ascii.isHex(character)) return error.InvalidSource;
+    }
+}
+
+fn validateOptionalSections(root: std.json.ObjectMap) !void {
+    if (root.get("source")) |source| try validateSource(source);
+    if (root.get("modules")) |modules| {
+        if (modules != .array) return error.InvalidModules;
+        for (modules.array.items) |row| {
+            try rejectUnknownFields(row, &.{ "module", "roots", "test_dirs", "cov_targets", "shard_count", "tier" });
+            const fields = try object(row);
+            const name = fields.get("module") orelse return error.InvalidModules;
+            if (name != .string or !validIdentifier(name.string)) return error.InvalidModules;
+        }
+    }
+    if (root.get("checks")) |checks_value| {
+        const checks = try object(checks_value);
+        var iterator = checks.iterator();
+        while (iterator.next()) |entry| {
+            if (!validIdentifier(entry.key_ptr.*)) return error.InvalidChecks;
+            try rejectUnknownFields(entry.value_ptr.*, &.{ "argv", "modes", "platforms", "dependencies", "environment", "budgets" });
+            const check_fields = try object(entry.value_ptr.*);
+            if (check_fields.get("budgets")) |budgets| {
+                try rejectUnknownFields(budgets, &.{ "wall_ms", "cleanup_ms", "stdout_bytes", "stderr_bytes", "sampled_processes", "sampled_resident_bytes" });
+            }
+        }
+    }
+}
+
 /// The pinned current routing uses literal bytes and star globs only.
 /// Stars span slash, matching the existing fnmatch authority. Unsupported
 /// syntax refuses rather than narrowing a check selection silently.
@@ -73,14 +133,14 @@ fn validate(filters: std.json.ObjectMap, gates: std.json.ObjectMap) !void {
     if (filters.count() == 0 or gates.count() == 0 or filters.count() > 4096 or gates.count() > 4096) return error.InvalidRouting;
     var fit = filters.iterator();
     while (fit.next()) |entry| {
-        if (entry.key_ptr.len == 0) return error.InvalidRouting;
+        if (!validIdentifier(entry.key_ptr.*)) return error.InvalidRouting;
         for (try strings(entry.value_ptr.*)) |pattern| {
             _ = try matches(pattern.string, "");
         }
     }
     var git = gates.iterator();
     while (git.next()) |entry| {
-        if (entry.key_ptr.len == 0) return error.InvalidRouting;
+        if (!validIdentifier(entry.key_ptr.*)) return error.InvalidRouting;
         for (try strings(entry.value_ptr.*)) |group| {
             if (!filters.contains(group.string) or probe(group.string)) return error.InvalidRouting;
         }
@@ -91,9 +151,12 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
     if (!std.mem.eql(u8, mode, "pr") and !std.mem.eql(u8, mode, "full")) return error.UnsupportedMode;
     if (paths.len > 32768) return error.InputLimit;
     const root = try object(document);
+    try rejectUnknownFields(document, &.{ "schema_version", "source", "routing", "modules", "checks" });
+    try validateOptionalSections(root);
     const version = root.get("schema_version") orelse return error.UnsupportedSchemaVersion;
     if (version != .integer or version.integer != 1) return error.UnsupportedSchemaVersion;
     const routing = try object(root.get("routing") orelse return error.InvalidRouting);
+    try rejectUnknownFields(root.get("routing").?, &.{ "filters", "job_gates" });
     const filters = try object(routing.get("filters") orelse return error.InvalidRouting);
     const gates = try object(routing.get("job_gates") orelse return error.InvalidRouting);
     try validate(filters, gates);
