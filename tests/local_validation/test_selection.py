@@ -81,3 +81,39 @@ def test_local_authority_unknown_version_refuses_usefully(tmp_path: Path) -> Non
     specification["schema_version"] = 999
     with pytest.raises(ValueError, match="version"):
         load_router(write_local(tmp_path, specification))
+
+
+@pytest.mark.parametrize("version", [None, True, 1.0, 999])
+def test_local_version_requires_supported_integer(tmp_path: Path, version: object) -> None:
+    specification = local_specification()
+    specification["schema_version"] = version
+    with pytest.raises(ValueError, match="version"):
+        load_router(write_local(tmp_path, specification))
+
+
+@pytest.mark.parametrize(
+    "routing",
+    [
+        None,
+        {},
+        {"filters": [], "job_gates": {}},
+        {"filters": {"runtime": "src/runtime/**"}, "job_gates": {"lint": []}},
+        {"filters": {"runtime": [3]}, "job_gates": {"lint": []}},
+        {"filters": {"runtime": ["src/runtime/**"]}, "job_gates": []},
+        {"filters": {"runtime": ["src/runtime/**"]}, "job_gates": {"lint": "runtime"}},
+        {"filters": {"runtime": ["src/runtime/**"]}, "job_gates": {"lint": ["absent"]}},
+        {"filters": {"any_src": ["src/**"]}, "job_gates": {"lint": ["any_src"]}},
+    ],
+)
+def test_invalid_local_routing_refuses_actionably(tmp_path: Path, routing: object) -> None:
+    specification = local_specification()
+    specification["routing"] = routing
+    with pytest.raises(ValueError, match="routing"):
+        load_router(write_local(tmp_path, specification))
+
+
+def test_duplicate_local_fields_refuse(tmp_path: Path) -> None:
+    path = tmp_path / "gates.json"
+    path.write_text('{"schema_version": 1, "schema_version": 999}')
+    with pytest.raises(ValueError, match="Duplicate"):
+        load_router(path)
