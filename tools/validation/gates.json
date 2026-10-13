@@ -1,0 +1,251 @@
+{
+  "routing": {
+    "filters": {
+      "agent": [
+        "src/specify_cli/agent_utils/**"
+      ],
+      "any_src": [
+        "src/**"
+      ],
+      "architectural": [
+        "tests/architectural/**"
+      ],
+      "auth": [
+        "src/specify_cli/auth/**"
+      ],
+      "charter": [
+        "src/charter/**",
+        "src/specify_cli/charter_runtime/**"
+      ],
+      "ci": [
+        "scripts/ci/**",
+        ".github/workflows/**"
+      ],
+      "ci_config": [
+        ".github/workflows/**",
+        ".github/actions/**",
+        "scripts/ci/**",
+        "pytest.ini",
+        "pyproject.toml",
+        "Makefile",
+        ".github/ci-module-registry.yml",
+        ".github/ci-shard-timings.json"
+      ],
+      "cli": [
+        "src/specify_cli/cli/**"
+      ],
+      "consolidation": [
+        "src/specify_cli/consolidation/**"
+      ],
+      "contract_tools": [
+        "tests/contract/**",
+        ".github/workflows/contracts.yml",
+        ".github/workflows/contracts-release.yml",
+        "uv.lock",
+        "pyproject.toml",
+        "pytest.ini",
+        "tests/conftest.py",
+        "**/status/lifecycle_events.py",
+        "**/kernel/clock.py",
+        "**/kernel/errors.py",
+        "**/kernel/git/__init__.py",
+        "**/kernel/git/listing.py",
+        "**/mission_runtime/__init__.py",
+        "**/mission_runtime/context.py",
+        "**/mission_runtime/identity.py",
+        "**/specify_cli/audit/classifiers/status_json.py",
+        "**/specify_cli/audit/models.py",
+        "**/specify_cli/cli/commands/agent/tasks_move_task.py",
+        "**/specify_cli/cli/commands/invocations_cmd.py",
+        "**/specify_cli/consolidation/baseline.py",
+        "**/specify_cli/context/__init__.py",
+        "**/specify_cli/context/mission_resolver.py",
+        "**/specify_cli/coordination/surface_resolver.py",
+        "**/specify_cli/coordination/workspace.py",
+        "**/specify_cli/core/dependency_graph.py",
+        "**/specify_cli/core/git_ops.py",
+        "**/specify_cli/core/paths.py",
+        "**/specify_cli/core/stale_detection.py",
+        "**/specify_cli/core/subtask_rows.py",
+        "**/specify_cli/core/vcs/git.py",
+        "**/specify_cli/core/version_checker.py",
+        "**/specify_cli/frontmatter.py",
+        "**/specify_cli/git/remote_probes.py",
+        "**/specify_cli/invocation/errors.py",
+        "**/specify_cli/invocation/modes.py",
+        "**/specify_cli/invocation/record.py",
+        "**/specify_cli/invocation/writer.py",
+        "**/specify_cli/lanes/_git.py",
+        "**/specify_cli/lanes/branch_naming.py",
+        "**/specify_cli/lanes/compute.py",
+        "**/specify_cli/lanes/models.py",
+        "**/specify_cli/lanes/persistence.py",
+        "**/specify_cli/migration/__init__.py",
+        "**/specify_cli/migration/schema_version.py",
+        "**/specify_cli/mission_metadata.py",
+        "**/specify_cli/missions/_read_path_resolver.py",
+        "**/specify_cli/ownership/validation.py",
+        "**/specify_cli/policy/commit_guard.py",
+        "**/specify_cli/review/artifacts.py",
+        "**/specify_cli/review/cycle.py",
+        "**/specify_cli/status/__init__.py",
+        "**/specify_cli/status/aggregate.py",
+        "**/specify_cli/status/doctor.py",
+        "**/specify_cli/status/lifecycle.py",
+        "**/specify_cli/status/models.py",
+        "**/specify_cli/status/progress.py",
+        "**/specify_cli/status/reducer.py",
+        "**/specify_cli/status/store.py",
+        "**/specify_cli/status/tail_reader.py",
+        "**/specify_cli/status/validate.py",
+        "**/specify_cli/status/wp_metadata.py",
+        "**/specify_cli/status/wp_review.py",
+        "**/specify_cli/status/wp_view.py",
+        "**/specify_cli/upgrade/metadata.py",
+        "**/specify_cli/workspace/context.py"
+      ],
+      "core_misc": [
+        "src/kernel/**",
+        "src/charter/offering/**",
+        "src/specify_cli/core/**",
+        "src/specify_cli/coordination/**",
+        "src/specify_cli/doctrine_synthesizer/**",
+        "src/specify_cli/status/**",
+        "src/specify_cli/tool_surface/**",
+        "src/specify_cli/zeitgeist_client/**"
+      ],
+      "corpus": [
+        "packs/**",
+        "kitty-specs/**/spec.md",
+        "kitty-specs/**/plan.md",
+        "kitty-specs/**/tasks/**",
+        "kitty-specs/**/contracts/**",
+        "kitty-specs/**/acceptance-matrix.json",
+        ".kittify/charter/**",
+        ".kittify/glossaries/**",
+        ".kittify/doctrine/**",
+        "contracts/**",
+        "kitty-ops/**"
+      ],
+      "docs": [
+        "docs/**",
+        "tests/docs/**",
+        "scripts/docs/**"
+      ],
+      "e2e": [
+        "tests/e2e/**",
+        "tests/cross_cutting/**"
+      ],
+      "execution_context": [
+        "src/mission_runtime/**",
+        "src/specify_cli/status/**",
+        "src/runtime/next/**",
+        "src/specify_cli/cli/commands/agent/**"
+      ],
+      "glossary": [
+        "src/glossary/**"
+      ],
+      "kernel": [
+        "src/kernel/**"
+      ],
+      "lanes": [
+        "src/specify_cli/lanes/**"
+      ],
+      "missions": [
+        "src/specify_cli/mission.py",
+        "src/specify_cli/mission_metadata.py",
+        "src/specify_cli/missions/**",
+        "src/charter/offering/missions/**"
+      ],
+      "next": [
+        "src/specify_cli/runtime/**",
+        "src/runtime/next/**",
+        "src/mission_runtime/**"
+      ],
+      "post_merge": [
+        "src/specify_cli/post_merge/**"
+      ],
+      "release": [
+        "src/specify_cli/release/**"
+      ],
+      "review": [
+        "src/specify_cli/review/**"
+      ],
+      "specify_cli_runtime": [
+        "src/specify_cli/runtime/**",
+        "src/charter/offering/missions/**",
+        "src/specify_cli/core/**"
+      ],
+      "status": [
+        "src/specify_cli/status/**",
+        "src/specify_cli/coordination/**"
+      ],
+      "unit": [
+        "src/specify_cli/status/**",
+        "src/runtime/next/**",
+        "src/charter/offering/missions/**",
+        "src/kernel/**"
+      ],
+      "upgrade": [
+        "src/specify_cli/upgrade/**"
+      ]
+    },
+    "job_gates": {
+      "architectural-fast": [],
+      "architectural-heavy": [
+        "agent",
+        "architectural",
+        "auth",
+        "charter",
+        "ci_config",
+        "cli",
+        "consolidation",
+        "core_misc",
+        "execution_context",
+        "glossary",
+        "kernel",
+        "lanes",
+        "missions",
+        "next",
+        "post_merge",
+        "release",
+        "review",
+        "specify_cli_runtime",
+        "status",
+        "unit",
+        "upgrade"
+      ],
+      "archive-freeze": [],
+      "commit-msg": [],
+      "docs-lint": [],
+      "import-linter": [],
+      "layer-rules": [],
+      "markdownlint": [],
+      "prose-scan": [],
+      "regen-check": [],
+      "router-gate": [],
+      "ruff": [],
+      "terminology": [],
+      "tests-contract-tools": [
+        "contract_tools",
+        "corpus"
+      ],
+      "tests-corpus-blocking": [
+        "corpus"
+      ],
+      "tests-docs": [
+        "docs"
+      ],
+      "tests-e2e": [
+        "e2e"
+      ],
+      "uv-lock": []
+    }
+  },
+  "schema_version": 1,
+  "source": {
+    "path": ".github/workflows/ci-router.yml",
+    "role": "migration-baseline",
+    "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+  }
+}

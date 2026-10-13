@@ -226,3 +226,21 @@ change the effective target after the inspected literal output option. Genuine
 RED covers the complete reported family. The signal boundary will accept only
 the canonical argument sequence emitted by this launcher, rather than partially
 reimplementing argparse. Noncanonical legacy/manual commands remain unowned.
+
+## Canonical Local Routing Authority
+
+Resumed WP01 by extracting the current `ci-router.yml` path filters and job
+gates into `tools/validation/gates.json`. The existing Zig 0.16 selector and
+Python reader now have a checked-in real authority fixture; a regression
+compares both selectors with the pinned hosted router across source, tests,
+docs, tooling, unknown-source fallback, and full mode, and verifies the router
+digest. The selector tests passed (83 tests), and the focused cross-authority
+test passed after the digest control was added. `zig fmt --check` and
+`git diff --check` passed.
+
+The migration extractor inventories 19 workflow files but reports 1,189
+unresolved mappings, including actions, shell semantics, conditional fields,
+platform/runtime bindings, and publication triggers. The JSON file therefore
+establishes routing parity only; it does not claim an executable check matrix,
+pre-commit integration, or hosted-workflow retirement. Those remain open and
+must be reconciled before the hosted workflows can be removed.

@@ -1,5 +1,6 @@
 """Discriminating local-authority controls against the existing public reader."""
 
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -162,6 +163,41 @@ def test_native_selection_matches_the_qualified_reader(tmp_path: Path, native_se
     assert actual["selected_code_shards"] == sorted(expected.selected_code_shards)
     assert actual["selection_only"] is True
     assert actual["validation_performed"] is False
+
+
+def test_checked_in_authority_matches_pinned_hosted_routing(native_selector: Path) -> None:
+    """The local selector and its Python consumer preserve the pinned router answer."""
+    repository = Path(__file__).resolve().parents[2]
+    local_authority = repository / "tools/validation/gates.json"
+    hosted_router = repository / ".github/workflows/ci-router.yml"
+    specification = json.loads(local_authority.read_text(encoding="utf-8"))
+    assert specification["source"]["sha256"] == hashlib.sha256(hosted_router.read_bytes()).hexdigest()
+    local = load_router(local_authority)
+    hosted = load_router(hosted_router)
+    paths = [
+        "src/specify_cli/mission.py",
+        "tests/specify_cli/test_mission.py",
+        "docs/guide.md",
+        "tools/zig/validation_selection.zig",
+        ".github/workflows/ci-router.yml",
+        "src/unmapped/new_surface.py",
+    ]
+    for mode in ("pr", "full"):
+        expected = select_gates(paths, router=hosted, mode=mode)
+        python_actual = select_gates(paths, router=local, mode=mode)
+        assert python_actual == expected
+        result = subprocess.run(
+            [str(native_selector), str(local_authority), mode, *paths],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        native_actual = json.loads(result.stdout)
+        assert native_actual["matched_groups"] == sorted(expected.matched_groups)
+        assert native_actual["unmatched_src"] == expected.unmatched_src
+        assert native_actual["selected_jobs"] == sorted(expected.selected_jobs)
+        assert native_actual["selected_code_shards"] == sorted(expected.selected_code_shards)
 
 
 @pytest.mark.parametrize("version", [None, True, 1.0, 999])
