@@ -454,3 +454,31 @@ def test_extraction_keeps_explicit_external_time_argv(tmp_path: Path) -> None:
     report = extract_workflows(tmp_path)
     assert report["workflows"][0]["jobs"]["check"]["steps"][0]["argv"] == [["/usr/bin/time", "-p", "python", "-m", "build"]]
     assert report["runnable"] is False
+
+
+@pytest.mark.parametrize(
+    "separator",
+    ["\r", "\v", "\f", "\x85", "\u2028", "\u2029", "\0", "\x7f", "\u00a0", "\u200b"],
+    ids=["cr", "vt", "ff", "nel", "line_separator", "paragraph_separator", "nul", "del", "nbsp", "zero_width"],
+)
+def test_extraction_refuses_non_lf_command_boundaries(tmp_path: Path, separator: str) -> None:
+    from scripts.validation.extract_gates import extract_workflows
+
+    directory = tmp_path / ".github" / "workflows"
+    directory.mkdir(parents=True)
+    command = f"python one.py{separator}python two.py"
+    (directory / "boundary.yml").write_text(yaml.safe_dump({"jobs": {"check": {"steps": [{"run": command}]}}}))
+    report = extract_workflows(tmp_path)
+    assert report["workflows"][0]["jobs"]["check"]["steps"][0]["argv"] is None
+    assert any(item["reason"] == "shell_semantics" for item in report["blockers"])
+
+
+def test_extraction_preserves_lf_ascii_blanks_and_literal_arguments(tmp_path: Path) -> None:
+    from scripts.validation.extract_gates import extract_workflows
+
+    directory = tmp_path / ".github" / "workflows"
+    directory.mkdir(parents=True)
+    command = " \tpython\t-m tool 'café' ''\n \t\npython -m build\n"
+    (directory / "literal.yml").write_text(yaml.safe_dump({"jobs": {"check": {"steps": [{"run": command}]}}}))
+    report = extract_workflows(tmp_path)
+    assert report["workflows"][0]["jobs"]["check"]["steps"][0]["argv"] == [["python", "-m", "tool", "café", ""], ["python", "-m", "build"]]
