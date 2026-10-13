@@ -1,6 +1,7 @@
 """Discriminating local-authority controls against the existing public reader."""
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -124,3 +125,67 @@ def test_unknown_source_stays_conservative_when_a_known_source_is_present(tmp_pa
     selection = select_gates(["src/runtime/worker.py", "src/unknown/new.py"], router=router)
     assert selection.unmatched_src
     assert selection.selected_jobs == frozenset({"lint", "test-runtime", "test-docs"})
+
+
+@pytest.fixture(scope="module")
+def native_selector(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    repository = Path(__file__).resolve().parents[2]
+    executable = tmp_path_factory.mktemp("native-selector") / "selection"
+    subprocess.run(
+        ["zig", "build-exe", str(repository / "tools/zig/validation_selection.zig"), "-O", "ReleaseSafe", f"-femit-bin={executable}"],
+        check=True,
+        capture_output=True,
+        timeout=120,
+    )
+    return executable
+
+
+@pytest.mark.parametrize(
+    ("paths", "mode"),
+    [
+        (["src/runtime/worker.py"], "pr"),
+        (["docs/operator.md"], "pr"),
+        (["src/unknown/new.py"], "pr"),
+        (["src/runtime/worker.py", "src/unknown/new.py"], "pr"),
+        ([], "pr"),
+        (["docs/operator.md"], "full"),
+    ],
+)
+def test_native_selection_matches_the_qualified_reader(tmp_path: Path, native_selector: Path, paths: list[str], mode: str) -> None:
+    specification = write_local(tmp_path, local_specification())
+    expected = select_gates(paths, router=load_router(specification), mode=mode)
+    result = subprocess.run([str(native_selector), str(specification), mode, *paths], check=True, capture_output=True, text=True, timeout=20)
+    actual = json.loads(result.stdout)
+    assert actual["matched_groups"] == sorted(expected.matched_groups)
+    assert actual["unmatched_src"] == expected.unmatched_src
+    assert actual["selected_jobs"] == sorted(expected.selected_jobs)
+    assert actual["selected_code_shards"] == sorted(expected.selected_code_shards)
+    assert actual["selection_only"] is True
+    assert actual["validation_performed"] is False
+
+
+@pytest.mark.parametrize("version", [None, True, 1.0, 999])
+def test_native_invalid_version_refuses(tmp_path: Path, native_selector: Path, version: object) -> None:
+    specification = local_specification()
+    specification["schema_version"] = version
+    path = write_local(tmp_path, specification)
+    result = subprocess.run([str(native_selector), str(path), "pr", "src/runtime/a.py"], capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "selection refused" in result.stderr
+
+
+@pytest.mark.parametrize("path", ["", "/absolute.py", "src/../escape.py"])
+def test_native_invalid_path_refuses(tmp_path: Path, native_selector: Path, path: str) -> None:
+    specification = write_local(tmp_path, local_specification())
+    result = subprocess.run([str(native_selector), str(specification), "pr", path], capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "InvalidPath" in result.stderr
+
+
+def test_native_unknown_mode_refuses(tmp_path: Path, native_selector: Path) -> None:
+    specification = write_local(tmp_path, local_specification())
+    result = subprocess.run([str(native_selector), str(specification), "unqualified"], capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0
+    assert "UnsupportedMode" in result.stderr

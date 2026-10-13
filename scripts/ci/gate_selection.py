@@ -192,8 +192,8 @@ def select_gates(
     paths = [str(path) for path in changed_paths]
     matched = _match_groups(paths, router)
 
-    any_src = any(path.startswith("src/") for path in paths)
-    unmatched_src = any_src and not (matched & router.src_backed_groups)
+    source_patterns = tuple(pattern for group in router.src_backed_groups for pattern in router.filters[group])
+    unmatched_src = any(path.startswith("src/") and not any(fnmatch.fnmatch(path, pattern) for pattern in source_patterns) for path in paths)
 
     run_all = mode == "full" or unmatched_src
     selected_groups = router.routing_groups if run_all else matched
