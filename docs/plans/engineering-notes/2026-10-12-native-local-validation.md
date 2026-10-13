@@ -2,7 +2,7 @@
 title: Native Local Validation
 description: Implementation decisions, usability findings, and qualification limits for the native local gate.
 doc_status: active
-audience: ../../context/audience/internal/ai-collaboration-agent.md
+audience: docs/context/audience/internal/ai-collaboration-agent.md
 updated: '2026-10-12'
 ---
 
@@ -143,3 +143,13 @@ The delivery path now includes actual hosted workflow extraction. Genuine RED ac
 UX finding: native measurement qualification occupied too much of the critical path while the executable gate remained missing. Decision: proceed with owned command extraction in parallel with the pending measurement obligations, preserving the single lane and existing authority. Extraction is inspection data until all native execution, conditional, platform, publication, and budget mappings qualify; no inferred shell translation or hosted removal is permitted.
 
 Both GX10s are the model owner's Linux/ARM64 GB10 serving/evaluation topology; Mac compiler evidence does not qualify them. Current GLM, Qwen, and DeepSeek campaigns and a proposed Qwen 35B control do not establish this mission's Aletheia:35B adaptation base. Actual trainer/base identity remains unresolved. No model or shared runtime effects are selected here.
+
+The implemented extraction entry is `python scripts/validation/extract_gates.py`. Inspection records every current workflow/job/step with source and field digests, static literal argv where supported, trigger/runner/condition/dependency observations, and inherited wall limits. Environment and unsupported command bodies are represented by digests rather than copied values. Unknown fields, actions, conditions, shell syntax, publication mapping, and native execution bindings remain explicit blockers. `--require-runnable` returns nonzero for this inventory. It cannot become gate authority, execute checks, or publish.
+
+Input controls reject duplicate keys, dependency cycles, invalid shapes/timeouts, unsupported YAML tags/aliases, symlinks, excessive bytes/nesting, and observed source drift. Source reads are bounded, regular-file-only, and do not follow a leaf symlink. No unsupported platform qualification is inferred from this Unix inspection tool. Self-review tightened shell refusal for comments, glob brackets, home expansion, and reserved control words; it also added dependency-cycle detection and bounded file reads.
+
+The first focused regression passed 94 controls. Its Python coverage report measured 89% because externally executed public CLI code was outside in-process tracing. That does not satisfy the required threshold. Direct public-entry controls now also verify inspection success, runnable refusal, invalid-input refusal, diagnostics, and exit propagation under instrumentation. Final focused checks and fixed-candidate review are pending. Native source bytes remain unchanged; no Python result qualifies native measurement. Runnable local authority, staged candidate execution, hook installation, platform qualification, preserved publication, and hosted retirement remain open.
+
+Independent review reproduced shell-state/control misclassification for `cd`, `export`, `source`, and `exec` through the public extractor. A retained RED receipt records the returned argv without executing any command; the durable acceptance control also fails against that source. The successor refuses bare shell builtin/state/control names while retaining ordinary external argv. Overall non-runnable authority prevented adoption of the faulty classification. Final post-correction regression and review remain pending. The canonical audience check also rejected this log's inherited file-relative audience value; its actual resolver requires a repository-relative reference. The owned header now names the existing catalog path correctly. Original failed diagnostics remain retained.
+
+The same independent classification review then found bare `time`; a paired public reproduction also catches `coproc`. Both are [Bash reserved words](https://www.gnu.org/software/bash/manual/html_node/Reserved-Words.html), not ordinary argv lookup. Their refusal is added alongside a control preserving the explicit external `/usr/bin/time` argv. The earlier 103-control run and its coverage are retained for that exact source, not treated as proof of this amendment. Final validation targets the changed extractor and all extraction controls; unchanged native/reader/parity evidence retains its original scope. Full acceptance and runnable mapping remain open.
