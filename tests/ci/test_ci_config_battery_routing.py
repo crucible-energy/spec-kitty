@@ -28,7 +28,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from scripts.ci.gate_selection import DEFAULT_ROUTER_PATH, Router, load_router, select_gates, select_modules
+from scripts.ci.gate_selection import DEFAULT_REGISTRY_PATH, DEFAULT_ROUTER_PATH, Router, load_router, select_gates, select_modules
 from scripts.ci.prose_only import prose_only_pr_verdict
 from tests.architectural import _ci_integrity_oracle as oracle
 from tests.ci._gh_if import eval_gh_value
@@ -41,6 +41,7 @@ _GROUP = "ci_config"
 #: One probe path per ``ci_config`` glob (D-09), keyed by a human-readable id.
 _CI_CONFIG_PROBES = [
     pytest.param(".github/workflows/ci-aggregate.yml", id=".github/workflows/**"),
+    pytest.param(".github/workflows/ci-router.yml", id="selection-router"),
     pytest.param(".github/actions/warmup/action.yml", id=".github/actions/**"),
     pytest.param("scripts/ci/gate_selection.py", id="scripts/ci/**"),
     pytest.param("pytest.ini", id="pytest.ini"),
@@ -52,8 +53,10 @@ _CI_CONFIG_PROBES = [
 
 #: Probes whose module selection is the ``ci`` registry row (its roots are
 #: ``scripts/ci/**`` + ``.github/workflows/**``); every other ``ci_config`` glob
-#: selects no module -- the module matrix is deliberately not widened.
+#: selects no module, except selection definitions, which affect all consumers.
 _CI_MODULE_PROBES = frozenset({".github/workflows/ci-aggregate.yml", "scripts/ci/gate_selection.py"})
+
+_SELECTION_DEFINITION_PROBES = frozenset({".github/ci-module-registry.yml", ".github/workflows/ci-router.yml"})
 
 _ROUTER_TEXT = DEFAULT_ROUTER_PATH.read_text(encoding="utf-8")
 
@@ -89,8 +92,12 @@ def test_ci_config_only_diff_selects_the_heavy_battery(router: Router, path: str
 
 
 @pytest.mark.parametrize("path", _CI_CONFIG_PROBES)
-def test_ci_config_leaves_the_module_selection_unchanged(router: Router, path: str) -> None:
-    expected = frozenset({"ci"}) if path in _CI_MODULE_PROBES else frozenset()
+def test_ci_config_preserves_module_scope_except_selection_definitions(router: Router, path: str) -> None:
+    if path in _SELECTION_DEFINITION_PROBES:
+        registry = yaml.safe_load(DEFAULT_REGISTRY_PATH.read_text(encoding="utf-8"))
+        expected = frozenset(str(row["module"]) for row in registry["modules"])
+    else:
+        expected = frozenset({"ci"}) if path in _CI_MODULE_PROBES else frozenset()
 
     assert select_modules([path], router=router) == expected
 
