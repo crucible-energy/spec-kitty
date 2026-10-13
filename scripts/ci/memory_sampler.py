@@ -428,18 +428,21 @@ def _pid_is_sampler(pid: int, out: Path | None = None) -> bool:
     if raw is None:
         return False
     arguments = raw.split("\0")
+    if arguments and arguments[-1] == "":
+        arguments.pop()  # procfs terminates the argv byte string with one NUL
+    if "" in arguments:
+        return False
     if len(arguments) < 4 or arguments[1:4] != ["-m", _SELF_MODULE, "sample"]:
         return False
     if out is None:
         return True
-    # Our launcher emits one absolute output path. Relative legacy invocations
-    # cannot be safely resolved against the stopping process's working directory.
-    if arguments.count("--out") != 1:
+    # Only our launcher's canonical argv proves which record owns this child.
+    # Partial argparse emulation could miss aliases or later option overrides.
+    if len(arguments) != 10:
         return False
-    index = arguments.index("--out") + 1
-    if index >= len(arguments):
+    if arguments[4] != "--out" or arguments[6] != "--interval" or arguments[8] != "--proc-root":
         return False
-    target = Path(arguments[index])
+    target = Path(arguments[5])
     return target.is_absolute() and target.resolve() == out.resolve()
 
 
