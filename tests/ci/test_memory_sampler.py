@@ -410,6 +410,19 @@ def test_unknown_sampler_identity_never_authorizes_signal(tmp_path: Path, monkey
     assert sent == []
 
 
+@pytest.mark.parametrize("same_output", [False, True])
+def test_sampler_signal_is_bound_to_its_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, same_output: bool) -> None:
+    out = tmp_path / "owned.json"
+    target = out if same_output else tmp_path / "other-owner.json"
+    command = "\0".join([sys.executable, "-m", mod._SELF_MODULE, "sample", "--out", str(target), "--interval", "2"])
+    sent: list[int] = []
+    monkeypatch.setattr(mod, "_read_text", lambda path: "4242" if path.name.endswith(".pid") else command)
+    monkeypatch.setattr(mod, "_pid_running", lambda pid: False)
+    monkeypatch.setattr(mod.os, "kill", lambda pid, sig: sent.append(pid))
+    mod._terminate_sampler(out)
+    assert sent == ([4242] if same_output else [])
+
+
 def test_start_refuses_unavailable_process_identity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     out = tmp_path / "unqualified.json"
     calls: list[object] = []

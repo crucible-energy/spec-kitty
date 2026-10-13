@@ -213,3 +213,10 @@ Sam's two GX10s remain required targets for model training, evaluation, and
 serving qualification. M3 observations identify local Mac tooling only. Neither
 the hardware topology nor a proposed Qwen 35B control establishes the actual
 Aletheia:35B base, adapter compatibility, trained weights, or model improvement.
+
+Independent review of `557e65ea8` found that module/sample identity still permits
+signalling a sampler for another output record. A paired mocked control now
+requires the current record to authorize its own sampler and deny another
+record. No real signal is used. Bind the output argument before signalling;
+procfs observation still has a PID-reuse race and is not kernel-authenticated
+process ownership. This focused repair does not qualify the native supervisor.
