@@ -414,7 +414,7 @@ def test_unknown_sampler_identity_never_authorizes_signal(tmp_path: Path, monkey
 def test_sampler_signal_is_bound_to_its_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, same_output: bool) -> None:
     out = tmp_path / "owned.json"
     target = out if same_output else tmp_path / "other-owner.json"
-    command = "\0".join([sys.executable, "-m", mod._SELF_MODULE, "sample", "--out", str(target), "--interval", "2"])
+    command = "\0".join([sys.executable, "-m", mod._SELF_MODULE, "sample", "--out", str(target), "--interval", "2", "--proc-root", "/proc"])
     sent: list[int] = []
     monkeypatch.setattr(mod, "_read_text", lambda path: "4242" if path.name.endswith(".pid") else command)
     monkeypatch.setattr(mod, "_pid_running", lambda pid: False)
@@ -434,6 +434,20 @@ def test_sampler_output_identity_refuses_ambiguous_arguments(monkeypatch: pytest
 def test_sampler_output_identity_refuses_parser_override_family(monkeypatch: pytest.MonkeyPatch, override: list[str]) -> None:
     arguments = [sys.executable, "-m", mod._SELF_MODULE, "sample", "--out", "/owned.json", "--interval", "2", "--proc-root", "/proc", *override]
     monkeypatch.setattr(mod, "_read_text", lambda path: "\0".join(arguments))
+    assert not mod._pid_is_sampler(4242, Path("/owned.json"))
+
+
+def test_sampler_output_identity_accepts_one_procfs_terminator(monkeypatch: pytest.MonkeyPatch) -> None:
+    arguments = [sys.executable, "-m", mod._SELF_MODULE, "sample", "--out", "/owned.json", "--interval", "2", "--proc-root", "/proc"]
+    monkeypatch.setattr(mod, "_read_text", lambda path: "\0".join(arguments) + "\0")
+    assert mod._pid_is_sampler(4242, Path("/owned.json"))
+
+
+@pytest.mark.parametrize("empty_argument", [3, 6, 8])
+def test_sampler_output_identity_refuses_embedded_empty_arguments(monkeypatch: pytest.MonkeyPatch, empty_argument: int) -> None:
+    arguments = [sys.executable, "-m", mod._SELF_MODULE, "sample", "--out", "/owned.json", "--interval", "2", "--proc-root", "/proc"]
+    arguments[empty_argument] = ""
+    monkeypatch.setattr(mod, "_read_text", lambda path: "\0".join(arguments) + "\0")
     assert not mod._pid_is_sampler(4242, Path("/owned.json"))
 
 
