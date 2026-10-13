@@ -373,7 +373,7 @@ def _sample_loop(args: argparse.Namespace, out: Path, proc_root: Path, stop_even
 
 
 def _run_start(args: argparse.Namespace) -> int:
-    out = Path(args.out)
+    out = Path(args.out).resolve()
     if _read_text(Path("/proc/self/cmdline")) is None:
         print(_warning("process identity is unavailable; refusing background sampler startup"))
         return 0
@@ -418,7 +418,7 @@ def _pid_running(pid: int) -> bool:
     return stat is None or stat.rsplit(")", 1)[-1].split()[:1] != ["Z"]
 
 
-def _pid_is_sampler(pid: int) -> bool:
+def _pid_is_sampler(pid: int, out: Path | None = None) -> bool:
     """Require a readable, exact module invocation before granting sampler identity.
 
     Unknown identity never authorizes signalling a stale or reused PID. This
@@ -428,7 +428,19 @@ def _pid_is_sampler(pid: int) -> bool:
     if raw is None:
         return False
     arguments = raw.split("\0")
-    return len(arguments) >= 4 and arguments[1:4] == ["-m", _SELF_MODULE, "sample"]
+    if len(arguments) < 4 or arguments[1:4] != ["-m", _SELF_MODULE, "sample"]:
+        return False
+    if out is None:
+        return True
+    # Our launcher emits one absolute output path. Relative legacy invocations
+    # cannot be safely resolved against the stopping process's working directory.
+    if arguments.count("--out") != 1:
+        return False
+    index = arguments.index("--out") + 1
+    if index >= len(arguments):
+        return False
+    target = Path(arguments[index])
+    return target.is_absolute() and target.resolve() == out.resolve()
 
 
 def _terminate_sampler(out: Path) -> None:
@@ -438,7 +450,7 @@ def _terminate_sampler(out: Path) -> None:
         return
     pid = int(raw.strip())
     # pid 0 / 1 would signal our own process group / init, never a sampler.
-    if pid <= 1 or not _pid_is_sampler(pid):
+    if pid <= 1 or not _pid_is_sampler(pid, out):
         return
     try:
         os.kill(pid, signal.SIGTERM)

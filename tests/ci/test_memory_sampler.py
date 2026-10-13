@@ -423,6 +423,32 @@ def test_sampler_signal_is_bound_to_its_output(tmp_path: Path, monkeypatch: pyte
     assert sent == ([4242] if same_output else [])
 
 
+@pytest.mark.parametrize("output_args", [[], ["--out"], ["--out", "relative.json"], ["--out", "/owned.json", "--out", "/owned.json"]])
+def test_sampler_output_identity_refuses_ambiguous_arguments(monkeypatch: pytest.MonkeyPatch, output_args: list[str]) -> None:
+    command = "\0".join([sys.executable, "-m", mod._SELF_MODULE, "sample", *output_args])
+    monkeypatch.setattr(mod, "_read_text", lambda path: command)
+    assert not mod._pid_is_sampler(4242, Path("/owned.json"))
+
+
+def test_start_binds_relative_output_before_changing_child_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    commands: list[list[str]] = []
+
+    class Child:
+        pid = 4242
+
+    def spawn(command: list[str], **kwargs: object) -> Child:
+        commands.append(command)
+        return Child()
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(mod, "_read_text", lambda path: "identity capability fixture")
+    monkeypatch.setattr(mod.subprocess, "Popen", spawn)
+    assert mod.main(["start", "--out", "relative.json"]) == 0
+    command = commands[0]
+    assert command[command.index("--out") + 1] == str(tmp_path / "relative.json")
+    assert (tmp_path / "relative.json.pid").read_text() == "4242"
+
+
 def test_start_refuses_unavailable_process_identity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     out = tmp_path / "unqualified.json"
     calls: list[object] = []
