@@ -373,7 +373,10 @@ def _sample_loop(args: argparse.Namespace, out: Path, proc_root: Path, stop_even
 
 
 def _run_start(args: argparse.Namespace) -> int:
-    out = Path(args.out)
+    out = Path(args.out).resolve()
+    if _read_text(Path("/proc/self/cmdline")) is None:
+        print(_warning("process identity is unavailable; refusing background sampler startup"))
+        return 0
     command = [
         sys.executable,
         "-m",
@@ -415,15 +418,32 @@ def _pid_running(pid: int) -> bool:
     return stat is None or stat.rsplit(")", 1)[-1].split()[:1] != ["Z"]
 
 
-def _pid_is_sampler(pid: int) -> bool:
-    """False only when ``/proc/<pid>/cmdline`` is readable and is not this sampler.
+def _pid_is_sampler(pid: int, out: Path | None = None) -> bool:
+    """Require a readable, exact module invocation before granting sampler identity.
 
-    Guards against a stale pid file whose pid was reused by an unrelated process. Where
-    ``/proc`` offers no answer (non-Linux, vanished pid) the identity cannot be disproved,
-    so the caller proceeds as before.
+    Unknown identity never authorizes signalling a stale or reused PID. This
+    procfs identity backend supports Linux background sampling only.
     """
     raw = _read_text(Path(f"/proc/{pid}/cmdline"))
-    return raw is None or _SELF_MODULE in raw
+    if raw is None:
+        return False
+    arguments = raw.split("\0")
+    if arguments and arguments[-1] == "":
+        arguments.pop()  # procfs terminates the argv byte string with one NUL
+    if "" in arguments:
+        return False
+    if len(arguments) < 4 or arguments[1:4] != ["-m", _SELF_MODULE, "sample"]:
+        return False
+    if out is None:
+        return True
+    # Only our launcher's canonical argv proves which record owns this child.
+    # Partial argparse emulation could miss aliases or later option overrides.
+    if len(arguments) != 10:
+        return False
+    if arguments[4] != "--out" or arguments[6] != "--interval" or arguments[8] != "--proc-root":
+        return False
+    target = Path(arguments[5])
+    return target.is_absolute() and target.resolve() == out.resolve()
 
 
 def _terminate_sampler(out: Path) -> None:
@@ -433,7 +453,7 @@ def _terminate_sampler(out: Path) -> None:
         return
     pid = int(raw.strip())
     # pid 0 / 1 would signal our own process group / init, never a sampler.
-    if pid <= 1 or not _pid_is_sampler(pid):
+    if pid <= 1 or not _pid_is_sampler(pid, out):
         return
     try:
         os.kill(pid, signal.SIGTERM)
