@@ -1,0 +1,17 @@
+{
+  "rows": {
+    "#91": {
+      "evidence_ref": "spec.md: Sam's confirmed native local validation scope; implementation and independent review pending.",
+      "fr": null,
+      "nfr": null,
+      "repo": "crucible-energy/spec-kitty",
+      "sc": null,
+      "scope": "Native local gate and qualified hosted QA retirement",
+      "source_file": null,
+      "title": "Native Local Validation",
+      "verdict": "in-mission",
+      "wp": null
+    }
+  },
+  "schema_version": 1
+}

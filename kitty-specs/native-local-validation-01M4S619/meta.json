@@ -1,0 +1,15 @@
+{
+  "created_at": "2026-10-12T23:09:16.842100+00:00",
+  "flattened": false,
+  "friendly_name": "Native Local Validation",
+  "mid8": "01M4S619",
+  "mission_id": "01M4S61935GJQVDGMGV37HF1BB",
+  "mission_number": null,
+  "mission_slug": "native-local-validation-01M4S619",
+  "mission_type": "software-dev",
+  "purpose_context": "Replace hosted QA with an unattended staged-candidate local gate that preserves validation and release requirements. Planning writes belong to codex/native-local-validation; GitHub delivery targets the compatible fix/owned-analysis-implementation line separately.",
+  "purpose_tldr": "Validate proposed commits locally without discarding quality checks.",
+  "slug": "native-local-validation-01M4S619",
+  "target_branch": "codex/native-local-validation",
+  "topology": "single_branch"
+}
