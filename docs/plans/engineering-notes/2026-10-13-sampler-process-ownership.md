@@ -1,6 +1,16 @@
+---
+title: Sampler Process Ownership Repair
+description: Process identity and GitHub credential isolation repairs, validation evidence, and remaining qualification limits.
+doc_status: active
+audience: docs/context/audience/internal/ai-collaboration-agent.md
+updated: '2026-10-13'
+---
+
 # Sampler Process Ownership Repair
 
 ## User Experience Findings
+
+- The initial publication omitted this log’s required front matter. PR 101’s docs suite failed four metadata checks after executing successfully; the merge does not turn that failure into passing evidence. This successor supplies the normal metadata contract.
 
 - On macOS, `/proc` does not provide process identity. The sampler now reports that limitation and refuses background startup, while foreground sampling fixtures remain usable.
 - A stale PID could previously be signalled when `/proc` was unreadable, when the module name appeared only as a label, or when another sampler invocation owned a different output record. The stop command now requires the known launcher role, canonical argument sequence, and the same absolute output record.
