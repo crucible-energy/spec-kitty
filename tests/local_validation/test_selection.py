@@ -189,3 +189,61 @@ def test_native_unknown_mode_refuses(tmp_path: Path, native_selector: Path) -> N
     result = subprocess.run([str(native_selector), str(specification), "unqualified"], capture_output=True, text=True, timeout=20)
     assert result.returncode != 0
     assert "UnsupportedMode" in result.stderr
+
+
+_NATIVE_API_CONTROLS = r"""
+const std = @import("std");
+const selection = @import("selection");
+fn allocateSelection(allocator: std.mem.Allocator, document: std.json.Value) !void {
+    const selected = try selection.select(allocator, document, &.{ "src/runtime/a.py", "docs/operator.md" }, "pr");
+    defer selected.deinit(allocator);
+    try std.testing.expectEqual(@as(usize, 3), selected.selected_jobs.len);
+}
+test "selection allocation and input bounds" {
+    const bytes =
+        \\__FIXTURE_JSON__
+    ;
+    const parsed = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, bytes, .{});
+    defer parsed.deinit();
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, allocateSelection, .{parsed.value});
+    var no_resize = std.testing.FailingAllocator.init(std.testing.allocator, .{ .resize_fail_index = 0 });
+    try std.testing.checkAllAllocationFailures(no_resize.allocator(), allocateSelection, .{parsed.value});
+    try std.testing.expectEqual(no_resize.allocated_bytes, no_resize.freed_bytes);
+    const paths = try std.testing.allocator.alloc([]const u8, 32769);
+    defer std.testing.allocator.free(paths);
+    @memset(paths, "docs/operator.md");
+    try std.testing.expectError(error.InputLimit, selection.select(std.testing.allocator, parsed.value, paths, "pr"));
+}
+"""
+
+
+def test_native_allocation_rollback_and_api_input_bound(tmp_path: Path) -> None:
+    """Exercise real native rollback at every allocation failure and the public API bound."""
+    repository = Path(__file__).resolve().parents[2]
+    harness = tmp_path / "allocation-controls.zig"
+    harness.write_text(_NATIVE_API_CONTROLS.replace("__FIXTURE_JSON__", json.dumps(local_specification())))
+    executable = tmp_path / "allocation-controls"
+    subprocess.run(
+        [
+            "zig",
+            "test",
+            "--test-no-exec",
+            "--test-filter",
+            "selection allocation and input bounds",
+            "-O",
+            "ReleaseSafe",
+            "--dep",
+            "selection",
+            f"-Mroot={harness}",
+            "-O",
+            "ReleaseSafe",
+            f"-Mselection={repository / 'tools/zig/validation_selection.zig'}",
+            f"-femit-bin={executable}",
+        ],
+        check=True,
+        capture_output=True,
+        timeout=120,
+    )
+    result = subprocess.run([str(executable)], check=True, capture_output=True, text=True, timeout=20)
+    assert "test.selection allocation and input bounds...OK" in result.stderr
+    assert "All 1 tests passed." in result.stderr
