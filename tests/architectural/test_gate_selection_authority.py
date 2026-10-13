@@ -237,6 +237,29 @@ def test_select_modules_docs_only_selects_zero_modules(router: Router) -> None:
     assert selected == frozenset()
 
 
+@pytest.mark.parametrize("path", [".github/ci-module-registry.yml", ".github/workflows/ci-router.yml"])
+def test_selection_authority_changes_validate_all_module_consumers(router: Router, path: str) -> None:
+    assert select_modules([path], router=router) == _registry_modules()
+    assert select_modules([path, "src/specify_cli/consolidation/executor.py"], router=router) == _registry_modules()
+
+
+def test_selection_authority_lookalike_keeps_ordinary_scope(router: Router) -> None:
+    selected = select_modules([".github/ci-module-registry.yml.backup", "src/specify_cli/consolidation/executor.py"], router=router)
+    assert selected == frozenset({"consolidation"})
+
+
+@pytest.mark.parametrize("relative", [False, True])
+def test_explicit_registry_authority_change_selects_its_consumers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, relative: bool) -> None:
+    registry = tmp_path / "registry.yml"
+    registry.write_text("modules:\n- module: alpha\n  roots: [src/alpha/**]\n- module: beta\n  roots: [src/beta/**]\n")
+    custom_router = Router(filters={"alpha": ("src/alpha/**",), "beta": ("src/beta/**",)}, job_gates={"alpha": frozenset({"alpha"}), "beta": frozenset({"beta"})})
+    if relative:
+        monkeypatch.chdir(tmp_path)
+        registry = Path("registry.yml")
+    assert select_modules([registry], router=custom_router, registry_path=registry) == frozenset({"alpha", "beta"})
+    assert select_modules(["docs/guide.md"], router=custom_router, registry_path=registry) == frozenset()
+
+
 def test_select_modules_multi_group_diff_selects_each_matched_module(router: Router) -> None:
     """A status/** change also selects every OTHER module whose registry roots
     overlap it (core_misc/unit/execution_context all own

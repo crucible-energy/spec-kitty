@@ -56,7 +56,7 @@ _SCRUB_PATH = _REPO_ROOT / "tests" / "release" / "ci_retirement_scrub.json"
 
 _MODULE = "ci"
 _ROOTS = ["scripts/ci/**", ".github/workflows/**"]
-_TEST_DIRS = ["tests/ci"]
+_TEST_DIRS = ["tests/ci", "tests/local_validation"]
 
 
 def _registry_rows() -> list[dict[str, Any]]:
@@ -79,12 +79,21 @@ def router() -> Router:
 # (1) the registry row — tests/ci's per-PR executor
 # ---------------------------------------------------------------------------
 def test_registry_ci_row_claims_tests_ci() -> None:
-    """The `ci` row exists and claims exactly tests/ci as its test directory."""
+    """The `ci` row claims both infrastructure and local validation suites."""
     row = _ci_row()
     assert list(row["roots"]) == _ROOTS, "the ci row's roots must be the CI-infrastructure paths"
-    assert list(row["test_dirs"]) == _TEST_DIRS, "the ci row must claim tests/ci explicitly"
+    assert list(row["test_dirs"]) == _TEST_DIRS, "the ci row must claim both required test suites explicitly"
     assert isinstance(row["shard_count"], int) and row["shard_count"] >= 1
     assert list(row["cov_targets"]), "registry rows require a non-empty cov_targets ownership declaration"
+
+
+@pytest.mark.parametrize("directories", [[], ["tests/ci"], ["tests/local_validation"]])
+def test_registry_ci_directory_guard_rejects_missing_suite(monkeypatch: pytest.MonkeyPatch, directories: list[str]) -> None:
+    row = dict(_ci_row())
+    row["test_dirs"] = directories
+    monkeypatch.setattr(f"{__name__}._ci_row", lambda: row)
+    with pytest.raises(AssertionError, match="both required test suites"):
+        test_registry_ci_row_claims_tests_ci()
 
 
 def test_registry_ci_row_is_measured_not_guessed() -> None:

@@ -311,6 +311,21 @@ def _modules_for_test_paths(
     return frozenset(owners & modules)
 
 
+def _selection_authority_paths(registry_path: Path | None) -> frozenset[str]:
+    """Spellings of the actual definitions whose changes affect every consumer."""
+    spellings: set[str] = set()
+    for authority in (DEFAULT_ROUTER_PATH, registry_path or DEFAULT_REGISTRY_PATH):
+        source = authority if authority.is_absolute() else Path.cwd() / authority
+        spellings.update((str(authority), str(source)))
+        try:
+            spellings.add(source.relative_to(_REPO_ROOT).as_posix())
+        except ValueError:
+            # An explicit external fixture retains only its actual path
+            # spellings; never guess an unrelated repository path by basename.
+            continue
+    return frozenset(spellings)
+
+
 def select_modules(
     changed_paths: Iterable[str | Path],
     *,
@@ -349,12 +364,16 @@ def select_modules(
     from the registry (:func:`_modules_for_test_paths`) and unioned in, so a
     tests-only diff selects the SAME module set the corresponding src change
     selects (mirror, never narrow).
+
+    Changes to the actual router or registry definition select every module
+    consumer. Without a proved row-level dependency delta, selecting only the
+    definition's incidental path group can skip the wiring it changes.
     """
     router = router or load_router()
     modules = _registry_module_names(registry_path)
     paths = [str(path) for path in changed_paths]
     selection = select_gates(paths, router=router, mode=mode)
-    if mode == "full" or selection.unmatched_src:
+    if mode == "full" or selection.unmatched_src or _selection_authority_paths(registry_path).intersection(paths):
         return modules
     src_selected = selection.matched_groups & modules
     test_selected = _modules_for_test_paths(paths, router=router, registry_path=registry_path, modules=modules)
