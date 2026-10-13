@@ -21,6 +21,7 @@ Public API:
 from __future__ import annotations
 
 import fnmatch
+import json
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -115,9 +116,52 @@ def _job_gates(workflow: dict[str, Any]) -> dict[str, frozenset[str]]:
     return gates
 
 
+def _unique_fields(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"Duplicate local authority field: {key}")
+        result[key] = value
+    return result
+
+
+def _routing_rows(value: object) -> dict[str, tuple[str, ...]]:
+    if not isinstance(value, dict) or not value:
+        raise ValueError("Local routing rows must be a nonempty object")
+    rows: dict[str, tuple[str, ...]] = {}
+    for name, entries in value.items():
+        if not isinstance(name, str) or not name or not isinstance(entries, list):
+            raise ValueError("Local routing rows require names and string arrays")
+        if any(not isinstance(entry, str) or not entry for entry in entries):
+            raise ValueError("Local routing entries must be nonempty strings")
+        rows[name] = tuple(entries)
+    return rows
+
+
+def _local_router(document: object) -> Router:
+    if not isinstance(document, dict):
+        raise ValueError("Local routing authority must be an object")
+    version = document.get("schema_version")
+    if type(version) is not int or version != 1:
+        raise ValueError("Unsupported local authority schema version")
+    routing = document.get("routing")
+    if not isinstance(routing, dict):
+        raise ValueError("Local routing authority requires a routing object")
+    filters = _routing_rows(routing.get("filters"))
+    gates = _routing_rows(routing.get("job_gates"))
+    for groups in gates.values():
+        if any(group not in filters or group in PROBE_GROUPS for group in groups):
+            raise ValueError("Local routing gate references an unknown or probe group")
+    return Router(filters=filters, job_gates={name: frozenset(groups) for name, groups in gates.items()})
+
+
 def load_router(path: Path | None = None) -> Router:
-    """Parse the two routing authorities out of ``ci-router.yml``."""
-    workflow = yaml.safe_load((path or DEFAULT_ROUTER_PATH).read_text(encoding="utf-8"))
+    """Read local JSON routing, or the retained workflow migration oracle."""
+    source = path or DEFAULT_ROUTER_PATH
+    content = source.read_text(encoding="utf-8")
+    if source.suffix == ".json":
+        return _local_router(json.loads(content, object_pairs_hook=_unique_fields))
+    workflow = yaml.safe_load(content)
     return Router(filters=_dorny_filters(workflow), job_gates=_job_gates(workflow))
 
 
