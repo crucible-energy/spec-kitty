@@ -220,3 +220,9 @@ requires the current record to authorize its own sampler and deny another
 record. No real signal is used. Bind the output argument before signalling;
 procfs observation still has a PID-reuse race and is not kernel-authenticated
 process ownership. This focused repair does not qualify the native supervisor.
+
+Re-review found argparse output overrides (`--out=`, `--o`, and `--ou=`) could
+change the effective target after the inspected literal output option. Genuine
+RED covers the complete reported family. The signal boundary will accept only
+the canonical argument sequence emitted by this launcher, rather than partially
+reimplementing argparse. Noncanonical legacy/manual commands remain unowned.

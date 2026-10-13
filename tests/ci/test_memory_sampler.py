@@ -430,6 +430,13 @@ def test_sampler_output_identity_refuses_ambiguous_arguments(monkeypatch: pytest
     assert not mod._pid_is_sampler(4242, Path("/owned.json"))
 
 
+@pytest.mark.parametrize("override", [["--out=/other.json"], ["--o", "/other.json"], ["--ou=/other.json"]])
+def test_sampler_output_identity_refuses_parser_override_family(monkeypatch: pytest.MonkeyPatch, override: list[str]) -> None:
+    arguments = [sys.executable, "-m", mod._SELF_MODULE, "sample", "--out", "/owned.json", "--interval", "2", "--proc-root", "/proc", *override]
+    monkeypatch.setattr(mod, "_read_text", lambda path: "\0".join(arguments))
+    assert not mod._pid_is_sampler(4242, Path("/owned.json"))
+
+
 def test_start_binds_relative_output_before_changing_child_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     commands: list[list[str]] = []
 
