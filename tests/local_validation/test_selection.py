@@ -247,3 +247,77 @@ def test_native_allocation_rollback_and_api_input_bound(tmp_path: Path) -> None:
     result = subprocess.run([str(executable)], check=True, capture_output=True, text=True, timeout=20)
     assert "test.selection allocation and input bounds...OK" in result.stderr
     assert "All 1 tests passed." in result.stderr
+
+
+def test_extraction_preserves_commands_and_source_identity(tmp_path: Path) -> None:
+    from scripts.validation.extract_gates import extract_workflows
+
+    directory = tmp_path / ".github" / "workflows"
+    directory.mkdir(parents=True)
+    path = directory / "quality.yml"
+    path.write_text(
+        "on: [push]\njobs:\n  lint:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n    steps:\n"
+        "      - run: |\n          python -m ruff check .\n          python -m ruff format --check .\n"
+    )
+    result = extract_workflows(tmp_path)
+    assert result["validation_performed"] is False
+    workflow = result["workflows"][0]
+    assert workflow["path"] == ".github/workflows/quality.yml"
+    assert workflow["trigger"] == ["push"]
+    assert len(workflow["sha256"]) == 64
+    job = workflow["jobs"]["lint"]
+    assert job["wall_ms"] == 600000
+    assert job["steps"][0]["argv"] == [["python", "-m", "ruff", "check", "."], ["python", "-m", "ruff", "format", "--check", "."]]
+
+
+def test_extraction_retains_untranslated_conditions_and_actions(tmp_path: Path) -> None:
+    from scripts.validation.extract_gates import extract_workflows
+
+    directory = tmp_path / ".github" / "workflows"
+    directory.mkdir(parents=True)
+    (directory / "release.yml").write_text(
+        "on: [push]\njobs:\n  publish:\n    if: github.ref == 'refs/heads/main'\n    needs: [build]\n"
+        "    runs-on: ubuntu-latest\n    timeout-minutes: 5\n    steps:\n"
+        "      - uses: pypa/gh-action-pypi-publish@v1\n      - run: echo ${{ secrets.TOKEN }}\n"
+        "  build:\n    runs-on: ubuntu-latest\n    timeout-minutes: 5\n    steps:\n      - run: python -m build\n"
+    )
+    result = extract_workflows(tmp_path)
+    assert result["runnable"] is False
+    job = result["workflows"][0]["jobs"]["publish"]
+    assert job["needs"] == ["build"]
+    assert job["condition"] == "github.ref == 'refs/heads/main'"
+    assert job["steps"][0]["uses"] == "pypa/gh-action-pypi-publish@v1"
+    assert job["steps"][1]["argv"] is None
+    assert {entry["reason"] for entry in result["blockers"]} >= {"job_condition", "action", "shell_semantics"}
+    assert "secrets.TOKEN" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "jobs:\n  a: {}\n  a: {}\n",
+        "on: [push]\njobs: []\n",
+        "on: [push]\njobs:\n  a:\n    timeout-minutes: true\n    steps: []\n",
+        "on: [push]\njobs:\n  a:\n    needs: [missing]\n    steps: []\n",
+    ],
+)
+def test_extraction_refuses_ambiguous_or_invalid_workflows(tmp_path: Path, body: str) -> None:
+    from scripts.validation.extract_gates import extract_workflows
+
+    directory = tmp_path / ".github" / "workflows"
+    directory.mkdir(parents=True)
+    (directory / "invalid.yml").write_text(body)
+    with pytest.raises(ValueError, match="workflow"):
+        extract_workflows(tmp_path)
+
+
+def test_extraction_refuses_symlinked_workflow(tmp_path: Path) -> None:
+    from scripts.validation.extract_gates import extract_workflows
+
+    directory = tmp_path / ".github" / "workflows"
+    directory.mkdir(parents=True)
+    outside = tmp_path / "outside.yml"
+    outside.write_text("jobs: {}\n")
+    (directory / "linked.yml").symlink_to(outside)
+    with pytest.raises(ValueError, match="symlink"):
+        extract_workflows(tmp_path)
