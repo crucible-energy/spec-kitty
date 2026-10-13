@@ -84,6 +84,7 @@
       "mission-state",
       "list-ready",
       "resolve-workspace",
+      "preflight-implementation",
       "start-implementation",
       "start-review",
       "transition",
