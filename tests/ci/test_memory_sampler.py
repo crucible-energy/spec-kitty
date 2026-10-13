@@ -388,6 +388,36 @@ def test_pid_is_sampler_identity_check(tmp_path: Path) -> None:
     assert mod._pid_is_sampler(2**22 + 12345) is True  # no /proc entry -> cannot verify -> proceed
 
 
+def test_unknown_sampler_identity_never_authorizes_signal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    out = tmp_path / "unknown.json"
+    (tmp_path / "unknown.json.pid").write_text("4242", encoding="utf-8")
+    sent: list[int] = []
+    monkeypatch.setattr(mod, "_read_text", lambda path: "4242" if path.name.endswith(".pid") else None)
+    monkeypatch.setattr(mod, "_pid_running", lambda pid: False)
+    monkeypatch.setattr(mod.os, "kill", lambda pid, sig: sent.append(pid))
+    mod._terminate_sampler(out)
+    assert sent == []
+
+
+def test_start_refuses_unavailable_process_identity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    out = tmp_path / "unqualified.json"
+    calls: list[object] = []
+
+    class Child:
+        pid = 4242
+
+    def spawn(*args: object, **kwargs: object) -> Child:
+        calls.append(args)
+        return Child()
+
+    monkeypatch.setattr(mod, "_read_text", lambda path: None)
+    monkeypatch.setattr(mod.subprocess, "Popen", spawn)
+    assert mod.main(["start", "--out", str(out)]) == 0
+    assert calls == []
+    assert not (tmp_path / "unqualified.json.pid").exists()
+    assert "identity" in capsys.readouterr().out
+
+
 def test_stop_without_start_degrades_to_a_warning_and_exit_zero(tmp_path: Path, fake_proc: FakeProc) -> None:
     result = _cli("stop", "--out", str(tmp_path / "never-started.json"), "--proc-root", str(fake_proc.proc))
     assert result.returncode == 0, result.stderr

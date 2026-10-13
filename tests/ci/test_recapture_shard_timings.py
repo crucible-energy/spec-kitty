@@ -297,6 +297,16 @@ def test_scrubbed_env_drops_every_token_variable(monkeypatch: pytest.MonkeyPatch
     assert env["PATH"] == "/usr/bin"
 
 
+@pytest.mark.parametrize("name", ["OWNER_GITHUB_TOKEN", "SERVICE_GH_TOKEN", "owner_github_token", "github_token"])
+def test_scrubbed_env_drops_ambient_github_credential_spellings(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+    monkeypatch.setenv(name, "synthetic-scoping-sentinel")
+    monkeypatch.setenv("NONCREDENTIAL_SETTING", "retained")
+    env = recapture._scrubbed_env()
+    credential_present = name in env
+    assert not credential_present, f"Ambient credential key reached child environment: {name}; values omitted"
+    assert env["NONCREDENTIAL_SETTING"] == "retained"
+
+
 def test_write_github_output_appends_to_output_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     output_path = tmp_path / "output.txt"
     monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
@@ -1190,7 +1200,8 @@ def _ambient_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
 def _assert_credential_isolation(world: World, expected_calls: list[tuple[str, str]]) -> None:
     assert [_call_label(call) for call in world.calls] == [label for label, _ in expected_calls]
     for env, (label, kind) in zip(world.envs, expected_calls, strict=True):
-        assert env == _expected_env(kind), f"{label}: wrong environment ({kind} expected)"
+        environment_matches = env == _expected_env(kind)
+        assert environment_matches, f"{label}: wrong environment ({kind} expected); values omitted"
         carries_secret = any(FAKE_TOKEN in value or "GITHUB_TOKEN" in key or SECRET_NAME in key for key, value in env.items() if key != "GH_TOKEN")
         assert not carries_secret, f"{label}: the credential reached a call that does not need it"
         if kind != _GH:
