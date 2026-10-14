@@ -713,7 +713,7 @@ def test_current_router_recipes_preserve_static_commands_and_dynamic_contracts()
     proposal = executable_router_specification(repository)
     workflow = yaml.safe_load((repository / ".github/workflows/ci-router.yml").read_text())
     checks = proposal["checks"]
-    assert set(checks) == set(workflow["jobs"]) - {"changes"}
+    assert set(workflow["jobs"]) - {"changes"} <= set(checks)
     for name, job in workflow["jobs"].items():
         if name in {"changes", "architectural-heavy", "prose-scan", "router-gate", "commit-msg", "markdownlint"}:
             continue
@@ -942,6 +942,17 @@ def test_checked_in_authority_matches_pinned_hosted_routing(native_selector: Pat
     assert specification["source"]["sha256"] == hashlib.sha256(hosted_router.read_bytes()).hexdigest()  # noqa: TID251 — exact source-file migration pin, not charter freshness
     local = load_router(local_authority)
     hosted = load_router(hosted_router)
+    packs = load_router(repository / ".github/workflows/packs.yml")
+    from scripts.ci.gate_selection import Router
+
+    source_filters = {**hosted.filters, **{"packs_" + name: patterns for name, patterns in packs.filters.items()}}
+    source_gates = {
+        **hosted.job_gates,
+        **{name: frozenset("corpus" if group == "corpus" else "packs_" + group for group in groups) for name, groups in packs.job_gates.items()},
+    }
+    # Packs jobs are data lanes; unknown-source fan-out reaches their corpus predicate, never the unrelated lanes.
+    non_conservative = frozenset(name for name, groups in packs.job_gates.items() if groups and "corpus" not in groups)
+    hosted = Router(source_filters, source_gates, frozenset("packs_" + name for name in packs.filters), non_conservative)
     assert load_router() == local
     registry = yaml.safe_load((repository / ".github/ci-module-registry.yml").read_text(encoding="utf-8"))
     assert specification["modules"] == registry["modules"]
@@ -1597,9 +1608,7 @@ def test_native_warning_output_guard_is_not_validator_execution(tmp_path: Path, 
     specification: Any = local_specification()
     specification["checks"]["lint"]["stderr_policy"] = ["reject-warning-prefix"]
     authority = write_local(tmp_path, specification)
-    log = tmp_path / "synthetic-capture.log"
-    log.write_text(stderr)
-    result = subprocess.run([str(native_selector), str(authority), "output-policy", "lint", "0", str(log)], capture_output=True, text=True, timeout=20)
+    result = subprocess.run([str(native_selector), str(authority), "output-policy", "lint", "0"], input=stderr, capture_output=True, text=True, timeout=20)
     assert result.returncode == (0 if allowed else 1)
     assert json.loads(result.stdout) == {"policy_allows_output": allowed, "check_validation_performed": False, "execution_supported": False}
     assert stderr not in result.stdout if stderr else True
@@ -1620,3 +1629,72 @@ def test_packs_recipe_has_genuine_source_guard_and_advisory_contract() -> None:
     assert checks["packs-gate"]["dependencies"] == []
     assert checks["packs-gate"]["recipe"]["observed_dependencies"] == jobs["packs-gate"]["needs"]
     assert "built-in-corpus-suite" not in checks["packs-gate"]["recipe"]["observed_dependencies"]
+
+
+@pytest.mark.parametrize("fault", ["code-optout", "unknown-data-group", "duplicate-data-group", "nonboolean-optout"])
+def test_native_and_python_refuse_weakened_code_selection(tmp_path: Path, native_selector: Path, fault: str) -> None:
+    specification: Any = local_specification()
+    specification["routing"]["non_source_groups"] = []
+    if fault == "code-optout":
+        specification["checks"]["test-runtime"]["unmatched_source"] = False
+    elif fault == "unknown-data-group":
+        specification["routing"]["non_source_groups"] = ["foreign"]
+    elif fault == "duplicate-data-group":
+        specification["routing"]["non_source_groups"] = ["docs", "docs"]
+    else:
+        specification["checks"]["test-runtime"]["unmatched_source"] = "false"
+    path = write_local(tmp_path, specification)
+    with pytest.raises(ValueError, match="routing"):
+        load_router(path)
+    result = subprocess.run([str(native_selector), str(path), "pr", "src/unmapped/file.py"], capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0 and result.stdout == ""
+
+
+@pytest.mark.parametrize(
+    "fault", ["missing-index", "unknown-check", "negative-index", "index-overflow", "quota", "unknown-policy", "missing-policy-row", "zero-quota"]
+)
+def test_native_output_policy_refuses_unbound_or_overflowing_input(tmp_path: Path, native_selector: Path, fault: str) -> None:
+    specification: Any = local_specification()
+    check = specification["checks"]["lint"]
+    check["stderr_policy"] = ["reject-warning-prefix"]
+    name, index, data = "lint", "0", "ordinary"
+    if fault == "unknown-check":
+        name = "foreign"
+    elif fault == "negative-index":
+        index = "-1"
+    elif fault == "index-overflow":
+        index = "99999999999999999999999999999999"
+    elif fault == "quota":
+        check["budgets"]["stderr_bytes"] = 4
+    elif fault == "unknown-policy":
+        check["stderr_policy"] = ["invented"]
+    elif fault == "missing-policy-row":
+        check["stderr_policy"] = []
+    elif fault == "zero-quota":
+        check["budgets"]["stderr_bytes"] = 0
+    args = [str(native_selector), str(write_local(tmp_path, specification)), "output-policy", name, index]
+    if fault == "missing-index":
+        args.pop()
+    result = subprocess.run(args, input=data, capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0 and result.stdout == ""
+    assert data not in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("data", "allowed"),
+    [
+        ("Warning: example\n", False),
+        ("warning: example\r\n", False),
+        ("embedded Warning: example\n", True),
+        ("\nWARNING: example\n", False),
+        ("diagnostic without a final newline", True),
+    ],
+)
+def test_native_warning_policy_matches_pinned_ascii_grep_rule(tmp_path: Path, native_selector: Path, data: str, allowed: bool) -> None:
+    specification: Any = local_specification()
+    specification["checks"]["lint"]["stderr_policy"] = ["reject-warning-prefix"]
+    authority = write_local(tmp_path, specification)
+    oracle = subprocess.run(["/usr/bin/grep", "-qi", "^Warning:"], input=data, capture_output=True, text=True, timeout=20)
+    assert (oracle.returncode != 0) == allowed
+    result = subprocess.run([str(native_selector), str(authority), "output-policy", "lint", "0"], input=data, capture_output=True, text=True, timeout=20)
+    assert json.loads(result.stdout)["policy_allows_output"] is allowed

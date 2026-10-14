@@ -42,8 +42,9 @@ fn strings(value: Value) ![]const Value {
 fn probe(name: []const u8) bool {
     return std.mem.eql(u8, name, "any_src");
 }
-fn sourceGroup(filters: std.json.ObjectMap, name: []const u8) bool {
+fn sourceGroup(filters: std.json.ObjectMap, name: []const u8, non_source: []const Value) bool {
     if (probe(name)) return false;
+    for (non_source) |group| if (std.mem.eql(u8, name, group.string)) return false;
     for (filters.get(name).?.array.items) |pattern| {
         if (std.mem.startsWith(u8, pattern.string, "src/")) return true;
     }
@@ -110,7 +111,7 @@ fn validateModeAndPlatform(check: std.json.ObjectMap, name: []const u8, allowed:
 }
 
 fn validateCheck(value: Value) ![]const Value {
-    try rejectUnknownFields(value, &.{ "argv", "modes", "platforms", "dependencies", "environment", "budgets", "recipe" });
+    try rejectUnknownFields(value, &.{ "argv", "modes", "platforms", "dependencies", "environment", "budgets", "recipe", "unmatched_source", "stderr_policy" });
     const fields = try object(value);
     const argv_value = fields.get("argv") orelse return error.InvalidCommand;
     if (argv_value != .array or argv_value.array.items.len == 0) return error.InvalidCommand;
@@ -121,6 +122,12 @@ fn validateCheck(value: Value) ![]const Value {
             if (argument != .string or std.mem.indexOfScalar(u8, argument.string, 0) != null) return error.InvalidCommand;
         }
         if (command.array.items[0].string.len == 0) return error.InvalidCommand;
+    }
+    if (fields.get("unmatched_source")) |policy| if (policy != .bool) return error.InvalidChecks;
+    if (fields.get("stderr_policy")) |policy| {
+        const entries = try strings(policy);
+        if (entries.len != argv.len) return error.InvalidChecks;
+        for (entries) |entry| if (!oneOf(entry.string, &.{ "allow", "reject-warning-prefix" })) return error.UnsupportedOutputPolicy;
     }
     _ = try requiredStrings(fields, "modes");
     try validateModeAndPlatform(fields, "modes", &.{ "commit", "full", "release", "docs", "platform" });
@@ -239,7 +246,7 @@ fn validateRecipe(value: Value, command_count: usize, migration: []const Value) 
         if (!validIdentifier(entry.key_ptr.*) or entry.value_ptr.* != .string or entry.value_ptr.string.len == 0) return error.InvalidRecipe;
     }
     for (try requiredStrings(recipe, "required_inputs")) |input| {
-        if (!oneOf(input.string, &.{ "candidate", "base", "dependencies", "prose", "results", "commit_range", "memory_output", "universe_decision", "universe_reuse" })) return error.UnsupportedBinding;
+        if (!oneOf(input.string, &.{ "candidate", "base", "dependencies", "prose", "results", "commit_range", "memory_output", "universe_decision", "universe_reuse", "claude_cli_2_1_270" })) return error.UnsupportedBinding;
     }
     const conditions = try requiredStrings(recipe, "conditions");
     const instances = try requiredStrings(recipe, "instances");
@@ -286,6 +293,7 @@ fn validateRecipes(root: std.json.ObjectMap, version: i64) !void {
     var iterator = checks.iterator();
     while (iterator.next()) |entry| {
         const check = try object(entry.value_ptr.*);
+        if (version == 3 and (!check.contains("unmatched_source") or !check.contains("stderr_policy"))) return error.InvalidChecks;
         _ = try requiredStrings(check, "platforms");
         const recipe = check.get("recipe") orelse return error.InvalidRecipe;
         try validateRecipe(recipe, check.get("argv").?.array.items.len, migration.array.items);
@@ -324,7 +332,7 @@ pub fn matches(pattern: []const u8, path: []const u8) !bool {
     return pi == pattern.len;
 }
 
-fn validate(filters: std.json.ObjectMap, gates: std.json.ObjectMap) !void {
+fn validate(filters: std.json.ObjectMap, gates: std.json.ObjectMap, non_source: []const Value, root: std.json.ObjectMap) !void {
     if (filters.count() == 0 or gates.count() == 0 or filters.count() > 4096 or gates.count() > 4096) return error.InvalidRouting;
     var fit = filters.iterator();
     while (fit.next()) |entry| {
@@ -333,13 +341,34 @@ fn validate(filters: std.json.ObjectMap, gates: std.json.ObjectMap) !void {
             _ = try matches(pattern.string, "");
         }
     }
+    for (non_source, 0..) |group, index| {
+        if (!filters.contains(group.string) or probe(group.string)) return error.InvalidRouting;
+        for (non_source[0..index]) |previous| if (std.mem.eql(u8, group.string, previous.string)) return error.InvalidRouting;
+    }
     var git = gates.iterator();
     while (git.next()) |entry| {
         if (!validIdentifier(entry.key_ptr.*)) return error.InvalidRouting;
         for (try strings(entry.value_ptr.*)) |group| {
             if (!filters.contains(group.string) or probe(group.string)) return error.InvalidRouting;
         }
+        if (!conservativeCheck(root, entry.key_ptr.*)) {
+            if (entry.value_ptr.array.items.len == 0) return error.InvalidRouting;
+            for (entry.value_ptr.array.items) |group| {
+                var data = false;
+                for (non_source) |candidate| data = data or std.mem.eql(u8, candidate.string, group.string);
+                if (!data) return error.InvalidRouting;
+            }
+        }
     }
+}
+
+fn conservativeCheck(root: std.json.ObjectMap, name: []const u8) bool {
+    if (root.get("checks")) |checks| {
+        if (checks.object.get(name)) |check| {
+            if (check.object.get("unmatched_source")) |policy| return policy.bool;
+        }
+    }
+    return true;
 }
 
 pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, mode: []const u8) !Selection {
@@ -349,13 +378,16 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
     try rejectUnknownFields(document, &.{ "schema_version", "source", "routing", "modules", "checks", "migration" });
     try validateOptionalSections(root);
     const version = root.get("schema_version") orelse return error.UnsupportedSchemaVersion;
-    if (version != .integer or (version.integer != 1 and version.integer != 2)) return error.UnsupportedSchemaVersion;
+    if (version != .integer or (version.integer != 1 and version.integer != 2 and version.integer != 3)) return error.UnsupportedSchemaVersion;
     try validateRecipes(root, version.integer);
     const routing = try object(root.get("routing") orelse return error.InvalidRouting);
-    try rejectUnknownFields(root.get("routing").?, &.{ "filters", "job_gates" });
+    try rejectUnknownFields(root.get("routing").?, &.{ "filters", "job_gates", "non_source_groups" });
+    var non_source: []const Value = &.{};
+    if (routing.get("non_source_groups")) |data| non_source = try strings(data);
+    if (version.integer == 3 and !routing.contains("non_source_groups")) return error.InvalidRouting;
     const filters = try object(routing.get("filters") orelse return error.InvalidRouting);
     const gates = try object(routing.get("job_gates") orelse return error.InvalidRouting);
-    try validate(filters, gates);
+    try validate(filters, gates, non_source, root);
     var matched: std.StringHashMap(void) = .init(allocator);
     defer matched.deinit();
     var unmatched = false;
@@ -371,7 +403,7 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
             for (entry.value_ptr.array.items) |pattern| {
                 if (try matches(pattern.string, path)) {
                     try matched.put(name, {});
-                    known_source = known_source or sourceGroup(filters, name);
+                    known_source = known_source or sourceGroup(filters, name, non_source);
                     break;
                 }
             }
@@ -393,8 +425,8 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
         var selected = references.len == 0;
         var code = false;
         for (references) |group| {
-            selected = selected or all or matched.contains(group.string);
-            code = code or sourceGroup(filters, group.string);
+            selected = selected or (all and (std.mem.eql(u8, mode, "full") or conservativeCheck(root, entry.key_ptr.*))) or matched.contains(group.string);
+            code = code or sourceGroup(filters, group.string, non_source);
         }
         if (selected) {
             try jobs.append(allocator, entry.key_ptr.*);
@@ -435,7 +467,7 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
             try jobs.append(allocator, selected.*);
             if (gates.get(selected.*)) |route| {
                 for (route.array.items) |group| {
-                    if (sourceGroup(filters, group.string)) {
+                    if (sourceGroup(filters, group.string, non_source)) {
                         try shards.append(allocator, selected.*);
                         break;
                     }
@@ -470,7 +502,7 @@ fn explainSelection(allocator: Allocator, root: std.json.ObjectMap, gates: std.j
                 try reasons.append(allocator, .{ .check = job, .kind = "always_on" });
             } else if (std.mem.eql(u8, mode, "full")) {
                 try reasons.append(allocator, .{ .check = job, .kind = "full" });
-            } else if (unmatched) {
+            } else if (unmatched and conservativeCheck(root, job)) {
                 try reasons.append(allocator, .{ .check = job, .kind = "unmatched_source" });
             } else {
                 for (route.array.items) |group| {
@@ -514,10 +546,28 @@ pub fn selectForTarget(allocator: Allocator, document: Value, paths: []const []c
     return selection;
 }
 
+/// Inspect a command's captured bytes only; this does not establish execution.
+pub fn outputPolicyAllows(check_value: Value, command_index: usize, stderr: []const u8) !bool {
+    _ = try validateCheck(check_value);
+    const check = try object(check_value);
+    if (command_index >= check.get("argv").?.array.items.len) return error.InvalidCommandIndex;
+    const limit = std.math.cast(usize, check.get("budgets").?.object.get("stderr_bytes").?.integer) orelse return error.InvalidBudget;
+    if (stderr.len > limit) return error.DiagnosticLimit;
+    if (check.get("stderr_policy")) |policies| {
+        if (std.mem.eql(u8, policies.array.items[command_index].string, "reject-warning-prefix")) {
+            var lines = std.mem.splitScalar(u8, stderr, '\n');
+            while (lines.next()) |line| if (std.ascii.startsWithIgnoreCase(line, "Warning:")) return false;
+        }
+    }
+    return true;
+}
+
 fn run(init: std.process.Init) !void {
     const allocator = init.arena.allocator();
     const args = try init.minimal.args.toSlice(allocator);
     if (args.len < 3) return error.InvalidArguments;
+    const output_policy = std.mem.eql(u8, args[2], "output-policy");
+    if (output_policy and args.len != 5) return error.InvalidArguments;
     const targeted = std.mem.eql(u8, args[2], "--platform");
     if (targeted and args.len < 5) return error.InvalidArguments;
     var mode = args[2];
@@ -529,6 +579,27 @@ fn run(init: std.process.Init) !void {
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], allocator, .limited(16 * 1024 * 1024));
     const parsed = try std.json.parseFromSlice(Value, allocator, bytes, .{ .duplicate_field_behavior = .@"error" });
     defer parsed.deinit();
+    if (output_policy) {
+        const inspected = try select(allocator, parsed.value, &.{}, "pr");
+        defer inspected.deinit(allocator);
+        const checks = (try object(parsed.value)).get("checks") orelse return error.MissingCheck;
+        const check = checks.object.get(args[3]) orelse return error.MissingCheck;
+        const index = try std.fmt.parseInt(usize, args[4], 10);
+        if (index >= check.object.get("argv").?.array.items.len) return error.InvalidCommandIndex;
+        const limit = std.math.cast(usize, check.object.get("budgets").?.object.get("stderr_bytes").?.integer) orelse return error.InvalidBudget;
+        var input_buffer: [4096]u8 = undefined;
+        var input_reader = std.Io.File.stdin().readerStreaming(init.io, &input_buffer);
+        const captured = try input_reader.interface.allocRemaining(allocator, .limited(@min(limit, 16 * 1024 * 1024)));
+        const allowed = try outputPolicyAllows(check, index, captured);
+        var policy_output: std.Io.Writer.Allocating = .init(allocator);
+        defer policy_output.deinit();
+        var policy_stringify: std.json.Stringify = .{ .writer = &policy_output.writer };
+        try policy_stringify.write(.{ .policy_allows_output = allowed, .check_validation_performed = false, .execution_supported = false });
+        try policy_output.writer.writeByte('\n');
+        try std.Io.File.stdout().writeStreamingAll(init.io, policy_output.written());
+        if (!allowed) return error.OutputPolicyRefused;
+        return;
+    }
     var selection: Selection = undefined;
     if (targeted) {
         selection = try selectForTarget(allocator, parsed.value, paths, mode, args[3]);

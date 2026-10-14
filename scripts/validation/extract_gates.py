@@ -446,6 +446,8 @@ def _router_check(name: str, job: dict[str, object], source: dict[str, str]) -> 
     dependencies = [str(item) for item in needs]
     return {
         "argv": argv,
+        "unmatched_source": True,
+        "stderr_policy": ["allow"] * len(argv),
         "modes": ["commit", "full"],
         "platforms": ["linux"] if name in {"architectural-fast", "architectural-heavy"} else ["macos", "linux", "windows"],
         "dependencies": [] if name == "router-gate" else [name for name in dependencies if name != "changes"],
@@ -475,8 +477,79 @@ def _router_check(name: str, job: dict[str, object], source: dict[str, str]) -> 
     }
 
 
+def _pack_check(name: str, job: dict[str, object], source: dict[str, str]) -> dict[str, object]:
+    """Translate only the exact pinned Packs epoch; do not run its commands."""
+    steps = job.get("steps")
+    if not isinstance(steps, list):
+        raise ValueError("Invalid Packs steps")
+    argv: list[list[str]] = []
+    policies: list[str] = []
+    for value in steps:
+        step = _mapping(value)
+        run = step.get("run")
+        if not isinstance(run, str) or step.get("if") == "failure()":
+            continue  # Original source retains pure remediation notices.
+        if name == "packs-gate":
+            commands = [_local_command("results", "default")[:-1] + ["out/validation/packs-results-input.json"]]
+        elif name == "built-in-plugin-validate":
+            if run.startswith("npm install"):
+                continue  # Exact Claude executable is a bound prerequisite, never a global install.
+            commands = [["uv", "sync", "--frozen", "--all-extras"], ["uv", "run", "--frozen", "spec-kitty", "plugin", "build", "--target", "claude-code"]]
+        elif run.strip() == "find . -depth -type d -name '__pycache__' -exec rm -rf {} +":
+            commands = [["find", ".", "-depth", "-type", "d", "-name", "__pycache__", "-exec", "rm", "-rf", "{}", "+"]]
+        else:
+            static = _commands(run)
+            if static is None:
+                raise ValueError(f"Unsupported native Packs mapping: {name}")
+            commands = static
+        argv.extend(commands)
+        policies.extend(["allow"] * len(commands))
+    if name == "built-in-plugin-validate":
+        policies[-1] = "reject-warning-prefix"
+    minutes = job.get("timeout-minutes")
+    if type(minutes) is not int or minutes <= 0 or not argv:
+        raise ValueError("Missing Packs commands or finite budget")
+    needs = job.get("needs", [])
+    if not isinstance(needs, list) or any(not isinstance(item, str) for item in needs):
+        raise ValueError("Invalid Packs dependencies")
+    inputs = ["candidate", "base", "dependencies"]
+    if name == "built-in-plugin-validate":
+        inputs.append("claude_cli_2_1_270")
+    if name == "packs-gate":
+        inputs.append("results")
+    return {
+        "argv": argv,
+        "unmatched_source": name in {"built-in-pack-manifest", "built-in-corpus-suite", "packs-gate"},
+        "stderr_policy": policies,
+        "modes": ["commit", "full"],
+        "platforms": ["linux"],
+        "dependencies": [],
+        "environment": {"PYTHONPATH": "."},
+        "budgets": {
+            "wall_ms": minutes * 60000,
+            "cleanup_ms": 5000,
+            "stdout_bytes": 16777216,
+            "stderr_bytes": 16777216,
+            "sampled_processes": 64,
+            "sampled_resident_bytes": 8589934592,
+        },
+        "recipe": {
+            "source": source,
+            "python_version": "3.12",
+            "advisory": job.get("continue-on-error", False),
+            "required_inputs": inputs,
+            "conditions": ["success"] * len(argv),
+            "instances": ["default"] * len(argv),
+            "applicability": "routing",
+            "packages": {},
+            "observed_dependencies": needs if name == "packs-gate" else [],
+            "instance_environment": {},
+        },
+    }
+
+
 def executable_router_specification(root: Path) -> dict[str, object]:
-    """Construct pinned router recipes; other workflows remain migration oracles.
+    """Construct pinned router and Packs recipes; other workflows remain oracles.
 
     The result declares commands and unbound prerequisites. It neither provisions
     an environment nor establishes execution/platform/publication qualification.
@@ -496,10 +569,34 @@ def executable_router_specification(root: Path) -> dict[str, object]:
     jobs = _mapping(_load(router_raw)["jobs"])
     inventory = extract_workflows(root)
     normalized_source = {key: str(source[key]) for key in ("path", "sha256", "role")}
-    authority["schema_version"] = 2
+    packs_path = root / ".github/workflows/packs.yml"
+    packs_raw = _read(packs_path)
+    packs_sha = hashlib.sha256(packs_raw).hexdigest()
+    if packs_sha != "6ee5cc4f580cc1e69bd58f1aa5b8d1d67c1e030c78f87e85b40d56290bf18d7e":
+        raise ValueError("Unsupported Packs source mapping")
+    packs = _mapping(_load(packs_raw)["jobs"])
+    from scripts.ci.gate_selection import load_router
+
+    router_model = load_router(router_path)
+    packs_model = load_router(packs_path)
+    filters = {name: list(patterns) for name, patterns in router_model.filters.items()}
+    gates = {name: sorted(groups) for name, groups in router_model.job_gates.items()}
+    data_groups = []
+    for name, patterns in packs_model.filters.items():
+        group = "packs_" + name
+        filters[group] = list(patterns)
+        data_groups.append(group)
+    for name, groups in packs_model.job_gates.items():
+        gates[name] = sorted("corpus" if group == "corpus" else "packs_" + group for group in groups)
+    authority["routing"] = {"filters": filters, "job_gates": gates, "non_source_groups": sorted(data_groups)}
+    authority["schema_version"] = 3
     authority["migration"] = [{"path": row["path"], "sha256": row["sha256"], "role": "migration-baseline"} for row in inventory["workflows"]]
     authority["checks"] = {name: _router_check(name, _mapping(value), normalized_source) for name, value in jobs.items() if name != "changes"}
-    if _read(path) != raw or _read(router_path) != router_raw:
+    checks = _mapping(authority["checks"])
+    packs_source = {"path": ".github/workflows/packs.yml", "sha256": packs_sha, "role": "migration-baseline"}
+    checks.update({name: _pack_check(name, _mapping(job), packs_source) for name, job in packs.items() if name != "changes"})
+    authority["checks"] = checks
+    if _read(path) != raw or _read(router_path) != router_raw or _read(packs_path) != packs_raw:
         raise ValueError("Changed native specification inputs")
     return authority
 

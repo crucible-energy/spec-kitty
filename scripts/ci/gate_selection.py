@@ -70,6 +70,8 @@ class Router:
 
     filters: dict[str, tuple[str, ...]]
     job_gates: dict[str, frozenset[str]]
+    non_source_groups: frozenset[str] = frozenset()
+    non_conservative_jobs: frozenset[str] = frozenset()
 
     @property
     def routing_groups(self) -> frozenset[str]:
@@ -79,7 +81,9 @@ class Router:
     @property
     def src_backed_groups(self) -> frozenset[str]:
         """Routing groups carrying at least one ``src/`` glob (code, not data)."""
-        return frozenset(group for group in self.routing_groups if any(glob.startswith("src/") for glob in self.filters[group]))
+        return frozenset(
+            group for group in self.routing_groups if group not in self.non_source_groups and any(glob.startswith("src/") for glob in self.filters[group])
+        )
 
     @property
     def always_on_jobs(self) -> frozenset[str]:
@@ -149,7 +153,7 @@ def _local_router(document: object) -> Router:
     if not isinstance(document, dict):
         raise ValueError("Local routing authority must be an object")
     version = document.get("schema_version")
-    if type(version) is not int or version not in {1, 2}:
+    if type(version) is not int or version not in {1, 2, 3}:
         raise ValueError("Unsupported local authority schema version")
     routing = document.get("routing")
     if not isinstance(routing, dict):
@@ -159,7 +163,30 @@ def _local_router(document: object) -> Router:
     for groups in gates.values():
         if any(group not in filters or group in PROBE_GROUPS for group in groups):
             raise ValueError("Local routing gate references an unknown or probe group")
-    return Router(filters=filters, job_gates={name: frozenset(groups) for name, groups in gates.items()})
+    data = routing.get("non_source_groups", [])
+    if (
+        not isinstance(data, list)
+        or any(not isinstance(group, str) or group not in filters or group in PROBE_GROUPS for group in data)
+        or len(set(data)) != len(data)
+    ):
+        raise ValueError("Invalid non-source routing groups")
+    checks = document.get("checks", {})
+    if not isinstance(checks, dict):
+        raise ValueError("Invalid local checks")
+    non_conservative: set[str] = set()
+    for name, check in checks.items():
+        if not isinstance(check, dict) or type(check.get("unmatched_source", True)) is not bool:
+            raise ValueError("Invalid conservative routing declaration")
+        if check.get("unmatched_source") is False:
+            if name not in gates or not gates[name] or any(group not in data for group in gates[name]):
+                raise ValueError("Only explicit data gates may opt out of conservative routing")
+            non_conservative.add(name)
+    return Router(
+        filters=filters,
+        job_gates={name: frozenset(groups) for name, groups in gates.items()},
+        non_source_groups=frozenset(data),
+        non_conservative_jobs=frozenset(non_conservative),
+    )
 
 
 def load_router(path: Path | None = None) -> Router:
@@ -207,10 +234,11 @@ def select_gates(
     source_patterns = tuple(pattern for group in router.src_backed_groups for pattern in router.filters[group])
     unmatched_src = any(path.startswith("src/") and not any(fnmatch.fnmatch(path, pattern) for pattern in source_patterns) for path in paths)
 
-    run_all = mode == "full" or unmatched_src
-    selected_groups = router.routing_groups if run_all else matched
-
-    gated_selected = frozenset(job for job, groups in router.job_gates.items() if groups and (groups & selected_groups))
+    gated_selected = frozenset(
+        job
+        for job, groups in router.job_gates.items()
+        if groups and (mode == "full" or (unmatched_src and job not in router.non_conservative_jobs) or groups & matched)
+    )
     return GateSelection(
         matched_groups=matched,
         unmatched_src=unmatched_src,

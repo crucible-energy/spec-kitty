@@ -108,7 +108,14 @@
           "role": "migration-baseline",
           "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
         }
-      }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow",
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": true
     },
     "architectural-heavy": {
       "argv": [
@@ -390,7 +397,26 @@
           "role": "migration-baseline",
           "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
         }
-      }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": true
     },
     "archive-freeze": {
       "argv": [
@@ -455,7 +481,457 @@
           "role": "migration-baseline",
           "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
         }
-      }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": true
+    },
+    "built-in-corpus-suite": {
+      "argv": [
+        [
+          "find",
+          ".",
+          "-depth",
+          "-type",
+          "d",
+          "-name",
+          "__pycache__",
+          "-exec",
+          "rm",
+          "-rf",
+          "{}",
+          "+"
+        ],
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--all-extras"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "pytest",
+          "-m",
+          "corpus and not windows_ci",
+          "-n",
+          "4",
+          "--dist",
+          "loadfile",
+          "--deselect",
+          "tests/architectural/test_pack_manifest_no_author_edit.py",
+          "--deselect",
+          "tests/contract/test_breaking_check.py",
+          "--deselect",
+          "tests/contract/test_bundle.py",
+          "--deselect",
+          "tests/contract/test_citation_check.py",
+          "--deselect",
+          "tests/contract/test_client_smoke.py",
+          "--deselect",
+          "tests/contract/test_codeowners_check.py",
+          "--deselect",
+          "tests/contract/test_contract_resolver.py",
+          "--deselect",
+          "tests/contract/test_enum_pin_check.py",
+          "--deselect",
+          "tests/contract/test_event_mapping_check.py",
+          "--deselect",
+          "tests/contract/test_example_check.py",
+          "--deselect",
+          "tests/contract/test_example_round_trip.py",
+          "--deselect",
+          "tests/contract/test_fixture_builder.py",
+          "--deselect",
+          "tests/contract/test_gradle_pin_check.py",
+          "--deselect",
+          "tests/contract/test_install_tools.py",
+          "--deselect",
+          "tests/contract/test_layout_check.py",
+          "--deselect",
+          "tests/contract/test_leak_patterns.py",
+          "--deselect",
+          "tests/contract/test_leak_scan.py",
+          "--deselect",
+          "tests/contract/test_lint_ruleset.py",
+          "--deselect",
+          "tests/contract/test_mission_status_artifacts.py",
+          "--deselect",
+          "tests/contract/test_mission_status_contract_1_1.py",
+          "--deselect",
+          "tests/contract/test_mission_status_detail.py",
+          "--deselect",
+          "tests/contract/test_mission_status_drift.py",
+          "--deselect",
+          "tests/contract/test_mission_status_examples.py",
+          "--deselect",
+          "tests/contract/test_mission_status_ops.py",
+          "--deselect",
+          "tests/contract/test_mission_status_payloads.py",
+          "--deselect",
+          "tests/contract/test_mission_status_project.py",
+          "--deselect",
+          "tests/contract/test_mission_status_reality.py",
+          "--deselect",
+          "tests/contract/test_no_pytest_scan.py",
+          "--deselect",
+          "tests/contract/test_provisional_check.py",
+          "--deselect",
+          "tests/contract/test_release_check.py",
+          "--deselect",
+          "tests/contract/test_resolver_parity.py",
+          "--deselect",
+          "tests/contract/test_run_negative_cases.py",
+          "--deselect",
+          "tests/contract/test_schema_formats.py",
+          "--deselect",
+          "tests/contract/test_structure_check.py",
+          "--deselect",
+          "tests/contract/test_tamper_check.py",
+          "--deselect",
+          "tests/contract/test_verify_pins.py",
+          "--deselect",
+          "tests/integration/test_mission_review_contract_gate.py",
+          "--deselect",
+          "tests/specify_cli/migration/test_corpus_wp_snapshot_parity.py",
+          "--deselect",
+          "tests/doctrine/test_shipped_profiles.py::TestShippedProfilesPerformance",
+          "--cov=charter.offering",
+          "--cov-report=term-missing"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 1200000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "recipe": {
+        "advisory": true,
+        "applicability": "routing",
+        "conditions": [
+          "success",
+          "success",
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/packs.yml",
+          "role": "migration-baseline",
+          "sha256": "6ee5cc4f580cc1e69bd58f1aa5b8d1d67c1e030c78f87e85b40d56290bf18d7e"
+        }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": true
+    },
+    "built-in-drg-check": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--all-extras"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "spec-kitty",
+          "doctrine",
+          "regenerate-graph",
+          "--check"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 600000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success",
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/packs.yml",
+          "role": "migration-baseline",
+          "sha256": "6ee5cc4f580cc1e69bd58f1aa5b8d1d67c1e030c78f87e85b40d56290bf18d7e"
+        }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": false
+    },
+    "built-in-pack-manifest": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--all-extras"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "pytest",
+          "tests/architectural/test_pack_manifest_no_author_edit.py",
+          "-q"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 600000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success",
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/packs.yml",
+          "role": "migration-baseline",
+          "sha256": "6ee5cc4f580cc1e69bd58f1aa5b8d1d67c1e030c78f87e85b40d56290bf18d7e"
+        }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": true
+    },
+    "built-in-plugin-validate": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--all-extras"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "spec-kitty",
+          "plugin",
+          "build",
+          "--target",
+          "claude-code"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 900000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success",
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies",
+          "claude_cli_2_1_270"
+        ],
+        "source": {
+          "path": ".github/workflows/packs.yml",
+          "role": "migration-baseline",
+          "sha256": "6ee5cc4f580cc1e69bd58f1aa5b8d1d67c1e030c78f87e85b40d56290bf18d7e"
+        }
+      },
+      "stderr_policy": [
+        "allow",
+        "reject-warning-prefix"
+      ],
+      "unmatched_source": false
+    },
+    "built-in-regen-check": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--all-extras"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "spec-kitty",
+          "regen",
+          "--check"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 600000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success",
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/packs.yml",
+          "role": "migration-baseline",
+          "sha256": "6ee5cc4f580cc1e69bd58f1aa5b8d1d67c1e030c78f87e85b40d56290bf18d7e"
+        }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": false
     },
     "commit-msg": {
       "argv": [
@@ -512,7 +988,11 @@
           "role": "migration-baseline",
           "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
         }
-      }
+      },
+      "stderr_policy": [
+        "allow"
+      ],
+      "unmatched_source": true
     },
     "docs-lint": {
       "argv": [
@@ -586,7 +1066,13 @@
           "role": "migration-baseline",
           "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
         }
-      }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": true
     },
     "import-linter": {
       "argv": [
@@ -654,7 +1140,150 @@
           "role": "migration-baseline",
           "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
         }
-      }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": true
+    },
+    "internal-org-validate": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--all-extras"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "spec-kitty",
+          "charter",
+          "org",
+          "validate",
+          "packs/internal"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 600000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success",
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/packs.yml",
+          "role": "migration-baseline",
+          "sha256": "6ee5cc4f580cc1e69bd58f1aa5b8d1d67c1e030c78f87e85b40d56290bf18d7e"
+        }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": false
+    },
+    "internal-packaging-safety": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--all-extras"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "pytest",
+          "tests/cross_cutting/packaging/test_packaging_safety.py::test_wheel_contains_only_known_packages",
+          "-q"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 900000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success",
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/packs.yml",
+          "role": "migration-baseline",
+          "sha256": "6ee5cc4f580cc1e69bd58f1aa5b8d1d67c1e030c78f87e85b40d56290bf18d7e"
+        }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": false
     },
     "layer-rules": {
       "argv": [
@@ -720,7 +1349,12 @@
           "role": "migration-baseline",
           "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
         }
-      }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": true
     },
     "markdownlint": {
       "argv": [
@@ -775,7 +1409,81 @@
           "role": "migration-baseline",
           "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
         }
-      }
+      },
+      "stderr_policy": [
+        "allow"
+      ],
+      "unmatched_source": true
+    },
+    "packs-gate": {
+      "argv": [
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.validation.check_inputs",
+          "results",
+          "out/validation/packs-results-input.json"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 300000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default"
+        ],
+        "observed_dependencies": [
+          "changes",
+          "built-in-regen-check",
+          "built-in-drg-check",
+          "built-in-pack-manifest",
+          "built-in-plugin-validate",
+          "internal-org-validate",
+          "internal-packaging-safety"
+        ],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies",
+          "results"
+        ],
+        "source": {
+          "path": ".github/workflows/packs.yml",
+          "role": "migration-baseline",
+          "sha256": "6ee5cc4f580cc1e69bd58f1aa5b8d1d67c1e030c78f87e85b40d56290bf18d7e"
+        }
+      },
+      "stderr_policy": [
+        "allow"
+      ],
+      "unmatched_source": true
     },
     "prose-scan": {
       "argv": [
@@ -839,7 +1547,11 @@
           "role": "migration-baseline",
           "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
         }
-      }
+      },
+      "stderr_policy": [
+        "allow"
+      ],
+      "unmatched_source": true
     },
     "regen-check": {
       "argv": [
@@ -904,7 +1616,12 @@
           "role": "migration-baseline",
           "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
         }
-      }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": true
     },
     "router-gate": {
       "argv": [
@@ -983,7 +1700,11 @@
           "role": "migration-baseline",
           "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
         }
-      }
+      },
+      "stderr_policy": [
+        "allow"
+      ],
+      "unmatched_source": true
     },
     "ruff": {
       "argv": [
@@ -1060,7 +1781,13 @@
           "role": "migration-baseline",
           "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
         }
-      }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": true
     },
     "terminology": {
       "argv": [
@@ -1125,7 +1852,12 @@
           "role": "migration-baseline",
           "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
         }
-      }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": true
     },
     "tests-contract-tools": {
       "argv": [
@@ -1201,7 +1933,12 @@
           "role": "migration-baseline",
           "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
         }
-      }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": true
     },
     "tests-corpus-blocking": {
       "argv": [
@@ -1275,7 +2012,12 @@
           "role": "migration-baseline",
           "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
         }
-      }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": true
     },
     "tests-docs": {
       "argv": [
@@ -1345,7 +2087,12 @@
           "role": "migration-baseline",
           "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
         }
-      }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": true
     },
     "tests-e2e": {
       "argv": [
@@ -1412,7 +2159,12 @@
           "role": "migration-baseline",
           "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
         }
-      }
+      },
+      "stderr_policy": [
+        "allow",
+        "allow"
+      ],
+      "unmatched_source": true
     },
     "uv-lock": {
       "argv": [
@@ -1466,7 +2218,11 @@
           "role": "migration-baseline",
           "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
         }
-      }
+      },
+      "stderr_policy": [
+        "allow"
+      ],
+      "unmatched_source": true
     }
   },
   "migration": [
@@ -2046,6 +2802,18 @@
         "src/runtime/next/**",
         "src/mission_runtime/**"
       ],
+      "packs_built_in": [
+        "packs/built-in/**",
+        "tests/doctrine/**",
+        "tests/architectural/test_pack_manifest_no_author_edit.py",
+        "tests/specify_cli/regression/_twelve_agent_baseline/**",
+        "tests/specify_cli/skills/__snapshots__/**",
+        "src/charter/offering/schemas/**",
+        "src/charter/offering/drg/**"
+      ],
+      "packs_internal": [
+        "packs/internal/**"
+      ],
       "post_merge": [
         "src/specify_cli/post_merge/**"
       ],
@@ -2100,11 +2868,35 @@
         "upgrade"
       ],
       "archive-freeze": [],
+      "built-in-corpus-suite": [
+        "corpus",
+        "packs_built_in"
+      ],
+      "built-in-drg-check": [
+        "packs_built_in"
+      ],
+      "built-in-pack-manifest": [
+        "corpus",
+        "packs_built_in"
+      ],
+      "built-in-plugin-validate": [
+        "packs_built_in"
+      ],
+      "built-in-regen-check": [
+        "packs_built_in"
+      ],
       "commit-msg": [],
       "docs-lint": [],
       "import-linter": [],
+      "internal-org-validate": [
+        "packs_internal"
+      ],
+      "internal-packaging-safety": [
+        "packs_internal"
+      ],
       "layer-rules": [],
       "markdownlint": [],
+      "packs-gate": [],
       "prose-scan": [],
       "regen-check": [],
       "router-gate": [],
@@ -2124,9 +2916,13 @@
         "e2e"
       ],
       "uv-lock": []
-    }
+    },
+    "non_source_groups": [
+      "packs_built_in",
+      "packs_internal"
+    ]
   },
-  "schema_version": 2,
+  "schema_version": 3,
   "source": {
     "path": ".github/workflows/ci-router.yml",
     "role": "migration-baseline",
