@@ -2635,10 +2635,6 @@
     },
     {
       "reason": "shell_semantics",
-      "source": ".github/workflows/ci-router.yml#jobs.architectural-fast.steps.3"
-    },
-    {
-      "reason": "shell_semantics",
       "source": ".github/workflows/ci-router.yml#jobs.architectural-fast.steps.4"
     },
     {
@@ -2850,10 +2846,6 @@
       "source": ".github/workflows/ci-router.yml#jobs.tests-corpus-blocking.steps.1"
     },
     {
-      "reason": "shell_semantics",
-      "source": ".github/workflows/ci-router.yml#jobs.tests-corpus-blocking.steps.2"
-    },
-    {
       "reason": "job_condition",
       "source": ".github/workflows/ci-router.yml#jobs.tests-contract-tools"
     },
@@ -2876,10 +2868,6 @@
     {
       "reason": "step_field:with",
       "source": ".github/workflows/ci-router.yml#jobs.tests-contract-tools.steps.1"
-    },
-    {
-      "reason": "shell_semantics",
-      "source": ".github/workflows/ci-router.yml#jobs.tests-contract-tools.steps.3"
     },
     {
       "reason": "job_condition",
@@ -4079,10 +4067,6 @@
     },
     {
       "reason": "shell_semantics",
-      "source": ".github/workflows/packs.yml#jobs.built-in-corpus-suite.steps.3"
-    },
-    {
-      "reason": "shell_semantics",
       "source": ".github/workflows/packs.yml#jobs.built-in-corpus-suite.steps.4"
     },
     {
@@ -4328,10 +4312,6 @@
     {
       "reason": "action",
       "source": ".github/workflows/release-readiness.yml#jobs.cutover-guard.steps.2"
-    },
-    {
-      "reason": "shell_semantics",
-      "source": ".github/workflows/release-readiness.yml#jobs.cutover-guard.steps.3"
     },
     {
       "reason": "shell_semantics",
@@ -8114,7 +8094,42 @@
               "uses": "astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d"
             },
             {
-              "argv": null,
+              "argv": [
+                [
+                  "uv",
+                  "sync",
+                  "--frozen",
+                  "--all-extras"
+                ],
+                [
+                  "uv",
+                  "run",
+                  "--frozen",
+                  "python",
+                  "-m",
+                  "pytest",
+                  "tests/architectural",
+                  "-m",
+                  "not performance and not stress and not timing",
+                  "-n",
+                  "4",
+                  "--dist",
+                  "loadfile",
+                  "--deselect",
+                  "tests/architectural/test_no_legacy_terminology.py",
+                  "--deselect",
+                  "tests/architectural/test_layer_rules.py",
+                  "--deselect",
+                  "tests/architectural/test_pyproject_shape.py",
+                  "--deselect",
+                  "tests/architectural/test_archive_root_byte_identical.py",
+                  "-p",
+                  "scripts.ci.battery_partition_plugin",
+                  "--battery-part",
+                  "fast",
+                  "--junitxml=out/reports/xunit-architectural-fast.xml"
+                ]
+              ],
               "fields": {
                 "run": "650d23acc1f3e8cbf85fc181b5ecee1bf400532dccb343b82adc020a8f9e8d75"
               },
@@ -9104,7 +9119,25 @@
               "uses": null
             },
             {
-              "argv": null,
+              "argv": [
+                [
+                  "uv",
+                  "run",
+                  "--frozen",
+                  "--no-sync",
+                  "pytest",
+                  "-m",
+                  "corpus and not windows_ci",
+                  "tests/contract",
+                  "--ignore=tests/contract/test_example_round_trip.py",
+                  "--ignore=tests/contract/test_mission_status_payloads.py",
+                  "--ignore=tests/contract/test_mission_status_reality.py",
+                  "-n",
+                  "4",
+                  "--dist",
+                  "loadfile"
+                ]
+              ],
               "fields": {
                 "name": "86cb372e1866f16ea0f59cb1e8d07a74b2918c7bcc24410857d6c69100c2041b",
                 "run": "ff2226606c8be6e2f9a0a82e1ef16583204d84b0c23fa1b16eb2dd82e16f87e1"
@@ -9152,7 +9185,29 @@
               "uses": "astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d"
             },
             {
-              "argv": null,
+              "argv": [
+                [
+                  "uv",
+                  "sync",
+                  "--frozen",
+                  "--all-extras"
+                ],
+                [
+                  "uv",
+                  "run",
+                  "--frozen",
+                  "pytest",
+                  "-rs",
+                  "-m",
+                  "corpus and not windows_ci",
+                  "tests/contract/test_example_round_trip.py",
+                  "tests/contract/test_mission_status_payloads.py",
+                  "tests/contract/test_mission_status_reality.py",
+                  "tests/integration/test_mission_review_contract_gate.py",
+                  "tests/specify_cli/migration/test_corpus_wp_snapshot_parity.py",
+                  "tests/doctrine/test_shipped_profiles.py::TestShippedProfilesPerformance"
+                ]
+              ],
               "fields": {
                 "run": "9bd9e24719f457253319f165229bc7425c1ca54529b3233cac99d68979d1eec0"
               },
@@ -11435,7 +11490,106 @@
               "uses": null
             },
             {
-              "argv": null,
+              "argv": [
+                [
+                  "uv",
+                  "sync",
+                  "--frozen",
+                  "--all-extras"
+                ],
+                [
+                  "uv",
+                  "run",
+                  "--frozen",
+                  "pytest",
+                  "-m",
+                  "corpus and not windows_ci",
+                  "-n",
+                  "4",
+                  "--dist",
+                  "loadfile",
+                  "--deselect",
+                  "tests/architectural/test_pack_manifest_no_author_edit.py",
+                  "--deselect",
+                  "tests/contract/test_breaking_check.py",
+                  "--deselect",
+                  "tests/contract/test_bundle.py",
+                  "--deselect",
+                  "tests/contract/test_citation_check.py",
+                  "--deselect",
+                  "tests/contract/test_client_smoke.py",
+                  "--deselect",
+                  "tests/contract/test_codeowners_check.py",
+                  "--deselect",
+                  "tests/contract/test_contract_resolver.py",
+                  "--deselect",
+                  "tests/contract/test_enum_pin_check.py",
+                  "--deselect",
+                  "tests/contract/test_event_mapping_check.py",
+                  "--deselect",
+                  "tests/contract/test_example_check.py",
+                  "--deselect",
+                  "tests/contract/test_example_round_trip.py",
+                  "--deselect",
+                  "tests/contract/test_fixture_builder.py",
+                  "--deselect",
+                  "tests/contract/test_gradle_pin_check.py",
+                  "--deselect",
+                  "tests/contract/test_install_tools.py",
+                  "--deselect",
+                  "tests/contract/test_layout_check.py",
+                  "--deselect",
+                  "tests/contract/test_leak_patterns.py",
+                  "--deselect",
+                  "tests/contract/test_leak_scan.py",
+                  "--deselect",
+                  "tests/contract/test_lint_ruleset.py",
+                  "--deselect",
+                  "tests/contract/test_mission_status_artifacts.py",
+                  "--deselect",
+                  "tests/contract/test_mission_status_contract_1_1.py",
+                  "--deselect",
+                  "tests/contract/test_mission_status_detail.py",
+                  "--deselect",
+                  "tests/contract/test_mission_status_drift.py",
+                  "--deselect",
+                  "tests/contract/test_mission_status_examples.py",
+                  "--deselect",
+                  "tests/contract/test_mission_status_ops.py",
+                  "--deselect",
+                  "tests/contract/test_mission_status_payloads.py",
+                  "--deselect",
+                  "tests/contract/test_mission_status_project.py",
+                  "--deselect",
+                  "tests/contract/test_mission_status_reality.py",
+                  "--deselect",
+                  "tests/contract/test_no_pytest_scan.py",
+                  "--deselect",
+                  "tests/contract/test_provisional_check.py",
+                  "--deselect",
+                  "tests/contract/test_release_check.py",
+                  "--deselect",
+                  "tests/contract/test_resolver_parity.py",
+                  "--deselect",
+                  "tests/contract/test_run_negative_cases.py",
+                  "--deselect",
+                  "tests/contract/test_schema_formats.py",
+                  "--deselect",
+                  "tests/contract/test_structure_check.py",
+                  "--deselect",
+                  "tests/contract/test_tamper_check.py",
+                  "--deselect",
+                  "tests/contract/test_verify_pins.py",
+                  "--deselect",
+                  "tests/integration/test_mission_review_contract_gate.py",
+                  "--deselect",
+                  "tests/specify_cli/migration/test_corpus_wp_snapshot_parity.py",
+                  "--deselect",
+                  "tests/doctrine/test_shipped_profiles.py::TestShippedProfilesPerformance",
+                  "--cov=charter.offering",
+                  "--cov-report=term-missing"
+                ]
+              ],
               "fields": {
                 "run": "18f48ec80209dbb6bfb5f5422188f3713a4932e5d795fdc2741954cfb9f6d037"
               },
@@ -12250,7 +12404,35 @@
               "uses": "astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d"
             },
             {
-              "argv": null,
+              "argv": [
+                [
+                  "python",
+                  "-m",
+                  "pip",
+                  "install",
+                  "--upgrade",
+                  "pip"
+                ],
+                [
+                  "uv",
+                  "export",
+                  "--frozen",
+                  "--no-dev",
+                  "--no-hashes",
+                  "--no-emit-package",
+                  "spec-kitty-cli",
+                  "--output-file",
+                  ".cutover-requirements.lock.txt"
+                ],
+                [
+                  "python",
+                  "-m",
+                  "pip",
+                  "install",
+                  "-r",
+                  ".cutover-requirements.lock.txt"
+                ]
+              ],
               "fields": {
                 "name": "8a0e74c82e9be2845a591214ff7aa8808e32efd0bfcb5bd4392a6f93e6142775",
                 "run": "e1489bff9d77a581500536e9dd0f0dfe15fb1d2ffcb0a7c551e709be8cdaa9df"

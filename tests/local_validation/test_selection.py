@@ -616,7 +616,8 @@ def test_extraction_preserves_lf_ascii_blanks_and_literal_arguments(tmp_path: Pa
 
 
 @pytest.mark.parametrize("preamble", ["", "# Documentation only\n", "# Comment ending with a backslash \\\n"])
-def test_extraction_continued_static_commands_match_bash(tmp_path: Path, preamble: str) -> None:
+@pytest.mark.parametrize("joined_word", [False, True])
+def test_extraction_continued_static_commands_match_bash(tmp_path: Path, preamble: str, joined_word: bool) -> None:
     """Continuation removal preserves actual argv without executing workflow data."""
     import shlex
     import sys
@@ -628,11 +629,13 @@ def test_extraction_continued_static_commands_match_bash(tmp_path: Path, preambl
     program = tmp_path / "argv_probe.py"
     program.write_text("import json, sys\nprint(json.dumps(sys.argv[1:]))\n")
     command = preamble + f"{shlex.quote(sys.executable)} {shlex.quote(str(program))} 'first value' \\\n 'café' \\\n ''\n"
+    if joined_word:
+        command = command.rstrip("\n") + " left\\\nright\n"
     (directory / "continued.yml").write_text(yaml.safe_dump({"jobs": {"check": {"steps": [{"run": command}]}}}))
     report = extract_workflows(tmp_path)
     argv = report["workflows"][0]["jobs"]["check"]["steps"][0]["argv"]
     assert argv is not None
-    assert argv[0][2:] == ["first value", "café", ""]
+    assert argv[0][2:] == ["first value", "café", ""] + (["leftright"] if joined_word else [])
     shell = subprocess.run(["/bin/bash", "--noprofile", "--norc", "-c", command], check=True, capture_output=True, text=True, timeout=20)
     direct = subprocess.run(argv[0], check=True, capture_output=True, text=True, timeout=20)
     assert json.loads(shell.stdout) == json.loads(direct.stdout)

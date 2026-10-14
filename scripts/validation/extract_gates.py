@@ -186,6 +186,28 @@ def _digest(value: object) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
 
 
+def _logical_lines(value: str) -> list[str] | None:
+    """Remove unquoted LF continuations and full-line comments only."""
+    lines: list[str] = []
+    pending = ""
+    for line in value.split("\n"):
+        if not pending and line.lstrip(" \t").startswith("#"):
+            continue
+        if line.endswith("\\"):
+            prefix = pending + line[:-1]
+            if "\\" in prefix:
+                return None
+            try:
+                shlex.split(prefix, comments=False, posix=True)
+            except ValueError:
+                return None
+            pending = prefix
+        else:
+            lines.append(pending + line)
+            pending = ""
+    return None if pending else lines
+
+
 def _commands(value: object) -> list[list[str]] | None:
     if not isinstance(value, str) or not value.strip(" \t\n"):
         return None
@@ -194,8 +216,11 @@ def _commands(value: object) -> list[list[str]] | None:
     # quotes, rather than inventing commands or silently changing payloads.
     if any(character not in " \t\n" and unicodedata.category(character)[0] in {"C", "Z"} for character in value):
         return None
+    lines = _logical_lines(value)
+    if lines is None:
+        return None
     commands: list[list[str]] = []
-    for line in value.split("\n"):
+    for line in lines:
         if not line.strip(" \t"):
             continue
         # Static argv only: no expansion, operators, globs, assignments, or

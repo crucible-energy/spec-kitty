@@ -3,7 +3,7 @@ title: Native Local Validation
 description: Implementation decisions, usability findings, and qualification limits for the native local gate.
 doc_status: active
 audience: docs/context/audience/internal/ai-collaboration-agent.md
-updated: '2026-10-12'
+updated: '2026-10-14'
 ---
 
 # Native Local Validation
@@ -312,3 +312,20 @@ WP01 remains in progress. The checked-in routing authority is not an executable 
 ### Validation Environment Finding
 
 The mandatory `make test-fast` target uses `uv run --frozen`; it selected Python 3.11.15 and recreated this owned checkout's earlier Python 3.13 environment. A concurrently started direct Python selector check failed during plugin import (`httpcore` unavailable) before collection. That startup failure is retained and grants no behavioral credit. Validation against an environment that may synchronize must run serially. The original fast-baseline session joined with exit zero: 2,451 passed, five skipped, and four warnings in 186.18 seconds. This is the actual required baseline, not a native gate or cross-platform qualification; earlier interpreter/dependency evidence is not silently reused for the new environment.
+
+
+## October 14, 2026 — Extract Actual Continued Commands
+
+### User Experience Findings
+
+The migration inventory refused static commands written over several physical lines, including real corpus and cutover controls. A bounded source probe established affected current workflows before adding another parser extension. Three genuine RED controls failed while seven corresponding refusal controls passed; the RED test source is preserved in `0578aa4dda9a18e437745564a508901bbfe551a5`.
+
+### Engineering Decisions
+
+Normalize only unquoted backslash/LF continuations whose accumulated prefix has complete quoting and no other backslash escapes. Remove the continuation without inserting whitespace: split words must concatenate exactly as Bash does. Ignore complete comment lines only when no command is being continued; a comment ending in a backslash does not join the following physical line. Quoted continuations, expansions, inline comments, dangling escapes, compound syntax, and builtin commands remain explicitly unsupported. Synthetic fixtures compare inert Python argument capture through actual Bash and direct argv, including literal empty arguments and split words; imported workflow commands are never executed by extraction.
+
+Regeneration preserves every workflow and step source digest and field binding. Five existing steps now have static argv: architectural-fast, contract tools, blocking corpus, the built-in corpus suite, and release cutover. The unchanged source inventory retains 1,184 other unresolved mappings rather than the earlier 1,189. These are parser/inventory classifications, not delivery, quality, or savings metrics. The existing generated workflow inventory is updated alongside its owning extractor; this narrow companion path and the independently owned log are required T002 artifacts, not a competing authority or a new lane.
+
+### Known Limitations
+
+The inventory remains non-authoritative, non-runnable, and non-validating. Extracted argv does not qualify actions, environment provisioning, platform/version matrices, conditionals, triggers, publication, dependency execution, resource budgets, or hooks. WP01 and the full native-validation mission remain incomplete. Existing validators, thresholds, user assets, branch guards, source rights, and the planned production boundaries are preserved. Required focused coverage and baseline gates, fixed-candidate independent review, and delivery remain prerequisites; external receipts will retain their actual results without editing this frozen candidate merely to record a pass.
