@@ -174,8 +174,9 @@ context for the detail).
 **Zig** is required for new repo-owned CLI, library, tooling, adapter, and test
 implementation. Retained Python CLI and library code requires **Python 3.11+**
 for bounded correctness or safety repairs, contract preservation, and
-migration. A different language for new implementation needs Sam's explicit
-approval for the exact change. The current Python CLI and PyPI release remain
+migration. Swift is allowed for Apple-platform work, and TypeScript,
+JavaScript, HTML, and CSS for browser-facing work. A language outside these
+cases needs Sam's explicit approval for the exact change. The current Python CLI and PyPI release remain
 in place until a Zig replacement passes reviewed parity gates.
 
 **Retained Python dependencies:**

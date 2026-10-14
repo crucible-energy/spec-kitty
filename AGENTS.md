@@ -6,8 +6,9 @@
   use Zig. Retained Python remains the behavior and release reference during
   migration, with bounded correctness, safety, and contract repairs.
 - Keep browser-facing TypeScript, JavaScript, HTML, and CSS where the UI needs
-  them. A different language for new repo-owned implementation requires Sam's
-  approval for the exact change. Follow the charter's language directive.
+  them. Swift is allowed for Apple-platform work. A language outside these
+  Zig, Apple-platform, and browser-facing cases requires Sam's approval for
+  the exact change. Follow the charter's language directive.
 - Validate new Zig code with focused Zig tests and a safe-mode build. Retained
   Python changes still need the existing pytest, ruff, and mypy gates.
 

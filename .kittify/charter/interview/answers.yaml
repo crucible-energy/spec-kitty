@@ -16,6 +16,9 @@ answers:
     single source of truth for all agents and contributors.
   languages_frameworks: >
     Zig for new repo-owned CLI, library, tooling, adapter, and test code.
+    Swift is allowed for Apple-platform work; TypeScript, JavaScript, HTML,
+    and CSS are allowed for browser-facing work. Other new-language choices
+    require Sam's explicit approval for the exact change.
     Retained Python CLI and library code requires Python 3.11+ for bounded
     corrections, contract preservation, and migration. Its key dependencies
     remain typer, rich, ruamel.yaml, pytest, and mypy (strict mode).

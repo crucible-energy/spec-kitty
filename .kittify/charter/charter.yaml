@@ -55,7 +55,7 @@ directives:
     references: []
   - id: DIR-002
     title: Zig for new implementation; Python 3.11+ for retained code
-    description: New repo-owned CLI, library, tooling, adapter, and test implementation must use Zig. Retained Python code requires Python 3.11+ and is limited to bounded correctness or safety repairs, contract preservation, and migration until reviewed Zig parity permits replacement. A different new-language choice needs Sam's explicit approval for that exact change.
+    description: New repo-owned CLI, library, tooling, adapter, and test implementation must use Zig. Retained Python code requires Python 3.11+ and is limited to bounded correctness or safety repairs, contract preservation, and migration until reviewed Zig parity permits replacement. Swift is allowed for Apple-platform work; TypeScript, JavaScript, HTML, and CSS are allowed for browser-facing work. A language outside these Zig, Apple-platform, and browser-facing cases needs Sam's explicit approval for that exact change.
     severity: warn
     references: []
   - id: DIR-003
