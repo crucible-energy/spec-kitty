@@ -477,3 +477,20 @@ Packs corpus remains advisory and outside the terminal blocking observation rost
 Self-review replaces the initial output inspector's log-path transport with bounded captured bytes on standard input. The native function itself consumes bytes directly, so it adds no path-open boundary or source read. The optional inspection entry also accepts only that stream and never prints captured content. It reports a policy result and explicitly denies validator execution/qualification. Six initial guard positives and their first image remain retained predecessors; revised controls compare the actual native predicate with the pinned ASCII grep rule and cover malformed policies, indexes, quotas, and conservative-selection refusal. Final gates, current native measurement/closure, delivery, and sequential review are pending; complete executable-statement and real-platform acceptance remain open.
 
 The revised stdin candidate joins its bounded production and instrumented builds, and all thirty-two focused controls pass. The retained whole-AST accounting reproduces the accepted predecessor role definition before counter observations; no runtime-entry category is silently removed. These are measured local controls, not actual Packs validator, Linux/Windows, or full executable-statement qualification. Source and notes freeze before the remaining delivery gates; exact final results and cleanup are retained externally so reporting them does not mutate the validated candidate.
+
+
+## October 14, 2026 — Diagnose Uncovered Changed Surfaces
+
+### User Experience Findings
+
+WP01 T003 and the specification require unknown changed surfaces to select supported conservative work or refuse visibly. The current selection treats only uncovered `src/` paths conservatively. New non-source roots and the native tooling path itself can produce only an always-on preview without diagnosing their missing route. Paired controls cover genuinely unknown work, a known path alongside unknown work, unusual literal paths, existing mapped work, the unchanged source fallback, and explicit full inspection.
+
+### Engineering Decisions
+
+Bind the unknown-surface policy in the one versioned canonical authority. For commit/path-sensitive inspection, refuse a non-source path matching no declared non-probe route instead of inventing a route or claiming that always-on work is sufficient. Explicit full inspection already selects every declared check and remains conservative. Preserve legacy migration fixtures and all known routing; record the intentional new refusal relative to the pinned hosted oracle. The native tooling path still needs its genuine future build/test binding before full gate acceptance; this refusal does not invent one.
+
+### Known Limitations
+
+These controls are RED until the native and public consumer policy is implemented and qualified. Whole WP01, remaining workflow/mode and tool bindings, full executable-statement evidence, actual platforms, staged execution, hooks and hosted retirement remain open. No existing reviewed source/image, refusal or original is overwritten or relabelled. Real Windows execution remains UNKNOWN.
+
+The unchanged approved source/image reproduces eight failed refusals and four real positive controls, with 256 unrelated controls deselected. The original joins naturally in 62.165 seconds and its owned group is absent. No compiler or product source change was needed for this failing-first evidence.

@@ -1698,3 +1698,38 @@ def test_native_warning_policy_matches_pinned_ascii_grep_rule(tmp_path: Path, na
     assert (oracle.returncode != 0) == allowed
     result = subprocess.run([str(native_selector), str(authority), "output-policy", "lint", "0"], input=data, capture_output=True, text=True, timeout=20)
     assert json.loads(result.stdout)["policy_allows_output"] is allowed
+
+
+@pytest.mark.parametrize("consumer", ["python", "native"])
+@pytest.mark.parametrize(
+    "paths", [["future-native/worker.zig"], ["docs/guide.md", "future-native/worker.zig"], ["tools/zig/validation_selection.zig"], ["future-native/odd\nname.zig"]]
+)
+def test_canonical_unknown_surface_refuses_instead_of_always_on_preview(native_selector: Path, consumer: str, paths: list[str]) -> None:
+    """Unmapped non-src work cannot silently credit only the always-on roster."""
+    authority = Path(__file__).resolve().parents[2] / "tools/validation/gates.json"
+    if consumer == "python":
+        with pytest.raises(ValueError, match="Unsupported changed surface"):
+            select_gates(paths, router=load_router(authority))
+    else:
+        result = subprocess.run([str(native_selector), str(authority), "pr", *paths], capture_output=True, text=True, timeout=20)
+        assert result.returncode != 0 and result.stdout == ""
+        assert "UnsupportedChangedSurface" in result.stderr
+
+
+@pytest.mark.parametrize("paths", [["scripts/validation/extract_gates.py"], ["src/new/unmapped.py"], ["docs/guide.md", "src/new/unmapped.py"]])
+def test_canonical_known_or_conservative_source_path_remains_supported(native_selector: Path, paths: list[str]) -> None:
+    authority = Path(__file__).resolve().parents[2] / "tools/validation/gates.json"
+    expected = select_gates(paths, router=load_router(authority))
+    result = subprocess.run([str(native_selector), str(authority), "pr", *paths], check=True, capture_output=True, text=True, timeout=20)
+    assert json.loads(result.stdout)["selected_jobs"] == sorted(expected.selected_jobs)
+
+
+def test_explicit_full_inspection_remains_conservative_for_unknown_surface(native_selector: Path) -> None:
+    authority = Path(__file__).resolve().parents[2] / "tools/validation/gates.json"
+    paths = ["future-native/worker.zig"]
+    expected = select_gates(paths, router=load_router(authority), mode="full")
+    result = subprocess.run([str(native_selector), str(authority), "full", *paths], check=True, capture_output=True, text=True, timeout=20)
+    actual = json.loads(result.stdout)
+    assert set(actual["selected_jobs"]) == set(json.loads(authority.read_text())["checks"])
+    assert actual["selected_jobs"] == sorted(expected.selected_jobs)
+    assert actual["execution_supported"] is False
