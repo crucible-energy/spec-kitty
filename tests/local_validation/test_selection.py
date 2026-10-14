@@ -2,7 +2,6 @@
 
 import json
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -614,36 +613,3 @@ def test_extraction_preserves_lf_ascii_blanks_and_literal_arguments(tmp_path: Pa
     (directory / "literal.yml").write_text(yaml.safe_dump({"jobs": {"check": {"steps": [{"run": command}]}}}))
     report = extract_workflows(tmp_path)
     assert report["workflows"][0]["jobs"]["check"]["steps"][0]["argv"] == [["python", "-m", "tool", "café", ""], ["python", "-m", "build"]]
-
-
-@pytest.mark.parametrize("literal", ["'$HOME; | * ? # [literal] ~ `id`'", '"literal; | * ? # [literal] ~"'])
-def test_extraction_preserves_quoted_static_argv_like_bash(tmp_path: Path, literal: str) -> None:
-    """Quoted metacharacters are literal argv, not unexplained shell operations."""
-    from scripts.validation.extract_gates import extract_workflows
-
-    directory = tmp_path / ".github" / "workflows"
-    directory.mkdir(parents=True)
-    command = f"{sys.executable} -c 'import json, sys; print(json.dumps(sys.argv[1:]))' {literal}"
-    (directory / "quoted.yml").write_text(yaml.safe_dump({"jobs": {"check": {"steps": [{"run": command}]}}}))
-    report = extract_workflows(tmp_path)
-    argv = report["workflows"][0]["jobs"]["check"]["steps"][0]["argv"]
-    assert argv is not None
-    shell = subprocess.run(["/bin/bash", "--noprofile", "--norc", "-c", command], check=True, capture_output=True, text=True, timeout=20)
-    direct = subprocess.run(argv[0], check=True, capture_output=True, text=True, timeout=20)
-    assert json.loads(direct.stdout) == json.loads(shell.stdout)
-    assert not any(item["reason"] == "shell_semantics" for item in report["blockers"])
-    assert report["runnable"] is False
-    assert report["validation_performed"] is False
-
-
-@pytest.mark.parametrize("argument", ['"$HOME"', '"$(id)"', '"`id`"', '"\\\\n"', '"!history"', "literal;other", "literal|other"])
-def test_extraction_still_refuses_expansion_and_unquoted_operations(tmp_path: Path, argument: str) -> None:
-    from scripts.validation.extract_gates import extract_workflows
-
-    directory = tmp_path / ".github" / "workflows"
-    directory.mkdir(parents=True)
-    command = f"python -m tool {argument}"
-    (directory / "expansion.yml").write_text(yaml.safe_dump({"jobs": {"check": {"steps": [{"run": command}]}}}))
-    report = extract_workflows(tmp_path)
-    assert report["workflows"][0]["jobs"]["check"]["steps"][0]["argv"] is None
-    assert any(item["reason"] == "shell_semantics" for item in report["blockers"])

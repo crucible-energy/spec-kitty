@@ -290,3 +290,25 @@ routing, authority, parity, module-registry, and CI-oracle regression set passes
 221 tests. Zig 0.16 unit tests and formatting, Ruff, strict
 explicit-package-base mypy, and `git diff --check` also pass. Raw diagnostics
 are retained at `/tmp/native-local-validation-wp01-env.log`.
+
+
+## October 14, 2026 — Resolved Ownership And Supported Resume
+
+### User Experience Findings
+
+The generic `codex` claim and shared app PID did not identify a chat owner. A bounded actual session trace established the historical creator, who explicitly released the preserved lane without active workers, current process handles, runtime dependencies, or known uncommitted work. Root independently verified the actual checkout rather than treating the creator's nonexistent branch-as-directory path as a cleanliness observation. The supported resume refused only stale `template-selection:plan` and `template-selection:spec` analysis bindings; no guard was bypassed.
+
+### Engineering Decisions
+
+The Temet root chat (`01a11ac4-5c9d-7a02-8155-2eb58ac5ef01`) now owns this existing lane; the former creator retains the distinct Temet WP11 lane. The supported owned recorder committed refreshed analysis as `fb59b0b4b0dd6d46cc7e7ed3f102fcc9b04c0f52`, and actual owned implementation re-entry succeeded at `1a5f604d7b7e757ca890b887866a8b0086e37274`. Both were pushed to the single intended `origin/codex/native-local-validation` destination with ordinary hooks. Required planning, source, and prior registry corrections are preserved; no new checkout or parallel mission execution was created.
+
+A static-quoting extension was tested rather than assumed useful. RED `1ed268c44ae02fef1337ea4d1e5a1324362c9a5f` observed two failing literal controls and seven passing refusal controls. The experimental implementation passed 38 focused controls, including actual inert Bash/direct-argv comparisons. Regeneration against unchanged workflow pins changed zero command mappings or unresolved items: the same 1,189 mappings remain. Following the existing discard criterion, the extension and its new acceptance requirements were removed. This records an abandoned experiment, not a delivered native capability or savings claim; the original source and failure evidence remain recoverable. The generated inventory had no net change.
+
+### Known Limitations
+
+WP01 remains in progress. The checked-in routing authority is not an executable command specification; exact command, platform, applicability, dependency, and budget bindings remain the next implementation seam. Native candidate isolation, process supervision, hooks, native coverage, required platforms, publication, and qualified hosted retirement remain open. Shared PID and analysis-template freshness ergonomics remain owner-system findings, not fixed by claim recovery. Missing token, cost, and savings measurements stay unknown.
+
+
+### Validation Environment Finding
+
+The mandatory `make test-fast` target uses `uv run --frozen`; it selected Python 3.11.15 and recreated this owned checkout's earlier Python 3.13 environment. A concurrently started direct Python selector check failed during plugin import (`httpcore` unavailable) before collection. That startup failure is retained and grants no behavioral credit. Validation against an environment that may synchronize must run serially. The original fast-baseline session joined with exit zero: 2,451 passed, five skipped, and four warnings in 186.18 seconds. This is the actual required baseline, not a native gate or cross-platform qualification; earlier interpreter/dependency evidence is not silently reused for the new environment.
