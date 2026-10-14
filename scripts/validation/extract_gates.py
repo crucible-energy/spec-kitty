@@ -548,8 +548,139 @@ def _pack_check(name: str, job: dict[str, object], source: dict[str, str]) -> di
     }
 
 
+def _static_workflow_check(workflow: str, name: str, job: dict[str, object], source: dict[str, str]) -> dict[str, object]:
+    """Declare a complete literal recipe, retaining its unbound source context."""
+    argv: list[list[str]] = []
+    steps = job.get("steps")
+    if not isinstance(steps, list):
+        raise ValueError("Invalid static workflow steps")
+    for value in steps:
+        step = _mapping(value)
+        if "run" in step:
+            commands = _commands(step["run"])
+            if commands is None:
+                raise ValueError("Unsupported static workflow recipe")
+            argv.extend(commands)
+    if not argv or job.get("needs") or job.get("strategy") or job.get("runs-on") != "ubuntu-24.04":
+        raise ValueError("Unsupported static workflow binding")
+    minutes = job.get("timeout-minutes")
+    if type(minutes) is not int or not 1 <= minutes <= 360:
+        raise ValueError("Missing static workflow budget")
+    versions = {
+        str(_mapping(step.get("with", {}))["python-version"]) for value in steps for step in [_mapping(value)] if "python-version" in _mapping(step.get("with", {}))
+    }
+    if len(versions) > 1:
+        raise ValueError("Unresolved static workflow interpreter")
+    modes = ["commit", "full"] if workflow in {"ci-quality", "contracts"} else ["full"]
+    if workflow == "ci-quality":
+        modes.append("release")
+        if name == "build-wheel":
+            modes.append("package")
+    return {
+        "argv": argv,
+        "unmatched_source": workflow == "ci-quality",
+        "stderr_policy": ["allow"] * len(argv),
+        "modes": modes,
+        "platforms": ["linux"],
+        "dependencies": [],
+        "environment": {},
+        "budgets": {
+            "wall_ms": minutes * 60000,
+            "cleanup_ms": 5000,
+            "stdout_bytes": 16777216,
+            "stderr_bytes": 16777216,
+            "sampled_processes": 64,
+            "sampled_resident_bytes": 8589934592,
+        },
+        "recipe": {
+            "source": source,
+            "python_version": next(iter(versions), "unbound"),
+            "advisory": job.get("continue-on-error", False),
+            "required_inputs": ["candidate", "base", "dependencies", "workflow_context"],
+            "conditions": ["source-context"] * len(argv),
+            "instances": ["default"] * len(argv),
+            "applicability": "workflow",
+            "packages": {},
+            "observed_dependencies": [],
+            "instance_environment": {},
+            "workflow_job": name,
+        },
+    }
+
+
+def _workflow_contracts(root: Path, inventory: Extraction, authority: dict[str, object]) -> list[dict[str, object]]:
+    """Preserve all authored semantics; normalize only reviewed literal recipes."""
+    checks = _mapping(authority["checks"])
+    routing = _mapping(authority["routing"])
+    filters = _mapping(routing["filters"])
+    gates = _mapping(routing["job_gates"])
+    data = routing["non_source_groups"]
+    if not isinstance(data, list):
+        raise ValueError("Invalid workflow routing")
+    compatible = {
+        "ci-quality": {"lint", "build-wheel", "uv-lock-check"},
+        "contracts": {"verify-pins"},
+        "ci-nightly": {"universe-equivalence"},
+        "ci-shard-recapture": {"strict-shard-timings-check"},
+    }
+    migration = authority.get("migration")
+    if not isinstance(migration, list):
+        raise ValueError("Invalid pinned workflow roster")
+    expected = {str(row["path"]): str(row["sha256"]) for value in migration for row in [_mapping(value)]}
+    if expected != {row["path"]: row["sha256"] for row in inventory["workflows"]}:
+        raise ValueError("Pinned workflow roster changed; source mapping review required")
+    contracts: list[dict[str, object]] = []
+    for row in inventory["workflows"]:
+        path = root / row["path"]
+        raw = _read(path)
+        if hashlib.sha256(raw).hexdigest() != expected[row["path"]]:
+            raise ValueError("Pinned workflow changed; source mapping review required")
+        definition = _load(raw)
+        workflow = path.stem
+        source = {"path": row["path"], "sha256": row["sha256"], "role": "migration-baseline"}
+        jobs: dict[str, object] = {}
+        for name, value in _mapping(definition["jobs"]).items():
+            job = _mapping(value)
+            identifier: str | None = name if workflow in {"ci-router", "packs"} and name != "changes" else None
+            if name in compatible.get(workflow, set()):
+                identifier = f"{workflow}.{name}"
+                checks[identifier] = _static_workflow_check(workflow, name, job, source)
+                paths = _mapping(_mapping(definition["on"]).get("pull_request", {})).get("paths", [])
+                group = f"workflow_{workflow.replace('-', '_')}"
+                if workflow == "contracts":
+                    # Corpus retains sole contracts routing ownership. Exact
+                    # source triggers still require genuine workflow context.
+                    gates[identifier] = ["corpus"]
+                    if "corpus" not in data:
+                        data.append("corpus")
+                elif workflow != "ci-quality":
+                    filters[group] = paths
+                    if group not in data:
+                        data.append(group)
+                    # An explicit full-only declaration has no changed-path trigger.
+                    gates[identifier] = [group]
+                else:
+                    gates[identifier] = []
+            minutes = job.get("timeout-minutes", 360)
+            if type(minutes) is not int or not 1 <= minutes <= 360:
+                raise ValueError("Unsupported workflow wall budget")
+            jobs[name] = {
+                "check_id": identifier,
+                "wall_ms": minutes * 60000,
+                "budget_scope": "per-job-instance",
+                "budget_origin": "source" if "timeout-minutes" in job else "github-default-360-minutes",
+                "binding_required": True,
+            }
+        contracts.append({"id": workflow, "source": source, "definition": definition, "jobs": jobs})
+        if _read(path) != raw:
+            raise ValueError("Workflow changed during declaration construction")
+    routing.update(filters=filters, job_gates=gates, non_source_groups=sorted(data))
+    authority.update(checks=checks, routing=routing)
+    return contracts
+
+
 def executable_router_specification(root: Path) -> dict[str, object]:
-    """Construct pinned router and Packs recipes; other workflows remain oracles.
+    """Construct pinned source contracts and compatible complete command recipes.
 
     The result declares commands and unbound prerequisites. It neither provisions
     an environment nor establishes execution/platform/publication qualification.
@@ -589,13 +720,13 @@ def executable_router_specification(root: Path) -> dict[str, object]:
     for name, groups in packs_model.job_gates.items():
         gates[name] = sorted("corpus" if group == "corpus" else "packs_" + group for group in groups)
     authority["routing"] = {"filters": filters, "job_gates": gates, "non_source_groups": sorted(data_groups), "unknown_surface_policy": "refuse-path-sensitive"}
-    authority["schema_version"] = 4
-    authority["migration"] = [{"path": row["path"], "sha256": row["sha256"], "role": "migration-baseline"} for row in inventory["workflows"]]
+    authority["schema_version"] = 5
     authority["checks"] = {name: _router_check(name, _mapping(value), normalized_source) for name, value in jobs.items() if name != "changes"}
     checks = _mapping(authority["checks"])
     packs_source = {"path": ".github/workflows/packs.yml", "sha256": packs_sha, "role": "migration-baseline"}
     checks.update({name: _pack_check(name, _mapping(job), packs_source) for name, job in packs.items() if name != "changes"})
     authority["checks"] = checks
+    authority["workflow_contracts"] = _workflow_contracts(root, inventory, authority)
     if _read(path) != raw or _read(router_path) != router_raw or _read(packs_path) != packs_raw:
         raise ValueError("Changed native specification inputs")
     return authority

@@ -76,6 +76,8 @@ class Router:
     refuse_unmatched_non_source: bool = False
     check_modes: dict[str, frozenset[str]] = field(default_factory=dict)
     check_dependencies: dict[str, frozenset[str]] = field(default_factory=dict)
+    workflow_jobs: frozenset[str] = frozenset()
+    unbound_workflow_jobs: frozenset[str] = frozenset()
 
     @property
     def routing_groups(self) -> frozenset[str]:
@@ -109,6 +111,7 @@ class GateSelection:
     unmatched_src: bool
     selected_jobs: frozenset[str]
     selected_code_shards: frozenset[str]
+    unbound_workflow_jobs: frozenset[str] = frozenset()
 
 
 def _dorny_filters(workflow: dict[str, Any]) -> dict[str, tuple[str, ...]]:
@@ -153,17 +156,21 @@ def _routing_rows(value: object) -> dict[str, tuple[str, ...]]:
     return rows
 
 
+def _workflow_check_names(checks: dict[str, Any]) -> frozenset[str]:
+    return frozenset(name for name, check in checks.items() if isinstance(check.get("recipe"), dict) and "workflow_job" in check["recipe"])
+
+
 def _local_router(document: object) -> Router:
     if not isinstance(document, dict):
         raise ValueError("Local routing authority must be an object")
     version = document.get("schema_version")
-    if type(version) is not int or version not in {1, 2, 3, 4}:
+    if type(version) is not int or version not in {1, 2, 3, 4, 5}:
         raise ValueError("Unsupported local authority schema version")
     routing = document.get("routing")
     if not isinstance(routing, dict):
         raise ValueError("Local routing authority requires a routing object")
     unknown_policy = routing.get("unknown_surface_policy")
-    if (version == 4 or unknown_policy is not None) and unknown_policy != "refuse-path-sensitive":
+    if (version >= 4 or unknown_policy is not None) and unknown_policy != "refuse-path-sensitive":
         raise ValueError("Unsupported unknown-surface routing policy")
     filters = _routing_rows(routing.get("filters"))
     gates = _routing_rows(routing.get("job_gates"))
@@ -202,6 +209,7 @@ def _local_router(document: object) -> Router:
             raise ValueError("Invalid local check dependencies")
         check_modes[name] = frozenset(modes)
         check_dependencies[name] = frozenset(dependencies)
+    unbound = _workflow_requirements(document, checks) if version == 5 else frozenset()
     return Router(
         filters=filters,
         job_gates={name: frozenset(groups) for name, groups in gates.items()},
@@ -210,6 +218,8 @@ def _local_router(document: object) -> Router:
         refuse_unmatched_non_source=unknown_policy == "refuse-path-sensitive",
         check_modes=check_modes,
         check_dependencies=check_dependencies,
+        workflow_jobs=_workflow_check_names(checks),
+        unbound_workflow_jobs=unbound,
     )
 
 
@@ -221,6 +231,29 @@ def load_router(path: Path | None = None) -> Router:
         return _local_router(json.loads(content, object_pairs_hook=_unique_fields))
     workflow = yaml.safe_load(content)
     return Router(filters=_dorny_filters(workflow), job_gates=_job_gates(workflow))
+
+
+def _workflow_requirements(document: dict[str, Any], checks: dict[str, Any]) -> frozenset[str]:
+    """Retain unqualified job identities; this does not evaluate hosted contexts."""
+    contracts = document.get("workflow_contracts")
+    if not isinstance(contracts, list) or not contracts:
+        raise ValueError("Missing workflow contracts")
+    unbound: set[str] = set()
+    for contract in contracts:
+        if not isinstance(contract, dict) or not isinstance(contract.get("id"), str) or not isinstance(contract.get("definition"), dict):
+            raise ValueError("Invalid workflow contracts")
+        jobs = contract.get("jobs")
+        original = contract["definition"].get("jobs")
+        if not isinstance(jobs, dict) or not jobs or not isinstance(original, dict) or set(jobs) != set(original):
+            raise ValueError("Invalid workflow job roster")
+        for name, job in jobs.items():
+            if not isinstance(job, dict) or job.get("binding_required") is not True or (job.get("check_id") is not None and job["check_id"] not in checks):
+                raise ValueError("Invalid workflow binding")
+            identifier = f"{contract['id']}.{name}"
+            if identifier in unbound:
+                raise ValueError("Duplicate workflow job")
+            unbound.add(identifier)
+    return frozenset(unbound)
 
 
 def router_from_local_document(document: object) -> Router:
@@ -272,7 +305,9 @@ def select_gates(
     if mode not in {"pr", "commit", "full"}:
         raise ValueError("Unsupported selection mode")
     if router.refuse_unmatched_non_source and mode != "full":
-        patterns = tuple(pattern for group in router.routing_groups for pattern in router.filters[group])
+        # Source-context-only declarations cannot establish covered work.
+        preview_groups = frozenset(group for job, groups in router.job_gates.items() if job not in router.workflow_jobs for group in groups)
+        patterns = tuple(pattern for group in router.routing_groups if (not router.workflow_jobs or group in preview_groups) for pattern in router.filters[group])
         if any(not path.startswith("src/") and not any(fnmatch.fnmatch(path, pattern) for pattern in patterns) for path in paths):
             raise ValueError("Unsupported changed surface; explicit routing or full inspection required")
     matched, unmatched_src = classify_paths(paths, router=router)
@@ -280,13 +315,19 @@ def select_gates(
     gated_selected = frozenset(
         job
         for job, groups in router.job_gates.items()
-        if groups and (mode == "full" or (unmatched_src and job not in router.non_conservative_jobs) or groups & matched)
+        if groups
+        and (mode == "full" or (unmatched_src and job not in router.non_conservative_jobs) or groups & matched)
+        and (job not in router.workflow_jobs or ("commit" if mode == "pr" else mode) in router.check_modes[job])
     )
     return GateSelection(
         matched_groups=matched,
         unmatched_src=unmatched_src,
-        selected_jobs=router.always_on_jobs | gated_selected,
+        selected_jobs=frozenset(
+            job for job in router.always_on_jobs if job not in router.workflow_jobs or ("commit" if mode == "pr" else mode) in router.check_modes[job]
+        )
+        | gated_selected,
         selected_code_shards=gated_selected & router.code_shard_jobs,
+        unbound_workflow_jobs=router.unbound_workflow_jobs,
     )
 
 
@@ -297,6 +338,8 @@ def _select_qualification(router: Router, paths: list[str], mode: str) -> GateSe
     selected = {name for name, modes in router.check_modes.items() if mode in modes}
     if not selected:
         raise ValueError("No applicable checks for qualification mode")
+    if router.unbound_workflow_jobs:
+        raise ValueError("Unbound workflow context prevents qualification")
     pending = set(router.check_dependencies)
     completed: set[str] = set()
     while pending:

@@ -14,6 +14,7 @@ pub const Selection = struct {
     selected_jobs: []const []const u8,
     selected_code_shards: []const []const u8,
     selected_reasons: []const SelectionReason,
+    unbound_workflow_jobs: []const []const u8,
     requested_platform: ?[]const u8 = null,
     target_checked: bool = false,
     selection_only: bool = true,
@@ -25,6 +26,8 @@ pub const Selection = struct {
         allocator.free(self.selected_jobs);
         allocator.free(self.selected_code_shards);
         allocator.free(self.selected_reasons);
+        for (self.unbound_workflow_jobs) |name| allocator.free(name);
+        allocator.free(self.unbound_workflow_jobs);
     }
 };
 
@@ -223,7 +226,7 @@ fn oneOf(value: []const u8, allowed: []const []const u8) bool {
 }
 
 fn validateRecipe(value: Value, command_count: usize, migration: []const Value) !void {
-    try rejectUnknownFields(value, &.{ "source", "python_version", "advisory", "required_inputs", "conditions", "instances", "applicability", "packages", "instance_environment", "observed_dependencies" });
+    try rejectUnknownFields(value, &.{ "source", "python_version", "advisory", "required_inputs", "conditions", "instances", "applicability", "packages", "instance_environment", "observed_dependencies", "workflow_job" });
     const recipe = try object(value);
     const source = recipe.get("source") orelse return error.InvalidRecipe;
     try validateSource(source);
@@ -237,22 +240,31 @@ fn validateRecipe(value: Value, command_count: usize, migration: []const Value) 
     if (!pinned) return error.UnboundRecipeSource;
     const python = recipe.get("python_version") orelse return error.InvalidRecipe;
     const advisory = recipe.get("advisory") orelse return error.InvalidRecipe;
-    if (python != .string or !std.mem.eql(u8, python.string, "3.12") or advisory != .bool) return error.InvalidRecipe;
+    if (python != .string or advisory != .bool) return error.InvalidRecipe;
+    if (!std.mem.eql(u8, python.string, "3.12") and !(recipe.contains("workflow_job") and std.mem.eql(u8, python.string, "unbound"))) return error.InvalidRecipe;
+    if (recipe.get("workflow_job")) |job| if (job != .string or !validIdentifier(job.string)) return error.InvalidRecipe;
     const applicability = recipe.get("applicability") orelse return error.InvalidRecipe;
-    if (applicability != .string or !oneOf(applicability.string, &.{ "routing", "routing-and-not-prose", "routing-or-prose" })) return error.UnsupportedCondition;
+    if (applicability != .string or !oneOf(applicability.string, &.{ "routing", "routing-and-not-prose", "routing-or-prose", "workflow" })) return error.UnsupportedCondition;
+    if (std.mem.eql(u8, applicability.string, "workflow") != recipe.contains("workflow_job")) return error.InvalidRecipe;
     const packages = try object(recipe.get("packages") orelse return error.InvalidRecipe);
     var package_iterator = packages.iterator();
     while (package_iterator.next()) |entry| {
         if (!validIdentifier(entry.key_ptr.*) or entry.value_ptr.* != .string or entry.value_ptr.string.len == 0) return error.InvalidRecipe;
     }
     for (try requiredStrings(recipe, "required_inputs")) |input| {
-        if (!oneOf(input.string, &.{ "candidate", "base", "dependencies", "prose", "results", "commit_range", "memory_output", "universe_decision", "universe_reuse", "claude_cli_2_1_270" })) return error.UnsupportedBinding;
+        if (!oneOf(input.string, &.{ "candidate", "base", "dependencies", "prose", "results", "commit_range", "memory_output", "universe_decision", "universe_reuse", "claude_cli_2_1_270", "workflow_context" })) return error.UnsupportedBinding;
+    }
+    if (recipe.contains("workflow_job")) {
+        var context_required = false;
+        for (try requiredStrings(recipe, "required_inputs")) |input| context_required = context_required or std.mem.eql(u8, input.string, "workflow_context");
+        if (!context_required) return error.InvalidRecipe;
     }
     const conditions = try requiredStrings(recipe, "conditions");
     const instances = try requiredStrings(recipe, "instances");
     if (conditions.len != command_count or instances.len != command_count) return error.InvalidRecipe;
     for (conditions) |condition| {
-        if (!oneOf(condition.string, &.{ "success", "always", "advisory", "decision", "optional-cache", "universe", "universe-always" })) return error.UnsupportedCondition;
+        if (!oneOf(condition.string, &.{ "success", "always", "advisory", "decision", "optional-cache", "universe", "universe-always", "source-context" })) return error.UnsupportedCondition;
+        if (std.mem.eql(u8, condition.string, "source-context") != recipe.contains("workflow_job")) return error.InvalidRecipe;
     }
     for (instances) |instance| if (!validIdentifier(instance.string)) return error.InvalidRecipe;
     const environments = try object(recipe.get("instance_environment") orelse return error.InvalidRecipe);
@@ -296,6 +308,7 @@ fn validateRecipes(root: std.json.ObjectMap, version: i64) !void {
         if (version >= 3 and (!check.contains("unmatched_source") or !check.contains("stderr_policy"))) return error.InvalidChecks;
         _ = try requiredStrings(check, "platforms");
         const recipe = check.get("recipe") orelse return error.InvalidRecipe;
+        if (version < 5 and recipe.object.contains("workflow_job")) return error.UnsupportedSchemaVersion;
         try validateRecipe(recipe, check.get("argv").?.array.items.len, migration.array.items);
         const observation = (try object(recipe)).get("observed_dependencies") orelse return error.InvalidRecipe;
         for (try strings(observation)) |dependency| {
@@ -303,6 +316,137 @@ fn validateRecipes(root: std.json.ObjectMap, version: i64) !void {
             if (std.mem.eql(u8, dependency.string, entry.key_ptr.*)) return error.InvalidDependency;
         }
     }
+}
+
+fn workflowDependencyReady(name: []const u8, jobs: std.json.ObjectMap, completed: std.StringHashMap(void)) !bool {
+    if (!validIdentifier(name) or !jobs.contains(name)) return error.InvalidDependency;
+    return completed.contains(name);
+}
+
+fn workflowJobReady(job: std.json.ObjectMap, jobs: std.json.ObjectMap, completed: std.StringHashMap(void)) !bool {
+    const needs = job.get("needs") orelse return true;
+    if (needs == .string) return workflowDependencyReady(needs.string, jobs, completed);
+    var ready = true;
+    for (try strings(needs)) |dependency| ready = try workflowDependencyReady(dependency.string, jobs, completed) and ready;
+    return ready;
+}
+
+fn validateWorkflowContracts(root: std.json.ObjectMap, version: i64) !void {
+    const value = root.get("workflow_contracts");
+    if (version < 5) {
+        if (value != null) return error.UnsupportedSchemaVersion;
+        return;
+    }
+    const contracts = value orelse return error.MissingWorkflowContracts;
+    if (contracts != .array or contracts.array.items.len == 0 or contracts.array.items.len > 256) return error.InvalidWorkflowContracts;
+    const migration = root.get("migration").?.array.items;
+    if (contracts.array.items.len != migration.len) return error.InvalidWorkflowContracts;
+    const checks = root.get("checks").?.object;
+    var paths = std.StringHashMap(void).init(std.heap.page_allocator);
+    defer paths.deinit();
+    var mapped_checks = std.StringHashMap(void).init(std.heap.page_allocator);
+    defer mapped_checks.deinit();
+    for (contracts.array.items) |contract_value| {
+        try rejectUnknownFields(contract_value, &.{ "id", "source", "definition", "jobs" });
+        const contract = try object(contract_value);
+        const id = contract.get("id") orelse return error.InvalidWorkflowContracts;
+        if (id != .string or !validIdentifier(id.string)) return error.InvalidWorkflowContracts;
+        const source_value = contract.get("source") orelse return error.InvalidWorkflowContracts;
+        try validateSource(source_value);
+        const source = source_value.object;
+        const path = source.get("path").?.string;
+        if (!std.mem.startsWith(u8, path, ".github/workflows/") or !std.mem.endsWith(u8, path, ".yml") or !std.mem.eql(u8, path[18 .. path.len - 4], id.string)) return error.InvalidWorkflowContracts;
+        if (paths.contains(path)) return error.InvalidWorkflowContracts;
+        try paths.put(path, {});
+        var pinned = false;
+        for (migration) |row| pinned = pinned or (std.mem.eql(u8, row.object.get("path").?.string, path) and std.mem.eql(u8, row.object.get("sha256").?.string, source.get("sha256").?.string));
+        if (!pinned) return error.UnboundRecipeSource;
+        const definition_value = contract.get("definition") orelse return error.InvalidWorkflowContracts;
+        try rejectUnknownFields(definition_value, &.{ "name", "on", "run-name", "jobs", "env", "permissions", "concurrency" });
+        const definition = try object(definition_value);
+        _ = try object(definition.get("on") orelse return error.InvalidWorkflowContracts);
+        const jobs = try object(definition.get("jobs") orelse return error.InvalidWorkflowContracts);
+        const mappings = try object(contract.get("jobs") orelse return error.InvalidWorkflowContracts);
+        if (jobs.count() == 0 or jobs.count() > 256 or jobs.count() != mappings.count()) return error.InvalidWorkflowContracts;
+        var iterator = jobs.iterator();
+        while (iterator.next()) |entry| {
+            if (!validIdentifier(entry.key_ptr.*)) return error.InvalidWorkflowContracts;
+            try rejectUnknownFields(entry.value_ptr.*, &.{ "name", "needs", "if", "runs-on", "steps", "uses", "with", "env", "permissions", "outputs", "strategy", "timeout-minutes", "continue-on-error", "concurrency", "environment" });
+            const job = try object(entry.value_ptr.*);
+            if (job.get("steps")) |steps| {
+                if (steps != .array or steps.array.items.len > 1024) return error.InvalidWorkflowContracts;
+                for (steps.array.items) |step| {
+                    try rejectUnknownFields(step, &.{ "name", "id", "run", "uses", "with", "if", "shell", "env", "timeout-minutes", "continue-on-error" });
+                    const fields = try object(step);
+                    const run_value = fields.get("run");
+                    const uses_value = fields.get("uses");
+                    if ((run_value == null) == (uses_value == null)) return error.InvalidWorkflowContracts;
+                    if (run_value) |run_body| if (run_body != .string or run_body.string.len == 0) return error.InvalidWorkflowContracts;
+                    if (uses_value) |action| if (action != .string or action.string.len == 0) return error.InvalidWorkflowContracts;
+                }
+            } else if (!job.contains("uses")) return error.InvalidWorkflowContracts;
+            const mapping_value = mappings.get(entry.key_ptr.*) orelse return error.InvalidWorkflowContracts;
+            try rejectUnknownFields(mapping_value, &.{ "check_id", "wall_ms", "budget_scope", "budget_origin", "binding_required" });
+            const mapping = mapping_value.object;
+            const binding = mapping.get("binding_required") orelse return error.InvalidWorkflowContracts;
+            if (binding != .bool or !binding.bool) return error.UnboundWorkflowContext;
+            const budget_scope = mapping.get("budget_scope") orelse return error.InvalidWorkflowContracts;
+            const budget_origin = mapping.get("budget_origin") orelse return error.InvalidWorkflowContracts;
+            const wall = mapping.get("wall_ms") orelse return error.InvalidWorkflowContracts;
+            if (budget_scope != .string or !std.mem.eql(u8, budget_scope.string, "per-job-instance") or budget_origin != .string or wall != .integer) return error.InvalidBudget;
+            var minutes: i64 = 360;
+            if (job.get("timeout-minutes")) |timeout| {
+                if (timeout != .integer or timeout.integer < 1 or timeout.integer > 360 or !std.mem.eql(u8, budget_origin.string, "source")) return error.InvalidBudget;
+                minutes = timeout.integer;
+            } else if (!std.mem.eql(u8, budget_origin.string, "github-default-360-minutes")) return error.InvalidBudget;
+            if (wall.integer != minutes * 60000) return error.InvalidBudget;
+            const check_id = mapping.get("check_id") orelse return error.InvalidWorkflowContracts;
+            if (check_id != .null) {
+                if (check_id != .string or !checks.contains(check_id.string)) return error.MissingCheck;
+                if (mapped_checks.contains(check_id.string)) return error.InvalidWorkflowContracts;
+                try mapped_checks.put(check_id.string, {});
+                const recipe = checks.get(check_id.string).?.object.get("recipe").?.object;
+                if (!std.mem.eql(u8, recipe.get("source").?.object.get("path").?.string, path)) return error.UnboundRecipeSource;
+                if (recipe.get("workflow_job")) |name| if (!std.mem.eql(u8, name.string, entry.key_ptr.*)) return error.InvalidWorkflowContracts;
+            }
+        }
+        var completed = std.StringHashMap(void).init(std.heap.page_allocator);
+        defer completed.deinit();
+        while (completed.count() < jobs.count()) {
+            var advanced = false;
+            iterator = jobs.iterator();
+            while (iterator.next()) |entry| {
+                if (completed.contains(entry.key_ptr.*)) continue;
+                if (try workflowJobReady(entry.value_ptr.object, jobs, completed)) {
+                    try completed.put(entry.key_ptr.*, {});
+                    advanced = true;
+                }
+            }
+            if (!advanced) return error.DependencyCycle;
+        }
+    }
+    if (mapped_checks.count() != checks.count()) return error.UnboundRecipeSource;
+}
+
+fn unboundWorkflowJobs(allocator: Allocator, root: std.json.ObjectMap) ![]const []const u8 {
+    var names: std.ArrayList([]const u8) = .empty;
+    errdefer {
+        for (names.items) |name| allocator.free(name);
+        names.deinit(allocator);
+    }
+    if (root.get("workflow_contracts")) |contracts| {
+        for (contracts.array.items) |contract_value| {
+            const contract = contract_value.object;
+            var jobs = contract.get("jobs").?.object.iterator();
+            while (jobs.next()) |job| {
+                const name = try std.fmt.allocPrint(allocator, "{s}.{s}", .{ contract.get("id").?.string, job.key_ptr.* });
+                errdefer allocator.free(name);
+                try names.append(allocator, name);
+            }
+        }
+    }
+    std.mem.sort([]const u8, names.items, {}, ordered);
+    return names.toOwnedSlice(allocator);
 }
 
 /// The pinned current routing uses literal bytes and star globs only.
@@ -371,17 +515,30 @@ fn conservativeCheck(root: std.json.ObjectMap, name: []const u8) bool {
     return true;
 }
 
+// An unresolved source-context declaration cannot establish covered work.
+fn previewRoute(root: std.json.ObjectMap, gates: std.json.ObjectMap, group: []const u8) bool {
+    if (root.get("schema_version").?.integer < 5) return true;
+    var iterator = gates.iterator();
+    while (iterator.next()) |entry| {
+        const check = root.get("checks").?.object.get(entry.key_ptr.*).?.object;
+        if (check.get("recipe")) |recipe| if (recipe.object.contains("workflow_job")) continue;
+        for (entry.value_ptr.array.items) |candidate| if (std.mem.eql(u8, candidate.string, group)) return true;
+    }
+    return false;
+}
+
 pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, mode: []const u8) !Selection {
     const qualification = qualificationMode(mode);
     if (!qualification and !oneOf(mode, &.{ "pr", "commit", "full" })) return error.UnsupportedMode;
     if (paths.len > 32768) return error.InputLimit;
     if (qualification and paths.len != 0) return error.UnexpectedChangedPaths;
     const root = try object(document);
-    try rejectUnknownFields(document, &.{ "schema_version", "source", "routing", "modules", "checks", "migration" });
+    try rejectUnknownFields(document, &.{ "schema_version", "source", "routing", "modules", "checks", "migration", "workflow_contracts" });
     try validateOptionalSections(root);
     const version = root.get("schema_version") orelse return error.UnsupportedSchemaVersion;
-    if (version != .integer or (version.integer != 1 and version.integer != 2 and version.integer != 3 and version.integer != 4)) return error.UnsupportedSchemaVersion;
+    if (version != .integer or (version.integer < 1 or version.integer > 5)) return error.UnsupportedSchemaVersion;
     try validateRecipes(root, version.integer);
+    try validateWorkflowContracts(root, version.integer);
     const routing = try object(root.get("routing") orelse return error.InvalidRouting);
     try rejectUnknownFields(root.get("routing").?, &.{ "filters", "job_gates", "non_source_groups", "unknown_surface_policy" });
     var refuse_unknown = false;
@@ -389,7 +546,7 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
         if (policy != .string or !std.mem.eql(u8, policy.string, "refuse-path-sensitive")) return error.InvalidRouting;
         refuse_unknown = true;
     }
-    if (version.integer == 4 and !refuse_unknown) return error.InvalidRouting;
+    if (version.integer >= 4 and !refuse_unknown) return error.InvalidRouting;
     var non_source: []const Value = &.{};
     if (routing.get("non_source_groups")) |data| non_source = try strings(data);
     if (version.integer >= 3 and !routing.contains("non_source_groups")) return error.InvalidRouting;
@@ -412,7 +569,7 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
             for (entry.value_ptr.array.items) |pattern| {
                 if (try matches(pattern.string, path)) {
                     try matched.put(name, {});
-                    known_route = true;
+                    known_route = known_route or previewRoute(root, gates, name);
                     known_source = known_source or sourceGroup(filters, name, non_source);
                     break;
                 }
@@ -433,6 +590,13 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
     var git = gates.iterator();
     while (git.next()) |entry| {
         if (qualification) continue;
+        if (root.get("checks")) |checks| {
+            const check_value = checks.object.get(entry.key_ptr.*) orelse return error.MissingCheck;
+            const check = check_value.object;
+            if (check.get("recipe")) |recipe| {
+                if (recipe.object.contains("workflow_job") and !try modeApplies(check, requestedMode(mode))) continue;
+            }
+        }
         const references = entry.value_ptr.array.items;
         var selected = references.len == 0;
         var code = false;
@@ -502,11 +666,17 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
     std.mem.sort([]const u8, shards.items, {}, ordered);
     const reasons = try explainSelection(allocator, root, gates, jobs.items, groups.items, mode, unmatched);
     errdefer allocator.free(reasons);
+    const unbound = try unboundWorkflowJobs(allocator, root);
+    errdefer {
+        for (unbound) |name| allocator.free(name);
+        allocator.free(unbound);
+    }
+    if (qualification and unbound.len != 0) return error.UnboundWorkflowContext;
     const owned_groups = try groups.toOwnedSlice(allocator);
     errdefer allocator.free(owned_groups);
     const owned_jobs = try jobs.toOwnedSlice(allocator);
     errdefer allocator.free(owned_jobs);
-    return .{ .matched_groups = owned_groups, .unmatched_src = unmatched, .selected_jobs = owned_jobs, .selected_code_shards = try shards.toOwnedSlice(allocator), .selected_reasons = reasons };
+    return .{ .matched_groups = owned_groups, .unmatched_src = unmatched, .selected_jobs = owned_jobs, .selected_code_shards = try shards.toOwnedSlice(allocator), .selected_reasons = reasons, .unbound_workflow_jobs = unbound };
 }
 
 fn reasonOrdered(_: void, a: SelectionReason, b: SelectionReason) bool {
@@ -517,6 +687,11 @@ fn reasonOrdered(_: void, a: SelectionReason, b: SelectionReason) bool {
 
 fn qualificationMode(mode: []const u8) bool {
     return oneOf(mode, &.{ "platform", "release", "package", "docs" });
+}
+
+fn requestedMode(mode: []const u8) []const u8 {
+    if (std.mem.eql(u8, mode, "pr")) return "commit";
+    return mode;
 }
 
 fn modeApplies(check: std.json.ObjectMap, mode: []const u8) !bool {
@@ -563,6 +738,7 @@ pub fn selectForTarget(allocator: Allocator, document: Value, paths: []const []c
     if (!oneOf(platform, &.{ "macos", "linux", "windows" })) return error.UnsupportedPlatform;
     var selection = try select(allocator, document, paths, mode);
     errdefer selection.deinit(allocator);
+    if (selection.unbound_workflow_jobs.len != 0) return error.UnboundWorkflowContext;
     const checks = (try object(document)).get("checks") orelse return error.MissingCheck;
     var requested_mode = mode;
     if (std.mem.eql(u8, mode, "pr")) requested_mode = "commit";

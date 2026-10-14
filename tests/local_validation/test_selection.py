@@ -814,6 +814,52 @@ def test_native_full_inspection_discloses_all_unresolved_workflow_jobs(native_se
     assert selected["selection_only"] is True and selected["execution_supported"] is False
 
 
+@pytest.mark.parametrize("fault", ["missing-contract", "source-pin", "budget", "binding-marker", "cycle", "orphan-check"])
+def test_native_workflow_contract_refuses_missing_or_false_bindings(tmp_path: Path, native_selector: Path, fault: str) -> None:
+    root = Path(__file__).resolve().parents[2]
+    proposal = json.loads((root / "tools/validation/gates.json").read_text())
+    row = next(item for item in proposal["workflow_contracts"] if item["id"] == "ci-quality")
+    if fault == "missing-contract":
+        proposal["workflow_contracts"].pop()
+    elif fault == "source-pin":
+        row["source"]["sha256"] = "0" * 64
+    elif fault == "budget":
+        row["jobs"]["lint"]["wall_ms"] = 1
+    elif fault == "binding-marker":
+        row["jobs"]["lint"]["binding_required"] = False
+    elif fault == "cycle":
+        row["definition"]["jobs"]["lint"]["needs"] = ["uv-lock-check"]
+        row["definition"]["jobs"]["uv-lock-check"]["needs"] = ["lint"]
+    else:
+        row["jobs"]["lint"]["check_id"] = None
+    result = subprocess.run([str(native_selector), str(write_local(tmp_path, proposal)), "full"], capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0 and result.stdout == ""
+    assert "selection refused" in result.stderr
+
+
+def test_native_workflow_target_refuses_actual_unbound_context(native_selector: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    result = subprocess.run(
+        [str(native_selector), str(root / "tools/validation/gates.json"), "--platform", "linux", "full"], capture_output=True, text=True, timeout=20
+    )
+    assert result.returncode != 0 and result.stdout == ""
+    assert "UnboundWorkflowContext" in result.stderr
+
+
+def test_workflow_regeneration_refuses_changed_other_source(tmp_path: Path) -> None:
+    from scripts.validation.extract_gates import executable_router_specification
+    import shutil
+
+    root = Path(__file__).resolve().parents[2]
+    (tmp_path / "tools/validation").mkdir(parents=True)
+    shutil.copy2(root / "tools/validation/gates.json", tmp_path / "tools/validation/gates.json")
+    shutil.copytree(root / ".github/workflows", tmp_path / ".github/workflows")
+    with (tmp_path / ".github/workflows/ci-quality.yml").open("a") as stream:
+        stream.write("\n# source epoch changed\n")
+    with pytest.raises(ValueError, match="Pinned workflow roster changed"):
+        executable_router_specification(tmp_path)
+
+
 def test_router_recipe_construction_refuses_changed_source_epoch(tmp_path: Path) -> None:
     from scripts.validation.extract_gates import executable_router_specification
 
@@ -1027,6 +1073,17 @@ def test_checked_in_authority_matches_pinned_hosted_routing(native_selector: Pat
     # Packs jobs are data lanes; unknown-source fan-out reaches their corpus predicate, never the unrelated lanes.
     non_conservative = frozenset(name for name, groups in packs.job_gates.items() if groups and "corpus" not in groups)
     hosted = Router(source_filters, source_gates, frozenset("packs_" + name for name in packs.filters), non_conservative)
+    additions = frozenset(
+        {
+            "ci-quality.lint",
+            "ci-quality.build-wheel",
+            "ci-quality.uv-lock-check",
+            "ci-nightly.universe-equivalence",
+            "ci-shard-recapture.strict-shard-timings-check",
+            "contracts.verify-pins",
+        }
+    )
+    assert local.workflow_jobs == additions
     assert load_router() == local
     registry = yaml.safe_load((repository / ".github/ci-module-registry.yml").read_text(encoding="utf-8"))
     assert specification["modules"] == registry["modules"]
@@ -1055,8 +1112,15 @@ def test_checked_in_authority_matches_pinned_hosted_routing(native_selector: Pat
             supported = [path for path in paths if path not in unknown]
         expected = select_gates(supported, router=hosted, mode=mode)
         python_actual = select_gates(supported, router=local, mode=mode)
-        assert python_actual == expected
-        assert select_gates(supported, mode=mode) == expected
+        # Preserve every old source-oracle assertion, while explaining the
+        # whole-workflow additions from their canonical declarations.
+        assert python_actual.selected_jobs - additions == expected.selected_jobs
+        assert python_actual.matched_groups == expected.matched_groups
+        assert python_actual.unmatched_src == expected.unmatched_src
+        assert python_actual.selected_code_shards == expected.selected_code_shards
+        assert select_gates(supported, mode=mode) == python_actual
+        expected_additions = additions if mode == "full" else frozenset({"ci-quality.lint", "ci-quality.build-wheel", "ci-quality.uv-lock-check"})
+        assert python_actual.selected_jobs & additions == expected_additions
         result = subprocess.run(
             [str(native_selector), str(local_authority), mode, *supported],
             check=True,
@@ -1067,8 +1131,9 @@ def test_checked_in_authority_matches_pinned_hosted_routing(native_selector: Pat
         native_actual = json.loads(result.stdout)
         assert native_actual["matched_groups"] == sorted(expected.matched_groups)
         assert native_actual["unmatched_src"] == expected.unmatched_src
-        assert native_actual["selected_jobs"] == sorted(expected.selected_jobs)
+        assert native_actual["selected_jobs"] == sorted(expected.selected_jobs | expected_additions)
         assert native_actual["selected_code_shards"] == sorted(expected.selected_code_shards)
+        assert native_actual["unbound_workflow_jobs"] == sorted(python_actual.unbound_workflow_jobs)
 
 
 @pytest.mark.parametrize("version", [None, True, 1.0, 999])
@@ -1179,6 +1244,11 @@ fn allocateQualificationSelection(allocator: std.mem.Allocator, document: std.js
     defer selected.deinit(allocator);
     try std.testing.expectEqual(@as(usize, 3), selected.selected_jobs.len);
 }
+fn allocateWorkflowSelection(allocator: std.mem.Allocator, document: std.json.Value) !void {
+    const selected = try selection.select(allocator, document, &.{}, "full");
+    defer selected.deinit(allocator);
+    try std.testing.expectEqual(@as(usize, 92), selected.unbound_workflow_jobs.len);
+}
 test "selection allocation and input bounds" {
     const bytes =
         \\__FIXTURE_JSON__
@@ -1191,6 +1261,14 @@ test "selection allocation and input bounds" {
     var no_resize = std.testing.FailingAllocator.init(std.testing.allocator, .{ .resize_fail_index = 0 });
     try std.testing.checkAllAllocationFailures(no_resize.allocator(), allocateSelection, .{parsed.value});
     try std.testing.checkAllAllocationFailures(no_resize.allocator(), allocateQualificationSelection, .{parsed.value});
+    try std.testing.expectEqual(no_resize.allocated_bytes, no_resize.freed_bytes);
+    const workflow_bytes =
+        \\__WORKFLOW_JSON__
+    ;
+    const workflow = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, workflow_bytes, .{});
+    defer workflow.deinit();
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, allocateWorkflowSelection, .{workflow.value});
+    try std.testing.checkAllAllocationFailures(no_resize.allocator(), allocateWorkflowSelection, .{workflow.value});
     try std.testing.expectEqual(no_resize.allocated_bytes, no_resize.freed_bytes);
     const paths = try std.testing.allocator.alloc([]const u8, 32769);
     defer std.testing.allocator.free(paths);
@@ -1207,7 +1285,11 @@ def test_native_allocation_rollback_and_api_input_bound(tmp_path: Path) -> None:
     specification: Any = local_specification()
     for check in specification["checks"].values():
         check["modes"].append("docs")
-    harness.write_text(_NATIVE_API_CONTROLS.replace("__FIXTURE_JSON__", json.dumps(specification)))
+    harness.write_text(
+        _NATIVE_API_CONTROLS.replace("__FIXTURE_JSON__", json.dumps(specification)).replace(
+            "__WORKFLOW_JSON__", json.dumps(json.loads((repository / "tools/validation/gates.json").read_text()))
+        )
+    )
     executable = tmp_path / "allocation-controls"
     subprocess.run(
         [
@@ -1624,7 +1706,7 @@ def test_python_qualification_mode_preserves_the_same_declared_roster(mode: str)
 
 @pytest.mark.parametrize("mode", ["platform", "release", "package", "docs", "unqualified"])
 def test_python_qualification_mode_refuses_unmapped_current_requirements(mode: str) -> None:
-    with pytest.raises(ValueError, match="mode|applicable"):
+    with pytest.raises(ValueError, match="mode|applicable|Unbound workflow context"):
         select_gates([], mode=mode)
 
 
@@ -1664,11 +1746,11 @@ def test_native_qualification_mode_refuses_missing_check_definitions(tmp_path: P
 
 @pytest.mark.parametrize("mode", ["platform", "release", "package", "docs"])
 def test_native_qualification_mode_refuses_empty_current_recipe_roster(native_selector: Path, mode: str) -> None:
-    """The real authority has not mapped these modes; always-on work cannot qualify them."""
+    """Missing current recipes or their genuine context cannot qualify a mode."""
     authority = Path(__file__).resolve().parents[2] / "tools/validation/gates.json"
     result = subprocess.run([str(native_selector), str(authority), mode], capture_output=True, text=True, timeout=20)
     assert result.returncode != 0 and result.stdout == ""
-    assert "NoApplicableChecks" in result.stderr
+    assert ("UnboundWorkflowContext" if mode in {"package", "release"} else "NoApplicableChecks") in result.stderr
 
 
 @pytest.mark.parametrize("fault", ["mode", "platform", "paths"])
