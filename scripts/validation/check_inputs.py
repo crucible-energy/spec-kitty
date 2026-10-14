@@ -14,7 +14,8 @@ import re
 import stat
 import sys
 from pathlib import Path
-from typing import Any
+from collections.abc import Callable
+from typing import Any, NamedTuple
 
 from scripts.ci.gate_selection import router_from_local_document
 from scripts.ci.prose_only import prose_only_pr_verdict
@@ -171,20 +172,175 @@ def evaluate_prose(value: object, authority: bytes) -> dict[str, object]:
     return {"prose_only": verdict, "validation_performed": False}
 
 
-def _read(path: Path) -> bytes:
-    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+class _WindowsIO(NamedTuple):
+    open: Callable[[Path, bool], int]
+    info: Callable[[int], tuple[int, ...]]
+    kind: Callable[[int], int]
+    close: Callable[[int], None]
+    read: Callable[[int, int], bytes]
+
+
+def _windows_api() -> _WindowsIO:
+    """Bind read-only Win32 handles; unsupported APIs refuse, never downgrade."""
+    import ctypes
+
+    class FileInformation(ctypes.Structure):
+        _fields_ = [
+            (name, ctypes.c_uint32)
+            for name in (
+                "attributes",
+                "creation_low",
+                "creation_high",
+                "access_low",
+                "access_high",
+                "write_low",
+                "write_high",
+                "volume",
+                "size_high",
+                "size_low",
+                "links",
+                "index_high",
+                "index_low",
+            )
+        ]
+
+    class FileIdentity(ctypes.Structure):
+        _fields_ = [("volume", ctypes.c_uint64), ("identifier", ctypes.c_ubyte * 16)]
+
+    try:
+        loader = getattr(ctypes, "WinDLL", None)
+        error_number = getattr(ctypes, "get_last_error", None)
+        if not callable(loader) or not callable(error_number):
+            raise ValueError(INVALID_INPUT)
+        kernel = loader("kernel32", use_last_error=True)
+        create, information, identity, kind, close, read = (
+            kernel.CreateFileW,
+            kernel.GetFileInformationByHandle,
+            kernel.GetFileInformationByHandleEx,
+            kernel.GetFileType,
+            kernel.CloseHandle,
+            kernel.ReadFile,
+        )
+        create.argtypes = [ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
+        create.restype = ctypes.c_void_p
+        information.argtypes = [ctypes.c_void_p, ctypes.POINTER(FileInformation)]
+        information.restype = ctypes.c_int
+        identity.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
+        identity.restype = ctypes.c_int
+        kind.argtypes, kind.restype = [ctypes.c_void_p], ctypes.c_uint32
+        close.argtypes, close.restype = [ctypes.c_void_p], ctypes.c_int
+        read.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint32), ctypes.c_void_p]
+        read.restype = ctypes.c_int
+    except (AttributeError, OSError) as error:
+        raise ValueError(INVALID_INPUT) from error
+
+    def failed() -> OSError:
+        return OSError(int(error_number()), "Windows input I/O refused")
+
+    def open_file(path: Path, content: bool) -> int:
+        # Read attributes or content; read sharing only, existing object only,
+        # final reparse point opened itself; no inheritance or backup privileges.
+        handle = create(str(path), 0x80000000 if content else 0x80, 1, None, 3, 0x00200000, None)
+        if handle is None or handle == ctypes.c_void_p(-1).value:
+            raise failed()
+        return int(handle)
+
+    def file_info(handle: int) -> tuple[int, ...]:
+        info, identifier = FileInformation(), FileIdentity()
+        # FileIdInfo (18) supplies a full 128-bit identity, including ReFS.
+        if not information(handle, ctypes.byref(info)) or not identity(handle, 18, ctypes.byref(identifier), ctypes.sizeof(identifier)):
+            raise failed()
+        value = int.from_bytes(identifier.identifier, "little")
+        return (
+            info.attributes,
+            identifier.volume,
+            value >> 64,
+            value & ((1 << 64) - 1),
+            (info.size_high << 32) | info.size_low,
+            (info.creation_high << 32) | info.creation_low,
+            (info.write_high << 32) | info.write_low,
+        )
+
+    def close_file(handle: int) -> None:
+        if not close(handle):
+            raise failed()
+
+    def read_file(handle: int, size: int) -> bytes:
+        buffer, count = ctypes.create_string_buffer(size), ctypes.c_uint32()
+        if not read(handle, ctypes.byref(buffer), size, ctypes.byref(count), None):
+            raise failed()
+        if count.value > size:
+            raise ValueError(INVALID_INPUT)
+        return buffer.raw[: count.value]
+
+    return _WindowsIO(open_file, file_info, lambda handle: int(kind(handle)), close_file, read_file)
+
+
+def _regular(info: os.stat_result) -> tuple[int, ...]:
+    if not stat.S_ISREG(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400 or not 0 <= info.st_size <= MAX_BYTES:
+        raise ValueError(INVALID_INPUT)
+    return (info.st_dev, info.st_ino, info.st_mode, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
+def _read_descriptor(
+    descriptor: int, before: tuple[int, ...], size: int, observe: Callable[[], tuple[int, ...]], observe_path: Callable[[], tuple[int, ...]]
+) -> bytes:
     try:
         stream = os.fdopen(descriptor, "rb")
     except BaseException:
         os.close(descriptor)
         raise
     with stream:
-        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+        if observe() != before:
             raise ValueError(INVALID_INPUT)
         raw = stream.read(MAX_BYTES + 1)
-    if len(raw) > MAX_BYTES:
-        raise ValueError(INVALID_INPUT)
+        if len(raw) != size or observe() != before or observe_path() != before:
+            raise ValueError(INVALID_INPUT)
     return raw
+
+
+def _windows_state(api: _WindowsIO, handle: int) -> tuple[int, ...]:
+    state = api.info(handle)
+    if api.kind(handle) != 1 or len(state) != 7 or state[0] & (0x10 | 0x400) or not state[1] or not (state[2] or state[3]) or not 0 <= state[4] <= MAX_BYTES:
+        raise ValueError(INVALID_INPUT)
+    return state
+
+
+def _read_windows(path: Path) -> bytes:
+    _regular(path.lstat())  # Refuse devices, pipes, directories and links before native open.
+    api = _windows_api()
+    metadata = api.open(path, False)
+    try:
+        before = _windows_state(api, metadata)
+        handle = api.open(path, True)
+        try:
+            if _windows_state(api, handle) != before:
+                raise ValueError(INVALID_INPUT)
+            raw = api.read(handle, before[4] + 1)
+            if len(raw) != before[4] or _windows_state(api, handle) != before:
+                raise ValueError(INVALID_INPUT)
+            current = api.open(path, False)
+            try:
+                if _windows_state(api, current) != before:
+                    raise ValueError(INVALID_INPUT)
+            finally:
+                api.close(current)
+            return raw
+        finally:
+            api.close(handle)
+    finally:
+        api.close(metadata)
+
+
+def _read(path: Path) -> bytes:
+    if os.name == "nt":
+        return _read_windows(path)
+    before = _regular(path.lstat())
+    no_follow, non_block = getattr(os, "O_NOFOLLOW", None), getattr(os, "O_NONBLOCK", None)
+    if os.name != "posix" or no_follow is None or non_block is None or not before[1]:
+        raise ValueError(INVALID_INPUT)
+    descriptor = os.open(path, os.O_RDONLY | no_follow | non_block)
+    return _read_descriptor(descriptor, before, before[3], lambda: _regular(os.fstat(descriptor)), lambda: _regular(path.lstat()))
 
 
 def main(argv: list[str] | None = None) -> int:

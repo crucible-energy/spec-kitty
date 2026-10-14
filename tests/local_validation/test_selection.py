@@ -429,8 +429,8 @@ class SimulatedWindowsInputIO:
     def close(self, descriptor: int) -> None:
         os.close(descriptor)
 
-    def descriptor(self, handle: int) -> int:
-        return handle
+    def read(self, handle: int, size: int) -> bytes:
+        return os.read(handle, size)
 
 
 def windows_input_seam(monkeypatch: pytest.MonkeyPatch, api: SimulatedWindowsInputIO) -> None:
@@ -442,22 +442,36 @@ def windows_input_seam(monkeypatch: pytest.MonkeyPatch, api: SimulatedWindowsInp
     monkeypatch.setattr(check_inputs, "_windows_api", lambda: api, raising=False)
 
 
-def test_windows_missing_posix_flags_supports_bounded_regular_input(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+@pytest.mark.skipif(os.name != "posix", reason="POSIX-hosted I/O capability simulation; not Windows qualification")
+@pytest.mark.parametrize("kind", ["results", "prose"])
+def test_windows_missing_posix_flags_supports_bounded_regular_input(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], kind: str
+) -> None:
     from scripts.validation.check_inputs import main
 
     path = tmp_path / "result.json"
-    path.write_text(json.dumps(result_input()))
+    arguments = [kind, str(path)]
+    if kind == "prose":
+        request, raw = prose_input()
+        authority = tmp_path / "authority.json"
+        authority.write_bytes(raw)
+        arguments.extend(["--authority", str(authority)])
+    else:
+        request = result_input()
+    path.write_text(json.dumps(request))
     api = SimulatedWindowsInputIO()
     windows_input_seam(monkeypatch, api)
-    assert main(["results", str(path)]) == 0
-    assert json.loads(capsys.readouterr().out)["blocks"] is False
-    assert api.content_opens == 1
+    assert main(arguments) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output.get("prose_only", not output.get("blocks")) is True
+    assert api.content_opens == (2 if kind == "prose" else 1)
     for descriptor in api.descriptors:
         with pytest.raises(OSError, match="Bad file descriptor"):
             os.fstat(descriptor)
 
 
 @pytest.mark.parametrize("attributes", [0x10, 0x400])
+@pytest.mark.skipif(os.name != "posix", reason="POSIX-hosted I/O capability simulation; not Windows qualification")
 def test_windows_unsafe_attributes_refuse_before_content_open(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], attributes: int
 ) -> None:
@@ -474,6 +488,187 @@ def test_windows_unsafe_attributes_refuse_before_content_open(
     for descriptor in api.descriptors:
         with pytest.raises(OSError, match="Bad file descriptor"):
             os.fstat(descriptor)
+
+
+class SimulatedNativeCall:
+    def __init__(self, callback: Any) -> None:
+        self.callback = callback
+        self.argtypes: list[Any] = []
+        self.restype: Any = None
+
+    def __call__(self, *args: Any) -> Any:
+        return self.callback(*args)
+
+
+class SimulatedWindowsKernel:
+    """Assert real adapter ABI/flags and cleanup using local descriptors."""
+
+    def __init__(self, fault: str) -> None:
+        self.fault = fault
+        self.handles: list[int] = []
+        self.content: set[int] = set()
+        self.CreateFileW = SimulatedNativeCall(self.create)
+        self.GetFileInformationByHandle = SimulatedNativeCall(self.information)
+        self.GetFileInformationByHandleEx = SimulatedNativeCall(self.identity)
+        self.GetFileType = SimulatedNativeCall(lambda handle: 2 if fault == "pipe" else 1)
+        self.CloseHandle = SimulatedNativeCall(self.close)
+        self.ReadFile = SimulatedNativeCall(self.read)
+
+    def create(self, path: str, access: int, share: int, security: Any, disposition: int, flags: int, template: Any) -> int:
+        import ctypes
+
+        assert share == 1 and security is None and disposition == 3 and flags == 0x00200000 and template is None
+        assert access in (0x80, 0x80000000)
+        if self.fault == "open":
+            return int(ctypes.c_void_p(-1).value)
+        handle = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        self.handles.append(handle)
+        if access == 0x80000000:
+            self.content.add(handle)
+        return handle
+
+    def information(self, handle: int, target: Any) -> int:
+        if self.fault == "information":
+            return 0
+        info = os.fstat(handle)
+        record = target._obj
+        record.attributes = 0x400 if self.fault == "reparse" else 0x80
+        record.size_low, record.size_high = info.st_size & 0xFFFFFFFF, info.st_size >> 32
+        record.creation_low, record.creation_high = info.st_ctime_ns & 0xFFFFFFFF, info.st_ctime_ns >> 32
+        record.write_low, record.write_high = info.st_mtime_ns & 0xFFFFFFFF, info.st_mtime_ns >> 32
+        if self.fault == "oversized":
+            record.size_low = 16 * 1024 * 1024 + 1
+        return 1
+
+    def identity(self, handle: int, kind: int, target: Any, size: int) -> int:
+        assert kind == 18 and size == 24
+        if self.fault == "identity":
+            return 0
+        info = os.fstat(handle)
+        record = target._obj
+        record.volume = info.st_dev
+        value = info.st_ino + (1 if self.fault == "drift" and handle in self.content else 0)
+        record.identifier[:] = value.to_bytes(16, "little")
+        if self.fault == "unknown-id":
+            record.volume = 0
+        return 1
+
+    def close(self, handle: int) -> int:
+        os.close(handle)
+        return 1
+
+    def read(self, handle: int, buffer: Any, size: int, count: Any, overlapped: Any) -> int:
+        assert overlapped is None and handle in self.content
+        if self.fault == "read":
+            return 0
+        raw = os.read(handle, size)
+        buffer._obj.raw = raw
+        count._obj.value = len(raw) if self.fault != "count" else size + 1
+        return 1
+
+
+@pytest.mark.parametrize("fault", ["none", "open", "information", "identity", "pipe", "reparse", "oversized", "unknown-id", "drift", "read", "count"])
+@pytest.mark.skipif(os.name != "posix", reason="POSIX-hosted I/O capability simulation; not Windows qualification")
+def test_windows_native_binding_contract_and_joined_handles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fault: str
+) -> None:
+    import ctypes
+    from scripts.validation import check_inputs
+
+    path = tmp_path / "native.json"
+    path.write_text(json.dumps(result_input()))
+    kernel = SimulatedWindowsKernel(fault)
+    monkeypatch.setattr(ctypes, "WinDLL", lambda name, use_last_error: kernel, raising=False)
+    monkeypatch.setattr(ctypes, "get_last_error", lambda: 5, raising=False)
+    proxy = SimpleNamespace(name="nt")
+    monkeypatch.setattr(check_inputs, "os", proxy)
+    assert check_inputs.main(["results", str(path)]) == (0 if fault == "none" else 2)
+    captured = capsys.readouterr()
+    if fault == "none":
+        assert json.loads(captured.out)["blocks"] is False and captured.err == ""
+        assert kernel.content
+    else:
+        assert captured.out == "" and captured.err == "Local input refused\n"
+        if fault in {"open", "information", "identity", "pipe", "reparse", "oversized", "unknown-id"}:
+            assert not kernel.content
+    assert len(kernel.CreateFileW.argtypes) == 7
+    for handle in kernel.handles:
+        with pytest.raises(OSError, match="Bad file descriptor"):
+            os.fstat(handle)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX-hosted I/O capability simulation; not Windows qualification")
+def test_missing_native_io_capabilities_refuse_without_traceback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    import ctypes
+    from scripts.validation import check_inputs
+
+    path = tmp_path / "native.json"
+    path.write_text(json.dumps(result_input()))
+    monkeypatch.setattr(ctypes, "WinDLL", None, raising=False)
+    proxy = SimpleNamespace(name="nt", O_RDONLY=os.O_RDONLY, close=os.close, fdopen=os.fdopen)
+    monkeypatch.setattr(check_inputs, "os", proxy)
+    assert check_inputs.main(["results", str(path)]) == 2
+    assert capsys.readouterr().err == "Local input refused\n"
+
+
+@pytest.mark.parametrize("fault", ["symlink", "directory", "fifo", "oversized"])
+@pytest.mark.skipif(os.name != "posix", reason="POSIX-hosted I/O capability simulation; not Windows qualification")
+def test_platform_file_refusals_precede_open(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str) -> None:
+    from scripts.validation import check_inputs
+
+    path = tmp_path / "unsafe"
+    if fault == "symlink":
+        target = tmp_path / "target"
+        target.write_bytes(b"{}")
+        path.symlink_to(target)
+    elif fault == "directory":
+        path.mkdir()
+    elif fault == "fifo":
+        os.mkfifo(path)
+    else:
+        with path.open("wb") as stream:
+            stream.truncate(check_inputs.MAX_BYTES + 1)
+    monkeypatch.setattr(check_inputs, "_windows_api", lambda: pytest.fail("unsafe Windows input reached native open"))
+    proxy = SimpleNamespace(name="nt")
+    monkeypatch.setattr(check_inputs, "os", proxy)
+    with pytest.raises(ValueError, match="input"):
+        check_inputs._read(path)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX-hosted I/O capability simulation; not Windows qualification")
+def test_posix_identity_change_refuses_before_content_read(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from scripts.validation import check_inputs
+
+    path = tmp_path / "changed.json"
+    path.write_bytes(b"{}")
+    opened: list[int] = []
+    real_open = os.open
+
+    def changed(*args: Any, **kwargs: Any) -> int:
+        replacement = tmp_path / "replacement"
+        replacement.write_bytes(b"{}")
+        replacement.replace(path)
+        descriptor = real_open(*args, **kwargs)
+        opened.append(descriptor)
+        return descriptor
+
+    monkeypatch.setattr(check_inputs.os, "open", changed)
+    with pytest.raises(ValueError, match="input"):
+        check_inputs._read(path)
+    with pytest.raises(OSError, match="Bad file descriptor"):
+        os.fstat(opened[0])
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Requires a genuine Windows kernel and CRT; unqualified on this host")
+def test_windows_actual_regular_input_and_directory_refusal(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from scripts.validation.check_inputs import main
+
+    path = tmp_path / "actual.json"
+    path.write_text(json.dumps(result_input()))
+    assert main(["results", str(path)]) == 0
+    assert json.loads(capsys.readouterr().out)["blocks"] is False
+    assert main(["results", str(tmp_path)]) == 2
+    assert capsys.readouterr().err == "Local input refused\n"
 
 
 def test_input_descriptor_is_closed_if_stream_construction_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
