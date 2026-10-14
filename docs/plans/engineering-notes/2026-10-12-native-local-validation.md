@@ -582,3 +582,20 @@ The corrected source receives a new production image, a separately named instrum
 The affected consumer gate joins with 543 passes and two genuine classification regressions: the contracts source trigger had introduced a duplicate owner for `contracts/**`. Preserve both assertions and remove that duplicate filter. The unresolved contract-pin preview check uses the existing corpus group; the complete original trigger remains separate, requiring genuine workflow context before any executable qualification. Corpus already has no source globs and no code-shard ownership. Explicitly identifying it as a data group preserves those facts and allows the data check to retain its conservative-routing opt-out without weakening the validator. An intermediate correction genuinely refuses its missing data declaration; preserve that failure. Ten smallest actual source, route, recipe and migration controls pass after the complete correction.
 
 This is a conservative preview, not exact trigger or execution equivalence. No companion test is changed, and native bytes, compiler, production/instrumented images, instrumentation method and qualified closure are unchanged. Reuse those exact identities; refresh actual native observations for the new canonical input and run the final owning consumer and required fast gates on the frozen six-path successor. All source/context/coverage/platform limitations above still apply.
+
+
+## October 14, 2026 — Normalize Shared Command Controls And Actual Arguments
+
+### User Experience Findings
+
+The exact six-path workflow-declaration increment has closed scoped independent approval. Sixty jobs still lack check identifiers and command/control normalization; all ninety-two source contexts remain genuinely required. Full definitions make the remaining semantics visible but do not execute them. Four contract jobs expose one shared useful boundary: complete external argv, double-quoted environment arguments, guarded collect-all-failures blocks, and real dependency edges.
+
+### Engineering Decisions And Ownership
+
+Continue exclusively in the existing six owned paths and existing checkout. Root directs applying the same proven narrow command/control class to every compatible current job in this batch, rather than stopping at an arbitrary count. Preserve exact source setup, conditions, matrix, artifacts, publication and environment in the source contracts. Normalize only complete literal commands, whole double-quoted variable arguments and the explicit collect-all-failures grammar; other semantics remain diagnosed and refusing. Keep corpus as sole route owner and keep all context requirements active.
+
+Native inspection and actual inherited-environment argument binding will expose argv and source controls without executing them or claiming complete workflow context. Verify literal source environment values; unresolved expressions, unavailable variables and unsupported semantics refuse. Argument data is never passed to a shell. Process environment inspection is not issuer, permission, toolchain or platform attestation. Current actual coverage methods remain explicit-entry scoped; full executable-statement denominator and proof remain mandatory, open WP01 work. No extra companion, executor, staged candidate, hook, retirement or model effect is selected.
+
+### Known Limitations
+
+Command normalization is not workflow execution equivalence. Dynamic control, matrices, current prerequisites, artifacts and publication remain required where unresolved. Source checksums do not authenticate a producer. Native entry counters cannot satisfy full statement requirements by relabeling. Real Linux and Windows execution remain UNKNOWN; later phases are not admitted by this increment.

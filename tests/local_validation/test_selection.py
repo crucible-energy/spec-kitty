@@ -2061,3 +2061,59 @@ def test_partial_classification_cannot_replace_complete_surface_selection() -> N
     with pytest.raises(ValueError, match="Unsupported changed surface"):
         select_gates(["future-native/worker.zig"], router=router)
     assert classify_paths(["src/new/unmapped.py"], router=router)[1] is True
+
+
+@pytest.mark.parametrize(("name", "commands"), [("python-checks", 11), ("validate-bundle", 5), ("resolver-parity", 2), ("negative-tests", 3)])
+def test_contract_command_program_preserves_complete_source_control(name: str, commands: int) -> None:
+    authority = json.loads((Path(__file__).resolve().parents[2] / "tools/validation/gates.json").read_text())
+    contract = next(row for row in authority["workflow_contracts"] if row["id"] == "contracts")
+    program = contract["jobs"][name].get("program")
+    assert isinstance(program, dict) and program.get("status") == "normalized"
+    assert len(program["argv"]) == commands
+    assert program["context_required"] is True
+    if name == "python-checks":
+        assert program["controls"] == [
+            {"step": 2, "start": 0, "count": 1, "failure": "fail-fast"},
+            {"step": 3, "start": 1, "count": 10, "failure": "collect-failures"},
+        ]
+        assert [argv[-1] for argv in program["argv"][1:]] == [
+            "contracts/tools/" + filename + ".py"
+            for filename in [
+                "layout_check",
+                "citation_check",
+                "provisional_check",
+                "example_check",
+                "event_mapping_check",
+                "enum_pin_check",
+                "leak_scan",
+                "structure_check",
+                "codeowners_check",
+                "no_pytest_scan",
+            ]
+        ]
+    else:
+        assert all(row["failure"] == "fail-fast" for row in program["controls"])
+        assert {row["variable"] for row in program["argument_bindings"]} == ({"RUNNER_TEMP"} if name == "negative-tests" else {"RUNNER_TEMP", "CONTRACTS_ROOT"})
+
+
+def test_native_inspects_source_command_program_without_granting_context(native_selector: Path) -> None:
+    authority = Path(__file__).resolve().parents[2] / "tools/validation/gates.json"
+    result = subprocess.run([str(native_selector), str(authority), "inspect-program", "contracts.python-checks"], capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    inspected = json.loads(result.stdout)
+    assert inspected["program"]["controls"][-1]["failure"] == "collect-failures"
+    assert inspected["workflow_context_complete"] is False and inspected["execution_supported"] is False
+
+
+def test_native_binds_actual_process_environment_without_execution(tmp_path: Path, native_selector: Path) -> None:
+    authority = Path(__file__).resolve().parents[2] / "tools/validation/gates.json"
+    environment = os.environ | {"RUNNER_TEMP": str(tmp_path), "CONTRACTS_ROOT": "contracts"}
+    result = subprocess.run(
+        [str(native_selector), str(authority), "bind-program-environment", "contracts.validate-bundle"], env=environment, capture_output=True, text=True, timeout=20
+    )
+    assert result.returncode == 0, result.stderr
+    inspected = json.loads(result.stdout)
+    assert inspected["argv"][1][-3] == str(tmp_path / "tools")
+    assert inspected["argv"][2][-3] == "contracts"
+    assert inspected["argument_binding_only"] is True
+    assert inspected["workflow_context_complete"] is False and inspected["execution_supported"] is False
