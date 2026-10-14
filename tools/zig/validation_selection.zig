@@ -9,6 +9,7 @@ pub const Selection = struct {
     selected_code_shards: []const []const u8,
     selection_only: bool = true,
     validation_performed: bool = false,
+    execution_supported: bool = false,
 
     pub fn deinit(self: Selection, allocator: Allocator) void {
         allocator.free(self.matched_groups);
@@ -99,7 +100,7 @@ fn validateModeAndPlatform(check: std.json.ObjectMap, name: []const u8, allowed:
 }
 
 fn validateCheck(value: Value) ![]const Value {
-    try rejectUnknownFields(value, &.{ "argv", "modes", "platforms", "dependencies", "environment", "budgets" });
+    try rejectUnknownFields(value, &.{ "argv", "modes", "platforms", "dependencies", "environment", "budgets", "recipe" });
     const fields = try object(value);
     const argv_value = fields.get("argv") orelse return error.InvalidCommand;
     if (argv_value != .array or argv_value.array.items.len == 0) return error.InvalidCommand;
@@ -199,6 +200,93 @@ fn validateOptionalSections(root: std.json.ObjectMap) !void {
     }
 }
 
+fn oneOf(value: []const u8, allowed: []const []const u8) bool {
+    for (allowed) |candidate| if (std.mem.eql(u8, value, candidate)) return true;
+    return false;
+}
+
+fn validateRecipe(value: Value, command_count: usize, migration: []const Value) !void {
+    try rejectUnknownFields(value, &.{ "source", "python_version", "advisory", "required_inputs", "conditions", "instances", "applicability", "packages", "instance_environment", "observed_dependencies" });
+    const recipe = try object(value);
+    const source = recipe.get("source") orelse return error.InvalidRecipe;
+    try validateSource(source);
+    const source_fields = try object(source);
+    var pinned = false;
+    for (migration) |oracle| {
+        const fields = try object(oracle);
+        pinned = pinned or (std.mem.eql(u8, fields.get("path").?.string, source_fields.get("path").?.string) and
+            std.mem.eql(u8, fields.get("sha256").?.string, source_fields.get("sha256").?.string));
+    }
+    if (!pinned) return error.UnboundRecipeSource;
+    const python = recipe.get("python_version") orelse return error.InvalidRecipe;
+    const advisory = recipe.get("advisory") orelse return error.InvalidRecipe;
+    if (python != .string or !std.mem.eql(u8, python.string, "3.12") or advisory != .bool) return error.InvalidRecipe;
+    const applicability = recipe.get("applicability") orelse return error.InvalidRecipe;
+    if (applicability != .string or !oneOf(applicability.string, &.{ "routing", "routing-and-not-prose", "routing-or-prose" })) return error.UnsupportedCondition;
+    const packages = try object(recipe.get("packages") orelse return error.InvalidRecipe);
+    var package_iterator = packages.iterator();
+    while (package_iterator.next()) |entry| {
+        if (!validIdentifier(entry.key_ptr.*) or entry.value_ptr.* != .string or entry.value_ptr.string.len == 0) return error.InvalidRecipe;
+    }
+    for (try requiredStrings(recipe, "required_inputs")) |input| {
+        if (!oneOf(input.string, &.{ "candidate", "base", "dependencies", "prose", "results", "commit_range", "memory_output", "universe_decision", "universe_reuse" })) return error.UnsupportedBinding;
+    }
+    const conditions = try requiredStrings(recipe, "conditions");
+    const instances = try requiredStrings(recipe, "instances");
+    if (conditions.len != command_count or instances.len != command_count) return error.InvalidRecipe;
+    for (conditions) |condition| {
+        if (!oneOf(condition.string, &.{ "success", "always", "advisory", "decision", "optional-cache", "universe", "universe-always" })) return error.UnsupportedCondition;
+    }
+    for (instances) |instance| if (!validIdentifier(instance.string)) return error.InvalidRecipe;
+    const environments = try object(recipe.get("instance_environment") orelse return error.InvalidRecipe);
+    var environment_iterator = environments.iterator();
+    while (environment_iterator.next()) |entry| {
+        var known = false;
+        for (instances) |instance| known = known or std.mem.eql(u8, instance.string, entry.key_ptr.*);
+        if (!known) return error.InvalidRecipe;
+        var variables = (try object(entry.value_ptr.*)).iterator();
+        while (variables.next()) |variable| {
+            if (!validEnvironmentName(variable.key_ptr.*) or variable.value_ptr.* != .string or std.mem.indexOfScalar(u8, variable.value_ptr.string, 0) != null) return error.InvalidRecipe;
+        }
+    }
+}
+
+fn validateRecipes(root: std.json.ObjectMap, version: i64) !void {
+    const migration_value = root.get("migration");
+    if (version == 1) {
+        if (migration_value != null) return error.UnsupportedSchemaVersion;
+        if (root.get("checks")) |checks_value| {
+            var legacy_checks = (try object(checks_value)).iterator();
+            while (legacy_checks.next()) |entry| if ((try object(entry.value_ptr.*)).contains("recipe")) return error.UnsupportedSchemaVersion;
+        }
+        return;
+    }
+    const migration = migration_value orelse return error.InvalidRecipe;
+    if (migration != .array or migration.array.items.len == 0 or migration.array.items.len > 256) return error.InvalidRecipe;
+    var sources = std.StringHashMap(void).init(std.heap.page_allocator);
+    defer sources.deinit();
+    for (migration.array.items) |source| {
+        try validateSource(source);
+        const fields = try object(source);
+        const path = fields.get("path").?.string;
+        if (sources.contains(path)) return error.InvalidRecipe;
+        try sources.put(path, {});
+    }
+    const checks = try object(root.get("checks") orelse return error.MissingCheck);
+    var iterator = checks.iterator();
+    while (iterator.next()) |entry| {
+        const check = try object(entry.value_ptr.*);
+        _ = try requiredStrings(check, "platforms");
+        const recipe = check.get("recipe") orelse return error.InvalidRecipe;
+        try validateRecipe(recipe, check.get("argv").?.array.items.len, migration.array.items);
+        const observation = (try object(recipe)).get("observed_dependencies") orelse return error.InvalidRecipe;
+        for (try strings(observation)) |dependency| {
+            if (!checks.contains(dependency.string) and !std.mem.eql(u8, dependency.string, "changes")) return error.InvalidDependency;
+            if (std.mem.eql(u8, dependency.string, entry.key_ptr.*)) return error.InvalidDependency;
+        }
+    }
+}
+
 /// The pinned current routing uses literal bytes and star globs only.
 /// Stars span slash, matching the existing fnmatch authority. Unsupported
 /// syntax refuses rather than narrowing a check selection silently.
@@ -248,10 +336,11 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
     if (!std.mem.eql(u8, mode, "pr") and !std.mem.eql(u8, mode, "full")) return error.UnsupportedMode;
     if (paths.len > 32768) return error.InputLimit;
     const root = try object(document);
-    try rejectUnknownFields(document, &.{ "schema_version", "source", "routing", "modules", "checks" });
+    try rejectUnknownFields(document, &.{ "schema_version", "source", "routing", "modules", "checks", "migration" });
     try validateOptionalSections(root);
     const version = root.get("schema_version") orelse return error.UnsupportedSchemaVersion;
-    if (version != .integer or version.integer != 1) return error.UnsupportedSchemaVersion;
+    if (version != .integer or (version.integer != 1 and version.integer != 2)) return error.UnsupportedSchemaVersion;
+    try validateRecipes(root, version.integer);
     const routing = try object(root.get("routing") orelse return error.InvalidRouting);
     try rejectUnknownFields(root.get("routing").?, &.{ "filters", "job_gates" });
     const filters = try object(routing.get("filters") orelse return error.InvalidRouting);

@@ -2,6 +2,7 @@
 
 import json
 import hashlib
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -270,6 +271,10 @@ def recipe_specification() -> dict[str, Any]:
             "required_inputs": ["candidate", "base", "dependencies"],
             "conditions": ["success"],
             "instances": ["default"],
+            "applicability": "routing",
+            "packages": {},
+            "instance_environment": {},
+            "observed_dependencies": [],
         }
     return specification
 
@@ -301,6 +306,182 @@ def test_native_refuses_unmapped_or_incomplete_recipe_metadata(tmp_path: Path, n
     result = subprocess.run([str(native_selector), str(path), "full"], capture_output=True, text=True, timeout=20)
     assert result.returncode != 0
     assert result.stdout == ""
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "packages",
+        "instance-count",
+        "instance-name",
+        "instance-env",
+        "missing-platform",
+        "missing-migration",
+        "duplicate-source",
+        "foreign-observation",
+        "legacy-recipe",
+    ],
+)
+def test_native_refuses_ambiguous_recipe_bindings(tmp_path: Path, native_selector: Path, fault: str) -> None:
+    specification = recipe_specification()
+    check = specification["checks"]["lint"]
+    recipe = check["recipe"]
+    if fault == "packages":
+        recipe["packages"] = {"PyYAML": 6}
+    elif fault == "instance-count":
+        recipe["instances"] = []
+    elif fault == "instance-name":
+        recipe["instances"] = ["../escape"]
+    elif fault == "instance-env":
+        recipe["instance_environment"] = {"unknown": {"X": "value"}}
+    elif fault == "missing-platform":
+        del check["platforms"]
+    elif fault == "missing-migration":
+        del specification["migration"]
+    elif fault == "duplicate-source":
+        specification["migration"].append(specification["migration"][0].copy())
+    elif fault == "foreign-observation":
+        recipe["observed_dependencies"] = ["absent"]
+    else:
+        specification["schema_version"] = 1
+    result = subprocess.run([str(native_selector), str(write_local(tmp_path, specification)), "full"], capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0
+    assert result.stdout == ""
+
+
+@pytest.mark.parametrize("field", ["source", "python_version", "advisory", "applicability", "packages", "instance_environment", "observed_dependencies"])
+def test_native_recipe_refuses_missing_required_context(tmp_path: Path, native_selector: Path, field: str) -> None:
+    specification = recipe_specification()
+    del specification["checks"]["lint"]["recipe"][field]
+    result = subprocess.run([str(native_selector), str(write_local(tmp_path, specification)), "full"], capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0
+    assert result.stdout == ""
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "python-version",
+        "advisory-type",
+        "applicability",
+        "command-phase-count",
+        "environment-name",
+        "environment-nul",
+        "migration-shape",
+        "no-checks",
+        "self-observation",
+        "legacy-with-recipe",
+    ],
+)
+def test_native_recipe_refuses_incompatible_execution_declarations(tmp_path: Path, native_selector: Path, fault: str) -> None:
+    specification = recipe_specification()
+    recipe = specification["checks"]["lint"]["recipe"]
+    if fault == "python-version":
+        recipe["python_version"] = "unavailable"
+    elif fault == "advisory-type":
+        recipe["advisory"] = "false"
+    elif fault == "applicability":
+        recipe["applicability"] = "guessed"
+    elif fault == "command-phase-count":
+        recipe["conditions"] = ["success", "always"]
+    elif fault == "environment-name":
+        recipe["instance_environment"] = {"default": {"INVALID-NAME": "value"}}
+    elif fault == "environment-nul":
+        recipe["instance_environment"] = {"default": {"X": "a\0b"}}
+    elif fault == "migration-shape":
+        specification["migration"] = {}
+    elif fault == "no-checks":
+        del specification["checks"]
+    elif fault == "self-observation":
+        recipe["observed_dependencies"] = ["lint"]
+    else:
+        specification["schema_version"] = 1
+        del specification["migration"]
+    result = subprocess.run([str(native_selector), str(write_local(tmp_path, specification)), "full"], capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0
+    assert result.stdout == ""
+
+
+def test_input_descriptor_is_closed_if_stream_construction_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from scripts.validation import check_inputs
+
+    path = tmp_path / "input.json"
+    path.write_bytes(b"{}")
+    descriptors: list[int] = []
+    real_open = os.open
+
+    def opened(*args: Any, **kwargs: Any) -> int:
+        descriptor = real_open(*args, **kwargs)
+        descriptors.append(descriptor)
+        return descriptor
+
+    def refused(*args: Any, **kwargs: Any) -> Any:
+        raise OSError("synthetic stream construction refusal")
+
+    monkeypatch.setattr(check_inputs.os, "open", opened)
+    monkeypatch.setattr(check_inputs.os, "fdopen", refused)
+    with pytest.raises(OSError, match="synthetic stream construction refusal"):
+        check_inputs._read(path)
+    with pytest.raises(OSError, match="Bad file descriptor"):
+        os.fstat(descriptors[0])
+
+
+def test_router_recipe_cli_emits_exact_authority_and_refuses_qualification(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    from scripts.validation import extract_gates
+
+    monkeypatch.setattr("sys.argv", ["extract_gates", "--router-specification"])
+    assert extract_gates.main() == 0
+    assert json.loads(capsys.readouterr().out) == json.loads((Path(__file__).resolve().parents[2] / "tools/validation/gates.json").read_text())
+    monkeypatch.setattr("sys.argv", ["extract_gates", "--router-specification", "--require-runnable"])
+    assert extract_gates.main() == 2
+    assert "not execution qualification" in capsys.readouterr().err
+
+
+def test_current_router_recipes_preserve_static_commands_and_dynamic_contracts() -> None:
+    from scripts.validation.extract_gates import _commands, executable_router_specification
+
+    repository = Path(__file__).resolve().parents[2]
+    proposal = executable_router_specification(repository)
+    workflow = yaml.safe_load((repository / ".github/workflows/ci-router.yml").read_text())
+    checks = proposal["checks"]
+    assert set(checks) == set(workflow["jobs"]) - {"changes"}
+    for name, job in workflow["jobs"].items():
+        if name in {"changes", "architectural-heavy", "prose-scan", "router-gate", "commit-msg", "markdownlint"}:
+            continue
+        for step in job["steps"]:
+            commands = _commands(step.get("run"))
+            for command in commands or []:
+                assert command in checks[name]["argv"]
+    heavy = checks["architectural-heavy"]
+    assert set(heavy["recipe"]["instances"]) == {"1-of-2", "2-of-2"}
+    for shard in ("1/2", "2/2"):
+        assert any("--battery-part" in command and shard in command for command in heavy["argv"])
+    assert "universe" in heavy["recipe"]["conditions"]
+    assert "universe-always" in heavy["recipe"]["conditions"]
+    assert heavy["recipe"]["applicability"] == "routing-and-not-prose"
+    assert checks["tests-docs"]["recipe"]["applicability"] == "routing-or-prose"
+    assert checks["prose-scan"]["recipe"]["packages"] == {"PyYAML": "6.0.2"}
+    assert checks["commit-msg"]["recipe"]["advisory"] is True
+    assert checks["markdownlint"]["recipe"]["advisory"] is True
+    assert "@commit_range" in checks["commit-msg"]["argv"][0]
+    assert "scripts.validation.check_inputs" in checks["router-gate"]["argv"][0]
+    assert not any(command[0] == "gh" for command in checks["router-gate"]["argv"])
+    assert checks["router-gate"]["dependencies"] == []
+    assert checks["router-gate"]["recipe"]["observed_dependencies"] == workflow["jobs"]["router-gate"]["needs"]
+    assert set(heavy["recipe"]["instance_environment"]) == {"1-of-2", "2-of-2"}
+
+
+def test_router_recipe_construction_refuses_changed_source_epoch(tmp_path: Path) -> None:
+    from scripts.validation.extract_gates import executable_router_specification
+
+    root = Path(__file__).resolve().parents[2]
+    authority = json.loads((root / "tools/validation/gates.json").read_text())
+    (tmp_path / "tools/validation").mkdir(parents=True)
+    (tmp_path / ".github/workflows").mkdir(parents=True)
+    (tmp_path / "tools/validation/gates.json").write_text(json.dumps(authority))
+    (tmp_path / ".github/workflows/ci-router.yml").write_text("name: changed\njobs: {}\n")
+    with pytest.raises(ValueError, match="Pinned router changed"):
+        executable_router_specification(tmp_path)
 
 
 def write_local(root: Path, specification: dict[str, object]) -> Path:
@@ -414,15 +595,34 @@ def test_unknown_source_stays_conservative_when_a_known_source_is_present(tmp_pa
     assert selection.selected_jobs == frozenset({"lint", "test-runtime", "test-docs"})
 
 
+def retained_native_selector(binding: Path, repository: Path) -> Path:
+    """Reuse one physically pinned completed build; this is not attestation."""
+    record = json.loads(binding.read_text())
+    assert set(record) == {"image", "source_sha256", "image_sha256", "compiler", "compiler_sha256", "receipt", "receipt_sha256"}
+    source = repository / "tools/zig/validation_selection.zig"
+    image, compiler, receipt = (Path(record[name]) for name in ("image", "compiler", "receipt"))
+    for name, path in (("source", source), ("image", image), ("compiler", compiler), ("receipt", receipt)):
+        assert fixture_digest(path.read_bytes()) == record[f"{name}_sha256"], f"Changed retained native {name}"
+    completed = json.loads(receipt.read_text())
+    assert completed["exit_code"] == 0 and completed["failure"] is None
+    assert completed["leader_reaped"] and completed["group_disposed_observed"] and completed["remaining_group_pids"] == []
+    assert completed["cwd"] == str(repository) and completed["wall_seconds"] <= 60
+    assert completed["argv"] == [str(compiler), "build-exe", str(source), "-j1", "-lc", "-O", "ReleaseSafe", f"-femit-bin={image}"]
+    return image
+
+
 @pytest.fixture(scope="module")
 def native_selector(tmp_path_factory: pytest.TempPathFactory) -> Path:
     repository = Path(__file__).resolve().parents[2]
+    binding = os.environ.get("SPEC_KITTY_NATIVE_SELECTOR_BINDING")
+    if binding:
+        return retained_native_selector(Path(binding), repository)
     executable = tmp_path_factory.mktemp("native-selector") / "selection"
     subprocess.run(
-        ["zig", "build-exe", str(repository / "tools/zig/validation_selection.zig"), "-O", "ReleaseSafe", f"-femit-bin={executable}"],
+        ["zig", "build-exe", str(repository / "tools/zig/validation_selection.zig"), "-j1", "-lc", "-O", "ReleaseSafe", f"-femit-bin={executable}"],
         check=True,
         capture_output=True,
-        timeout=120,
+        timeout=60,
     )
     return executable
 
@@ -630,6 +830,8 @@ def test_native_allocation_rollback_and_api_input_bound(tmp_path: Path) -> None:
             "zig",
             "test",
             "--test-no-exec",
+            "-j1",
+            "-lc",
             "--test-filter",
             "selection allocation and input bounds",
             "-O",
@@ -644,7 +846,7 @@ def test_native_allocation_rollback_and_api_input_bound(tmp_path: Path) -> None:
         ],
         check=True,
         capture_output=True,
-        timeout=120,
+        timeout=60,
     )
     result = subprocess.run([str(executable)], check=True, capture_output=True, text=True, timeout=20)
     assert "test.selection allocation and input bounds...OK" in result.stderr

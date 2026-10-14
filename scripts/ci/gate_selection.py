@@ -42,6 +42,7 @@ __all__ = [
     "GateSelection",
     "Router",
     "load_router",
+    "router_from_local_document",
     "select_gates",
     "select_modules",
 ]
@@ -148,7 +149,7 @@ def _local_router(document: object) -> Router:
     if not isinstance(document, dict):
         raise ValueError("Local routing authority must be an object")
     version = document.get("schema_version")
-    if type(version) is not int or version != 1:
+    if type(version) is not int or version not in {1, 2}:
         raise ValueError("Unsupported local authority schema version")
     routing = document.get("routing")
     if not isinstance(routing, dict):
@@ -169,6 +170,11 @@ def load_router(path: Path | None = None) -> Router:
         return _local_router(json.loads(content, object_pairs_hook=_unique_fields))
     workflow = yaml.safe_load(content)
     return Router(filters=_dorny_filters(workflow), job_gates=_job_gates(workflow))
+
+
+def router_from_local_document(document: object) -> Router:
+    """Parse an already bound local document without reopening a mutable path."""
+    return _local_router(document)
 
 
 def _match_groups(paths: list[str], router: Router) -> frozenset[str]:
@@ -221,11 +227,7 @@ def _registry_rows(path: Path | None = None) -> list[dict[str, Any]]:
     an explicit migration fixture until its workflow consumers are reconciled."""
     source = path or DEFAULT_LOCAL_AUTHORITY_PATH
     content = source.read_text(encoding="utf-8")
-    registry = (
-        json.loads(content, object_pairs_hook=_unique_fields)
-        if source.suffix == ".json"
-        else yaml.safe_load(content)
-    )
+    registry = json.loads(content, object_pairs_hook=_unique_fields) if source.suffix == ".json" else yaml.safe_load(content)
     if not isinstance(registry, dict) or not isinstance(registry.get("modules"), list):
         raise ValueError("Module authority requires a modules array")
     rows = registry["modules"]

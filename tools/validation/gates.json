@@ -1,4 +1,1571 @@
 {
+  "checks": {
+    "architectural-fast": {
+      "argv": [
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.ci.memory_sampler",
+          "start",
+          "--out",
+          "out/validation/memory-default.json"
+        ],
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--all-extras"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "pytest",
+          "tests/architectural",
+          "-m",
+          "not performance and not stress and not timing",
+          "-n",
+          "4",
+          "--dist",
+          "loadfile",
+          "--deselect",
+          "tests/architectural/test_no_legacy_terminology.py",
+          "--deselect",
+          "tests/architectural/test_layer_rules.py",
+          "--deselect",
+          "tests/architectural/test_pyproject_shape.py",
+          "--deselect",
+          "tests/architectural/test_archive_root_byte_identical.py",
+          "-p",
+          "scripts.ci.battery_partition_plugin",
+          "--battery-part",
+          "fast",
+          "--junitxml=out/reports/xunit-architectural-fast.xml"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.ci.memory_sampler",
+          "stop",
+          "--out",
+          "out/validation/memory-default.json"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 600000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success",
+          "success",
+          "success",
+          "always"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default",
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies",
+          "memory_output"
+        ],
+        "source": {
+          "path": ".github/workflows/ci-router.yml",
+          "role": "migration-baseline",
+          "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+        }
+      }
+    },
+    "architectural-heavy": {
+      "argv": [
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.ci.memory_sampler",
+          "start",
+          "--out",
+          "out/validation/memory-1-of-2.json"
+        ],
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--all-extras"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.ci.collect_universe_prestep",
+          "consumers",
+          "--battery-part",
+          "1/2"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.ci.collect_universe_prestep",
+          "key",
+          "--with-commit"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.ci.collect_universe_prestep",
+          "collect"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "pytest",
+          "tests/architectural",
+          "-m",
+          "not performance and not stress and not timing",
+          "-n",
+          "4",
+          "--dist",
+          "loadfile",
+          "--deselect",
+          "tests/architectural/test_no_legacy_terminology.py",
+          "--deselect",
+          "tests/architectural/test_layer_rules.py",
+          "--deselect",
+          "tests/architectural/test_pyproject_shape.py",
+          "--deselect",
+          "tests/architectural/test_archive_root_byte_identical.py",
+          "-p",
+          "scripts.ci.battery_partition_plugin",
+          "--battery-part",
+          "1/2",
+          "--junitxml=out/reports/xunit-architectural-heavy-1-of-2.xml"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.ci.collect_universe_prestep",
+          "check"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.ci.memory_sampler",
+          "stop",
+          "--out",
+          "out/validation/memory-1-of-2.json"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.ci.memory_sampler",
+          "start",
+          "--out",
+          "out/validation/memory-2-of-2.json"
+        ],
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--all-extras"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.ci.collect_universe_prestep",
+          "consumers",
+          "--battery-part",
+          "2/2"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.ci.collect_universe_prestep",
+          "key",
+          "--with-commit"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.ci.collect_universe_prestep",
+          "collect"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "pytest",
+          "tests/architectural",
+          "-m",
+          "not performance and not stress and not timing",
+          "-n",
+          "4",
+          "--dist",
+          "loadfile",
+          "--deselect",
+          "tests/architectural/test_no_legacy_terminology.py",
+          "--deselect",
+          "tests/architectural/test_layer_rules.py",
+          "--deselect",
+          "tests/architectural/test_pyproject_shape.py",
+          "--deselect",
+          "tests/architectural/test_archive_root_byte_identical.py",
+          "-p",
+          "scripts.ci.battery_partition_plugin",
+          "--battery-part",
+          "2/2",
+          "--junitxml=out/reports/xunit-architectural-heavy-2-of-2.xml"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.ci.collect_universe_prestep",
+          "check"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.ci.memory_sampler",
+          "stop",
+          "--out",
+          "out/validation/memory-2-of-2.json"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 3600000
+      },
+      "dependencies": [
+        "prose-scan"
+      ],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing-and-not-prose",
+        "conditions": [
+          "success",
+          "success",
+          "decision",
+          "optional-cache",
+          "universe",
+          "success",
+          "universe-always",
+          "always",
+          "success",
+          "success",
+          "decision",
+          "optional-cache",
+          "universe",
+          "success",
+          "universe-always",
+          "always"
+        ],
+        "instance_environment": {
+          "1-of-2": {
+            "SK_GATE_REUSE_REPORT": "out/validation/universe-1-of-2.jsonl"
+          },
+          "2-of-2": {
+            "SK_GATE_REUSE_REPORT": "out/validation/universe-2-of-2.jsonl"
+          }
+        },
+        "instances": [
+          "1-of-2",
+          "1-of-2",
+          "1-of-2",
+          "1-of-2",
+          "1-of-2",
+          "1-of-2",
+          "1-of-2",
+          "1-of-2",
+          "2-of-2",
+          "2-of-2",
+          "2-of-2",
+          "2-of-2",
+          "2-of-2",
+          "2-of-2",
+          "2-of-2",
+          "2-of-2"
+        ],
+        "observed_dependencies": [
+          "changes",
+          "prose-scan"
+        ],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies",
+          "memory_output",
+          "universe_decision",
+          "universe_reuse"
+        ],
+        "source": {
+          "path": ".github/workflows/ci-router.yml",
+          "role": "migration-baseline",
+          "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+        }
+      }
+    },
+    "archive-freeze": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--all-extras"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "pytest",
+          "tests/architectural/test_archive_root_byte_identical.py",
+          "-q"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 600000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success",
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/ci-router.yml",
+          "role": "migration-baseline",
+          "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+        }
+      }
+    },
+    "commit-msg": {
+      "argv": [
+        [
+          "git",
+          "log",
+          "--format=%s",
+          "--end-of-options",
+          "@commit_range"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 300000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "recipe": {
+        "advisory": true,
+        "applicability": "routing",
+        "conditions": [
+          "advisory"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies",
+          "commit_range"
+        ],
+        "source": {
+          "path": ".github/workflows/ci-router.yml",
+          "role": "migration-baseline",
+          "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+        }
+      }
+    },
+    "docs-lint": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.docs.check_spelling"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.docs.check_changelog_style"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 300000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success",
+          "success",
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/ci-router.yml",
+          "role": "migration-baseline",
+          "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+        }
+      }
+    },
+    "import-linter": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--extra",
+          "lint"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "ruff",
+          "check",
+          "--select",
+          "TID251",
+          "."
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 300000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success",
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/ci-router.yml",
+          "role": "migration-baseline",
+          "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+        }
+      }
+    },
+    "layer-rules": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--all-extras"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "pytest",
+          "tests/architectural/test_layer_rules.py",
+          "tests/architectural/test_pyproject_shape.py",
+          "-q"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 480000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success",
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/ci-router.yml",
+          "role": "migration-baseline",
+          "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+        }
+      }
+    },
+    "markdownlint": {
+      "argv": [
+        [
+          "npx",
+          "--yes",
+          "markdownlint-cli2",
+          "**/*.md"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 300000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "recipe": {
+        "advisory": true,
+        "applicability": "routing",
+        "conditions": [
+          "advisory"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/ci-router.yml",
+          "role": "migration-baseline",
+          "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+        }
+      }
+    },
+    "prose-scan": {
+      "argv": [
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.validation.check_inputs",
+          "prose",
+          "out/validation/prose-input.json",
+          "--authority",
+          "tools/validation/gates.json"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 300000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {
+          "PyYAML": "6.0.2"
+        },
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies",
+          "prose"
+        ],
+        "source": {
+          "path": ".github/workflows/ci-router.yml",
+          "role": "migration-baseline",
+          "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+        }
+      }
+    },
+    "regen-check": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--all-extras"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "spec-kitty",
+          "regen",
+          "--check"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 600000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success",
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/ci-router.yml",
+          "role": "migration-baseline",
+          "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+        }
+      }
+    },
+    "router-gate": {
+      "argv": [
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "python",
+          "-m",
+          "scripts.validation.check_inputs",
+          "results",
+          "out/validation/results-input.json"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 300000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default"
+        ],
+        "observed_dependencies": [
+          "changes",
+          "prose-scan",
+          "ruff",
+          "commit-msg",
+          "markdownlint",
+          "uv-lock",
+          "import-linter",
+          "regen-check",
+          "terminology",
+          "docs-lint",
+          "layer-rules",
+          "archive-freeze",
+          "architectural-fast",
+          "architectural-heavy",
+          "tests-docs",
+          "tests-e2e",
+          "tests-corpus-blocking",
+          "tests-contract-tools"
+        ],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies",
+          "results"
+        ],
+        "source": {
+          "path": ".github/workflows/ci-router.yml",
+          "role": "migration-baseline",
+          "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+        }
+      }
+    },
+    "ruff": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--extra",
+          "lint"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "ruff",
+          "check",
+          "."
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "ruff",
+          "format",
+          "--check",
+          "."
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 300000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success",
+          "success",
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/ci-router.yml",
+          "role": "migration-baseline",
+          "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+        }
+      }
+    },
+    "terminology": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--all-extras"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "pytest",
+          "tests/architectural/test_no_legacy_terminology.py",
+          "-q"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 300000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success",
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/ci-router.yml",
+          "role": "migration-baseline",
+          "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+        }
+      }
+    },
+    "tests-contract-tools": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--no-install-project"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "--no-sync",
+          "pytest",
+          "-m",
+          "corpus and not windows_ci",
+          "tests/contract",
+          "--ignore=tests/contract/test_example_round_trip.py",
+          "--ignore=tests/contract/test_mission_status_payloads.py",
+          "--ignore=tests/contract/test_mission_status_reality.py",
+          "-n",
+          "4",
+          "--dist",
+          "loadfile"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 900000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success",
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [
+          "changes"
+        ],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/ci-router.yml",
+          "role": "migration-baseline",
+          "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+        }
+      }
+    },
+    "tests-corpus-blocking": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--all-extras"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "pytest",
+          "-rs",
+          "-m",
+          "corpus and not windows_ci",
+          "tests/contract/test_example_round_trip.py",
+          "tests/contract/test_mission_status_payloads.py",
+          "tests/contract/test_mission_status_reality.py",
+          "tests/integration/test_mission_review_contract_gate.py",
+          "tests/specify_cli/migration/test_corpus_wp_snapshot_parity.py",
+          "tests/doctrine/test_shipped_profiles.py::TestShippedProfilesPerformance"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 1200000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success",
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [
+          "changes"
+        ],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/ci-router.yml",
+          "role": "migration-baseline",
+          "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+        }
+      }
+    },
+    "tests-docs": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--all-extras"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "pytest",
+          "tests/docs",
+          "-q"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 600000
+      },
+      "dependencies": [
+        "prose-scan"
+      ],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing-or-prose",
+        "conditions": [
+          "success",
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [
+          "changes",
+          "prose-scan"
+        ],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/ci-router.yml",
+          "role": "migration-baseline",
+          "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+        }
+      }
+    },
+    "tests-e2e": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--all-extras"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "pytest",
+          "tests/e2e",
+          "-q"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 1500000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success",
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default",
+          "default"
+        ],
+        "observed_dependencies": [
+          "changes"
+        ],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/ci-router.yml",
+          "role": "migration-baseline",
+          "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+        }
+      }
+    },
+    "uv-lock": {
+      "argv": [
+        [
+          "uv",
+          "lock",
+          "--check"
+        ]
+      ],
+      "budgets": {
+        "cleanup_ms": 5000,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592,
+        "stderr_bytes": 16777216,
+        "stdout_bytes": 16777216,
+        "wall_ms": 300000
+      },
+      "dependencies": [],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "recipe": {
+        "advisory": false,
+        "applicability": "routing",
+        "conditions": [
+          "success"
+        ],
+        "instance_environment": {},
+        "instances": [
+          "default"
+        ],
+        "observed_dependencies": [],
+        "packages": {},
+        "python_version": "3.12",
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies"
+        ],
+        "source": {
+          "path": ".github/workflows/ci-router.yml",
+          "role": "migration-baseline",
+          "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+        }
+      }
+    }
+  },
+  "migration": [
+    {
+      "path": ".github/workflows/check-spec-kitty-events-alignment.yml",
+      "role": "migration-baseline",
+      "sha256": "4753b1af811227bfa1bf5a856ddb4f2a8f7e09ef63c05f6508dcb9fc5e23ad69"
+    },
+    {
+      "path": ".github/workflows/ci-aggregate.yml",
+      "role": "migration-baseline",
+      "sha256": "c7f5f75544c5c4c7d941e9cbacae935fea3548caa74e74553f9f578ceba8b591"
+    },
+    {
+      "path": ".github/workflows/ci-fleet-verdict.yml",
+      "role": "migration-baseline",
+      "sha256": "d8938a32b335c80220b56bc156e41956472e6d82979dcfec50329049e751a1f5"
+    },
+    {
+      "path": ".github/workflows/ci-modules.yml",
+      "role": "migration-baseline",
+      "sha256": "789e5666d7a485a921d26dc576d6ea2e21b1698a537eb4a4b830a36db836764a"
+    },
+    {
+      "path": ".github/workflows/ci-nightly.yml",
+      "role": "migration-baseline",
+      "sha256": "e225a0b7d6f695afef240cac08b02131d4722ff8e0700f916072386e8a0839ae"
+    },
+    {
+      "path": ".github/workflows/ci-quality.yml",
+      "role": "migration-baseline",
+      "sha256": "64bacd75ecbd0fad7dec07862e5dc0f62e5dcd904055b2c4a121f4b81ac978f5"
+    },
+    {
+      "path": ".github/workflows/ci-router.yml",
+      "role": "migration-baseline",
+      "sha256": "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1"
+    },
+    {
+      "path": ".github/workflows/ci-shard-recapture.yml",
+      "role": "migration-baseline",
+      "sha256": "ca8830c51e855965554084eee12124c7ec691a780dd2ff72e740a722afe37a69"
+    },
+    {
+      "path": ".github/workflows/ci-stale-running-sweep.yml",
+      "role": "migration-baseline",
+      "sha256": "d0cb3aa9826c79d8406819d273847802c194ea596152d2c65ffd7b600d9fdc05"
+    },
+    {
+      "path": ".github/workflows/ci-windows.yml",
+      "role": "migration-baseline",
+      "sha256": "4d48d827993033374cd766d1b7b7ddcd9ae86c16e79b1aa2d2347117835db175"
+    },
+    {
+      "path": ".github/workflows/contracts-release.yml",
+      "role": "migration-baseline",
+      "sha256": "dd8f277776a730517f2d3050fee9171b2930b49021fce0366cf2eb7664d735e5"
+    },
+    {
+      "path": ".github/workflows/contracts.yml",
+      "role": "migration-baseline",
+      "sha256": "0384e89dfe68fcbd758abf7ca14f413a02c600f9c28e9666b756dcf2d3e0517c"
+    },
+    {
+      "path": ".github/workflows/docs-pages.yml",
+      "role": "migration-baseline",
+      "sha256": "3a389958bbba959df0ef1218a287ecc3e33c5c839fd481759193fcd6f55d3a1b"
+    },
+    {
+      "path": ".github/workflows/module-tests.yml",
+      "role": "migration-baseline",
+      "sha256": "1cc5eba4efe959e01d3e7bd2879154d20ebbb13c8d3e7238f4e0d2d4cbc02898"
+    },
+    {
+      "path": ".github/workflows/packs.yml",
+      "role": "migration-baseline",
+      "sha256": "6ee5cc4f580cc1e69bd58f1aa5b8d1d67c1e030c78f87e85b40d56290bf18d7e"
+    },
+    {
+      "path": ".github/workflows/protect-main.yml",
+      "role": "migration-baseline",
+      "sha256": "2ecab6d0f8469aa9ec3bf28d586ce15c2c3fa32177e012c2877b1e5fd79c07d6"
+    },
+    {
+      "path": ".github/workflows/release-readiness.yml",
+      "role": "migration-baseline",
+      "sha256": "b4969c9d913a492def1decbc3575c7c8e8d958df959fc5b79bb6da508721bdc7"
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "role": "migration-baseline",
+      "sha256": "2dcbe24085ccec38dea96e9a648e46d7e03fc9d12a0cd5a8890c248132e80f4f"
+    },
+    {
+      "path": ".github/workflows/sonar.yml",
+      "role": "migration-baseline",
+      "sha256": "9825af76a2015403a01285bb6b6c028319993952a8c6ae1cb5fed64a0876cf4a"
+    }
+  ],
   "modules": [
     {
       "cov_targets": [
@@ -559,7 +2126,7 @@
       "uv-lock": []
     }
   },
-  "schema_version": 1,
+  "schema_version": 2,
   "source": {
     "path": ".github/workflows/ci-router.yml",
     "role": "migration-baseline",

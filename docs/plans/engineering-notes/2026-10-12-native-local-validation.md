@@ -369,3 +369,28 @@ The actual native selector rejects a schema-two recipe proposal before any comma
 ### Advisory Outcome Failing-First Boundary
 
 The local result roster initially rejects an advisory row. A genuine positive control now requires retaining the ordinary advisory failure while preserving timeout as a blocking outcome; its original process joined with one failure. This keeps advisory observation distinct from selected required work, missing tools, cancellation, or lost ownership. No failure is relabelled as a successful child.
+
+
+## October 14, 2026 — Bind Actual Local Router Recipes
+
+### User Experience Findings
+
+All eighteen routed checks now have actual command recipes in the canonical version-two JSON, and all nineteen unchanged hosted workflows remain pinned migration oracles. The original missing-definitions acceptance passes against the real native selector. The complete local-validation suite passes 170 controls, including routing parity, command extraction, bounded input refusals, schema controls, and native allocation rollback. These observations qualify this declaration and selection increment; they do not establish that a commit, release, platform matrix, or publication has been validated by a native executor.
+
+A terminal aggregate observes conditional work without forcing all of that work to execute. Keeping hosted observation edges as execution dependencies would select every router job; self-review corrected that initial proposal before qualification. The canonical recipe retains the complete original observation roster separately. The input adapter refuses missing, duplicate, foreign, skipped required, or differently bound outcomes, and retains ordinary advisory failures while blocking timeout, cancellation, startup failure, and unknown outcomes.
+
+### Engineering Decisions
+
+Preserve existing language validators. Zig owns deterministic schema and selection; the new Python companion only supplies bounded file input to existing pure prose/result classifiers. Its ownership was explicitly assigned after Root verified that the path was absent and unowned. It performs no process, network, service, or check orchestration. Structured staged/base paths preserve unusual characters, raw blob and authority equality, and known added/deleted absence; missing or changed input refuses. Checksums establish equality, not producer authentication.
+
+Source-specific translation is closed to the exact reviewed router digest. Static commands retain actual argument arrays. Heavy architecture keeps both matrix legs, conditional consumer/key/collection/check phases, separate reuse reports, and memory start/always-stop observations. Prose scanning keeps its exact PyYAML prerequisite; aggregate results replace the hosted jobs API with a complete locally bound roster. Commit-message and Markdown advisory commands retain their advisory posture and required inputs. Execution conditions are declared as success, always, advisory, decision, optional cache, universe, and universe-always; their runtime interpreter is a later native execution gate. Only the existing Linux procfs memory sampler's architecture recipes declare Linux applicability; no macOS or Windows result is inferred.
+
+Declared wall budgets preserve hosted limits, with two sequential heavy legs accounting for both limits. Output quotas, cleanup time, sampled process count, and sampled memory are finite policy declarations, not measured or enforced containment. The canonical JSON remains the sole route/command/mode/budget authority; extracted inventories and private receipts are evidence. Hosted files stay intact until real equivalence, all required modes/platforms, and publication have qualified.
+
+The native test fixture can reuse an explicitly supplied completed image only after checking current source, compiler, executable, and joined build-receipt physical pins and exact build arguments. This avoids an identical rebuild during the same qualification sequence without substituting a mock or granting compiler attestation. Ordinary fallback and the distinct allocation harness use one job, libc, ReleaseSafe, and a sixty-second compiler bound. Independent project compilers remain protected; admission uses actual capacity and bounded ownership rather than requiring global compiler idleness.
+
+### Known Limitations
+
+WP01 remains in progress. The selector explicitly reports that execution is unsupported, and unknown modes or incomplete recipe bindings refuse. Native staged candidate construction, input production, dependency execution, condition interpretation, toolchain provisioning, hooks, supervision, required platform/full/release/package/docs publication, and hosted retirement remain unqualified. The checked-in recipes cannot authorize imported commands, credentials, canonical effects, or a successful validation verdict by themselves. The unbound commit range and classifier input files must come from genuine candidate context and actual native outcomes.
+
+Current-source native coverage is a separate review subject. The retained instrumenter first refused the full `for` AST form before creating output. A private successor treats that form with the existing control-body rule; its transformation, complete current syntax partition, counters, and dependency closure require current evidence and independent review. Earlier source eligibility or coverage approval does not transfer. Python coverage and debug line mappings do not measure native statements. Actual final gates and delivery receipts remain external so recording a pass does not alter the frozen candidate. Token, cost, and comparable savings measurements remain unknown.

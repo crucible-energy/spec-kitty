@@ -369,12 +369,153 @@ def extract_workflows(root: Path) -> Extraction:
     return {"schema_version": 1, "authority": False, "validation_performed": False, "runnable": False, "workflows": workflows, "blockers": blockers}
 
 
+def _local_command(kind: str, instance: str) -> list[str]:
+    """Map the pinned router's known IO boundaries, never execute its shell."""
+    prefix = ["uv", "run", "--frozen", "python", "-m"]
+    if kind in {"start", "stop"}:
+        return prefix + ["scripts.ci.memory_sampler", kind, "--out", f"out/validation/memory-{instance}.json"]
+    if kind == "prose":
+        return prefix + ["scripts.validation.check_inputs", "prose", "out/validation/prose-input.json", "--authority", "tools/validation/gates.json"]
+    if kind == "results":
+        return prefix + ["scripts.validation.check_inputs", "results", "out/validation/results-input.json"]
+    if kind == "commit-range":
+        return ["git", "log", "--format=%s", "--end-of-options", "@commit_range"]
+    if kind == "markdown":
+        return ["npx", "--yes", "markdownlint-cli2", "**/*.md"]
+    raise ValueError("Unsupported native command binding")
+
+
+def _router_step(name: str, index: int, step: dict[str, object], shard: str, instance: str) -> tuple[list[list[str]], str]:
+    run = step.get("run")
+    if not isinstance(run, str):
+        return [], "success"
+    if "scripts.ci.memory_sampler" in run:
+        return [_local_command("stop" if " stop " in run else "start", instance)], "always" if " stop " in run else "success"
+    if name in {"prose-scan", "router-gate"}:
+        if name == "prose-scan" and "pip install" in run:
+            return [], "success"  # Exact dependency provisioning remains an explicit prerequisite.
+        return [_local_command("prose" if name == "prose-scan" else "results", instance)], "success"
+    if name == "commit-msg":
+        return [_local_command("commit-range", instance)], "advisory"
+    if name == "markdownlint":
+        return [_local_command("markdown", instance)], "advisory"
+    if name == "architectural-heavy":
+        prefix = ["uv", "run", "--frozen", "python", "-m", "scripts.ci.collect_universe_prestep"]
+        if "consumers --battery-part" in run:
+            return [prefix + ["consumers", "--battery-part", shard]], "decision"
+        if " key --with-commit" in run:
+            return [prefix + ["key", "--with-commit"]], "optional-cache"
+        run = run.replace("${{ matrix.shard }}", shard).replace("${{ matrix.label }}", instance)
+    commands = _commands(run)
+    if commands is None:
+        raise ValueError(f"Unsupported native mapping: {name}.steps.{index}")
+    condition = "universe-always" if "collect_universe_prestep check" in run else "universe" if step.get("if") else "success"
+    return commands, condition
+
+
+def _router_check(name: str, job: dict[str, object], source: dict[str, str]) -> dict[str, object]:
+    argv: list[list[str]] = []
+    conditions: list[str] = []
+    instances: list[str] = []
+    legs = [("1/2", "1-of-2"), ("2/2", "2-of-2")] if name == "architectural-heavy" else [("fast", "default")]
+    steps = job["steps"]
+    if not isinstance(steps, list):
+        raise ValueError("Invalid router steps")
+    for shard, instance in legs:
+        for index, value in enumerate(steps):
+            step = _mapping(value)
+            commands, condition = _router_step(name, index, step, shard, instance)
+            argv.extend(commands)
+            conditions.extend([condition] * len(commands))
+            instances.extend([instance] * len(commands))
+    required_inputs = ["candidate", "base", "dependencies"]
+    if name in {"architectural-fast", "architectural-heavy"}:
+        required_inputs.append("memory_output")
+    if name == "architectural-heavy":
+        required_inputs.extend(["universe_decision", "universe_reuse"])
+    if name in {"prose-scan", "router-gate", "commit-msg"}:
+        required_inputs.append({"prose-scan": "prose", "router-gate": "results", "commit-msg": "commit_range"}[name])
+    minutes = job.get("timeout-minutes")
+    if type(minutes) is not int or minutes <= 0 or not argv:
+        raise ValueError("Missing native command or finite budget")
+    needs = job.get("needs", [])
+    if isinstance(needs, str):
+        needs = [needs]
+    if not isinstance(needs, list) or any(not isinstance(item, str) for item in needs):
+        raise ValueError("Invalid router dependencies")
+    dependencies = [str(item) for item in needs]
+    return {
+        "argv": argv,
+        "modes": ["commit", "full"],
+        "platforms": ["linux"] if name in {"architectural-fast", "architectural-heavy"} else ["macos", "linux", "windows"],
+        "dependencies": [] if name == "router-gate" else [name for name in dependencies if name != "changes"],
+        "environment": {"PYTHONPATH": "."},
+        "budgets": {
+            "wall_ms": minutes * 60000 * len(legs),
+            "cleanup_ms": 5000,
+            "stdout_bytes": 16777216,
+            "stderr_bytes": 16777216,
+            "sampled_processes": 64,
+            "sampled_resident_bytes": 8589934592,
+        },
+        "recipe": {
+            "source": source,
+            "python_version": "3.12",
+            "advisory": name in {"commit-msg", "markdownlint"},
+            "required_inputs": required_inputs,
+            "conditions": conditions,
+            "instances": instances,
+            "applicability": "routing-and-not-prose" if name == "architectural-heavy" else "routing-or-prose" if name == "tests-docs" else "routing",
+            "packages": {"PyYAML": "6.0.2"} if name == "prose-scan" else {},
+            "observed_dependencies": dependencies,
+            "instance_environment": {instance: {"SK_GATE_REUSE_REPORT": f"out/validation/universe-{instance}.jsonl"} for _, instance in legs}
+            if name == "architectural-heavy"
+            else {},
+        },
+    }
+
+
+def executable_router_specification(root: Path) -> dict[str, object]:
+    """Construct pinned router recipes; other workflows remain migration oracles.
+
+    The result declares commands and unbound prerequisites. It neither provisions
+    an environment nor establishes execution/platform/publication qualification.
+    """
+    root = root.resolve(strict=True)
+    path = root / "tools/validation/gates.json"
+    raw = _read(path)
+    authority = _mapping(json.loads(raw))
+    source = _mapping(authority["source"])
+    router_path = root / str(source["path"])
+    router_raw = _read(router_path)
+    if hashlib.sha256(router_raw).hexdigest() != source["sha256"]:
+        raise ValueError("Pinned router changed; source mapping review required")
+    # Every dynamic normalization below is scoped to this reviewed exact source.
+    if source["sha256"] != "aee8b9e6bda7dcf046d3b90a6a41cdc519d60ceb30e6f5d2dd329bcaa3f31ea1":
+        raise ValueError("Unsupported router source mapping")
+    jobs = _mapping(_load(router_raw)["jobs"])
+    inventory = extract_workflows(root)
+    normalized_source = {key: str(source[key]) for key in ("path", "sha256", "role")}
+    authority["schema_version"] = 2
+    authority["migration"] = [{"path": row["path"], "sha256": row["sha256"], "role": "migration-baseline"} for row in inventory["workflows"]]
+    authority["checks"] = {name: _router_check(name, _mapping(value), normalized_source) for name, value in jobs.items() if name != "changes"}
+    if _read(path) != raw or _read(router_path) != router_raw:
+        raise ValueError("Changed native specification inputs")
+    return authority
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
     parser.add_argument("--require-runnable", action="store_true", help="Refuse an inventory with unresolved native mappings")
+    parser.add_argument("--router-specification", action="store_true", help="Emit pinned native router recipes; execution remains unqualified")
     args = parser.parse_args()
     try:
+        if args.router_specification:
+            if args.require_runnable:
+                raise ValueError("Recipe declaration is not execution qualification")
+            print(json.dumps(executable_router_specification(args.root), indent=2, sort_keys=True))
+            return 0
         result = extract_workflows(args.root)
     except (ValueError, OSError) as error:
         print(f"Workflow extraction refused: {error}", file=sys.stderr)
