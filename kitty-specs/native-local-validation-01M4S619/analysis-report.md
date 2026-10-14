@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: native-local-validation-01M4S619
 mission_id: 01M4S61935GJQVDGMGV37HF1BB
-generated_at: '2026-10-12T23:56:06.328970+00:00'
+generated_at: '2026-10-14T04:47:21.680387+00:00'
 analyzer_agent: codex
 input_artifacts:
   spec.md:
@@ -1911,70 +1911,51 @@ input_artifacts:
     sha256: c50b36df106c7e7eff3e43521ba8d7ef17b4469c81bbe311c1cb2c3ed696dc47
   template-selection:spec:
     path:
-    sha256: 7cfddac5feac650b0bfd3caf9dc4dfc8a93a9e6bc20d75e187ad756a21195ee7
+    sha256: 7cd56ce1c09b6f5e8944c8447544294d6969be132c0345049ff97bef010384fe
   template-selection:plan:
     path:
-    sha256: 4ea04450c9548ed76ebde416321b7ff901bed880841f24b638a96ad258a13e3c
+    sha256: 425017af0f77e2492f4a0e0e664d1f9e733a3c6fe82e8030b42f8a330680b5a5
   git:source-membership:
     path:
     sha256: cf9399c2ceb1ae84842f48221acd5b2fb439e5dbd68c8ca38f736e6e4d04827d
 verdict: ready
 issue_counts:
   critical: 0
+  high: 0
   low: 0
   medium: 0
-  high: 0
   info: 0
 findings: []
-report_transaction: fdbf22d7e7954c2e94165ac5c4480000
+report_transaction: 7fb0eb61c34f451cbfd0720b91785ea3
 material_manifest_version: 1
 ---
 
 # Specification Analysis Report
 
-Observed against current task source `b2f9bcaebf6e4fa2c46a4a5b2e9b39678e210889` after the reviewed finalization-label correction, retaining finalized ownership from `6b1e095d1d952948c1166e4cdfd6dbdd9f9fad60`, with independently reviewed plan correction `4b062b4194b2d09cdb1459336d053642350dbe06`. This is artifact consistency analysis, not implementation acceptance.
+Observed October 14, 2026 against preserved source `70f471607d291f0d78e87f5360b3f5df64ec645f` in the explicitly owned checkout. The historical creator released the inactive lane to the Temet root chat after actual session evidence resolved its origin. Supported resume refused stale template-selection bindings; this recorder refresh changes analysis evidence only. The earlier analysis and transaction remain in Git history.
 
 ## Findings
 
-No blocking cross-artifact contradiction or unmapped requirement was identified. The actual finalizer validates all five package ownership sets, dependency graph, requirement references, and success-criteria coverage without warnings. Explicit owned-checkout single-branch routing is required for this mission; computed code-lane metadata is not permission to allocate additional worktrees. Validate actual owned admission before code changes; any runtime refusal becomes a real blocker to address, not an authorization bypass.
+No blocking artifact inconsistency was identified. This is planning consistency analysis, not approval of existing WP01 code, native coverage, command extraction, installed hooks, or workflow retirement. Current implementation openly retains unresolved workflow mappings. These are implementation requirements with assigned tasks, not grounds to label WP01 complete.
 
-## Coverage
+## Coverage Summary
 
-| Requirement | Assigned package | Assessment |
+| Requirements | Tasks | Assessment |
 | --- | --- | --- |
-| C-001 | WP03, WP04 | Explicit mapping; behavioral proof pending implementation |
-| C-002 | WP01, WP05 | Explicit mapping; behavioral proof pending implementation |
-| C-003 | WP01, WP05 | Explicit mapping; behavioral proof pending implementation |
-| C-004 | WP02, WP04 | Explicit mapping; behavioral proof pending implementation |
-| C-005 | WP05 | Explicit mapping; behavioral proof pending implementation |
-| C-006 | WP05 | Explicit mapping; behavioral proof pending implementation |
-| FR-001 | WP04 | Explicit mapping; behavioral proof pending implementation |
-| FR-002 | WP02 | Explicit mapping; behavioral proof pending implementation |
-| FR-003 | WP01 | Explicit mapping; behavioral proof pending implementation |
-| FR-004 | WP01, WP03 | Explicit mapping; behavioral proof pending implementation |
-| FR-005 | WP02 | Explicit mapping; behavioral proof pending implementation |
-| FR-006 | WP02, WP04 | Explicit mapping; behavioral proof pending implementation |
-| FR-007 | WP03 | Explicit mapping; behavioral proof pending implementation |
-| FR-008 | WP02, WP04 | Explicit mapping; behavioral proof pending implementation |
-| FR-009 | WP05 | Explicit mapping; behavioral proof pending implementation |
-| FR-010 | WP05 | Explicit mapping; behavioral proof pending implementation |
-| NFR-001 | WP02 | Explicit mapping; behavioral proof pending implementation |
-| NFR-002 | WP03 | Explicit mapping; behavioral proof pending implementation |
-| NFR-003 | WP01 | Explicit mapping; behavioral proof pending implementation |
-| NFR-004 | WP03, WP05 | Explicit mapping; behavioral proof pending implementation |
-| NFR-005 | WP03 | Explicit mapping; behavioral proof pending implementation |
-| SC-001 | WP04 | Explicit mapping; behavioral proof pending implementation |
-| SC-002 | WP04 | Explicit mapping; behavioral proof pending implementation |
-| SC-003 | WP04 | Explicit mapping; behavioral proof pending implementation |
-| SC-004 | WP05 | Explicit mapping; behavioral proof pending implementation |
-| SC-005 | WP04 | Explicit mapping; behavioral proof pending implementation |
+| FR-003, FR-004, NFR-003, C-002, C-003 | T001–T004 / WP01 | Extraction, native selection, refusal, and migration parity |
+| FR-002, FR-005, FR-006, FR-008, NFR-001, C-004 | T005–T008 / WP02 | Exact candidate, import/binding identity, positive reuse and drift refusal |
+| FR-004, FR-007, NFR-002, NFR-005, NFR-004, C-001 | T009–T012 / WP03 | Actual bounded execution, diagnostic retention, cleanup and platform qualification |
+| FR-001, FR-006, FR-008, SC-001, SC-002, SC-003, SC-005, C-001, C-004 | T013–T016 / WP04 | Installed hook positive/negative controls, guards, work preservation |
+| FR-009, FR-010, NFR-004, SC-004, C-002, C-003, C-005, C-006 | T017–T020 / WP05 | Qualified release/publication, equivalence, remote requirements, retirement |
 
 ## Charter Alignment
 
-ATDD-first controls precede code; existing Ruff, strict mypy, documentation, completion, architectural, coverage, release, and platform requirements remain authorities. Sam's explicit local migration direction supersedes inherited hosted-only execution assignments; final retirement reconciles guidance and remote requirements. Ownership sets do not overlap, and no new parallel worktree or agent dispatch is requested.
+ATDD-first, one canonical authority, strict validation, public review disposition, user-asset preservation, independent review, and owned single-branch work remain binding. Sam explicitly directs Zig local execution in place of hosted execution; inherited Python-only and CI-only assignments do not override that direction. Existing validators and their thresholds remain behavioral authorities; only the qualified retirement increment reconciles guidance. No additional worktree or parallel mission execution is requested.
 
-Task dependencies place selection before candidate evidence and execution, installed hook controls before qualification, and equivalence/publication proof before hosted retirement. Positive matching-closure reuse is paired with drift invalidation. Group disposal and sampled resource observations are not silently promoted to descendant containment or hard limits. Native coverage requires instrumentation and denominator evidence. No task claims a missing platform is qualified.
+## Ordering And Boundaries
 
-## Limits And Next Action
+Selection precedes candidate and execution; real hook controls precede qualification; equivalence and publication precede removal of hosted execution. Matching per-check reuse is paired with input invalidation. Original process-group disposal and sampled resource observations do not prove detached-child containment or hard resource limits. Native coverage requires actual instrumentation and denominator evidence; Python coverage alone cannot qualify Zig. Missing platform qualification refuses readiness.
 
-Mapping presence does not prove comprehensive tests, successful runtime admission, native implementation, or model-productionization. Budgets, command extraction, platform proof, and publication remain concrete implementation tasks. Native coverage tooling is not qualified yet. No savings estimate is justified. The next action is the actual owned admission and committed RED controls for WP01, followed by independent fixed-candidate review.
+## Remaining Work And Next Action
+
+All 20 tasks map to explicit requirements, constraints, or success criteria; none is unmapped. The 10 functional requirements, five nonfunctional requirements, six constraints, and five success criteria have assigned tasks. These are artifact inventories, not delivery or model-quality metrics. Supported implementation re-entry must succeed before further source edits. Complete the real executable command specification, remaining native checks, and independent review through the existing lane. Existing routing parity does not establish a working pre-commit gate. Savings and production readiness remain unknown.
