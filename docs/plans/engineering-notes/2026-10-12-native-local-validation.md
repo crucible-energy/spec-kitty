@@ -439,3 +439,15 @@ The controls are being reproduced before native implementation. Actual Windows a
 ### Failing-First Result
 
 The initial sixty-second wrapper ended during pytest's teardown and joined its owned group; that deadline diagnostic remains preserved and does not count as a terminal assertion result. The unchanged control rerun under a 120-second bound joined naturally with six failures and six passes. Three failures observe the missing native reasons, and three observe refusal of the intended commit-mode positive request. Negative controls retain their refusal, but cannot alone prove target checking until their paired positive requests pass. No native rebuild or source change was used for this reproduction.
+
+### Native Target Successor
+
+The first successor passes all twelve focused controls, and its bounded build joins. The retained instrumenter then refuses a conditional string-expression body before writing an instrumented artifact. Preserve that refusal and the first source/build/check pins. The final successor uses explicit statement branches for the mode alias and target dispatch, so the existing method can represent every eligible entry without excluding syntax or expanding its definition. No expression or machine-instruction coverage is inferred.
+
+The target API validates every selected check after dependency closure. A mismatching mode/platform, missing platform declaration, missing executable definitions, or unknown platform refuses the whole request; it never drops an unavailable required check. `all` is a declaration accepted inside a check, not a caller platform. Untargeted previews remain available with `target_checked=false`. All reasons are sorted by check, kind, and reference; dependency reasons identify the selected dependent, and matched-group reasons identify the canonical route group. The target API's allocation controls exercise every allocation failure and cleanup, alongside the existing selection allocation controls. Real Windows execution remains UNKNOWN.
+
+Final source gates, new counter/closure/equivalence evidence, delivery, and sequential independent review are still required. Completing this bounded T003 increment cannot establish the finished native commit gate, whole WP01, remaining mode/workflow translations, staged candidate receipts, process containment, hook adoption, or retirement.
+
+### Literal Git Path Failing-First Boundary
+
+Self-review finds that the initial CLI places the optional target in the changed-path position. A genuine failing-first control passes a literal Git path named `--platform`; the frozen image wrongly reports that the target was checked. Its original joins with one failure and 224 unrelated controls deselected. Preserve that image, source, counter observations, gates, and refusal. Move explicit target options ahead of the mode, leaving every argument after the mode as a literal path: `selector SPEC --platform windows commit PATH...`. The legacy `selector SPEC pr PATH...` and `selector SPEC full PATH...` grammar stays exact. This is a caller-boundary correction, not a new route authority or a normalization of Git paths.

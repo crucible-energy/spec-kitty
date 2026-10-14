@@ -1070,6 +1070,11 @@ fn allocateSelection(allocator: std.mem.Allocator, document: std.json.Value) !vo
     defer selected.deinit(allocator);
     try std.testing.expectEqual(@as(usize, 3), selected.selected_jobs.len);
 }
+fn allocateTargetSelection(allocator: std.mem.Allocator, document: std.json.Value) !void {
+    const selected = try selection.selectForTarget(allocator, document, &.{ "docs/operator.md" }, "commit", "windows");
+    defer selected.deinit(allocator);
+    try std.testing.expect(selected.target_checked);
+}
 test "selection allocation and input bounds" {
     const bytes =
         \\__FIXTURE_JSON__
@@ -1077,6 +1082,7 @@ test "selection allocation and input bounds" {
     const parsed = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, bytes, .{});
     defer parsed.deinit();
     try std.testing.checkAllAllocationFailures(std.testing.allocator, allocateSelection, .{parsed.value});
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, allocateTargetSelection, .{parsed.value});
     var no_resize = std.testing.FailingAllocator.init(std.testing.allocator, .{ .resize_fail_index = 0 });
     try std.testing.checkAllAllocationFailures(no_resize.allocator(), allocateSelection, .{parsed.value});
     try std.testing.expectEqual(no_resize.allocated_bytes, no_resize.freed_bytes);
@@ -1494,3 +1500,36 @@ def test_native_target_refuses_unavailable_required_checks(tmp_path: Path, nativ
     )
     assert result.returncode != 0 and result.stdout == ""
     assert "selection refused" in result.stderr
+
+
+@pytest.mark.parametrize("mode", ["pr", "full"])
+def test_native_target_preserves_preview_roster(tmp_path: Path, native_selector: Path, mode: str) -> None:
+    specification: Any = local_specification()
+    specification["checks"]["lint"]["platforms"] = ["all"]
+    path = write_local(tmp_path, specification)
+    preview = subprocess.run([str(native_selector), str(path), mode, "docs/operator.md"], check=True, capture_output=True, text=True, timeout=20)
+    target = subprocess.run(
+        [str(native_selector), str(path), mode, "--platform", "windows", "docs/operator.md"], check=True, capture_output=True, text=True, timeout=20
+    )
+    before, after = json.loads(preview.stdout), json.loads(target.stdout)
+    assert before["selected_jobs"] == after["selected_jobs"]
+    assert before["selected_reasons"] == after["selected_reasons"]
+    assert after["target_checked"] is True and after["validation_performed"] is False
+
+
+def test_native_missing_explicit_target_refuses_before_selection(tmp_path: Path, native_selector: Path) -> None:
+    result = subprocess.run(
+        [str(native_selector), str(write_local(tmp_path, local_specification())), "commit", "--platform"], capture_output=True, text=True, timeout=20
+    )
+    assert result.returncode != 0 and result.stdout == ""
+    assert "InvalidArguments" in result.stderr
+
+
+def test_native_preview_keeps_option_like_git_paths_literal(tmp_path: Path, native_selector: Path) -> None:
+    path = write_local(tmp_path, local_specification())
+    paths = ["--platform", "windows", "docs/operator.md"]
+    expected = select_gates(paths, router=load_router(path))
+    result = subprocess.run([str(native_selector), str(path), "pr", *paths], check=True, capture_output=True, text=True, timeout=20)
+    actual = json.loads(result.stdout)
+    assert actual["selected_jobs"] == sorted(expected.selected_jobs)
+    assert actual["target_checked"] is False
