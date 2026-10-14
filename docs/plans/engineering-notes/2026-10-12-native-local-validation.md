@@ -451,3 +451,19 @@ Final source gates, new counter/closure/equivalence evidence, delivery, and sequ
 ### Literal Git Path Failing-First Boundary
 
 Self-review finds that the initial CLI places the optional target in the changed-path position. A genuine failing-first control passes a literal Git path named `--platform`; the frozen image wrongly reports that the target was checked. Its original joins with one failure and 224 unrelated controls deselected. Preserve that image, source, counter observations, gates, and refusal. Move explicit target options ahead of the mode, leaving every argument after the mode as a literal path: `selector SPEC --platform windows commit PATH...`. The legacy `selector SPEC pr PATH...` and `selector SPEC full PATH...` grammar stays exact. This is a caller-boundary correction, not a new route authority or a normalization of Git paths.
+
+## October 14, 2026 — Preserve The Packs Producer
+
+### User Experience Findings
+
+The canonical local authority declares the router's eighteen jobs but omits the independently owned Packs producer. Fourteen actual failing-first controls reproduce absent built-in/internal/corpus selection, missing source-bound recipes, and a missing native warning-output guard on the approved unchanged selector. Their original joins with fourteen failures and 225 unrelated controls deselected. The genuine hosted source is pinned; no pack check or imported command executes in this reproduction.
+
+### Engineering Decisions
+
+Extend the one canonical specification with the exact Packs paths, source commands, finite budgets, advisory corpus posture, and observed terminal roster. Preserve the corpus trigger's reuse of the existing router group, full-mode selection of both lanes, and the unknown-source fan-out to corpus work alone. Explicit pack data groups remain outside code shards even where authored schema code triggers their checks. A check may opt out of conservative unknown-source fan-out only through explicitly declared data groups; ordinary router checks retain their existing behavior.
+
+A versioned schema successor binds those semantics and per-command stderr policy. The existing plugin builder emits an ASCII `Warning:` prefix and returns zero when the Claude validator is missing; the actual Packs shell rejects that prefix case-insensitively at the beginning of a line. A native, bounded output-policy primitive will preserve that guard for actual captured output. Its inspection entry reports only the policy result, never validator execution or successful validation. The exact Claude 2.1.270 prerequisite stays unbound until real tool qualification. No global package installation, plugin execution, publication, Source/Store, or host effect is selected.
+
+### Known Limitations
+
+These controls are intentionally RED until implementation. WP01 remains in progress, and WP02/03 dependencies are not advanced. Other workflow/mode mappings, native staged construction, real tool bindings, execution and containment, installed hooks, required platforms, full executable-statement coverage, and hosted retirement remain open. Current native changes require genuine fresh source accounting, counters, closure, and fixed-candidate review within the accepted measurement scope; no prior source or platform acceptance transfers. The immutable prior review subjects and all original refusals remain preserved.

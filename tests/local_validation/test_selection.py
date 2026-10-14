@@ -1531,3 +1531,92 @@ def test_native_preview_keeps_option_like_git_paths_literal(tmp_path: Path, nati
     actual = json.loads(result.stdout)
     assert actual["selected_jobs"] == sorted(expected.selected_jobs)
     assert actual["target_checked"] is False
+
+
+def packs_source_selection(paths: list[str], mode: str) -> set[str]:
+    """Derive the independent Packs oracle from its actual source predicates."""
+    import fnmatch
+    import re
+    from scripts.ci.corpus_select import corpus_selected
+
+    root = Path(__file__).resolve().parents[2]
+    workflow = yaml.safe_load((root / ".github/workflows/packs.yml").read_text())
+    filters = next(yaml.safe_load(step["with"]["filters"]) for step in workflow["jobs"]["changes"]["steps"] if "dorny/paths-filter" in step.get("uses", ""))
+    selected = {name for name, patterns in filters.items() if mode == "full" or any(fnmatch.fnmatch(path, pattern) for path in paths for pattern in patterns)}
+    if corpus_selected(paths, router=load_router(root / ".github/workflows/ci-router.yml"), mode=mode):
+        selected.add("corpus")
+    result = set()
+    for name, job in workflow["jobs"].items():
+        if name == "changes":
+            continue
+        groups = set(re.findall(r"needs\.changes\.outputs\.([a-z_]+)", job.get("if", "")))
+        if not groups or groups & selected:
+            result.add(name)
+    return result
+
+
+@pytest.mark.parametrize(
+    ("paths", "mode"),
+    [
+        (["packs/built-in/profiles/fixture.md"], "pr"),
+        (["packs/internal/profiles/fixture.md"], "pr"),
+        (["tests/doctrine/fixture.py"], "pr"),
+        (["src/charter/offering/schemas/fixture.py"], "pr"),
+        (["src/unmapped/new.py"], "pr"),
+        (["docs/fixture.md"], "pr"),
+        ([], "full"),
+    ],
+)
+def test_canonical_native_and_python_preserve_packs_selection(tmp_path: Path, native_selector: Path, paths: list[str], mode: str) -> None:
+    root = Path(__file__).resolve().parents[2]
+    authority = root / "tools/validation/gates.json"
+    jobs = set(yaml.safe_load((root / ".github/workflows/packs.yml").read_text())["jobs"]) - {"changes"}
+    expected = packs_source_selection(paths, mode)
+    python_actual = select_gates(paths, router=load_router(authority), mode=mode)
+    result = subprocess.run([str(native_selector), str(authority), mode, *paths], check=True, capture_output=True, text=True, timeout=20)
+    native_actual = json.loads(result.stdout)
+    assert set(native_actual["selected_jobs"]) & jobs == expected
+    assert python_actual.selected_jobs & jobs == expected
+    assert not set(native_actual["selected_code_shards"]) & jobs
+    assert not python_actual.selected_code_shards & jobs
+    assert native_actual["execution_supported"] is False
+
+
+@pytest.mark.parametrize(
+    ("stderr", "allowed"),
+    [
+        ("", True),
+        ("ordinary diagnostic\n", True),
+        ("Warning: missing validator\n", False),
+        ("wArNiNg: strict validation skipped\n", False),
+        ("ok\nWarning: source warning\n", False),
+        (" Warning: not a line prefix\n", True),
+    ],
+)
+def test_native_warning_output_guard_is_not_validator_execution(tmp_path: Path, native_selector: Path, stderr: str, allowed: bool) -> None:
+    specification: Any = local_specification()
+    specification["checks"]["lint"]["stderr_policy"] = ["reject-warning-prefix"]
+    authority = write_local(tmp_path, specification)
+    log = tmp_path / "synthetic-capture.log"
+    log.write_text(stderr)
+    result = subprocess.run([str(native_selector), str(authority), "output-policy", "lint", "0", str(log)], capture_output=True, text=True, timeout=20)
+    assert result.returncode == (0 if allowed else 1)
+    assert json.loads(result.stdout) == {"policy_allows_output": allowed, "check_validation_performed": False, "execution_supported": False}
+    assert stderr not in result.stdout if stderr else True
+
+
+def test_packs_recipe_has_genuine_source_guard_and_advisory_contract() -> None:
+    root = Path(__file__).resolve().parents[2]
+    specification = json.loads((root / "tools/validation/gates.json").read_text())
+    checks = specification["checks"]
+    jobs = yaml.safe_load((root / ".github/workflows/packs.yml").read_text())["jobs"]
+    assert set(jobs) - {"changes"} <= set(checks)
+    for name in set(jobs) - {"changes"}:
+        assert checks[name]["recipe"]["source"]["sha256"] == fixture_digest((root / ".github/workflows/packs.yml").read_bytes())
+        assert checks[name]["budgets"]["wall_ms"] == jobs[name]["timeout-minutes"] * 60000
+    assert checks["built-in-corpus-suite"]["recipe"]["advisory"] is True
+    assert checks["built-in-plugin-validate"]["stderr_policy"] == ["allow", "reject-warning-prefix"]
+    assert "claude_cli_2_1_270" in checks["built-in-plugin-validate"]["recipe"]["required_inputs"]
+    assert checks["packs-gate"]["dependencies"] == []
+    assert checks["packs-gate"]["recipe"]["observed_dependencies"] == jobs["packs-gate"]["needs"]
+    assert "built-in-corpus-suite" not in checks["packs-gate"]["recipe"]["observed_dependencies"]
