@@ -164,7 +164,7 @@ def _local_router(document: object) -> Router:
     if not isinstance(document, dict):
         raise ValueError("Local routing authority must be an object")
     version = document.get("schema_version")
-    if type(version) is not int or version not in {1, 2, 3, 4, 5}:
+    if type(version) is not int or version not in {1, 2, 3, 4, 5, 6}:
         raise ValueError("Unsupported local authority schema version")
     routing = document.get("routing")
     if not isinstance(routing, dict):
@@ -209,7 +209,7 @@ def _local_router(document: object) -> Router:
             raise ValueError("Invalid local check dependencies")
         check_modes[name] = frozenset(modes)
         check_dependencies[name] = frozenset(dependencies)
-    unbound = _workflow_requirements(document, checks) if version == 5 else frozenset()
+    unbound = _workflow_requirements(document, checks) if version >= 5 else frozenset()
     return Router(
         filters=filters,
         job_gates={name: frozenset(groups) for name, groups in gates.items()},

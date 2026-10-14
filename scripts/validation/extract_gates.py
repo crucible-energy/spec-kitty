@@ -548,20 +548,99 @@ def _pack_check(name: str, job: dict[str, object], source: dict[str, str]) -> di
     }
 
 
+def _argument_commands(run: str) -> tuple[list[list[str]], list[dict[str, object]]] | None:
+    """Normalize only complete quoted variable words, without shell evaluation."""
+    if "@environment." in run or any(character not in " \t\n" and unicodedata.category(character)[0] in {"C", "Z"} for character in run):
+        return None
+    references: list[tuple[str, str, str]] = []
+
+    def replace(match: re.Match[str]) -> str:
+        references.append((match[2] or match[3], match[1], match[4]))
+        return f'"@environment.{len(references) - 1}"'
+
+    pattern = r'(?<!\S)"([^"$\\\n]*)\$(?:\{([A-Z][A-Z0-9_]*)\}|([A-Z][A-Z0-9_]*))([^"$\\\n]*)"(?=\s|$)'
+    commands = _commands(re.sub(pattern, replace, run))
+    if commands is None:
+        return None
+    bindings: list[dict[str, object]] = []
+    for command, argv in enumerate(commands):
+        for argument, value in enumerate(argv):
+            if value.startswith("@environment."):
+                if argument == 0:
+                    return None
+                reference = int(value.removeprefix("@environment."))
+                variable, prefix, suffix = references[reference]
+                bindings.append({"command": command, "argument": argument, "variable": variable, "prefix": prefix, "suffix": suffix})
+    if len(bindings) != len(references):
+        return None
+    return commands, bindings
+
+
+def _step_program(run: str) -> tuple[list[list[str]], list[dict[str, object]], str] | None:
+    lines = _logical_lines(run)
+    if lines is None:
+        return None
+    lines = [line.strip(" \t") for line in lines if line.strip(" \t")]
+    failure = "fail-fast"
+    if lines and lines[0] == "set -u":
+        if len(lines) < 4 or lines[1] != "status=0" or lines[-1] != "exit $status" or any(not line.endswith(" || status=1") for line in lines[2:-1]):
+            return None
+        lines = [line.removesuffix(" || status=1") for line in lines[2:-1]]
+        failure = "collect-failures"
+    elif lines and lines[0] == "set -euo pipefail":
+        lines = lines[1:]
+    result = _argument_commands("\n".join(lines))
+    return (*result, failure) if result is not None else None
+
+
+def _workflow_program(job: dict[str, object]) -> dict[str, object]:
+    """Extract the shared supported command class; retain every other boundary."""
+    argv: list[list[str]] = []
+    controls: list[dict[str, object]] = []
+    bindings: list[dict[str, object]] = []
+    unsupported: list[int] = []
+    steps = job.get("steps", [])
+    if not isinstance(steps, list):
+        raise ValueError("Invalid workflow steps")
+    for index, value in enumerate(steps):
+        step = _mapping(value)
+        if "run" not in step:
+            continue
+        shell = step.get("shell")
+        bash = shell == "bash" or (shell is None and str(job.get("runs-on", "")).startswith(("ubuntu-", "macos-")))
+        result = _step_program(str(step["run"])) if bash else None
+        if result is None:
+            unsupported.append(index)
+            continue
+        commands, arguments, failure = result
+        start = len(argv)
+        controls.append({"step": index, "start": start, "count": len(commands), "failure": failure})
+        for argument in arguments:
+            argument["command"] = int(str(argument["command"])) + start
+        bindings.extend(arguments)
+        argv.extend(commands)
+    if unsupported or not argv:
+        return {
+            "status": "unsupported",
+            "steps": unsupported,
+            "reason": "unsupported-shell-or-command-control" if unsupported else "no-external-argv",
+            "context_required": True,
+        }
+    return {"status": "normalized", "argv": argv, "controls": controls, "argument_bindings": bindings, "context_required": True}
+
+
 def _static_workflow_check(workflow: str, name: str, job: dict[str, object], source: dict[str, str]) -> dict[str, object]:
     """Declare a complete literal recipe, retaining its unbound source context."""
-    argv: list[list[str]] = []
+    program = _workflow_program(job)
+    if program["status"] != "normalized":
+        raise ValueError("Unsupported static workflow recipe")
+    argv = program["argv"]
+    if not isinstance(argv, list):
+        raise ValueError("Invalid normalized workflow argv")
     steps = job.get("steps")
     if not isinstance(steps, list):
         raise ValueError("Invalid static workflow steps")
-    for value in steps:
-        step = _mapping(value)
-        if "run" in step:
-            commands = _commands(step["run"])
-            if commands is None:
-                raise ValueError("Unsupported static workflow recipe")
-            argv.extend(commands)
-    if not argv or job.get("needs") or job.get("strategy") or job.get("runs-on") != "ubuntu-24.04":
+    if not argv or job.get("strategy") or job.get("runs-on") != "ubuntu-24.04":
         raise ValueError("Unsupported static workflow binding")
     minutes = job.get("timeout-minutes")
     if type(minutes) is not int or not 1 <= minutes <= 360:
@@ -608,6 +687,20 @@ def _static_workflow_check(workflow: str, name: str, job: dict[str, object], sou
     }
 
 
+def _contract_dependencies(workflow: str, definition: dict[str, object], checks: dict[str, object], supported: set[str]) -> None:
+    if workflow != "contracts":
+        return
+    jobs = _mapping(definition["jobs"])
+    for name in supported:
+        needs = _mapping(jobs[name]).get("needs", [])
+        names = [needs] if isinstance(needs, str) else needs
+        if not isinstance(names, list) or any(item not in supported for item in names):
+            raise ValueError("Unsupported normalized workflow dependency")
+        check = _mapping(checks[f"contracts.{name}"])
+        check["dependencies"] = [f"contracts.{item}" for item in names]
+        checks[f"contracts.{name}"] = check
+
+
 def _workflow_contracts(root: Path, inventory: Extraction, authority: dict[str, object]) -> list[dict[str, object]]:
     """Preserve all authored semantics; normalize only reviewed literal recipes."""
     checks = _mapping(authority["checks"])
@@ -641,8 +734,11 @@ def _workflow_contracts(root: Path, inventory: Extraction, authority: dict[str, 
         jobs: dict[str, object] = {}
         for name, value in _mapping(definition["jobs"]).items():
             job = _mapping(value)
+            program = _workflow_program(job)
             identifier: str | None = name if workflow in {"ci-router", "packs"} and name != "changes" else None
-            if name in compatible.get(workflow, set()):
+            if name in compatible.get(workflow, set()) or (workflow == "contracts" and program["status"] == "normalized"):
+                if workflow == "contracts":
+                    compatible[workflow].add(name)
                 identifier = f"{workflow}.{name}"
                 checks[identifier] = _static_workflow_check(workflow, name, job, source)
                 paths = _mapping(_mapping(definition["on"]).get("pull_request", {})).get("paths", [])
@@ -670,7 +766,9 @@ def _workflow_contracts(root: Path, inventory: Extraction, authority: dict[str, 
                 "budget_scope": "per-job-instance",
                 "budget_origin": "source" if "timeout-minutes" in job else "github-default-360-minutes",
                 "binding_required": True,
+                "program": program,
             }
+        _contract_dependencies(workflow, definition, checks, compatible.get(workflow, set()))
         contracts.append({"id": workflow, "source": source, "definition": definition, "jobs": jobs})
         if _read(path) != raw:
             raise ValueError("Workflow changed during declaration construction")
@@ -720,7 +818,7 @@ def executable_router_specification(root: Path) -> dict[str, object]:
     for name, groups in packs_model.job_gates.items():
         gates[name] = sorted("corpus" if group == "corpus" else "packs_" + group for group in groups)
     authority["routing"] = {"filters": filters, "job_gates": gates, "non_source_groups": sorted(data_groups), "unknown_surface_policy": "refuse-path-sensitive"}
-    authority["schema_version"] = 5
+    authority["schema_version"] = 6
     authority["checks"] = {name: _router_check(name, _mapping(value), normalized_source) for name, value in jobs.items() if name != "changes"}
     checks = _mapping(authority["checks"])
     packs_source = {"path": ".github/workflows/packs.yml", "sha256": packs_sha, "role": "migration-baseline"}

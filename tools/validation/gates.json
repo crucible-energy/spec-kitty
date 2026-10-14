@@ -2654,6 +2654,455 @@
         "instance_environment": {},
         "workflow_job": "verify-pins"
       }
+    },
+    "contracts.python-checks": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--no-install-project"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "--no-sync",
+          "python",
+          "contracts/tools/layout_check.py"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "--no-sync",
+          "python",
+          "contracts/tools/citation_check.py"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "--no-sync",
+          "python",
+          "contracts/tools/provisional_check.py"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "--no-sync",
+          "python",
+          "contracts/tools/example_check.py"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "--no-sync",
+          "python",
+          "contracts/tools/event_mapping_check.py"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "--no-sync",
+          "python",
+          "contracts/tools/enum_pin_check.py"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "--no-sync",
+          "python",
+          "contracts/tools/leak_scan.py"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "--no-sync",
+          "python",
+          "contracts/tools/structure_check.py"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "--no-sync",
+          "python",
+          "contracts/tools/codeowners_check.py"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "--no-sync",
+          "python",
+          "contracts/tools/no_pytest_scan.py"
+        ]
+      ],
+      "unmatched_source": false,
+      "stderr_policy": [
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow"
+      ],
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "dependencies": [],
+      "environment": {},
+      "budgets": {
+        "wall_ms": 1200000,
+        "cleanup_ms": 5000,
+        "stdout_bytes": 16777216,
+        "stderr_bytes": 16777216,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592
+      },
+      "recipe": {
+        "source": {
+          "path": ".github/workflows/contracts.yml",
+          "sha256": "0384e89dfe68fcbd758abf7ca14f413a02c600f9c28e9666b756dcf2d3e0517c",
+          "role": "migration-baseline"
+        },
+        "python_version": "3.12",
+        "advisory": false,
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies",
+          "workflow_context"
+        ],
+        "conditions": [
+          "source-context",
+          "source-context",
+          "source-context",
+          "source-context",
+          "source-context",
+          "source-context",
+          "source-context",
+          "source-context",
+          "source-context",
+          "source-context",
+          "source-context"
+        ],
+        "instances": [
+          "default",
+          "default",
+          "default",
+          "default",
+          "default",
+          "default",
+          "default",
+          "default",
+          "default",
+          "default",
+          "default"
+        ],
+        "applicability": "workflow",
+        "packages": {},
+        "observed_dependencies": [],
+        "instance_environment": {},
+        "workflow_job": "python-checks"
+      }
+    },
+    "contracts.validate-bundle": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--no-install-project"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "--no-sync",
+          "python",
+          "contracts/tools/install_tools.py",
+          "--pins",
+          "contracts/tools/pins.json",
+          "--dest",
+          "@environment.0",
+          "--only",
+          "gradle"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "--no-sync",
+          "python",
+          "contracts/tools/bundle.py",
+          "--root",
+          "@environment.0",
+          "--out",
+          "@environment.1"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "--no-sync",
+          "python",
+          "contracts/tools/tamper_check.py",
+          "--contracts",
+          "contracts"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "--no-sync",
+          "python",
+          "contracts/tools/client_smoke.py",
+          "--root",
+          "@environment.0",
+          "--out",
+          "@environment.1"
+        ]
+      ],
+      "unmatched_source": false,
+      "stderr_policy": [
+        "allow",
+        "allow",
+        "allow",
+        "allow",
+        "allow"
+      ],
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "dependencies": [
+        "contracts.verify-pins"
+      ],
+      "environment": {},
+      "budgets": {
+        "wall_ms": 1800000,
+        "cleanup_ms": 5000,
+        "stdout_bytes": 16777216,
+        "stderr_bytes": 16777216,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592
+      },
+      "recipe": {
+        "source": {
+          "path": ".github/workflows/contracts.yml",
+          "sha256": "0384e89dfe68fcbd758abf7ca14f413a02c600f9c28e9666b756dcf2d3e0517c",
+          "role": "migration-baseline"
+        },
+        "python_version": "3.12",
+        "advisory": false,
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies",
+          "workflow_context"
+        ],
+        "conditions": [
+          "source-context",
+          "source-context",
+          "source-context",
+          "source-context",
+          "source-context"
+        ],
+        "instances": [
+          "default",
+          "default",
+          "default",
+          "default",
+          "default"
+        ],
+        "applicability": "workflow",
+        "packages": {},
+        "observed_dependencies": [],
+        "instance_environment": {},
+        "workflow_job": "validate-bundle"
+      }
+    },
+    "contracts.resolver-parity": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--no-install-project"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "--no-sync",
+          "python",
+          "contracts/tools/resolver_parity.py",
+          "--root",
+          "@environment.0",
+          "--bundles",
+          "@environment.1"
+        ]
+      ],
+      "unmatched_source": false,
+      "stderr_policy": [
+        "allow",
+        "allow"
+      ],
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "dependencies": [
+        "contracts.validate-bundle"
+      ],
+      "environment": {},
+      "budgets": {
+        "wall_ms": 600000,
+        "cleanup_ms": 5000,
+        "stdout_bytes": 16777216,
+        "stderr_bytes": 16777216,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592
+      },
+      "recipe": {
+        "source": {
+          "path": ".github/workflows/contracts.yml",
+          "sha256": "0384e89dfe68fcbd758abf7ca14f413a02c600f9c28e9666b756dcf2d3e0517c",
+          "role": "migration-baseline"
+        },
+        "python_version": "3.12",
+        "advisory": false,
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies",
+          "workflow_context"
+        ],
+        "conditions": [
+          "source-context",
+          "source-context"
+        ],
+        "instances": [
+          "default",
+          "default"
+        ],
+        "applicability": "workflow",
+        "packages": {},
+        "observed_dependencies": [],
+        "instance_environment": {},
+        "workflow_job": "resolver-parity"
+      }
+    },
+    "contracts.negative-tests": {
+      "argv": [
+        [
+          "uv",
+          "sync",
+          "--frozen",
+          "--no-install-project"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "--no-sync",
+          "python",
+          "contracts/tools/install_tools.py",
+          "--pins",
+          "contracts/tools/pins.json",
+          "--dest",
+          "@environment.0"
+        ],
+        [
+          "uv",
+          "run",
+          "--frozen",
+          "--no-sync",
+          "python",
+          "contracts/tools/run_negative_cases.py",
+          "--manifest",
+          "contracts/tools/negative_cases.json",
+          "--work",
+          "@environment.0"
+        ]
+      ],
+      "unmatched_source": false,
+      "stderr_policy": [
+        "allow",
+        "allow",
+        "allow"
+      ],
+      "modes": [
+        "commit",
+        "full"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "dependencies": [
+        "contracts.verify-pins"
+      ],
+      "environment": {},
+      "budgets": {
+        "wall_ms": 2700000,
+        "cleanup_ms": 5000,
+        "stdout_bytes": 16777216,
+        "stderr_bytes": 16777216,
+        "sampled_processes": 64,
+        "sampled_resident_bytes": 8589934592
+      },
+      "recipe": {
+        "source": {
+          "path": ".github/workflows/contracts.yml",
+          "sha256": "0384e89dfe68fcbd758abf7ca14f413a02c600f9c28e9666b756dcf2d3e0517c",
+          "role": "migration-baseline"
+        },
+        "python_version": "3.12",
+        "advisory": false,
+        "required_inputs": [
+          "candidate",
+          "base",
+          "dependencies",
+          "workflow_context"
+        ],
+        "conditions": [
+          "source-context",
+          "source-context",
+          "source-context"
+        ],
+        "instances": [
+          "default",
+          "default",
+          "default"
+        ],
+        "applicability": "workflow",
+        "packages": {},
+        "observed_dependencies": [],
+        "instance_environment": {},
+        "workflow_job": "negative-tests"
+      }
     }
   },
   "migration": [
@@ -3360,6 +3809,18 @@
       ],
       "contracts.verify-pins": [
         "corpus"
+      ],
+      "contracts.python-checks": [
+        "corpus"
+      ],
+      "contracts.validate-bundle": [
+        "corpus"
+      ],
+      "contracts.resolver-parity": [
+        "corpus"
+      ],
+      "contracts.negative-tests": [
+        "corpus"
       ]
     },
     "non_source_groups": [
@@ -3371,7 +3832,7 @@
     ],
     "unknown_surface_policy": "refuse-path-sensitive"
   },
-  "schema_version": 5,
+  "schema_version": 6,
   "source": {
     "path": ".github/workflows/ci-router.yml",
     "role": "migration-baseline",
@@ -3490,14 +3951,28 @@
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [],
+            "reason": "no-external-argv",
+            "context_required": true
+          }
         },
         "verify-drift": {
           "check_id": null,
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              4
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         }
       }
     },
@@ -3901,28 +4376,68 @@
           "wall_ms": 900000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              1,
+              2,
+              4,
+              5,
+              10
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "diff-cover": {
           "check_id": null,
           "wall_ms": 900000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              0,
+              6,
+              8
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "sonar-pr": {
           "check_id": null,
           "wall_ms": 1200000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              0,
+              4,
+              5
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "aggregate-gate": {
           "check_id": null,
           "wall_ms": 300000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              0
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         }
       }
     },
@@ -4078,21 +4593,226 @@
           "wall_ms": 300000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "python3",
+                "-m",
+                "pip",
+                "install",
+                "--quiet",
+                "--disable-pip-version-check",
+                "pyyaml==6.0.2"
+              ],
+              [
+                "python3",
+                "scripts/ci/fleet_verdict.py",
+                "--event",
+                "@environment.0",
+                "--repository",
+                "@environment.1",
+                "--reporter-id",
+                "@environment.2",
+                "--attempt",
+                "@environment.3"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 1,
+                "start": 0,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 2,
+                "start": 1,
+                "count": 1,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [
+              {
+                "command": 1,
+                "argument": 3,
+                "variable": "GITHUB_EVENT_PATH",
+                "prefix": "",
+                "suffix": ""
+              },
+              {
+                "command": 1,
+                "argument": 5,
+                "variable": "REPORT_REPOSITORY",
+                "prefix": "",
+                "suffix": ""
+              },
+              {
+                "command": 1,
+                "argument": 7,
+                "variable": "REPORT_ID",
+                "prefix": "",
+                "suffix": ""
+              },
+              {
+                "command": 1,
+                "argument": 9,
+                "variable": "REPORT_ATTEMPT",
+                "prefix": "",
+                "suffix": ""
+              }
+            ],
+            "context_required": true
+          }
         },
         "report": {
           "check_id": null,
           "wall_ms": 900000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "python3",
+                "-m",
+                "pip",
+                "install",
+                "--quiet",
+                "--disable-pip-version-check",
+                "pyyaml==6.0.2"
+              ],
+              [
+                "python3",
+                "scripts/ci/fleet_verdict.py",
+                "--pr",
+                "@environment.0",
+                "--repository",
+                "@environment.1",
+                "--reporter-id",
+                "@environment.2",
+                "--attempt",
+                "@environment.3"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 1,
+                "start": 0,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 2,
+                "start": 1,
+                "count": 1,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [
+              {
+                "command": 1,
+                "argument": 3,
+                "variable": "REPORT_PR",
+                "prefix": "",
+                "suffix": ""
+              },
+              {
+                "command": 1,
+                "argument": 5,
+                "variable": "REPORT_REPOSITORY",
+                "prefix": "",
+                "suffix": ""
+              },
+              {
+                "command": 1,
+                "argument": 7,
+                "variable": "REPORT_ID",
+                "prefix": "",
+                "suffix": ""
+              },
+              {
+                "command": 1,
+                "argument": 9,
+                "variable": "REPORT_ATTEMPT",
+                "prefix": "",
+                "suffix": ""
+              }
+            ],
+            "context_required": true
+          }
         },
         "report-main": {
           "check_id": null,
           "wall_ms": 900000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "python3",
+                "-m",
+                "pip",
+                "install",
+                "--quiet",
+                "--disable-pip-version-check",
+                "pyyaml==6.0.2"
+              ],
+              [
+                "python3",
+                "-m",
+                "scripts.ci.fleet_main",
+                "--repository",
+                "@environment.0",
+                "--reporter-id",
+                "@environment.1",
+                "--attempt",
+                "@environment.2"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 1,
+                "start": 0,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 2,
+                "start": 1,
+                "count": 1,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [
+              {
+                "command": 1,
+                "argument": 4,
+                "variable": "REPORT_REPOSITORY",
+                "prefix": "",
+                "suffix": ""
+              },
+              {
+                "command": 1,
+                "argument": 6,
+                "variable": "REPORT_ID",
+                "prefix": "",
+                "suffix": ""
+              },
+              {
+                "command": 1,
+                "argument": 8,
+                "variable": "REPORT_ATTEMPT",
+                "prefix": "",
+                "suffix": ""
+              }
+            ],
+            "context_required": true
+          }
         }
       }
     },
@@ -4344,28 +5064,60 @@
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              4,
+              5,
+              6
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "test": {
           "check_id": null,
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [],
+            "reason": "no-external-argv",
+            "context_required": true
+          }
         },
         "modules-gate": {
           "check_id": null,
           "wall_ms": 300000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              0
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "summarize": {
           "check_id": null,
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              1
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         }
       }
     },
@@ -5366,126 +6118,338 @@
           "wall_ms": 2100000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              3,
+              5,
+              6
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "e2e": {
           "check_id": null,
           "wall_ms": 2400000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              3,
+              5,
+              6
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "stress": {
           "check_id": null,
           "wall_ms": 600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              3,
+              5,
+              6
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "p0-repro": {
           "check_id": null,
           "wall_ms": 1800000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              3,
+              5
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "interpreter-matrix-shard-1": {
           "check_id": null,
           "wall_ms": 1200000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              4,
+              6,
+              7
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "interpreter-matrix-shard-2": {
           "check_id": null,
           "wall_ms": 1860000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              4,
+              6,
+              7
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "interpreter-matrix-shard-3": {
           "check_id": null,
           "wall_ms": 2100000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              4,
+              6,
+              7
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "interpreter-matrix-shard-4": {
           "check_id": null,
           "wall_ms": 1500000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              4,
+              6,
+              7
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "interpreter-matrix-shard-5": {
           "check_id": null,
           "wall_ms": 2100000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              4,
+              6,
+              7
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "interpreter-matrix-shard-6": {
           "check_id": null,
           "wall_ms": 1500000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              4,
+              6,
+              7
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "generate-full-matrix": {
           "check_id": null,
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              2
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "full-module-matrix": {
           "check_id": null,
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [],
+            "reason": "no-external-argv",
+            "context_required": true
+          }
         },
         "integration-next": {
           "check_id": null,
           "wall_ms": 2700000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              3,
+              5,
+              6
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "specify-cli-out-of-matrix": {
           "check_id": null,
           "wall_ms": 4140000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              3,
+              5,
+              6
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "architectural-backstop": {
           "check_id": null,
           "wall_ms": 2400000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              3,
+              5,
+              6
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "integration-slice": {
           "check_id": null,
           "wall_ms": 5400000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              3,
+              5,
+              6
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "universe-equivalence": {
           "check_id": "ci-nightly.universe-equivalence",
           "wall_ms": 1500000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--all-extras"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "python",
+                "-m",
+                "scripts.ci.collect_universe_prestep",
+                "collect"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "python",
+                "-m",
+                "scripts.ci.collect_universe_prestep",
+                "compare"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 3,
+                "start": 1,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 4,
+                "start": 2,
+                "count": 1,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "nightly-summary": {
           "check_id": null,
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              0
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         }
       }
     },
@@ -5675,35 +6639,144 @@
           "wall_ms": 600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--all-extras"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "ruff",
+                "check",
+                "."
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "ruff",
+                "format",
+                "--check",
+                "."
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 3,
+                "start": 1,
+                "count": 2,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "build-wheel": {
           "check_id": "ci-quality.build-wheel",
           "wall_ms": 600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "build",
+                "--wheel"
+              ],
+              [
+                "ls",
+                "-la",
+                "dist/"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 2,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "clean-install-verification": {
           "check_id": null,
           "wall_ms": 900000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "uv-lock-check": {
           "check_id": "ci-quality.uv-lock-check",
           "wall_ms": 300000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "lock",
+                "--check"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 1,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "quality-gate": {
           "check_id": null,
           "wall_ms": 300000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              0
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         }
       }
     },
@@ -6400,133 +7473,657 @@
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              4
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "prose-scan": {
           "check_id": "prose-scan",
           "wall_ms": 300000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              2
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "ruff": {
           "check_id": "ruff",
           "wall_ms": 300000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--extra",
+                "lint"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "ruff",
+                "check",
+                "."
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "ruff",
+                "format",
+                "--check",
+                "."
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 3,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "commit-msg": {
           "check_id": "commit-msg",
           "wall_ms": 300000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              1
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "markdownlint": {
           "check_id": "markdownlint",
           "wall_ms": 300000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              1
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "uv-lock": {
           "check_id": "uv-lock",
           "wall_ms": 300000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "lock",
+                "--check"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 1,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "import-linter": {
           "check_id": "import-linter",
           "wall_ms": 300000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--extra",
+                "lint"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "ruff",
+                "check",
+                "--select",
+                "TID251",
+                "."
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 2,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "regen-check": {
           "check_id": "regen-check",
           "wall_ms": 600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--all-extras"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "spec-kitty",
+                "regen",
+                "--check"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 2,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "terminology": {
           "check_id": "terminology",
           "wall_ms": 300000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--all-extras"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "pytest",
+                "tests/architectural/test_no_legacy_terminology.py",
+                "-q"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 2,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "docs-lint": {
           "check_id": "docs-lint",
           "wall_ms": 300000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "python",
+                "-m",
+                "scripts.docs.check_spelling"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "python",
+                "-m",
+                "scripts.docs.check_changelog_style"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 3,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "layer-rules": {
           "check_id": "layer-rules",
           "wall_ms": 480000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--all-extras"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "pytest",
+                "tests/architectural/test_layer_rules.py",
+                "tests/architectural/test_pyproject_shape.py",
+                "-q"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 2,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "archive-freeze": {
           "check_id": "archive-freeze",
           "wall_ms": 600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--all-extras"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "pytest",
+                "tests/architectural/test_archive_root_byte_identical.py",
+                "-q"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 2,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "architectural-fast": {
           "check_id": "architectural-fast",
           "wall_ms": 600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "python3",
+                "-m",
+                "scripts.ci.memory_sampler",
+                "start",
+                "--out",
+                "@environment.0"
+              ],
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--all-extras"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "python",
+                "-m",
+                "pytest",
+                "tests/architectural",
+                "-m",
+                "not performance and not stress and not timing",
+                "-n",
+                "4",
+                "--dist",
+                "loadfile",
+                "--deselect",
+                "tests/architectural/test_no_legacy_terminology.py",
+                "--deselect",
+                "tests/architectural/test_layer_rules.py",
+                "--deselect",
+                "tests/architectural/test_pyproject_shape.py",
+                "--deselect",
+                "tests/architectural/test_archive_root_byte_identical.py",
+                "-p",
+                "scripts.ci.battery_partition_plugin",
+                "--battery-part",
+                "fast",
+                "--junitxml=out/reports/xunit-architectural-fast.xml"
+              ],
+              [
+                "python3",
+                "-m",
+                "scripts.ci.memory_sampler",
+                "stop",
+                "--out",
+                "@environment.0"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 1,
+                "start": 0,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 3,
+                "start": 1,
+                "count": 2,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 4,
+                "start": 3,
+                "count": 1,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [
+              {
+                "command": 0,
+                "argument": 5,
+                "variable": "RUNNER_TEMP",
+                "prefix": "",
+                "suffix": "/memory-sampler.json"
+              },
+              {
+                "command": 3,
+                "argument": 5,
+                "variable": "RUNNER_TEMP",
+                "prefix": "",
+                "suffix": "/memory-sampler.json"
+              }
+            ],
+            "context_required": true
+          }
         },
         "architectural-heavy": {
           "check_id": "architectural-heavy",
           "wall_ms": 1800000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              4,
+              5,
+              9
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "tests-docs": {
           "check_id": "tests-docs",
           "wall_ms": 600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--all-extras"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "pytest",
+                "tests/docs",
+                "-q"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 2,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "tests-e2e": {
           "check_id": "tests-e2e",
           "wall_ms": 1500000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--all-extras"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "pytest",
+                "tests/e2e",
+                "-q"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 2,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "tests-corpus-blocking": {
           "check_id": "tests-corpus-blocking",
           "wall_ms": 1200000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--all-extras"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "pytest",
+                "-rs",
+                "-m",
+                "corpus and not windows_ci",
+                "tests/contract/test_example_round_trip.py",
+                "tests/contract/test_mission_status_payloads.py",
+                "tests/contract/test_mission_status_reality.py",
+                "tests/integration/test_mission_review_contract_gate.py",
+                "tests/specify_cli/migration/test_corpus_wp_snapshot_parity.py",
+                "tests/doctrine/test_shipped_profiles.py::TestShippedProfilesPerformance"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 2,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "tests-contract-tools": {
           "check_id": "tests-contract-tools",
           "wall_ms": 900000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--no-install-project"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "pytest",
+                "-m",
+                "corpus and not windows_ci",
+                "tests/contract",
+                "--ignore=tests/contract/test_example_round_trip.py",
+                "--ignore=tests/contract/test_mission_status_payloads.py",
+                "--ignore=tests/contract/test_mission_status_reality.py",
+                "-n",
+                "4",
+                "--dist",
+                "loadfile"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 3,
+                "start": 1,
+                "count": 1,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "router-gate": {
           "check_id": "router-gate",
           "wall_ms": 300000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              1
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         }
       }
     },
@@ -6634,14 +8231,118 @@
           "wall_ms": 7200000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--all-extras"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "python",
+                "-m",
+                "scripts.ci.recapture_shard_timings",
+                "detect"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "python",
+                "-m",
+                "scripts.ci.recapture_shard_timings",
+                "capture",
+                "--write",
+                "--budget-seconds",
+                "4200"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "python",
+                "-m",
+                "scripts.ci.recapture_shard_timings",
+                "publish"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 3,
+                "start": 1,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 4,
+                "start": 2,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 5,
+                "start": 3,
+                "count": 1,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "strict-shard-timings-check": {
           "check_id": "ci-shard-recapture.strict-shard-timings-check",
           "wall_ms": 900000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--all-extras"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "pytest",
+                "tests/architectural/test_module_length_agreement.py",
+                "-q"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 3,
+                "start": 1,
+                "count": 1,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         }
       }
     },
@@ -6709,7 +8410,51 @@
           "wall_ms": 600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "python3",
+                "-m",
+                "pip",
+                "install",
+                "--quiet",
+                "--disable-pip-version-check",
+                "pyyaml==6.0.2"
+              ],
+              [
+                "python3",
+                "scripts/ci/stale_running_sweep.py",
+                "--repository",
+                "@environment.0"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 3,
+                "start": 1,
+                "count": 1,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [
+              {
+                "command": 1,
+                "argument": 3,
+                "variable": "GITHUB_REPOSITORY",
+                "prefix": "",
+                "suffix": ""
+              }
+            ],
+            "context_required": true
+          }
         }
       }
     },
@@ -6830,14 +8575,30 @@
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [],
+            "reason": "no-external-argv",
+            "context_required": true
+          }
         },
         "windows-critical": {
           "check_id": null,
           "wall_ms": 1200000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              4,
+              5,
+              6
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         }
       }
     },
@@ -7001,14 +8762,33 @@
           "wall_ms": 1800000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              1,
+              4,
+              10
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "publish": {
           "check_id": null,
           "wall_ms": 600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              1,
+              2
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         }
       }
     },
@@ -7403,63 +9183,508 @@
           "wall_ms": 600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--no-install-project"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/verify_pins.py",
+                "--fetch"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/gradle_pin_check.py"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 3,
+                "start": 1,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 4,
+                "start": 2,
+                "count": 1,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "python-checks": {
-          "check_id": null,
+          "check_id": "contracts.python-checks",
           "wall_ms": 1200000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--no-install-project"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/layout_check.py"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/citation_check.py"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/provisional_check.py"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/example_check.py"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/event_mapping_check.py"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/enum_pin_check.py"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/leak_scan.py"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/structure_check.py"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/codeowners_check.py"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/no_pytest_scan.py"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 3,
+                "start": 1,
+                "count": 10,
+                "failure": "collect-failures"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "validate-bundle": {
-          "check_id": null,
+          "check_id": "contracts.validate-bundle",
           "wall_ms": 1800000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--no-install-project"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/install_tools.py",
+                "--pins",
+                "contracts/tools/pins.json",
+                "--dest",
+                "@environment.0",
+                "--only",
+                "gradle"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/bundle.py",
+                "--root",
+                "@environment.0",
+                "--out",
+                "@environment.1"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/tamper_check.py",
+                "--contracts",
+                "contracts"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/client_smoke.py",
+                "--root",
+                "@environment.0",
+                "--out",
+                "@environment.1"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 4,
+                "start": 1,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 5,
+                "start": 2,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 6,
+                "start": 3,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 7,
+                "start": 4,
+                "count": 1,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [
+              {
+                "command": 1,
+                "argument": 9,
+                "variable": "RUNNER_TEMP",
+                "prefix": "",
+                "suffix": "/tools"
+              },
+              {
+                "command": 2,
+                "argument": 7,
+                "variable": "CONTRACTS_ROOT",
+                "prefix": "",
+                "suffix": ""
+              },
+              {
+                "command": 2,
+                "argument": 9,
+                "variable": "RUNNER_TEMP",
+                "prefix": "",
+                "suffix": "/bundle-out"
+              },
+              {
+                "command": 4,
+                "argument": 7,
+                "variable": "CONTRACTS_ROOT",
+                "prefix": "",
+                "suffix": ""
+              },
+              {
+                "command": 4,
+                "argument": 9,
+                "variable": "RUNNER_TEMP",
+                "prefix": "",
+                "suffix": "/bundle-out"
+              }
+            ],
+            "context_required": true
+          }
         },
         "resolver-parity": {
-          "check_id": null,
+          "check_id": "contracts.resolver-parity",
           "wall_ms": 600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--no-install-project"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/resolver_parity.py",
+                "--root",
+                "@environment.0",
+                "--bundles",
+                "@environment.1"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 4,
+                "start": 1,
+                "count": 1,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [
+              {
+                "command": 1,
+                "argument": 7,
+                "variable": "CONTRACTS_ROOT",
+                "prefix": "",
+                "suffix": ""
+              },
+              {
+                "command": 1,
+                "argument": 9,
+                "variable": "RUNNER_TEMP",
+                "prefix": "",
+                "suffix": "/staged"
+              }
+            ],
+            "context_required": true
+          }
         },
         "lint": {
           "check_id": null,
           "wall_ms": 900000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              6
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "breaking-change": {
           "check_id": null,
           "wall_ms": 900000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              5
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "release-dry-run": {
           "check_id": null,
           "wall_ms": 600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              4,
+              6
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "negative-tests": {
-          "check_id": null,
+          "check_id": "contracts.negative-tests",
           "wall_ms": 2700000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--no-install-project"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/install_tools.py",
+                "--pins",
+                "contracts/tools/pins.json",
+                "--dest",
+                "@environment.0"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "python",
+                "contracts/tools/run_negative_cases.py",
+                "--manifest",
+                "contracts/tools/negative_cases.json",
+                "--work",
+                "@environment.0"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 4,
+                "start": 1,
+                "count": 1,
+                "failure": "fail-fast"
+              },
+              {
+                "step": 5,
+                "start": 2,
+                "count": 1,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [
+              {
+                "command": 1,
+                "argument": 9,
+                "variable": "RUNNER_TEMP",
+                "prefix": "",
+                "suffix": "/tools"
+              },
+              {
+                "command": 2,
+                "argument": 9,
+                "variable": "RUNNER_TEMP",
+                "prefix": "",
+                "suffix": "/negative-work"
+              }
+            ],
+            "context_required": true
+          }
         },
         "contracts-gate": {
           "check_id": null,
           "wall_ms": 300000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              0
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         }
       }
     },
@@ -7616,21 +9841,44 @@
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              0
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "build": {
           "check_id": null,
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              3,
+              5
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "deploy": {
           "check_id": null,
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [],
+            "reason": "no-external-argv",
+            "context_required": true
+          }
         }
       }
     },
@@ -7848,7 +10096,20 @@
           "wall_ms": 3480000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              2,
+              3,
+              4,
+              6,
+              8,
+              9
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         }
       }
     },
@@ -8206,63 +10467,201 @@
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              5
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "built-in-regen-check": {
           "check_id": "built-in-regen-check",
           "wall_ms": 600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              3
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "built-in-drg-check": {
           "check_id": "built-in-drg-check",
           "wall_ms": 600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              3
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "built-in-pack-manifest": {
           "check_id": "built-in-pack-manifest",
           "wall_ms": 600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--all-extras"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "pytest",
+                "tests/architectural/test_pack_manifest_no_author_edit.py",
+                "-q"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 2,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "built-in-corpus-suite": {
           "check_id": "built-in-corpus-suite",
           "wall_ms": 1200000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              2,
+              4
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "built-in-plugin-validate": {
           "check_id": "built-in-plugin-validate",
           "wall_ms": 900000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              3
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "internal-org-validate": {
           "check_id": "internal-org-validate",
           "wall_ms": 600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--all-extras"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "spec-kitty",
+                "charter",
+                "org",
+                "validate",
+                "packs/internal"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 2,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "internal-packaging-safety": {
           "check_id": "internal-packaging-safety",
           "wall_ms": 900000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "uv",
+                "sync",
+                "--frozen",
+                "--all-extras"
+              ],
+              [
+                "uv",
+                "run",
+                "--frozen",
+                "pytest",
+                "tests/cross_cutting/packaging/test_packaging_safety.py::test_wheel_contains_only_known_packages",
+                "-q"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 2,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [],
+            "context_required": true
+          }
         },
         "packs-gate": {
           "check_id": "packs-gate",
           "wall_ms": 300000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              0
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         }
       }
     },
@@ -8318,7 +10717,15 @@
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              1
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         }
       }
     },
@@ -8474,14 +10881,33 @@
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              4,
+              5,
+              6
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "cutover-guard": {
           "check_id": null,
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              4,
+              5
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         }
       }
     },
@@ -8766,28 +11192,92 @@
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "normalized",
+            "argv": [
+              [
+                "python3",
+                "scripts/ci/release_nightly_gate.py",
+                "--tag",
+                "@environment.0",
+                "--dispatch"
+              ]
+            ],
+            "controls": [
+              {
+                "step": 2,
+                "start": 0,
+                "count": 1,
+                "failure": "fail-fast"
+              }
+            ],
+            "argument_bindings": [
+              {
+                "command": 0,
+                "argument": 3,
+                "variable": "RELEASE_TAG",
+                "prefix": "",
+                "suffix": ""
+              }
+            ],
+            "context_required": true
+          }
         },
         "build-release": {
           "check_id": null,
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              0,
+              4,
+              5,
+              6,
+              7,
+              8,
+              12,
+              13,
+              14,
+              15
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "publish-pypi": {
           "check_id": null,
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              3,
+              4
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         },
         "verify-pypi-installability": {
           "check_id": null,
           "wall_ms": 21600000,
           "budget_scope": "per-job-instance",
           "budget_origin": "github-default-360-minutes",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              2
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         }
       }
     },
@@ -8941,7 +11431,18 @@
           "wall_ms": 1200000,
           "budget_scope": "per-job-instance",
           "budget_origin": "source",
-          "binding_required": true
+          "binding_required": true,
+          "program": {
+            "status": "unsupported",
+            "steps": [
+              0,
+              1,
+              6,
+              7
+            ],
+            "reason": "unsupported-shell-or-command-control",
+            "context_required": true
+          }
         }
       }
     }

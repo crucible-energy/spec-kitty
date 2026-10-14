@@ -331,6 +331,216 @@ fn workflowJobReady(job: std.json.ObjectMap, jobs: std.json.ObjectMap, completed
     return ready;
 }
 
+fn validateWorkflowProgram(value: Value, job: std.json.ObjectMap) !void {
+    const program = try object(value);
+    const status = program.get("status") orelse return error.InvalidWorkflowProgram;
+    if (status != .string) return error.InvalidWorkflowProgram;
+    const context = program.get("context_required") orelse return error.InvalidWorkflowProgram;
+    if (context != .bool or !context.bool) return error.UnboundWorkflowContext;
+    var steps: []const Value = &.{};
+    if (job.get("steps")) |value_steps| steps = value_steps.array.items;
+    if (std.mem.eql(u8, status.string, "unsupported")) {
+        try rejectUnknownFields(value, &.{ "status", "steps", "reason", "context_required" });
+        const reason = program.get("reason") orelse return error.InvalidWorkflowProgram;
+        if (reason != .string or !oneOf(reason.string, &.{ "unsupported-shell-or-command-control", "no-external-argv" })) return error.InvalidWorkflowProgram;
+        const refused = program.get("steps") orelse return error.InvalidWorkflowProgram;
+        if (refused != .array) return error.InvalidWorkflowProgram;
+        var previous: ?i64 = null;
+        for (refused.array.items) |step| {
+            if (step != .integer or step.integer < 0 or step.integer >= steps.len or (previous != null and step.integer <= previous.?)) return error.InvalidWorkflowProgram;
+            previous = step.integer;
+        }
+        return;
+    }
+    if (!std.mem.eql(u8, status.string, "normalized")) return error.InvalidWorkflowProgram;
+    try rejectUnknownFields(value, &.{ "status", "argv", "controls", "argument_bindings", "context_required" });
+    const argv_value = program.get("argv") orelse return error.InvalidWorkflowProgram;
+    if (argv_value != .array or argv_value.array.items.len == 0 or argv_value.array.items.len > 4096) return error.InvalidWorkflowProgram;
+    const argv = argv_value.array.items;
+    var words: usize = 0;
+    for (argv) |command| {
+        const args = try strings(command);
+        if (args.len == 0 or args.len > 4096 or args[0].string.len == 0) return error.InvalidWorkflowProgram;
+        words += args.len;
+        for (args) |arg| if (arg.string.len > 16384 or std.mem.indexOfScalar(u8, arg.string, 0) != null) return error.InvalidWorkflowProgram;
+    }
+    if (words > 32768) return error.InputLimit;
+    const control_value = program.get("controls") orelse return error.InvalidWorkflowProgram;
+    if (control_value != .array or control_value.array.items.len > steps.len) return error.InvalidWorkflowProgram;
+    var next: i64 = 0;
+    var source_step: i64 = -1;
+    for (control_value.array.items) |control| {
+        try rejectUnknownFields(control, &.{ "step", "start", "count", "failure" });
+        const fields = try object(control);
+        const step = fields.get("step") orelse return error.InvalidWorkflowProgram;
+        const start = fields.get("start") orelse return error.InvalidWorkflowProgram;
+        const count = fields.get("count") orelse return error.InvalidWorkflowProgram;
+        const failure = fields.get("failure") orelse return error.InvalidWorkflowProgram;
+        if (step != .integer or start != .integer or count != .integer or failure != .string) return error.InvalidWorkflowProgram;
+        if (step.integer <= source_step or step.integer >= steps.len or start.integer != next or count.integer <= 0 or count.integer > @as(i64, @intCast(argv.len)) - next) return error.InvalidWorkflowProgram;
+        if (!steps[@intCast(step.integer)].object.contains("run") or !oneOf(failure.string, &.{ "fail-fast", "collect-failures" })) return error.InvalidWorkflowProgram;
+        next += count.integer;
+        source_step = step.integer;
+    }
+    if (next != argv.len) return error.InvalidWorkflowProgram;
+    var run_count: usize = 0;
+    for (steps) |step| run_count += @intFromBool(step.object.contains("run"));
+    if (run_count != control_value.array.items.len) return error.InvalidWorkflowProgram;
+    const argument_value = program.get("argument_bindings") orelse return error.InvalidWorkflowProgram;
+    if (argument_value != .array or argument_value.array.items.len > words) return error.InvalidWorkflowProgram;
+    var coordinates = std.AutoHashMap(u64, void).init(std.heap.page_allocator);
+    defer coordinates.deinit();
+    for (argument_value.array.items) |argument| {
+        try rejectUnknownFields(argument, &.{ "command", "argument", "variable", "prefix", "suffix" });
+        const fields = try object(argument);
+        const command = fields.get("command") orelse return error.InvalidWorkflowProgram;
+        const index = fields.get("argument") orelse return error.InvalidWorkflowProgram;
+        const variable = fields.get("variable") orelse return error.InvalidWorkflowProgram;
+        const prefix = fields.get("prefix") orelse return error.InvalidWorkflowProgram;
+        const suffix = fields.get("suffix") orelse return error.InvalidWorkflowProgram;
+        if (command != .integer or index != .integer or variable != .string or prefix != .string or suffix != .string) return error.InvalidWorkflowProgram;
+        if (command.integer < 0 or command.integer >= argv.len or index.integer <= 0 or index.integer >= argv[@intCast(command.integer)].array.items.len) return error.InvalidWorkflowProgram;
+        if (!validEnvironmentName(variable.string) or prefix.string.len > 4096 or suffix.string.len > 4096 or std.mem.indexOfScalar(u8, prefix.string, 0) != null or std.mem.indexOfScalar(u8, suffix.string, 0) != null) return error.InvalidWorkflowProgram;
+        const word = argv[@intCast(command.integer)].array.items[@intCast(index.integer)].string;
+        if (!std.mem.startsWith(u8, word, "@environment.") or word.len <= 13) return error.InvalidWorkflowProgram;
+        _ = std.fmt.parseInt(u32, word[13..], 10) catch return error.InvalidWorkflowProgram;
+        const coordinate = (@as(u64, @intCast(command.integer)) << 32) | @as(u64, @intCast(index.integer));
+        if (coordinates.contains(coordinate)) return error.InvalidWorkflowProgram;
+        try coordinates.put(coordinate, {});
+    }
+    for (argv, 0..) |command, i| for (command.array.items, 0..) |arg, j| {
+        if (std.mem.startsWith(u8, arg.string, "@environment.")) {
+            const coordinate = (@as(u64, @intCast(i)) << 32) | @as(u64, @intCast(j));
+            if (!coordinates.contains(coordinate)) return error.InvalidWorkflowProgram;
+        }
+    };
+}
+
+const ProgramReference = struct { program: Value, definition: std.json.ObjectMap, job: std.json.ObjectMap };
+
+fn programReference(root: std.json.ObjectMap, subject: []const u8) !ProgramReference {
+    if (subject.len == 0 or subject.len > 512 or !validIdentifier(subject)) return error.InvalidWorkflowProgram;
+    if (root.get("schema_version").?.integer < 6) return error.MissingWorkflowProgram;
+    for (root.get("workflow_contracts").?.array.items) |contract_value| {
+        const contract = contract_value.object;
+        const id = contract.get("id").?.string;
+        if (subject.len <= id.len or !std.mem.startsWith(u8, subject, id) or subject[id.len] != '.') continue;
+        const name = subject[id.len + 1 ..];
+        const mapping = contract.get("jobs").?.object.get(name) orelse continue;
+        const program = mapping.object.get("program").?;
+        if (!std.mem.eql(u8, program.object.get("status").?.string, "normalized")) return error.UnsupportedWorkflowProgram;
+        const definition = contract.get("definition").?.object;
+        return .{ .program = program, .definition = definition, .job = definition.get("jobs").?.object.get(name).?.object };
+    }
+    return error.MissingWorkflowProgram;
+}
+
+fn sourceEnvironment(reference: ProgramReference, command: usize, name: []const u8) !?[]const u8 {
+    var step_index: usize = undefined;
+    for (reference.program.object.get("controls").?.array.items) |control| {
+        const fields = control.object;
+        const start: usize = @intCast(fields.get("start").?.integer);
+        const count: usize = @intCast(fields.get("count").?.integer);
+        if (command >= start and command < start + count) {
+            step_index = @intCast(fields.get("step").?.integer);
+            break;
+        }
+    } else return error.InvalidWorkflowProgram;
+    const step = reference.job.get("steps").?.array.items[step_index].object;
+    var value: ?Value = null;
+    for ([_]std.json.ObjectMap{ reference.definition, reference.job, step }) |level| {
+        if (level.get("env")) |env| if ((try object(env)).get(name)) |candidate| {
+            value = candidate;
+        };
+    }
+    if (value) |literal| {
+        if (literal != .string or literal.string.len > 4096 or std.mem.indexOfAny(u8, literal.string, "$`\x00\r\n") != null) return error.UnboundEnvironmentExpression;
+        return literal.string;
+    }
+    if (!std.mem.eql(u8, name, "RUNNER_TEMP")) return error.UnboundEnvironmentVariable;
+    return null;
+}
+
+pub const BoundProgram = struct {
+    argv: []const []const []const u8,
+    pub fn deinit(self: BoundProgram, allocator: Allocator) void {
+        for (self.argv) |command| {
+            for (command) |argument| allocator.free(argument);
+            allocator.free(command);
+        }
+        allocator.free(self.argv);
+    }
+};
+
+fn boundCommand(allocator: Allocator, reference: ProgramReference, command: usize, environment: *const std.process.Environ.Map) ![]const []const u8 {
+    const original = reference.program.object.get("argv").?.array.items[command].array.items;
+    const args = try allocator.alloc([]const u8, original.len);
+    var acquired: usize = 0;
+    errdefer {
+        for (args[0..acquired]) |arg| allocator.free(arg);
+        allocator.free(args);
+    }
+    for (original, 0..) |argument, index| {
+        var bound: ?std.json.ObjectMap = null;
+        for (reference.program.object.get("argument_bindings").?.array.items) |binding| {
+            const fields = binding.object;
+            if (fields.get("command").?.integer == command and fields.get("argument").?.integer == index) {
+                bound = fields;
+                break;
+            }
+        }
+        if (bound) |fields| {
+            const name = fields.get("variable").?.string;
+            const literal = try sourceEnvironment(reference, command, name);
+            const actual = environment.get(name) orelse return error.MissingEnvironmentBinding;
+            if (actual.len > 4096 or std.mem.indexOfScalar(u8, actual, 0) != null) return error.InputLimit;
+            if (literal) |expected| if (!std.mem.eql(u8, expected, actual)) return error.EnvironmentBindingMismatch;
+            args[index] = try std.fmt.allocPrint(allocator, "{s}{s}{s}", .{ fields.get("prefix").?.string, actual, fields.get("suffix").?.string });
+        } else args[index] = try allocator.dupe(u8, argument.string);
+        acquired += 1;
+    }
+    return args;
+}
+
+/// Render actual process argument data only. This cannot qualify or execute a workflow.
+pub fn bindWorkflowProgram(allocator: Allocator, document: Value, subject: []const u8, environment: *const std.process.Environ.Map) !BoundProgram {
+    const inspected = try select(allocator, document, &.{}, "full");
+    defer inspected.deinit(allocator);
+    const reference = try programReference(try object(document), subject);
+    const argv = reference.program.object.get("argv").?.array.items;
+    const commands = try allocator.alloc([]const []const u8, argv.len);
+    var acquired: usize = 0;
+    errdefer {
+        for (commands[0..acquired]) |command| {
+            for (command) |argument| allocator.free(argument);
+            allocator.free(command);
+        }
+        allocator.free(commands);
+    }
+    var bytes: usize = 0;
+    for (argv, 0..) |_, index| {
+        commands[index] = try boundCommand(allocator, reference, index, environment);
+        acquired += 1;
+        for (commands[index]) |argument| bytes += argument.len;
+        if (bytes > 8 * 1024 * 1024) return error.InputLimit;
+    }
+    return .{ .argv = commands };
+}
+
+fn validateProgramCheck(program_value: Value, check_value: Value) !void {
+    const program = program_value.object;
+    if (!std.mem.eql(u8, program.get("status").?.string, "normalized")) return error.UnsupportedWorkflowProgram;
+    const expected = program.get("argv").?.array.items;
+    const actual = check_value.object.get("argv").?.array.items;
+    if (expected.len != actual.len) return error.UnboundRecipeSource;
+    for (expected, actual) |left, right| {
+        const a = left.array.items;
+        const b = right.array.items;
+        if (a.len != b.len) return error.UnboundRecipeSource;
+        for (a, b) |x, y| if (!std.mem.eql(u8, x.string, y.string)) return error.UnboundRecipeSource;
+    }
+}
+
 fn validateWorkflowContracts(root: std.json.ObjectMap, version: i64) !void {
     const value = root.get("workflow_contracts");
     if (version < 5) {
@@ -386,8 +596,11 @@ fn validateWorkflowContracts(root: std.json.ObjectMap, version: i64) !void {
                 }
             } else if (!job.contains("uses")) return error.InvalidWorkflowContracts;
             const mapping_value = mappings.get(entry.key_ptr.*) orelse return error.InvalidWorkflowContracts;
-            try rejectUnknownFields(mapping_value, &.{ "check_id", "wall_ms", "budget_scope", "budget_origin", "binding_required" });
+            try rejectUnknownFields(mapping_value, &.{ "check_id", "wall_ms", "budget_scope", "budget_origin", "binding_required", "program" });
             const mapping = mapping_value.object;
+            if (version >= 6) {
+                try validateWorkflowProgram(mapping.get("program") orelse return error.MissingWorkflowProgram, job);
+            } else if (mapping.contains("program")) return error.UnsupportedSchemaVersion;
             const binding = mapping.get("binding_required") orelse return error.InvalidWorkflowContracts;
             if (binding != .bool or !binding.bool) return error.UnboundWorkflowContext;
             const budget_scope = mapping.get("budget_scope") orelse return error.InvalidWorkflowContracts;
@@ -407,7 +620,10 @@ fn validateWorkflowContracts(root: std.json.ObjectMap, version: i64) !void {
                 try mapped_checks.put(check_id.string, {});
                 const recipe = checks.get(check_id.string).?.object.get("recipe").?.object;
                 if (!std.mem.eql(u8, recipe.get("source").?.object.get("path").?.string, path)) return error.UnboundRecipeSource;
-                if (recipe.get("workflow_job")) |name| if (!std.mem.eql(u8, name.string, entry.key_ptr.*)) return error.InvalidWorkflowContracts;
+                if (recipe.get("workflow_job")) |name| {
+                    if (!std.mem.eql(u8, name.string, entry.key_ptr.*)) return error.InvalidWorkflowContracts;
+                    if (version >= 6) try validateProgramCheck(mapping.get("program").?, checks.get(check_id.string).?);
+                }
             }
         }
         var completed = std.StringHashMap(void).init(std.heap.page_allocator);
@@ -536,7 +752,7 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
     try rejectUnknownFields(document, &.{ "schema_version", "source", "routing", "modules", "checks", "migration", "workflow_contracts" });
     try validateOptionalSections(root);
     const version = root.get("schema_version") orelse return error.UnsupportedSchemaVersion;
-    if (version != .integer or (version.integer < 1 or version.integer > 5)) return error.UnsupportedSchemaVersion;
+    if (version != .integer or (version.integer < 1 or version.integer > 6)) return error.UnsupportedSchemaVersion;
     try validateRecipes(root, version.integer);
     try validateWorkflowContracts(root, version.integer);
     const routing = try object(root.get("routing") orelse return error.InvalidRouting);
@@ -777,6 +993,9 @@ fn run(init: std.process.Init) !void {
     const allocator = init.arena.allocator();
     const args = try init.minimal.args.toSlice(allocator);
     if (args.len < 3) return error.InvalidArguments;
+    const inspect_program = std.mem.eql(u8, args[2], "inspect-program");
+    const bind_program = std.mem.eql(u8, args[2], "bind-program-environment");
+    if ((inspect_program or bind_program) and args.len != 4) return error.InvalidArguments;
     const output_policy = std.mem.eql(u8, args[2], "output-policy");
     if (output_policy and args.len != 5) return error.InvalidArguments;
     const targeted = std.mem.eql(u8, args[2], "--platform");
@@ -790,6 +1009,23 @@ fn run(init: std.process.Init) !void {
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], allocator, .limited(16 * 1024 * 1024));
     const parsed = try std.json.parseFromSlice(Value, allocator, bytes, .{ .duplicate_field_behavior = .@"error" });
     defer parsed.deinit();
+    if (inspect_program or bind_program) {
+        const inspected = try select(allocator, parsed.value, &.{}, "full");
+        defer inspected.deinit(allocator);
+        const reference = try programReference(try object(parsed.value), args[3]);
+        var program_output: std.Io.Writer.Allocating = .init(allocator);
+        defer program_output.deinit();
+        var program_stringify: std.json.Stringify = .{ .writer = &program_output.writer };
+        if (bind_program) {
+            const bound = try bindWorkflowProgram(allocator, parsed.value, args[3], init.environ_map);
+            defer bound.deinit(allocator);
+            try program_stringify.write(.{ .argv = bound.argv, .controls = reference.program.object.get("controls").?, .argument_binding_only = true, .workflow_context_complete = false, .execution_supported = false });
+        } else try program_stringify.write(.{ .program = reference.program, .workflow_context_complete = false, .execution_supported = false });
+        try program_output.writer.writeByte('\n');
+        if (program_output.written().len > 16 * 1024 * 1024) return error.DiagnosticLimit;
+        try std.Io.File.stdout().writeStreamingAll(init.io, program_output.written());
+        return;
+    }
     if (output_policy) {
         const inspected = try select(allocator, parsed.value, &.{}, "pr");
         defer inspected.deinit(allocator);

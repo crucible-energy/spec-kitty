@@ -1081,6 +1081,10 @@ def test_checked_in_authority_matches_pinned_hosted_routing(native_selector: Pat
             "ci-nightly.universe-equivalence",
             "ci-shard-recapture.strict-shard-timings-check",
             "contracts.verify-pins",
+            "contracts.python-checks",
+            "contracts.validate-bundle",
+            "contracts.resolver-parity",
+            "contracts.negative-tests",
         }
     )
     assert local.workflow_jobs == additions
@@ -1249,6 +1253,15 @@ fn allocateWorkflowSelection(allocator: std.mem.Allocator, document: std.json.Va
     defer selected.deinit(allocator);
     try std.testing.expectEqual(@as(usize, 92), selected.unbound_workflow_jobs.len);
 }
+fn allocateBoundProgram(allocator: std.mem.Allocator, document: std.json.Value) !void {
+    var environment: std.process.Environ.Map = .init(std.testing.allocator);
+    defer environment.deinit();
+    try environment.put("RUNNER_TEMP", "/private/synthetic native temp");
+    try environment.put("CONTRACTS_ROOT", "contracts");
+    const bound = try selection.bindWorkflowProgram(allocator, document, "contracts.validate-bundle", &environment);
+    defer bound.deinit(allocator);
+    try std.testing.expectEqual(@as(usize, 5), bound.argv.len);
+}
 test "selection allocation and input bounds" {
     const bytes =
         \\__FIXTURE_JSON__
@@ -1269,6 +1282,8 @@ test "selection allocation and input bounds" {
     defer workflow.deinit();
     try std.testing.checkAllAllocationFailures(std.testing.allocator, allocateWorkflowSelection, .{workflow.value});
     try std.testing.checkAllAllocationFailures(no_resize.allocator(), allocateWorkflowSelection, .{workflow.value});
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, allocateBoundProgram, .{workflow.value});
+    try std.testing.checkAllAllocationFailures(no_resize.allocator(), allocateBoundProgram, .{workflow.value});
     try std.testing.expectEqual(no_resize.allocated_bytes, no_resize.freed_bytes);
     const paths = try std.testing.allocator.alloc([]const u8, 32769);
     defer std.testing.allocator.free(paths);
@@ -2117,3 +2132,172 @@ def test_native_binds_actual_process_environment_without_execution(tmp_path: Pat
     assert inspected["argv"][2][-3] == "contracts"
     assert inspected["argument_binding_only"] is True
     assert inspected["workflow_context_complete"] is False and inspected["execution_supported"] is False
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "echo ignored",
+        "python tool.py $VALUE",
+        'python tool.py "$VALUE"tail',
+        'python tool.py "$VALUE/$OTHER"',
+        "python tool.py @environment.0",
+        "set -u\nstatus=0\npython first.py || status=1\npython second.py\nexit $status",
+        "set -u\nstatus=0\npython first.py || status=2\nexit $status",
+    ],
+)
+def test_program_normalization_refuses_different_shell_control(body: str) -> None:
+    from scripts.validation.extract_gates import _step_program
+
+    assert _step_program(body) is None
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "python one.py\npython two.py",
+        "set -euo pipefail\npython one.py\npython two.py",
+        "set -u\nstatus=0\npython one.py || status=1\npython two.py || status=1\nexit $status",
+    ],
+)
+def test_program_normalization_preserves_failure_class_and_order(body: str) -> None:
+    from scripts.validation.extract_gates import _step_program
+
+    result = _step_program(body)
+    assert result is not None
+    commands, arguments, failure = result
+    assert commands == [["python", "one.py"], ["python", "two.py"]] and arguments == []
+    assert failure == ("collect-failures" if "status=0" in body else "fail-fast")
+
+
+def test_every_source_job_has_deterministic_program_or_exact_refusal() -> None:
+    from scripts.validation.extract_gates import _workflow_program
+
+    authority = json.loads((Path(__file__).resolve().parents[2] / "tools/validation/gates.json").read_text())
+    for contract in authority["workflow_contracts"]:
+        for name, mapping in contract["jobs"].items():
+            assert mapping["program"] == _workflow_program(contract["definition"]["jobs"][name])
+            assert mapping["binding_required"] is True and mapping["program"]["context_required"] is True
+    contracts = next(row for row in authority["workflow_contracts"] if row["id"] == "contracts")
+    assert authority["checks"]["contracts.validate-bundle"]["dependencies"] == ["contracts.verify-pins"]
+    assert authority["checks"]["contracts.resolver-parity"]["dependencies"] == ["contracts.validate-bundle"]
+    assert contracts["jobs"]["contracts-gate"]["program"]["status"] == "unsupported"
+
+
+@pytest.mark.parametrize(
+    ("subject", "variables", "error"),
+    [
+        ("contracts.validate-bundle", {"CONTRACTS_ROOT": "contracts"}, "MissingEnvironmentBinding"),
+        ("contracts.validate-bundle", {"RUNNER_TEMP": "/private/synthetic", "CONTRACTS_ROOT": "other"}, "EnvironmentBindingMismatch"),
+        ("ci-fleet-verdict.identify", {"REPORT_REPOSITORY": "private-credential-body"}, "UnboundEnvironmentVariable"),
+        ("contracts.contracts-gate", {}, "UnsupportedWorkflowProgram"),
+        ("unrecognized.job", {}, "MissingWorkflowProgram"),
+    ],
+)
+def test_actual_environment_program_binding_refuses_incomplete_or_unauthorized_context(
+    native_selector: Path, subject: str, variables: dict[str, str], error: str
+) -> None:
+    authority = Path(__file__).resolve().parents[2] / "tools/validation/gates.json"
+    environment = {key: value for key, value in os.environ.items() if key not in {"RUNNER_TEMP", "CONTRACTS_ROOT"}}
+    environment.update(variables)
+    result = subprocess.run(
+        [str(native_selector), str(authority), "bind-program-environment", subject], env=environment, capture_output=True, text=True, timeout=20
+    )
+    assert result.returncode != 0 and result.stdout == "" and error in result.stderr
+    assert "private-credential-body" not in result.stderr
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "missing",
+        "status",
+        "context",
+        "step",
+        "count",
+        "failure",
+        "binding-command",
+        "binding-executable",
+        "binding-variable",
+        "duplicate-binding",
+        "orphan-marker",
+        "unknown-field",
+    ],
+)
+def test_native_program_catalog_refuses_malformed_control_or_argument_binding(tmp_path: Path, native_selector: Path, fault: str) -> None:
+    authority = json.loads((Path(__file__).resolve().parents[2] / "tools/validation/gates.json").read_text())
+    contract = next(row for row in authority["workflow_contracts"] if row["id"] == "contracts")
+    mapping = contract["jobs"]["validate-bundle"]
+    program = mapping["program"]
+    if fault == "missing":
+        del mapping["program"]
+    elif fault == "status":
+        program["status"] = "accepted"
+    elif fault == "context":
+        program["context_required"] = False
+    elif fault == "step":
+        program["controls"][0]["step"] = -1
+    elif fault == "count":
+        program["controls"][0]["count"] = 0
+    elif fault == "failure":
+        program["controls"][0]["failure"] = "ignore"
+    elif fault == "binding-command":
+        program["argument_bindings"][0]["command"] = 999
+    elif fault == "binding-executable":
+        program["argument_bindings"][0]["argument"] = 0
+    elif fault == "binding-variable":
+        program["argument_bindings"][0]["variable"] = "BAD=NAME"
+    elif fault == "duplicate-binding":
+        program["argument_bindings"].append(program["argument_bindings"][0].copy())
+    elif fault == "orphan-marker":
+        program["argument_bindings"] = []
+    elif fault == "argv-crosslink":
+        authority["checks"]["contracts.validate-bundle"]["argv"][0][-1] = "--unreviewed"
+    else:
+        program["unrecognized"] = True
+    result = subprocess.run(
+        [str(native_selector), str(write_local(tmp_path, authority)), "inspect-program", "contracts.validate-bundle"], capture_output=True, text=True, timeout=20
+    )
+    assert result.returncode != 0 and result.stdout == "" and "selection refused" in result.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Actual Bash source semantics need a Bash platform; Windows remains unqualified")
+@pytest.mark.parametrize("collect", [False, True])
+def test_normalized_failure_class_matches_actual_bash_control(tmp_path: Path, collect: bool) -> None:
+    import shlex
+    from scripts.validation.extract_gates import _step_program
+
+    marker = tmp_path / "second command completed"
+    command = "touch " + shlex.quote(str(marker))
+    body = "set -u\nstatus=0\nfalse || status=1\n" + command + " || status=1\nexit $status" if collect else "false\n" + command
+    # The source grammar refuses shell builtins; use actual external tools in
+    # both source and inspection without introducing an execution engine.
+    body = body.replace("false", "/usr/bin/false").replace("touch ", "/usr/bin/touch ")
+    program = _step_program(body)
+    assert program is not None and program[2] == ("collect-failures" if collect else "fail-fast")
+    result = subprocess.run(["/bin/bash", "-e", "-c", body], capture_output=True, text=True, timeout=5)
+    assert result.returncode == 1 and marker.exists() is collect
+
+
+@pytest.mark.parametrize("fault", ["source-expression", "required-source-env", "oversized-variable"])
+def test_program_actual_environment_rejects_unbound_values(tmp_path: Path, native_selector: Path, fault: str) -> None:
+    authority = json.loads((Path(__file__).resolve().parents[2] / "tools/validation/gates.json").read_text())
+    contract = next(row for row in authority["workflow_contracts"] if row["id"] == "contracts")
+    environment = os.environ | {"RUNNER_TEMP": str(tmp_path), "CONTRACTS_ROOT": "contracts"}
+    expected = "UnboundEnvironmentExpression"
+    if fault == "source-expression":
+        contract["definition"]["env"]["CONTRACTS_ROOT"] = "${{ secrets.SYNTHETIC }}"
+    elif fault == "required-source-env":
+        environment.pop("CONTRACTS_ROOT")
+        expected = "MissingEnvironmentBinding"
+    else:
+        environment["RUNNER_TEMP"] = "a" * 4097
+        expected = "InputLimit"
+    result = subprocess.run(
+        [str(native_selector), str(write_local(tmp_path, authority)), "bind-program-environment", "contracts.validate-bundle"],
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert result.returncode != 0 and result.stdout == "" and expected in result.stderr
