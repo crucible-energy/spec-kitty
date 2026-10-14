@@ -329,3 +329,18 @@ Regeneration preserves every workflow and step source digest and field binding. 
 ### Known Limitations
 
 The inventory remains non-authoritative, non-runnable, and non-validating. Extracted argv does not qualify actions, environment provisioning, platform/version matrices, conditionals, triggers, publication, dependency execution, resource budgets, or hooks. WP01 and the full native-validation mission remain incomplete. Existing validators, thresholds, user assets, branch guards, source rights, and the planned production boundaries are preserved. Required focused coverage and baseline gates, fixed-candidate independent review, and delivery remain prerequisites; external receipts will retain their actual results without editing this frozen candidate merely to record a pass.
+
+
+## October 14, 2026 — Require A Complete Executable Specification
+
+### User Experience Findings
+
+Routing-only success can be mistaken for readiness to validate a commit. The native public entry point selects the required checks, but the canonical JSON has no executable definitions. A new acceptance control invokes that actual entry point in full mode, then requires every selected check to have a command recipe, explicit full-mode and platform applicability, and positive declared bounds. The genuine RED result is one failure at the missing definitions assertion, with 114 unrelated controls deselected; the original process joined with exit one.
+
+### Engineering Decisions
+
+Commit this acceptance boundary separately before implementation. The existing native schema validator remains responsible for command, dependency, and budget shape; the new control makes checked-in integration completeness observable. It does not execute imported workflow commands or claim that metadata establishes validator behavior. A private computed source-input record binds the unchanged router and local routing: twelve jobs have fully static run recipes, and six retain dynamic or advisory run behavior. Their actual source conditions, dependency identities, runners, provisioning references, and wall budgets are preserved for explicit local mapping. The record is derived migration input, not another maintained authority, runnable gate, or progress metric. All static test-path references examined exist.
+
+### Known Limitations
+
+The committed acceptance control is intentionally RED until the executable specification is implemented; it is not a passing native gate or ready-for-review WP01. Condition equivalence, provisioning, all required checks and publication modes, platform qualification, execution and cleanup bounds, staged candidate isolation, hooks, native coverage, and hosted retirement remain open. Native production source has not changed, and Python controls do not qualify its coverage. Original validation failures and source-input hashes are retained externally. No model quality or comparable token/cost saving is asserted.

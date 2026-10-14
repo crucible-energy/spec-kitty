@@ -50,6 +50,33 @@ def write_local(root: Path, specification: dict[str, object]) -> Path:
     return path
 
 
+def test_canonical_specification_binds_every_selected_check(native_selector: Path) -> None:
+    """A full local proposal needs commands and bounds, beyond routing parity."""
+    repository = Path(__file__).resolve().parents[2]
+    authority = repository / "tools/validation/gates.json"
+    result = subprocess.run(
+        [str(native_selector), str(authority), "full"],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    selected = json.loads(result.stdout)["selected_jobs"]
+    assert selected, "Full selection must retain required checks"
+    specification = json.loads(authority.read_text(encoding="utf-8"))
+    checks = specification.get("checks")
+    assert isinstance(checks, dict) and checks, "Canonical authority lacks executable check definitions"
+    missing = sorted(set(selected) - checks.keys())
+    assert not missing, f"Selected checks lack executable definitions: {missing}"
+    for check_id in selected:
+        definition = checks[check_id]
+        assert definition["argv"], f"Empty command recipe: {check_id}"
+        assert "full" in definition["modes"], f"Required full check excluded: {check_id}"
+        assert definition["platforms"], f"Missing qualification platform: {check_id}"
+        assert all(type(value) is int and value > 0 for value in definition["budgets"].values())
+    assert json.loads(result.stdout)["validation_performed"] is False
+
+
 def test_existing_workflow_positive_control(tmp_path: Path) -> None:
     workflow = {
         "jobs": {
