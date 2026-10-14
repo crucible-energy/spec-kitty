@@ -1422,3 +1422,75 @@ def test_extraction_refuses_unqualified_continuations(tmp_path: Path, command: s
     report = extract_workflows(tmp_path)
     assert report["workflows"][0]["jobs"]["check"]["steps"][0]["argv"] is None
     assert any(item["reason"] == "shell_semantics" for item in report["blockers"])
+
+
+@pytest.mark.parametrize(
+    ("mode", "paths", "expected"),
+    [
+        ("pr", ["docs/operator.md"], [("lint", "always_on", ""), ("test-docs", "matched_group", "docs"), ("test-runtime", "dependency", "test-docs")]),
+        ("full", [], [("lint", "always_on", ""), ("test-docs", "full", ""), ("test-runtime", "dependency", "test-docs"), ("test-runtime", "full", "")]),
+        (
+            "pr",
+            ["src/new/unmapped.py"],
+            [
+                ("lint", "always_on", ""),
+                ("test-docs", "unmatched_source", ""),
+                ("test-runtime", "dependency", "test-docs"),
+                ("test-runtime", "unmatched_source", ""),
+            ],
+        ),
+    ],
+)
+def test_native_selection_explains_every_selected_check(
+    tmp_path: Path, native_selector: Path, mode: str, paths: list[str], expected: list[tuple[str, str, str]]
+) -> None:
+    specification: Any = local_specification()
+    specification["checks"]["test-docs"]["dependencies"] = ["test-runtime"]
+    result = subprocess.run([str(native_selector), str(write_local(tmp_path, specification)), mode, *paths], check=True, capture_output=True, text=True, timeout=20)
+    actual = json.loads(result.stdout)
+    assert [(row["check"], row["kind"], row["reference"]) for row in actual["selected_reasons"]] == expected
+    assert {row["check"] for row in actual["selected_reasons"]} == set(actual["selected_jobs"])
+    assert actual["target_checked"] is False
+    assert actual["validation_performed"] is False
+
+
+@pytest.mark.parametrize("platform", ["macos", "linux", "windows"])
+def test_native_commit_target_uses_declared_mode_and_platform(tmp_path: Path, native_selector: Path, platform: str) -> None:
+    result = subprocess.run(
+        [str(native_selector), str(write_local(tmp_path, local_specification())), "commit", "--platform", platform, "docs/operator.md"],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    actual = json.loads(result.stdout)
+    assert actual["selected_jobs"] == ["lint", "test-docs"]
+    assert actual["requested_platform"] == platform and actual["target_checked"] is True
+    assert actual["selection_only"] is True and actual["execution_supported"] is False
+
+
+@pytest.mark.parametrize("fault", ["platform", "mode", "dependency-platform", "unknown-platform", "missing-platform", "routing-only"])
+def test_native_target_refuses_unavailable_required_checks(tmp_path: Path, native_selector: Path, fault: str) -> None:
+    specification: Any = local_specification()
+    target = "windows"
+    if fault == "platform":
+        specification["checks"]["test-docs"]["platforms"] = ["linux"]
+    elif fault == "mode":
+        specification["checks"]["test-docs"]["modes"] = ["full"]
+    elif fault == "dependency-platform":
+        specification["checks"]["test-docs"]["dependencies"] = ["test-runtime"]
+        specification["checks"]["test-runtime"]["platforms"] = ["linux"]
+    elif fault == "unknown-platform":
+        target = "unqualified"
+    elif fault == "missing-platform":
+        del specification["checks"]["lint"]["platforms"]
+    else:
+        del specification["checks"]
+    result = subprocess.run(
+        [str(native_selector), str(write_local(tmp_path, specification)), "commit", "--platform", target, "docs/operator.md"],
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert result.returncode != 0 and result.stdout == ""
+    assert "selection refused" in result.stderr

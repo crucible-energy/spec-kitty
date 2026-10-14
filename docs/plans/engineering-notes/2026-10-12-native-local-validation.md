@@ -421,3 +421,21 @@ The final design uses direct read-only Windows `CreateFileW` and `ReadFile` call
 Self-review removed the initial CRT conversion design in favor of direct `ReadFile`, keeping native ownership intact and removing another platform flag/dependency. The preceding actual source candidate and its 38 passing focused controls remain external predecessors, not final qualification. POSIX retains mandatory no-follow/nonblocking open flags and now verifies regular type, size, and stable held/path metadata before returning bytes. Ordinary shared code, nineteen migration workflows, eighteen recipes, native selector bytes/images, and the previously reviewed statement-entry method remain unchanged.
 
 The successor controls exercise the real adapter's function bindings, fixed-width layouts, read-only flags, metadata/content ordering, unsafe input refusal, identity drift, API failure, malformed read counts, and cleanup through simulated native APIs and actual local descriptors. The true Windows-kernel test is conditional and remains skipped on this macOS host; host simulations cannot establish Windows execution. Runtime, hook, release, publication, all-platform, and whole WP01 acceptance remain open. Required final source-appropriate gates, delivery, and separate independent re-review remain prerequisites; immutable results are recorded externally.
+
+## October 14, 2026 — Explain Selection And Refuse Unsupported Targets
+
+### User Experience Findings
+
+The native selector validates recipe modes and platforms but does not apply them to a caller's requested target. It also omits the stable reasons required by T003. New public-entry controls require reasons for always-on, matched-group, full, conservative unknown-source, and dependency selection, and require an explicit commit/platform request to preserve the roster or refuse an unavailable selected check. These are declaration and selection controls, not platform execution.
+
+### Engineering Decisions
+
+Retain the existing `pr` and `full` preview interfaces and their exact selected check sets. Add `commit` as the path-sensitive selection mode, and an optional explicit `--platform macos|linux|windows` target. Target checking must include transitive dependencies and cannot silently omit required work. Selection reasons use sorted check/kind/reference tuples from the one authority. Untargeted previews remain explicitly unbound to a platform. This closes an actual WP01 selection gap before the staged candidate and executor dependencies; it does not replace those dependencies.
+
+### Known Limitations
+
+The controls are being reproduced before native implementation. Actual Windows and Linux execution, mode families beyond commit/full, complete non-router workflow translation, staged input production, execution, hooks, and hosted retirement remain open. Current native source changes require new statement-entry accounting, actual instrumented counters, relevant closure, and semantic equivalence proof within the accepted method's limits; no old measurement or platform approval transfers automatically. WP01 remains in progress.
+
+### Failing-First Result
+
+The initial sixty-second wrapper ended during pytest's teardown and joined its owned group; that deadline diagnostic remains preserved and does not count as a terminal assertion result. The unchanged control rerun under a 120-second bound joined naturally with six failures and six passes. Three failures observe the missing native reasons, and three observe refusal of the intended commit-mode positive request. Negative controls retain their refusal, but cannot alone prove target checking until their paired positive requests pass. No native rebuild or source change was used for this reproduction.
