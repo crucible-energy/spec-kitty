@@ -614,3 +614,20 @@ The first boundary run has thirty-three passes and two diagnosed failures. The s
 The unchanged narrow instrumenter genuinely refused two inline if-expression value nodes in the first current source inventory: field access and an empty-slice address. Its generic block insertion cannot preserve such expression values. Preserve that refusal, all predecessor images and accounting. Express the same steps initialization with an explicit variable and guarded assignment, keeping every executable statement eligible and the accepted instrumentation/accounting rules unchanged. No node is silently excluded and no metric is renamed. The revised partition records 7041 nodes and 1098 eligible explicit entries before hit observation. Full executable-statement denominator, semantics and ninety-percent proof remain open requirements; this scoped source refactor does not satisfy them.
 
 Freeze the six owned paths before the owning allocation/API/semantic module, affected consumers, and required delivery baseline. Use fresh physical production/instrumented source-image/closure and actual counter controls for changed native bytes; retain results externally. No prior temporary companion, model/corpus lane, source approval, hook, executable workflow or later work package is selected.
+
+
+## October 14, 2026 — Correct Independent Normalization Findings
+
+### User Experience Findings
+
+Independent review requests changes to `2de0e7ff73c6fc7a2f5fcfec6456ff1997ca1345`. Its twenty-two bounded probes establish three introduced correctness defects: quoted variable prefixes and suffixes can hide backtick substitution from the existing refusal; an unbraced uppercase prefix can truncate the complete Bash variable name; and native program validation rejects ordinary empty argument data accepted by extraction and the flat command schema. The review report and original probes remain preserved outside the candidate, with report SHA-256 `46173842a7d974ee985021915add32e1703e6ec52138f7c9a83ae47408826aa9`. No occurrence of the first two counterexamples in the current catalog is asserted.
+
+### Engineering Decisions And Ownership
+
+Root authorizes only the smallest corrections in the same six source paths and existing lane, followed by another sequential independent review. Add and deliver genuine RED regression controls before changing production behavior. Preserve `${VALUE}tail`, whole uppercase unbraced names, ordinary literal empty arguments, and the existing refusal of empty executables and malformed argument types. Refuse unsupported backtick syntax in the original command before placeholder replacement; do not evaluate it. Parse the complete Bash variable token before admitting the existing uppercase-name class.
+
+The review's supported Op completion automatically committed only `kitty-ops/01M4Y9FKATY2E5JAD2B1ZD1TZ8.jsonl` on the unrelated primary branch at `87abef9cc6dca6e4f5c0ca70d5c2b934c904e2ce`. Root protects that primary history and its other dirty work. Root separately authorizes delivering an exact, closed journal copy at the same repository-relative path in this owned lane after checking its committed blob, physical source, and SHA-256 `95eb710c0c63a00c0fde88ab4141ef9011cdac6aba84583ffa8ce6a2a44cbb6f`. This is immutable metadata recovery across branches, not a new Op or authority; the original location remains preserved. Do not cherry-pick unrelated primary history or edit the primary checkout.
+
+### Known Limitations
+
+This correction does not qualify complete workflow context, native execution, staged candidates, hooks, platforms, publication, hosted retirement, or WP01 acceptance. Full native executable-statement denominator, semantics, and coverage proof remain open. Changed native bytes require current production and instrumentation subjects; unchanged predecessors remain retained rather than relabeled. Freeze the final source and notes before affected consumer and required delivery gates, and retain results externally.

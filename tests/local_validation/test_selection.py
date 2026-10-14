@@ -2301,3 +2301,81 @@ def test_program_actual_environment_rejects_unbound_values(tmp_path: Path, nativ
         timeout=20,
     )
     assert result.returncode != 0 and result.stdout == "" and expected in result.stderr
+
+
+@pytest.mark.parametrize(
+    "word",
+    [
+        '"$VALUE`printf substitution`"',
+        '"`printf substitution`$VALUE"',
+        r'"$VALUE\`printf substitution\`"',
+        r'"\`printf substitution\`$VALUE"',
+        '"$VALUEtail"',
+        '"$VALUE_tail"',
+        '"$VALUE9tail"',
+        '"${VALUEtail}"',
+    ],
+)
+def test_review_program_refuses_substitution_and_incomplete_variable_tokens(word: str) -> None:
+    from scripts.validation.extract_gates import _step_program
+
+    assert _step_program("python capture.py " + word) is None
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Actual Bash argument controls require Bash; Windows remains unqualified")
+@pytest.mark.parametrize(
+    ("word", "variable", "prefix", "suffix", "expected"),
+    [
+        ('"${VALUE}tail"', "VALUE", "", "tail", "shorttail"),
+        ('"$VALUE/tail"', "VALUE", "", "/tail", "short/tail"),
+        ('"prefix$VALUE"', "VALUE", "prefix", "", "prefixshort"),
+        ('"$VALUEOTHER"', "VALUEOTHER", "", "", "whole"),
+    ],
+)
+def test_review_supported_argument_boundary_agrees_with_actual_bash(tmp_path: Path, word: str, variable: str, prefix: str, suffix: str, expected: str) -> None:
+    import shlex
+    import sys
+    from scripts.validation.extract_gates import _step_program
+
+    capture = tmp_path / "capture.py"
+    capture.write_text("import json,sys\nprint(json.dumps(sys.argv[1:]))\n")
+    source = shlex.quote(sys.executable) + " " + shlex.quote(str(capture)) + " " + word
+    program = _step_program(source)
+    assert program is not None
+    argv, bindings, failure = program
+    assert argv == [[sys.executable, str(capture), "@environment.0"]]
+    assert bindings == [{"command": 0, "argument": 2, "variable": variable, "prefix": prefix, "suffix": suffix}]
+    assert failure == "fail-fast"
+    actual = subprocess.run(
+        ["/bin/bash", "-eu", "-c", source], env=os.environ | {"VALUE": "short", "VALUEOTHER": "whole"}, capture_output=True, text=True, timeout=5
+    )
+    assert actual.returncode == 0, actual.stderr
+    assert json.loads(actual.stdout) == [expected]
+
+
+@pytest.mark.parametrize("fault", ["ordinary-empty", "empty-executable", "non-string-argument"])
+def test_review_native_program_distinguishes_empty_argument_data_from_invalid_words(tmp_path: Path, native_selector: Path, fault: str) -> None:
+    from scripts.validation.extract_gates import _workflow_program
+
+    authority = json.loads((Path(__file__).resolve().parents[2] / "tools/validation/gates.json").read_text())
+    contract = next(row for row in authority["workflow_contracts"] if row["id"] == "contracts")
+    job = contract["definition"]["jobs"]["verify-pins"]
+    job["steps"][2]["run"] += ' ""'
+    program = _workflow_program(job)
+    assert program["status"] == "normalized" and program["argv"][0][-1] == ""
+    contract["jobs"]["verify-pins"]["program"] = program
+    authority["checks"]["contracts.verify-pins"]["argv"] = [command.copy() for command in program["argv"]]
+    if fault == "empty-executable":
+        program["argv"][0][0] = ""
+    elif fault == "non-string-argument":
+        program["argv"][0][-1] = 7
+    specification = write_local(tmp_path, authority)
+    for mode in ["inspect-program", "bind-program-environment"]:
+        actual = subprocess.run([str(native_selector), str(specification), mode, "contracts.verify-pins"], capture_output=True, text=True, timeout=20)
+        if fault != "ordinary-empty":
+            assert actual.returncode != 0 and actual.stdout == "" and "selection refused" in actual.stderr
+        else:
+            assert actual.returncode == 0, actual.stderr
+            inspected = json.loads(actual.stdout)
+            argv = inspected["program"]["argv"] if mode == "inspect-program" else inspected["argv"]
+            assert argv[0][-1] == "" and inspected["workflow_context_complete"] is False and inspected["execution_supported"] is False
