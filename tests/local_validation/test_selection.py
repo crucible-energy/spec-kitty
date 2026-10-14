@@ -613,3 +613,52 @@ def test_extraction_preserves_lf_ascii_blanks_and_literal_arguments(tmp_path: Pa
     (directory / "literal.yml").write_text(yaml.safe_dump({"jobs": {"check": {"steps": [{"run": command}]}}}))
     report = extract_workflows(tmp_path)
     assert report["workflows"][0]["jobs"]["check"]["steps"][0]["argv"] == [["python", "-m", "tool", "café", ""], ["python", "-m", "build"]]
+
+
+@pytest.mark.parametrize("preamble", ["", "# Documentation only\n", "# Comment ending with a backslash \\\n"])
+def test_extraction_continued_static_commands_match_bash(tmp_path: Path, preamble: str) -> None:
+    """Continuation removal preserves actual argv without executing workflow data."""
+    import shlex
+    import sys
+
+    from scripts.validation.extract_gates import extract_workflows
+
+    directory = tmp_path / ".github" / "workflows"
+    directory.mkdir(parents=True)
+    program = tmp_path / "argv_probe.py"
+    program.write_text("import json, sys\nprint(json.dumps(sys.argv[1:]))\n")
+    command = preamble + f"{shlex.quote(sys.executable)} {shlex.quote(str(program))} 'first value' \\\n 'café' \\\n ''\n"
+    (directory / "continued.yml").write_text(yaml.safe_dump({"jobs": {"check": {"steps": [{"run": command}]}}}))
+    report = extract_workflows(tmp_path)
+    argv = report["workflows"][0]["jobs"]["check"]["steps"][0]["argv"]
+    assert argv is not None
+    assert argv[0][2:] == ["first value", "café", ""]
+    shell = subprocess.run(["/bin/bash", "--noprofile", "--norc", "-c", command], check=True, capture_output=True, text=True, timeout=20)
+    direct = subprocess.run(argv[0], check=True, capture_output=True, text=True, timeout=20)
+    assert json.loads(shell.stdout) == json.loads(direct.stdout)
+    assert not any(item["reason"] == "shell_semantics" for item in report["blockers"])
+    assert report["runnable"] is False
+    assert report["validation_performed"] is False
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "python -m tool 'quoted\\\ncontinuation'",
+        'python -m tool "quoted\\\ncontinuation"',
+        "python -m tool \\\\\nnext",
+        "python -m tool \\",
+        "python -m tool \\\n$(id)",
+        "python -m tool \\\n# inline comment",
+        "# No executable command \\",
+    ],
+)
+def test_extraction_refuses_unqualified_continuations(tmp_path: Path, command: str) -> None:
+    from scripts.validation.extract_gates import extract_workflows
+
+    directory = tmp_path / ".github" / "workflows"
+    directory.mkdir(parents=True)
+    (directory / "refused.yml").write_text(yaml.safe_dump({"jobs": {"check": {"steps": [{"run": command}]}}}))
+    report = extract_workflows(tmp_path)
+    assert report["workflows"][0]["jobs"]["check"]["steps"][0]["argv"] is None
+    assert any(item["reason"] == "shell_semantics" for item in report["blockers"])
