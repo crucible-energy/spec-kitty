@@ -394,3 +394,18 @@ The native test fixture can reuse an explicitly supplied completed image only af
 WP01 remains in progress. The selector explicitly reports that execution is unsupported, and unknown modes or incomplete recipe bindings refuse. Native staged candidate construction, input production, dependency execution, condition interpretation, toolchain provisioning, hooks, supervision, required platform/full/release/package/docs publication, and hosted retirement remain unqualified. The checked-in recipes cannot authorize imported commands, credentials, canonical effects, or a successful validation verdict by themselves. The unbound commit range and classifier input files must come from genuine candidate context and actual native outcomes.
 
 Current-source native coverage is a separate review subject. The retained instrumenter first refused the full `for` AST form before creating output. A private successor treats that form with the existing control-body rule; its transformation, complete current syntax partition, counters, and dependency closure require current evidence and independent review. Earlier source eligibility or coverage approval does not transfer. Python coverage and debug line mappings do not measure native statements. Actual final gates and delivery receipts remain external so recording a pass does not alter the frozen candidate. Token, cost, and comparable savings measurements remain unknown.
+
+
+## October 14, 2026 — Refuse Unsafe Platform Input Correctly
+
+### User Experience Findings
+
+Independent review rejected the preceding delivered increment because the input adapter evaluates two POSIX-only flags before it can issue its bounded refusal on Windows. Three genuine failing-first controls reproduce that uncaught `AttributeError` through an isolated adapter I/O seam, without altering the process-wide `os` module. They require valid bounded input to remain usable and unsafe directory/reparse attributes to refuse before a content handle is acquired. The original joined with three failures; this is simulation of the missing capability, not a Windows execution result.
+
+### Engineering Decisions
+
+Preserve the platform requirements, finite bounds, regular-file and link safeguards, and all predecessor evidence. Repair only the adapter's file I/O and directly necessary controls. The maintained confined-write fallback and selected-template reader are inspected precedents, but neither supplies a portable no-follow reader for this boundary. The former is a path-based write procedure; the latter explicitly refuses descriptor-unsafe platforms. Reusing their weaker or unsupported behavior would not fix this read surface. Native source, compiler images, measurement method, workflows, and canonical recipe bytes stay unchanged.
+
+### Known Limitations
+
+The fix and successor gates are pending. Real Windows execution, installed hooks, native execution, WP01 completion, and hosted retirement remain unqualified. Simulated flag loss or API behavior cannot establish Windows qualification. No shared service, host, Source, store, model, or canonical effect is selected.

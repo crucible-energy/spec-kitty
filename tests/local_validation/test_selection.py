@@ -6,6 +6,7 @@ import os
 import subprocess
 from pathlib import Path
 from typing import Any
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -400,6 +401,79 @@ def test_native_recipe_refuses_incompatible_execution_declarations(tmp_path: Pat
     result = subprocess.run([str(native_selector), str(write_local(tmp_path, specification)), "full"], capture_output=True, text=True, timeout=20)
     assert result.returncode != 0
     assert result.stdout == ""
+
+
+class SimulatedWindowsInputIO:
+    """Exercise I/O decisions on real local descriptors, not Windows qualification."""
+
+    def __init__(self, attributes: int = 0x80, kind: int = 1) -> None:
+        self.attributes = attributes
+        self.file_kind = kind
+        self.descriptors: list[int] = []
+        self.content_opens = 0
+
+    def open(self, path: Path, content: bool) -> int:
+        if content:
+            self.content_opens += 1
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        self.descriptors.append(descriptor)
+        return descriptor
+
+    def info(self, descriptor: int) -> tuple[int, ...]:
+        info = os.fstat(descriptor)
+        return (self.attributes, info.st_dev, info.st_ino >> 32, info.st_ino & 0xFFFFFFFF, info.st_size, info.st_ctime_ns, info.st_mtime_ns)
+
+    def kind(self, descriptor: int) -> int:
+        return self.file_kind
+
+    def close(self, descriptor: int) -> None:
+        os.close(descriptor)
+
+    def descriptor(self, handle: int) -> int:
+        return handle
+
+
+def windows_input_seam(monkeypatch: pytest.MonkeyPatch, api: SimulatedWindowsInputIO) -> None:
+    from scripts.validation import check_inputs
+
+    # Replace only the adapter's os reference: no shared process/module flag mutation.
+    proxy = SimpleNamespace(name="nt", O_RDONLY=os.O_RDONLY, fstat=os.fstat, close=os.close, fdopen=os.fdopen)
+    monkeypatch.setattr(check_inputs, "os", proxy)
+    monkeypatch.setattr(check_inputs, "_windows_api", lambda: api, raising=False)
+
+
+def test_windows_missing_posix_flags_supports_bounded_regular_input(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    from scripts.validation.check_inputs import main
+
+    path = tmp_path / "result.json"
+    path.write_text(json.dumps(result_input()))
+    api = SimulatedWindowsInputIO()
+    windows_input_seam(monkeypatch, api)
+    assert main(["results", str(path)]) == 0
+    assert json.loads(capsys.readouterr().out)["blocks"] is False
+    assert api.content_opens == 1
+    for descriptor in api.descriptors:
+        with pytest.raises(OSError, match="Bad file descriptor"):
+            os.fstat(descriptor)
+
+
+@pytest.mark.parametrize("attributes", [0x10, 0x400])
+def test_windows_unsafe_attributes_refuse_before_content_open(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], attributes: int
+) -> None:
+    from scripts.validation.check_inputs import main
+
+    path = tmp_path / "unsafe.json"
+    path.write_text(json.dumps(result_input()))
+    api = SimulatedWindowsInputIO(attributes=attributes)
+    windows_input_seam(monkeypatch, api)
+    assert main(["results", str(path)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == "" and captured.err == "Local input refused\n"
+    assert api.content_opens == 0
+    for descriptor in api.descriptors:
+        with pytest.raises(OSError, match="Bad file descriptor"):
+            os.fstat(descriptor)
 
 
 def test_input_descriptor_is_closed_if_stream_construction_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
