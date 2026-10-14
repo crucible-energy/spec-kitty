@@ -2426,6 +2426,7 @@ fn exercise(fail: bool) !usize {
         const item = empty orelse break;
         total += item;
     }
+    total |= 1;
     return total;
 }
 pub fn main(init: std.process.Init) !void {
@@ -2491,6 +2492,8 @@ def test_native_statement_inventory_verifies_exact_source_bound_denominator(tmp_
     [
         ("fn broken( {", "ParseRefused"),
         ("fn f(flag: bool) u8 { return if (flag) 1 else 2; }", "UnsupportedStatement"),
+        ("fn yes() u8 { return 1; } fn f(flag: bool) u8 { return if (flag) yes() else yes(); }", "UnsupportedStatement"),
+        ("fn recover() u8 { return 1; } fn f(value: anyerror!u8) u8 { return value catch recover(); }", "UnsupportedStatement"),
         ("fn f(value: u8) u8 { return switch (value) { 1 => 2, else => 3 }; }", "UnsupportedStatement"),
     ],
 )
@@ -2559,9 +2562,96 @@ def test_native_statement_sentinel_observes_transfers_and_deferred_execution(tmp
         assert set(hits) <= {unit["node"] for unit in inventory["units"]}
         assert hits.count(node("continue")) == (0 if fail else 1)
         assert hits.count(node("break")) == (0 if fail else 1)
+        assert hits.count(node("total |= 1")) == (0 if fail else 1)
         assert hits.count(node("defer note(8)")) == hits.count(node("errdefer note(9)")) == 1
         assert hits.count(node("note(8)")) == 1 and hits.count(node("note(9)")) == int(fail)
         returning = node("return error.Synthetic") if fail else node("return total")
         assert hits.index(returning) < hits.index(node("note(8)"))
         if fail:
             assert hits.index(returning) < hits.index(node("note(9)")) < hits.index(node("note(8)"))
+
+
+@pytest.mark.parametrize(
+    ("path", "replacement", "remove"),
+    [
+        (("status",), None, True),
+        (("status",), 1, False),
+        (("context_required",), None, True),
+        (("argv",), None, True),
+        (("argv",), {}, False),
+        (("argv",), [], False),
+        (("argv",), ["python3"], False),
+        (("argv",), [[]], False),
+        (("controls",), None, True),
+        (("controls",), {}, False),
+        (("controls",), [], False),
+        (("controls", 0, "step"), None, True),
+        (("controls", 0, "start"), None, True),
+        (("controls", 0, "count"), None, True),
+        (("controls", 0, "failure"), None, True),
+        (("controls", 0, "step"), "2", False),
+        (("argument_bindings",), None, True),
+        (("argument_bindings",), {}, False),
+        (("argument_bindings", 0, "command"), None, True),
+        (("argument_bindings", 0, "argument"), None, True),
+        (("argument_bindings", 0, "variable"), None, True),
+        (("argument_bindings", 0, "prefix"), None, True),
+        (("argument_bindings", 0, "suffix"), None, True),
+        (("argument_bindings", 0, "command"), "0", False),
+        (("argument_bindings", 0, "variable"), "", False),
+        (("argument_bindings", 0, "variable"), "1INVALID", False),
+        (("argument_bindings", 0, "prefix"), "\x00", False),
+    ],
+)
+def test_native_program_envelope_refuses_omitted_or_mistyped_coordinates(
+    tmp_path: Path, native_selector: Path, path: tuple[str | int, ...], replacement: Any, remove: bool
+) -> None:
+    """A partial or mistyped program cannot become an executable argv binding."""
+    authority = json.loads((Path(__file__).resolve().parents[2] / "tools/validation/gates.json").read_text())
+    contract = next(row for row in authority["workflow_contracts"] if row["id"] == "contracts")
+    target = contract["jobs"]["validate-bundle"]["program"]
+    for component in path[:-1]:
+        target = target[component]
+    if remove:
+        del target[path[-1]]
+    else:
+        target[path[-1]] = replacement
+    result = subprocess.run(
+        [str(native_selector), str(write_local(tmp_path, authority)), "inspect-program", "contracts.validate-bundle"], capture_output=True, text=True, timeout=20
+    )
+    assert result.returncode != 0 and result.stdout == "" and "InvalidWorkflowProgram" in result.stderr
+
+
+@pytest.mark.parametrize("fault", ["commands", "arguments", "words", "marker", "unmarked-binding"])
+def test_native_program_bounds_and_argument_markers_refuse_before_context_binding(tmp_path: Path, native_selector: Path, fault: str) -> None:
+    authority = json.loads((Path(__file__).resolve().parents[2] / "tools/validation/gates.json").read_text())
+    contract = next(row for row in authority["workflow_contracts"] if row["id"] == "contracts")
+    program = contract["jobs"]["validate-bundle"]["program"]
+    expected = "InvalidWorkflowProgram"
+    if fault == "commands":
+        program["argv"] = [["python3"]] * 4097
+    elif fault == "arguments":
+        program["argv"] = [["python3", *([""] * 4096)]]
+    elif fault == "words":
+        program["argv"] = [["python3", *([""] * 4095)]] * 9
+        expected = "InputLimit"
+    else:
+        binding = program["argument_bindings"][0]
+        program["argv"][binding["command"]][binding["argument"]] = "@environment.invalid" if fault == "marker" else "ordinary"
+    result = subprocess.run(
+        [str(native_selector), str(write_local(tmp_path, authority)), "inspect-program", "contracts.validate-bundle"], capture_output=True, text=True, timeout=20
+    )
+    assert result.returncode != 0 and result.stdout == "" and expected in result.stderr
+
+
+@pytest.mark.parametrize(("field", "value"), [("status", 1), ("reason", None), ("reason", "unknown-control"), ("steps", None), ("steps", "0"), ("steps", [-1])])
+def test_native_unsupported_program_still_requires_exact_refusal_envelope(tmp_path: Path, native_selector: Path, field: str, value: object) -> None:
+    authority = json.loads((Path(__file__).resolve().parents[2] / "tools/validation/gates.json").read_text())
+    contract = next(row for row in authority["workflow_contracts"] if row["id"] == "contracts")
+    mapping = next(row for row in contract["jobs"].values() if row["program"]["status"] == "unsupported")
+    if value is None:
+        del mapping["program"][field]
+    else:
+        mapping["program"][field] = value
+    result = subprocess.run([str(native_selector), str(write_local(tmp_path, authority)), "full"], capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0 and result.stdout == "" and "InvalidWorkflowProgram" in result.stderr
