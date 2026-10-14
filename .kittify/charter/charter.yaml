@@ -54,8 +54,8 @@ directives:
     severity: warn
     references: []
   - id: DIR-002
-    title: '**Python 3.11+** (no legacy Python 2 support)'
-    description: '**Python 3.11+** (no legacy Python 2 support)'
+    title: Zig for new implementation; Python 3.11+ for retained code
+    description: New repo-owned CLI, library, tooling, adapter, and test implementation must use Zig. Retained Python code requires Python 3.11+ and is limited to bounded correctness or safety repairs, contract preservation, and migration until reviewed Zig parity permits replacement. A different new-language choice needs Sam's explicit approval for that exact change.
     severity: warn
     references: []
   - id: DIR-003

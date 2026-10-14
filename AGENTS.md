@@ -1,5 +1,16 @@
 # Spec Kitty Development Guidelines
 
+## New Implementation Language
+
+- New repo-owned CLI, library, tooling, adapter, and test implementation must
+  use Zig. Retained Python remains the behavior and release reference during
+  migration, with bounded correctness, safety, and contract repairs.
+- Keep browser-facing TypeScript, JavaScript, HTML, and CSS where the UI needs
+  them. A different language for new repo-owned implementation requires Sam's
+  approval for the exact change. Follow the charter's language directive.
+- Validate new Zig code with focused Zig tests and a safe-mode build. Retained
+  Python changes still need the existing pytest, ruff, and mypy gates.
+
 **Spec Kitty** is a toolkit for Spec-Driven Development (SDD) — clear, actionable specifications ahead of implementation, inspired by GitHub's [Spec Kit](https://github.com/github/spec-kit). **Spec Kitty CLI** bootstraps projects with the framework: directory structures, templates, and AI agent integrations. Every command template leads with a discovery interview; the CLI refuses to create specs or plans until the question set is answered.
 
 Make code easy to follow. Make the job look easy.
@@ -276,9 +287,16 @@ green-wash category 1, and never misattribute categories 2–3 to your own work.
 
 ## Code Style
 
-Python 3.11+. Follow standard conventions. Any changes to `__init__.py` require a version bump in `pyproject.toml` and a `CHANGELOG.md` entry.
+Retained Python requires 3.11+. Follow standard conventions. Any changes to
+`__init__.py` require a version bump in `pyproject.toml` and a `CHANGELOG.md`
+entry.
 
-**New code MUST pass `ruff` and `mypy` with zero issues and zero warnings. Do NOT disable, suppress, or relax checks (no blanket `# noqa`, `# type: ignore`, or per-file ignore additions) to achieve this — fix the code instead.** Narrowly-scoped, individually-justified suppressions are allowed only when the check is genuinely wrong about correct code, and must carry an inline rationale.
+**Changed Python code MUST pass `ruff` and `mypy` with zero issues and zero
+warnings. Do NOT disable, suppress, or relax checks (no blanket `# noqa`,
+`# type: ignore`, or per-file ignore additions) to achieve this — fix the code
+instead.** Narrowly-scoped, individually-justified suppressions are allowed
+only when the check is genuinely wrong about correct code, and must carry an
+inline rationale.
 
 **Pre-push: run the terminology guard when touching `src/doctrine/` or user-facing prose.** Some repo-wide gates run only in CI's `integration-tests-core-misc` job, NOT in the `fast-tests-*` suites — so a forbidden-term regression passes local doctrine runs and only fails at CI. Before pushing doctrine/prose changes, run `pytest tests/architectural/test_no_legacy_terminology.py` (≈0.1 s); it enforces the Terminology Canon (e.g. canonical `status commit` not `ceremony`; `Mission` not `feature`). The full `tests/architectural/` suite is the complete safety net.
 

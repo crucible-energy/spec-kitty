@@ -171,9 +171,14 @@ context for the detail).
 
 ### Languages and Frameworks
 
-**Python 3.11+** is required for all CLI and library code.
+**Zig** is required for new repo-owned CLI, library, tooling, adapter, and test
+implementation. Retained Python CLI and library code requires **Python 3.11+**
+for bounded correctness or safety repairs, contract preservation, and
+migration. A different language for new implementation needs Sam's explicit
+approval for the exact change. The current Python CLI and PyPI release remain
+in place until a Zig replacement passes reviewed parity gates.
 
-**Key dependencies:**
+**Retained Python dependencies:**
 - **typer** - CLI framework
 - **rich** - Console output
 - **ruamel.yaml** - YAML parsing (frontmatter)
@@ -182,7 +187,11 @@ context for the detail).
 
 ### Testing Requirements
 
-- **pytest** with **90%+ test coverage** for new code
+- New Zig code needs focused Zig tests and a safe-mode build before it can
+  replace a retained Python boundary. The existing gates below remain binding
+  for retained Python changes.
+
+- **pytest** with **90%+ test coverage** for changed retained Python code
 - **mypy --strict** must pass (no type errors)
 - **Integration tests** for CLI commands
 - **Unit tests** for core logic
@@ -197,7 +206,7 @@ context for the detail).
 ### Deployment and Constraints
 
 - **Cross-platform:** Linux, macOS, Windows 10+
-- **Python 3.11+** (no legacy Python 2 support)
+- **Python 3.11+** for the retained CLI (no legacy Python 2 support)
 - **Git required** (all worktree features depend on Git)
 - **PyPI distribution** via automated release workflow
 
