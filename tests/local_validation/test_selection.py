@@ -1,6 +1,7 @@
 """Discriminating local-authority controls against the existing public reader."""
 
 import json
+import hashlib
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,105 @@ import pytest
 import yaml
 
 from scripts.ci.gate_selection import load_router, select_gates
+
+
+def fixture_digest(raw: bytes) -> str:
+    return hashlib.sha256(raw).hexdigest()  # noqa: TID251 — raw staged-input checksum, not charter hashing
+
+
+def result_input() -> dict[str, Any]:
+    binding = {"candidate_tree": "a" * 40, "specification_sha256": "b" * 64, "invocation_id": "fixture-1"}
+    return {
+        "schema_version": 1,
+        "kind": "results",
+        "binding": binding,
+        "selected": ["lint"],
+        "unselected": ["test-docs"],
+        "results": [
+            {"id": "lint", "conclusion": "success", "binding": binding.copy()},
+            {"id": "test-docs", "conclusion": "skipped", "binding": binding.copy()},
+        ],
+    }
+
+
+def test_local_result_adapter_preserves_complete_dependency_outcomes() -> None:
+    from scripts.validation.check_inputs import evaluate_results
+
+    assert evaluate_results(result_input()) == {"blocks": False, "blocking": {}, "validation_performed": False}
+    request = result_input()
+    request["results"][0]["conclusion"] = "timed_out"
+    assert evaluate_results(request)["blocking"] == {"lint": "timed_out"}
+
+
+@pytest.mark.parametrize("fault", ["empty", "missing", "duplicate", "foreign", "skip-selected", "binding", "unknown-field"])
+def test_local_result_adapter_refuses_incomplete_or_unbound_work(fault: str) -> None:
+    from scripts.validation.check_inputs import evaluate_results
+
+    request = result_input()
+    if fault == "empty":
+        request["selected"] = []
+        request["results"] = []
+    elif fault == "missing":
+        request["results"].pop()
+    elif fault == "duplicate":
+        request["results"].append(request["results"][0].copy())
+    elif fault == "foreign":
+        request["results"][0]["id"] = "unknown"
+    elif fault == "skip-selected":
+        request["results"][0]["conclusion"] = "skipped"
+    elif fault == "binding":
+        request["results"][0]["binding"]["candidate_tree"] = "c" * 40
+    else:
+        request["unexpected"] = True
+    with pytest.raises(ValueError, match="input"):
+        evaluate_results(request)
+
+
+def prose_input() -> tuple[dict[str, Any], bytes]:
+    authority = json.dumps(local_specification()).encode()
+    base = '"""Before."""\nvalue = 1\n'
+    head = '"""After."""\nvalue = 1\n'
+    path = "src/runtime/odd\nname.py"
+    return {
+        "schema_version": 1,
+        "kind": "prose",
+        "base_tree": "a" * 40,
+        "candidate_tree": "b" * 40,
+        "specification_sha256": fixture_digest(authority),
+        "paths": [path],
+        "blobs": [{"path": path, "base": base, "head": head, "base_sha256": fixture_digest(base.encode()), "head_sha256": fixture_digest(head.encode())}],
+    }, authority
+
+
+def test_local_prose_adapter_preserves_target_free_staged_base_semantics() -> None:
+    from scripts.validation.check_inputs import evaluate_prose
+
+    request, authority = prose_input()
+    assert evaluate_prose(request, authority) == {"prose_only": True, "validation_performed": False}
+    request["blobs"][0]["head"] = '"""After."""\nvalue = 2\n'
+    request["blobs"][0]["head_sha256"] = fixture_digest(request["blobs"][0]["head"].encode())
+    assert evaluate_prose(request, authority)["prose_only"] is False
+
+
+@pytest.mark.parametrize("fault", ["missing-blob", "duplicate-path", "blob-drift", "authority-drift", "missing-base", "escape"])
+def test_local_prose_adapter_refuses_missing_changed_or_unsafe_inputs(fault: str) -> None:
+    from scripts.validation.check_inputs import evaluate_prose
+
+    request, authority = prose_input()
+    if fault == "missing-blob":
+        request["blobs"] = []
+    elif fault == "duplicate-path":
+        request["paths"].append(request["paths"][0])
+    elif fault == "blob-drift":
+        request["blobs"][0]["head"] += "# drift\n"
+    elif fault == "authority-drift":
+        authority += b" "
+    elif fault == "missing-base":
+        request["base_tree"] = None
+    else:
+        request["paths"][0] = "../escape.py"
+    with pytest.raises(ValueError, match="input"):
+        evaluate_prose(request, authority)
 
 
 def local_specification() -> dict[str, object]:

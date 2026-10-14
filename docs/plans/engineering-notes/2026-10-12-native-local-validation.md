@@ -344,3 +344,18 @@ Commit this acceptance boundary separately before implementation. The existing n
 ### Known Limitations
 
 The committed acceptance control is intentionally RED until the executable specification is implemented; it is not a passing native gate or ready-for-review WP01. Condition equivalence, provisioning, all required checks and publication modes, platform qualification, execution and cleanup bounds, staged candidate isolation, hooks, native coverage, and hosted retirement remain open. Native production source has not changed, and Python controls do not qualify its coverage. Original validation failures and source-input hashes are retained externally. No model quality or comparable token/cost saving is asserted.
+
+
+## October 14, 2026 — Bound Existing Classifier Inputs
+
+### User Experience Findings
+
+The existing router classifier accepts empty stdin, while a local terminal gate needs the complete expected roster and actual dependency outcomes. The prose authority is a pure function; its hosted caller supplies base and head blobs through a shell heredoc. Neither surface currently offers a closed local input-file entry. Fifteen genuine failing-first controls reproduce the absent adapter through its intended API; the original bounded process joined with exit one. The earlier complete executable-specification RED remains intact.
+
+### Engineering Decisions
+
+Root assigns the sole existing lane to this implementer and explicitly grants narrow ownership of the previously absent `scripts/validation/check_inputs.py`. This companion will only read bounded structured input and call existing classifiers; it will not launch processes, query services, orchestrate checks, or own another routing map. Selected required work cannot pass as skipped. Empty, missing, duplicate, foreign, changed, and mismatched inputs refuse. Staged/base prose inputs preserve unusual path characters, explicit tree and raw blob pins, and the actual local routing authority. Checksums establish equality, not producer authentication.
+
+### Known Limitations
+
+The new input adapter and complete executable recipe specification are not yet implemented or qualified. Native staged construction, execution, containment, statement coverage, hooks, platform evidence, publication, and hosted retirement remain open. The action resolver reports the primary checkout's doctrine root; the actual owned prompt and this checkout's current charter remain the source of action-specific guidance. That context-source discrepancy is recorded for its owner, not silently treated as corrected.
