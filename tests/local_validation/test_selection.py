@@ -40,6 +40,19 @@ def test_local_result_adapter_preserves_complete_dependency_outcomes() -> None:
     assert evaluate_results(request)["blocking"] == {"lint": "timed_out"}
 
 
+def test_local_result_adapter_retains_advisory_failure_without_hiding_timeout() -> None:
+    from scripts.validation.check_inputs import evaluate_results
+
+    request = result_input()
+    request["advisory"] = ["markdownlint"]
+    request["results"].append({"id": "markdownlint", "conclusion": "failure", "binding": request["binding"].copy()})
+    result = evaluate_results(request)
+    assert result["blocks"] is False
+    assert result["advisory_outcomes"] == {"markdownlint": "failure"}
+    request["results"][-1]["conclusion"] = "timed_out"
+    assert evaluate_results(request)["blocking"] == {"markdownlint": "timed_out"}
+
+
 @pytest.mark.parametrize("fault", ["empty", "missing", "duplicate", "foreign", "skip-selected", "binding", "unknown-field"])
 def test_local_result_adapter_refuses_incomplete_or_unbound_work(fault: str) -> None:
     from scripts.validation.check_inputs import evaluate_results

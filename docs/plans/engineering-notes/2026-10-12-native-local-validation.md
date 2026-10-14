@@ -364,3 +364,8 @@ The new input adapter and complete executable recipe specification are not yet i
 ### Recipe Schema Failing-First Boundary
 
 The actual native selector rejects a schema-two recipe proposal before any command execution. Its new positive acceptance control is genuinely RED; six paired refusal controls are retained. The original process joined with one failure and six passes. The recipe schema will bind each command's conditional phase and matrix instance, explicit unbound prerequisites, advisory posture, Python version, and exact pinned migration source. Source mapping changes require a new reviewed source epoch; a recipe declaration does not qualify execution, containment, Linux, Windows, release, or publication.
+
+
+### Advisory Outcome Failing-First Boundary
+
+The local result roster initially rejects an advisory row. A genuine positive control now requires retaining the ordinary advisory failure while preserving timeout as a blocking outcome; its original process joined with one failure. This keeps advisory observation distinct from selected required work, missing tools, cancellation, or lost ownership. No failure is relabelled as a successful child.
