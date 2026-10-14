@@ -984,11 +984,11 @@ def test_unknown_source_stays_conservative_when_a_known_source_is_present(tmp_pa
     assert selection.selected_jobs == frozenset({"lint", "test-runtime", "test-docs"})
 
 
-def retained_native_selector(binding: Path, repository: Path) -> Path:
+def retained_native_selector(binding: Path, repository: Path, source_name: str = "tools/zig/validation_selection.zig") -> Path:
     """Reuse one physically pinned completed build; this is not attestation."""
     record = json.loads(binding.read_text())
     assert set(record) == {"image", "source_sha256", "image_sha256", "compiler", "compiler_sha256", "receipt", "receipt_sha256"}
-    source = repository / "tools/zig/validation_selection.zig"
+    source = repository / source_name
     image, compiler, receipt = (Path(record[name]) for name in ("image", "compiler", "receipt"))
     for name, path in (("source", source), ("image", image), ("compiler", compiler), ("receipt", receipt)):
         assert fixture_digest(path.read_bytes()) == record[f"{name}_sha256"], f"Changed retained native {name}"
@@ -2379,3 +2379,189 @@ def test_review_native_program_distinguishes_empty_argument_data_from_invalid_wo
             inspected = json.loads(actual.stdout)
             argv = inspected["program"]["argv"] if mode == "inspect-program" else inspected["argv"]
             assert argv[0][-1] == "" and inspected["workflow_context_complete"] is False and inspected["execution_supported"] is False
+
+
+@pytest.fixture(scope="module")
+def native_statement_inventory(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    repository = Path(__file__).resolve().parents[2]
+    source_name = "tools/zig/validation_statement_inventory.zig"
+    source = repository / source_name
+    assert source.is_file(), "WP01 requires a deterministic complete native statement inventory"
+    binding = os.environ.get("SPEC_KITTY_NATIVE_STATEMENT_INVENTORY_BINDING")
+    if binding:
+        return retained_native_selector(Path(binding), repository, source_name)
+    image = tmp_path_factory.mktemp("statement-inventory") / "inventory"
+    subprocess.run(["zig", "build-exe", str(source), "-j1", "-lc", "-O", "ReleaseSafe", f"-femit-bin={image}"], check=True, capture_output=True, timeout=60)
+    return image
+
+
+def test_native_complete_statement_collector_exists() -> None:
+    source = Path(__file__).resolve().parents[2] / "tools/zig/validation_statement_inventory.zig"
+    assert source.is_file(), "WP01 requires a reproducible complete statement denominator, including embedded transfers"
+
+
+def test_native_program_lookup_refuses_unknown_job_inside_known_workflow(native_selector: Path) -> None:
+    authority = Path(__file__).resolve().parents[2] / "tools/validation/gates.json"
+    for subject in ["contracts.unknown-job", "contracts.validate-bundle"]:
+        actual = subprocess.run([str(native_selector), str(authority), "inspect-program", subject], capture_output=True, text=True, timeout=20)
+        if subject.endswith("unknown-job"):
+            assert actual.returncode != 0 and actual.stdout == "" and "MissingWorkflowProgram" in actual.stderr
+        else:
+            assert actual.returncode == 0 and json.loads(actual.stdout)["execution_supported"] is False
+
+
+_STATEMENT_SENTINEL = r"""const std = @import("std");
+fn note(value: u8) void { std.debug.print("N{d}\n", .{value}); }
+fn exercise(fail: bool) !usize {
+    defer note(8);
+    errdefer note(9);
+    if (fail) return error.Synthetic;
+    var total: usize = 0;
+    for ([_]?u8{ null, 2 }) |value| {
+        const item = value orelse continue;
+        total += item;
+    }
+    while (true) {
+        const empty: ?u8 = null;
+        const item = empty orelse break;
+        total += item;
+    }
+    return total;
+}
+pub fn main(init: std.process.Init) !void {
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
+    const fail = args.len > 1 and std.mem.eql(u8, args[1], "fail");
+    const result = exercise(fail) catch { std.debug.print("caught\n", .{}); return; };
+    std.debug.print("R{d}\n", .{result});
+}
+"""
+
+
+def statement_collection(image: Path, source: Path) -> tuple[dict[str, Any], str]:
+    actual = subprocess.run([str(image), str(source)], check=True, capture_output=True, text=True, timeout=20)
+    inventory: dict[str, Any] = json.loads(actual.stdout)
+    assert inventory["schema_version"] == 1 and inventory["source_sha256"] == fixture_digest(source.read_bytes())
+    assert inventory["coverage_accepted"] is False
+    return inventory, actual.stdout
+
+
+def test_native_statement_inventory_retains_embedded_transfers_and_every_source_role(tmp_path: Path, native_statement_inventory: Path) -> None:
+    source = tmp_path / "sentinel.zig"
+    source.write_text(_STATEMENT_SENTINEL)
+    inventory, _ = statement_collection(native_statement_inventory, source)
+    units = inventory["units"]
+    assert len({unit["node"] for unit in units}) == len(units) > 0
+    raw = source.read_bytes()
+    for marker, tag in [(b"continue", "continue"), (b"break", "break"), (b"return error.Synthetic", "return")]:
+        offset = raw.index(marker)
+        assert any(unit["start"] == offset and unit["tag"] == tag for unit in units)
+    accounting = inventory["all_ast_node_accounting"]
+    assert len({node["node"] for node in accounting}) == len(accounting)
+    assert {unit["node"] for unit in units} == {node["node"] for node in accounting if node["role"] == "runtime-statement"}
+    source.write_text('const declaration = 1;\nfn f() void { comptime { const c = 1; _ = c; } var value: u8 = 0; value += 1; }\ntest "only" { f(); }\n')
+    roles = {node["role"] for node in statement_collection(native_statement_inventory, source)[0]["all_ast_node_accounting"]}
+    assert {"declaration", "structural", "runtime-statement", "runtime-expression", "explicit-comptime", "test-only"} <= roles
+
+
+@pytest.mark.parametrize("fault", ["omission", "duplicate", "source", "malformed"])
+def test_native_statement_inventory_verifies_exact_source_bound_denominator(tmp_path: Path, native_statement_inventory: Path, fault: str) -> None:
+    source = tmp_path / "sentinel.zig"
+    source.write_text(_STATEMENT_SENTINEL)
+    inventory, original = statement_collection(native_statement_inventory, source)
+    manifest = tmp_path / "inventory.json"
+    manifest.write_text(original)
+    accepted = subprocess.run([str(native_statement_inventory), str(source), "--verify", str(manifest)], capture_output=True, text=True, timeout=20)
+    assert accepted.returncode == 0 and accepted.stdout == ""
+    if fault == "omission":
+        inventory["units"].pop()
+    elif fault == "duplicate":
+        inventory["units"].append(inventory["units"][0])
+    elif fault == "source":
+        inventory["source_sha256"] = "0" * 64
+    if fault == "malformed":
+        manifest.write_text("{")
+    else:
+        manifest.write_text(json.dumps(inventory))
+    refused = subprocess.run([str(native_statement_inventory), str(source), "--verify", str(manifest)], capture_output=True, text=True, timeout=20)
+    assert refused.returncode != 0 and refused.stdout == "" and "InventoryMismatch" in refused.stderr
+
+
+@pytest.mark.parametrize(
+    ("source", "reason"),
+    [
+        ("fn broken( {", "ParseRefused"),
+        ("fn f(flag: bool) u8 { return if (flag) 1 else 2; }", "UnsupportedStatement"),
+        ("fn f(value: u8) u8 { return switch (value) { 1 => 2, else => 3 }; }", "UnsupportedStatement"),
+    ],
+)
+def test_native_statement_inventory_refuses_unqualified_syntax(tmp_path: Path, native_statement_inventory: Path, source: str, reason: str) -> None:
+    path = tmp_path / "unsupported.zig"
+    path.write_text(source)
+    refused = subprocess.run([str(native_statement_inventory), str(path)], capture_output=True, text=True, timeout=20)
+    assert refused.returncode != 0 and refused.stdout == "" and reason in refused.stderr
+
+
+def instrument_statement_sentinel(source: str, inventory: dict[str, Any]) -> str:
+    """Apply the retained entry transform to an explicit semantics witness."""
+    raw = source.encode()
+    assert inventory["source_sha256"] == fixture_digest(raw)
+    units = inventory["units"]
+    assert len({unit["node"] for unit in units}) == len(units)
+    insertions: dict[int, list[tuple[int, bytes]]] = {}
+    deleted = set()
+
+    def put(offset: int, order: int, value: bytes) -> None:
+        insertions.setdefault(offset, []).append((order, value))
+
+    for unit in units:
+        start, end = unit["start"], unit["end"]
+        assert 0 <= start < end <= len(raw)
+        hit = f"__statement_hit({unit['node']}); ".encode()
+        if unit["origins"] & 1:
+            put(start, start - end, hit)
+        else:
+            put(start, start - end, b"{ " + hit)
+            control = unit["tag"] in {"if_simple", "if", "while_simple", "for_simple", "for"}
+            put(end, end - start, b" }" if control else b"; }")
+            if unit["origins"] & 22 and raw[end : end + 1] == b";":
+                deleted.add(end)
+    result = bytearray(b'fn __statement_hit(id: u32) void { std.debug.print("STMT {d}\\n", .{id}); }\n')
+    for offset in range(len(raw) + 1):
+        for _, value in sorted(insertions.get(offset, [])):
+            result.extend(value)
+        if offset < len(raw) and offset not in deleted:
+            result.append(raw[offset])
+    return result.decode()
+
+
+def test_native_statement_sentinel_observes_transfers_and_deferred_execution(tmp_path: Path, native_statement_inventory: Path) -> None:
+    source = tmp_path / "sentinel.zig"
+    source.write_text(_STATEMENT_SENTINEL)
+    inventory, _ = statement_collection(native_statement_inventory, source)
+    measured = tmp_path / "measured.zig"
+    measured.write_text(instrument_statement_sentinel(_STATEMENT_SENTINEL, inventory))
+    images = []
+    for path in [source, measured]:
+        image = path.with_suffix("")
+        subprocess.run(["zig", "build-exe", str(path), "-j1", "-lc", "-O", "ReleaseSafe", f"-femit-bin={image}"], check=True, capture_output=True, timeout=60)
+        images.append(image)
+
+    def node(marker: str) -> int:
+        offset = _STATEMENT_SENTINEL.index(marker)
+        return next(unit["node"] for unit in inventory["units"] if unit["start"] == offset)
+
+    for fail in [False, True]:
+        arguments = ["fail"] if fail else []
+        plain, observed = [subprocess.run([str(image), *arguments], check=True, capture_output=True, text=True, timeout=5) for image in images]
+        hits = [int(line.removeprefix("STMT ")) for line in observed.stderr.splitlines() if line.startswith("STMT ")]
+        ordinary = "\n".join(line for line in observed.stderr.splitlines() if not line.startswith("STMT ")) + "\n"
+        assert (observed.stdout, ordinary) == (plain.stdout, plain.stderr)
+        assert set(hits) <= {unit["node"] for unit in inventory["units"]}
+        assert hits.count(node("continue")) == (0 if fail else 1)
+        assert hits.count(node("break")) == (0 if fail else 1)
+        assert hits.count(node("defer note(8)")) == hits.count(node("errdefer note(9)")) == 1
+        assert hits.count(node("note(8)")) == 1 and hits.count(node("note(9)")) == int(fail)
+        returning = node("return error.Synthetic") if fail else node("return total")
+        assert hits.index(returning) < hits.index(node("note(8)"))
+        if fail:
+            assert hits.index(returning) < hits.index(node("note(9)")) < hits.index(node("note(8)"))
