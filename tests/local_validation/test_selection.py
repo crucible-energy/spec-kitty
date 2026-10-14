@@ -1101,6 +1101,11 @@ fn allocateTargetSelection(allocator: std.mem.Allocator, document: std.json.Valu
     defer selected.deinit(allocator);
     try std.testing.expect(selected.target_checked);
 }
+fn allocateQualificationSelection(allocator: std.mem.Allocator, document: std.json.Value) !void {
+    const selected = try selection.selectForTarget(allocator, document, &.{}, "docs", "windows");
+    defer selected.deinit(allocator);
+    try std.testing.expectEqual(@as(usize, 3), selected.selected_jobs.len);
+}
 test "selection allocation and input bounds" {
     const bytes =
         \\__FIXTURE_JSON__
@@ -1109,8 +1114,10 @@ test "selection allocation and input bounds" {
     defer parsed.deinit();
     try std.testing.checkAllAllocationFailures(std.testing.allocator, allocateSelection, .{parsed.value});
     try std.testing.checkAllAllocationFailures(std.testing.allocator, allocateTargetSelection, .{parsed.value});
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, allocateQualificationSelection, .{parsed.value});
     var no_resize = std.testing.FailingAllocator.init(std.testing.allocator, .{ .resize_fail_index = 0 });
     try std.testing.checkAllAllocationFailures(no_resize.allocator(), allocateSelection, .{parsed.value});
+    try std.testing.checkAllAllocationFailures(no_resize.allocator(), allocateQualificationSelection, .{parsed.value});
     try std.testing.expectEqual(no_resize.allocated_bytes, no_resize.freed_bytes);
     const paths = try std.testing.allocator.alloc([]const u8, 32769);
     defer std.testing.allocator.free(paths);
@@ -1124,7 +1131,10 @@ def test_native_allocation_rollback_and_api_input_bound(tmp_path: Path) -> None:
     """Exercise real native rollback at every allocation failure and the public API bound."""
     repository = Path(__file__).resolve().parents[2]
     harness = tmp_path / "allocation-controls.zig"
-    harness.write_text(_NATIVE_API_CONTROLS.replace("__FIXTURE_JSON__", json.dumps(local_specification())))
+    specification: Any = local_specification()
+    for check in specification["checks"].values():
+        check["modes"].append("docs")
+    harness.write_text(_NATIVE_API_CONTROLS.replace("__FIXTURE_JSON__", json.dumps(specification)))
     executable = tmp_path / "allocation-controls"
     subprocess.run(
         [
@@ -1543,6 +1553,40 @@ def test_python_qualification_mode_preserves_the_same_declared_roster(mode: str)
 def test_python_qualification_mode_refuses_unmapped_current_requirements(mode: str) -> None:
     with pytest.raises(ValueError, match="mode|applicable"):
         select_gates([], mode=mode)
+
+
+@pytest.mark.parametrize("fault", ["mode", "cycle", "paths", "edge"])
+def test_python_qualification_mode_preserves_required_dependency_refusal(fault: str) -> None:
+    from scripts.ci.gate_selection import router_from_local_document
+
+    specification: Any = local_specification()
+    specification["checks"]["test-docs"]["modes"] = ["docs"]
+    specification["checks"]["test-docs"]["dependencies"] = ["lint"]
+    specification["checks"]["lint"]["modes"] = ["commit"] if fault == "mode" else ["docs"]
+    if fault == "cycle":
+        specification["checks"]["lint"]["dependencies"] = ["test-docs"]
+    elif fault == "edge":
+        specification["checks"]["lint"]["dependencies"] = ["missing"]
+    with pytest.raises(ValueError, match="mode|cycle|dependencies"):
+        select_gates(["docs/operator.md"] if fault == "paths" else [], router=router_from_local_document(specification), mode="docs")
+
+
+@pytest.mark.parametrize("field", ["modes", "dependencies"])
+def test_python_qualification_mode_refuses_malformed_declarations(field: str) -> None:
+    from scripts.ci.gate_selection import router_from_local_document
+
+    specification: Any = local_specification()
+    specification["checks"]["lint"][field] = ["unqualified"]
+    with pytest.raises(ValueError, match="modes|dependencies"):
+        router_from_local_document(specification)
+
+
+def test_native_qualification_mode_refuses_missing_check_definitions(tmp_path: Path, native_selector: Path) -> None:
+    specification: Any = local_specification()
+    del specification["checks"]
+    result = subprocess.run([str(native_selector), str(write_local(tmp_path, specification)), "docs"], capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0 and result.stdout == ""
+    assert "MissingCheck" in result.stderr
 
 
 @pytest.mark.parametrize("mode", ["platform", "release", "package", "docs"])

@@ -130,7 +130,7 @@ fn validateCheck(value: Value) ![]const Value {
         for (entries) |entry| if (!oneOf(entry.string, &.{ "allow", "reject-warning-prefix" })) return error.UnsupportedOutputPolicy;
     }
     _ = try requiredStrings(fields, "modes");
-    try validateModeAndPlatform(fields, "modes", &.{ "commit", "full", "release", "docs", "platform" });
+    try validateModeAndPlatform(fields, "modes", &.{ "commit", "full", "release", "package", "docs", "platform" });
     try validateModeAndPlatform(fields, "platforms", &.{ "macos", "linux", "windows", "all" });
     const dependency_value = fields.get("dependencies") orelse return error.InvalidChecks;
     if (dependency_value != .array) return error.InvalidChecks;
@@ -372,8 +372,10 @@ fn conservativeCheck(root: std.json.ObjectMap, name: []const u8) bool {
 }
 
 pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, mode: []const u8) !Selection {
-    if (!oneOf(mode, &.{ "pr", "commit", "full" })) return error.UnsupportedMode;
+    const qualification = qualificationMode(mode);
+    if (!qualification and !oneOf(mode, &.{ "pr", "commit", "full" })) return error.UnsupportedMode;
     if (paths.len > 32768) return error.InputLimit;
+    if (qualification and paths.len != 0) return error.UnexpectedChangedPaths;
     const root = try object(document);
     try rejectUnknownFields(document, &.{ "schema_version", "source", "routing", "modules", "checks", "migration" });
     try validateOptionalSections(root);
@@ -430,6 +432,7 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
     defer shards.deinit(allocator);
     var git = gates.iterator();
     while (git.next()) |entry| {
+        if (qualification) continue;
         const references = entry.value_ptr.array.items;
         var selected = references.len == 0;
         var code = false;
@@ -446,6 +449,13 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
         const checks = try object(checks_value);
         var selected_checks = std.StringHashMap(void).init(allocator);
         defer selected_checks.deinit();
+        if (qualification) {
+            var check_iterator = checks.iterator();
+            while (check_iterator.next()) |entry| {
+                if (try modeApplies(entry.value_ptr.object, mode)) try selected_checks.put(entry.key_ptr.*, {});
+            }
+            if (selected_checks.count() == 0) return error.NoApplicableChecks;
+        }
         for (jobs.items) |job| {
             if (!checks.contains(job)) return error.MissingCheck;
             try selected_checks.put(job, {});
@@ -457,6 +467,7 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
             while (selected_iterator.next()) |selected| {
                 const check_value = checks.get(selected.*) orelse return error.MissingCheck;
                 const check = try object(check_value);
+                if (qualification and !try modeApplies(check, mode)) return error.UnavailableRequiredCheck;
                 const dependencies = check.get("dependencies") orelse return error.InvalidChecks;
                 for (dependencies.array.items) |dependency| {
                     const name = dependency.string;
@@ -483,6 +494,8 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
                 }
             }
         }
+    } else if (qualification) {
+        return error.MissingCheck;
     }
     std.mem.sort([]const u8, groups.items, {}, ordered);
     std.mem.sort([]const u8, jobs.items, {}, ordered);
@@ -502,11 +515,24 @@ fn reasonOrdered(_: void, a: SelectionReason, b: SelectionReason) bool {
     return std.mem.lessThan(u8, a.reference, b.reference);
 }
 
+fn qualificationMode(mode: []const u8) bool {
+    return oneOf(mode, &.{ "platform", "release", "package", "docs" });
+}
+
+fn modeApplies(check: std.json.ObjectMap, mode: []const u8) !bool {
+    for (try requiredStrings(check, "modes")) |entry| {
+        if (std.mem.eql(u8, entry.string, mode)) return true;
+    }
+    return false;
+}
+
 fn explainSelection(allocator: Allocator, root: std.json.ObjectMap, gates: std.json.ObjectMap, jobs: []const []const u8, groups: []const []const u8, mode: []const u8, unmatched: bool) ![]const SelectionReason {
     var reasons: std.ArrayList(SelectionReason) = .empty;
     errdefer reasons.deinit(allocator);
     for (jobs) |job| {
-        if (gates.get(job)) |route| {
+        if (qualificationMode(mode)) {
+            try reasons.append(allocator, .{ .check = job, .kind = "mode", .reference = mode });
+        } else if (gates.get(job)) |route| {
             if (route.array.items.len == 0) {
                 try reasons.append(allocator, .{ .check = job, .kind = "always_on" });
             } else if (std.mem.eql(u8, mode, "full")) {

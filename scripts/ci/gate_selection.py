@@ -28,7 +28,7 @@ import fnmatch
 import json
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -74,6 +74,8 @@ class Router:
     non_source_groups: frozenset[str] = frozenset()
     non_conservative_jobs: frozenset[str] = frozenset()
     refuse_unmatched_non_source: bool = False
+    check_modes: dict[str, frozenset[str]] = field(default_factory=dict)
+    check_dependencies: dict[str, frozenset[str]] = field(default_factory=dict)
 
     @property
     def routing_groups(self) -> frozenset[str]:
@@ -179,6 +181,8 @@ def _local_router(document: object) -> Router:
     if not isinstance(checks, dict):
         raise ValueError("Invalid local checks")
     non_conservative: set[str] = set()
+    check_modes: dict[str, frozenset[str]] = {}
+    check_dependencies: dict[str, frozenset[str]] = {}
     for name, check in checks.items():
         if not isinstance(check, dict) or type(check.get("unmatched_source", True)) is not bool:
             raise ValueError("Invalid conservative routing declaration")
@@ -186,12 +190,26 @@ def _local_router(document: object) -> Router:
             if name not in gates or not gates[name] or any(group not in data for group in gates[name]):
                 raise ValueError("Only explicit data gates may opt out of conservative routing")
             non_conservative.add(name)
+        modes = check.get("modes")
+        dependencies = check.get("dependencies")
+        if (
+            not isinstance(modes, list)
+            or not modes
+            or any(not isinstance(mode, str) or mode not in {"commit", "full", "platform", "release", "package", "docs"} for mode in modes)
+        ):
+            raise ValueError("Invalid local check modes")
+        if not isinstance(dependencies, list) or any(not isinstance(dependency, str) or dependency not in checks for dependency in dependencies):
+            raise ValueError("Invalid local check dependencies")
+        check_modes[name] = frozenset(modes)
+        check_dependencies[name] = frozenset(dependencies)
     return Router(
         filters=filters,
         job_gates={name: frozenset(groups) for name, groups in gates.items()},
         non_source_groups=frozenset(data),
         non_conservative_jobs=frozenset(non_conservative),
         refuse_unmatched_non_source=unknown_policy == "refuse-path-sensitive",
+        check_modes=check_modes,
+        check_dependencies=check_dependencies,
     )
 
 
@@ -249,6 +267,10 @@ def select_gates(
     """
     router = router or load_router()
     paths = [str(path) for path in changed_paths]
+    if mode in {"platform", "release", "package", "docs"}:
+        return _select_qualification(router, paths, mode)
+    if mode not in {"pr", "commit", "full"}:
+        raise ValueError("Unsupported selection mode")
     if router.refuse_unmatched_non_source and mode != "full":
         patterns = tuple(pattern for group in router.routing_groups for pattern in router.filters[group])
         if any(not path.startswith("src/") and not any(fnmatch.fnmatch(path, pattern) for pattern in patterns) for path in paths):
@@ -266,6 +288,32 @@ def select_gates(
         selected_jobs=router.always_on_jobs | gated_selected,
         selected_code_shards=gated_selected & router.code_shard_jobs,
     )
+
+
+def _select_qualification(router: Router, paths: list[str], mode: str) -> GateSelection:
+    """Inspect declared qualification work only; this cannot execute or accept it."""
+    if paths:
+        raise ValueError("Qualification mode does not accept changed paths")
+    selected = {name for name, modes in router.check_modes.items() if mode in modes}
+    if not selected:
+        raise ValueError("No applicable checks for qualification mode")
+    pending = set(router.check_dependencies)
+    completed: set[str] = set()
+    while pending:
+        ready = {name for name in pending if router.check_dependencies[name] <= completed}
+        if not ready:
+            raise ValueError("Invalid local check dependency cycle")
+        completed.update(ready)
+        pending.difference_update(ready)
+    while True:
+        dependencies = {dependency for name in selected for dependency in router.check_dependencies[name]}
+        if dependencies <= selected:
+            break
+        selected.update(dependencies)
+    if any(mode not in router.check_modes[name] for name in selected):
+        raise ValueError("Unavailable required check for qualification mode")
+    jobs = frozenset(selected)
+    return GateSelection(matched_groups=frozenset(), unmatched_src=False, selected_jobs=jobs, selected_code_shards=jobs & router.code_shard_jobs)
 
 
 def _registry_rows(path: Path | None = None) -> list[dict[str, Any]]:
