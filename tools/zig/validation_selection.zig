@@ -2,11 +2,20 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Value = std.json.Value;
 
+pub const SelectionReason = struct {
+    check: []const u8,
+    kind: []const u8,
+    reference: []const u8 = "",
+};
+
 pub const Selection = struct {
     matched_groups: []const []const u8,
     unmatched_src: bool,
     selected_jobs: []const []const u8,
     selected_code_shards: []const []const u8,
+    selected_reasons: []const SelectionReason,
+    requested_platform: ?[]const u8 = null,
+    target_checked: bool = false,
     selection_only: bool = true,
     validation_performed: bool = false,
     execution_supported: bool = false,
@@ -15,6 +24,7 @@ pub const Selection = struct {
         allocator.free(self.matched_groups);
         allocator.free(self.selected_jobs);
         allocator.free(self.selected_code_shards);
+        allocator.free(self.selected_reasons);
     }
 };
 
@@ -333,7 +343,7 @@ fn validate(filters: std.json.ObjectMap, gates: std.json.ObjectMap) !void {
 }
 
 pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, mode: []const u8) !Selection {
-    if (!std.mem.eql(u8, mode, "pr") and !std.mem.eql(u8, mode, "full")) return error.UnsupportedMode;
+    if (!oneOf(mode, &.{ "pr", "commit", "full" })) return error.UnsupportedMode;
     if (paths.len > 32768) return error.InputLimit;
     const root = try object(document);
     try rejectUnknownFields(document, &.{ "schema_version", "source", "routing", "modules", "checks", "migration" });
@@ -436,21 +446,95 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
     std.mem.sort([]const u8, groups.items, {}, ordered);
     std.mem.sort([]const u8, jobs.items, {}, ordered);
     std.mem.sort([]const u8, shards.items, {}, ordered);
+    const reasons = try explainSelection(allocator, root, gates, jobs.items, groups.items, mode, unmatched);
+    errdefer allocator.free(reasons);
     const owned_groups = try groups.toOwnedSlice(allocator);
     errdefer allocator.free(owned_groups);
     const owned_jobs = try jobs.toOwnedSlice(allocator);
     errdefer allocator.free(owned_jobs);
-    return .{ .matched_groups = owned_groups, .unmatched_src = unmatched, .selected_jobs = owned_jobs, .selected_code_shards = try shards.toOwnedSlice(allocator) };
+    return .{ .matched_groups = owned_groups, .unmatched_src = unmatched, .selected_jobs = owned_jobs, .selected_code_shards = try shards.toOwnedSlice(allocator), .selected_reasons = reasons };
+}
+
+fn reasonOrdered(_: void, a: SelectionReason, b: SelectionReason) bool {
+    if (!std.mem.eql(u8, a.check, b.check)) return std.mem.lessThan(u8, a.check, b.check);
+    if (!std.mem.eql(u8, a.kind, b.kind)) return std.mem.lessThan(u8, a.kind, b.kind);
+    return std.mem.lessThan(u8, a.reference, b.reference);
+}
+
+fn explainSelection(allocator: Allocator, root: std.json.ObjectMap, gates: std.json.ObjectMap, jobs: []const []const u8, groups: []const []const u8, mode: []const u8, unmatched: bool) ![]const SelectionReason {
+    var reasons: std.ArrayList(SelectionReason) = .empty;
+    errdefer reasons.deinit(allocator);
+    for (jobs) |job| {
+        if (gates.get(job)) |route| {
+            if (route.array.items.len == 0) {
+                try reasons.append(allocator, .{ .check = job, .kind = "always_on" });
+            } else if (std.mem.eql(u8, mode, "full")) {
+                try reasons.append(allocator, .{ .check = job, .kind = "full" });
+            } else if (unmatched) {
+                try reasons.append(allocator, .{ .check = job, .kind = "unmatched_source" });
+            } else {
+                for (route.array.items) |group| {
+                    if (oneOf(group.string, groups)) try reasons.append(allocator, .{ .check = job, .kind = "matched_group", .reference = group.string });
+                }
+            }
+        }
+        if (root.get("checks")) |checks_value| {
+            for (jobs) |dependent| {
+                const check = checks_value.object.get(dependent).?.object;
+                for (check.get("dependencies").?.array.items) |dependency| {
+                    if (std.mem.eql(u8, dependency.string, job)) try reasons.append(allocator, .{ .check = job, .kind = "dependency", .reference = dependent });
+                }
+            }
+        }
+    }
+    std.mem.sort(SelectionReason, reasons.items, {}, reasonOrdered);
+    return reasons.toOwnedSlice(allocator);
+}
+
+/// Check declarations for an explicit target; this never executes or qualifies it.
+pub fn selectForTarget(allocator: Allocator, document: Value, paths: []const []const u8, mode: []const u8, platform: []const u8) !Selection {
+    if (!oneOf(platform, &.{ "macos", "linux", "windows" })) return error.UnsupportedPlatform;
+    var selection = try select(allocator, document, paths, mode);
+    errdefer selection.deinit(allocator);
+    const checks = (try object(document)).get("checks") orelse return error.MissingCheck;
+    var requested_mode = mode;
+    if (std.mem.eql(u8, mode, "pr")) requested_mode = "commit";
+    for (selection.selected_jobs) |job| {
+        const check = (try object(checks)).get(job).?.object;
+        const modes = try requiredStrings(check, "modes");
+        var mode_supported = false;
+        for (modes) |entry| mode_supported = mode_supported or std.mem.eql(u8, entry.string, requested_mode);
+        const platforms = try requiredStrings(check, "platforms");
+        var platform_supported = false;
+        for (platforms) |entry| platform_supported = platform_supported or oneOf(entry.string, &.{ "all", platform });
+        if (!mode_supported or !platform_supported) return error.UnavailableRequiredCheck;
+    }
+    selection.requested_platform = platform;
+    selection.target_checked = true;
+    return selection;
 }
 
 fn run(init: std.process.Init) !void {
     const allocator = init.arena.allocator();
     const args = try init.minimal.args.toSlice(allocator);
     if (args.len < 3) return error.InvalidArguments;
+    const targeted = std.mem.eql(u8, args[2], "--platform");
+    if (targeted and args.len < 5) return error.InvalidArguments;
+    var mode = args[2];
+    var paths = args[3..];
+    if (targeted) {
+        mode = args[4];
+        paths = args[5..];
+    }
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], allocator, .limited(16 * 1024 * 1024));
     const parsed = try std.json.parseFromSlice(Value, allocator, bytes, .{ .duplicate_field_behavior = .@"error" });
     defer parsed.deinit();
-    const selection = try select(allocator, parsed.value, args[3..], args[2]);
+    var selection: Selection = undefined;
+    if (targeted) {
+        selection = try selectForTarget(allocator, parsed.value, paths, mode, args[3]);
+    } else {
+        selection = try select(allocator, parsed.value, paths, mode);
+    }
     defer selection.deinit(allocator);
     var output: std.Io.Writer.Allocating = .init(allocator);
     defer output.deinit();

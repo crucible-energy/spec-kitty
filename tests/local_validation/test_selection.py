@@ -1463,7 +1463,7 @@ def test_native_selection_explains_every_selected_check(
 @pytest.mark.parametrize("platform", ["macos", "linux", "windows"])
 def test_native_commit_target_uses_declared_mode_and_platform(tmp_path: Path, native_selector: Path, platform: str) -> None:
     result = subprocess.run(
-        [str(native_selector), str(write_local(tmp_path, local_specification())), "commit", "--platform", platform, "docs/operator.md"],
+        [str(native_selector), str(write_local(tmp_path, local_specification())), "--platform", platform, "commit", "docs/operator.md"],
         check=True,
         capture_output=True,
         text=True,
@@ -1493,7 +1493,7 @@ def test_native_target_refuses_unavailable_required_checks(tmp_path: Path, nativ
     else:
         del specification["checks"]
     result = subprocess.run(
-        [str(native_selector), str(write_local(tmp_path, specification)), "commit", "--platform", target, "docs/operator.md"],
+        [str(native_selector), str(write_local(tmp_path, specification)), "--platform", target, "commit", "docs/operator.md"],
         capture_output=True,
         text=True,
         timeout=20,
@@ -1509,7 +1509,7 @@ def test_native_target_preserves_preview_roster(tmp_path: Path, native_selector:
     path = write_local(tmp_path, specification)
     preview = subprocess.run([str(native_selector), str(path), mode, "docs/operator.md"], check=True, capture_output=True, text=True, timeout=20)
     target = subprocess.run(
-        [str(native_selector), str(path), mode, "--platform", "windows", "docs/operator.md"], check=True, capture_output=True, text=True, timeout=20
+        [str(native_selector), str(path), "--platform", "windows", mode, "docs/operator.md"], check=True, capture_output=True, text=True, timeout=20
     )
     before, after = json.loads(preview.stdout), json.loads(target.stdout)
     assert before["selected_jobs"] == after["selected_jobs"]
@@ -1518,9 +1518,7 @@ def test_native_target_preserves_preview_roster(tmp_path: Path, native_selector:
 
 
 def test_native_missing_explicit_target_refuses_before_selection(tmp_path: Path, native_selector: Path) -> None:
-    result = subprocess.run(
-        [str(native_selector), str(write_local(tmp_path, local_specification())), "commit", "--platform"], capture_output=True, text=True, timeout=20
-    )
+    result = subprocess.run([str(native_selector), str(write_local(tmp_path, local_specification())), "--platform"], capture_output=True, text=True, timeout=20)
     assert result.returncode != 0 and result.stdout == ""
     assert "InvalidArguments" in result.stderr
 
