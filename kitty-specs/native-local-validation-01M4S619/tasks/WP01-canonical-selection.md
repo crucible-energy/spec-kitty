@@ -26,12 +26,14 @@ authoritative_surface: tools/validation/gates.json
 create_intent:
 - tools/validation/gates.json
 - tools/zig/validation_selection.zig
+- tools/zig/validation_statement_inventory.zig
 - scripts/validation/extract_gates.py
 - tests/local_validation/test_selection.py
 execution_mode: code_change
 owned_files:
 - tools/validation/gates.json
 - tools/zig/validation_selection.zig
+- tools/zig/validation_statement_inventory.zig
 - scripts/validation/extract_gates.py
 - scripts/ci/gate_selection.py
 - scripts/ci/local_gate_parity.py
@@ -110,3 +112,5 @@ Actual package requirements pass; affected documentation, self-review, and indep
 ## Activity Log
 
 - 2026-10-12T23:33:08Z — codex — Task draft authored; independent fixed-plan review and finalization pending.
+
+- 2026-10-14T23:22:17.644675+00:00 — Root explicitly authorizes the single native statement-inventory path to close the independently reproduced embedded-continue denominator omission. The collector, existing selection tests, and owned log stay in WP01; its own changed executable statements require coverage. This does not admit later execution or platform scope.
