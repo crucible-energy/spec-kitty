@@ -741,6 +741,79 @@ def test_current_router_recipes_preserve_static_commands_and_dynamic_contracts()
     assert set(heavy["recipe"]["instance_environment"]) == {"1-of-2", "2-of-2"}
 
 
+def test_canonical_workflow_contracts_preserve_every_original_definition() -> None:
+    from scripts.validation.extract_gates import _load, _read
+
+    root = Path(__file__).resolve().parents[2]
+    authority = json.loads((root / "tools/validation/gates.json").read_text())
+    contracts = authority.get("workflow_contracts")
+    assert isinstance(contracts, list) and len(contracts) == 19, "Full workflow contracts are missing from the canonical authority"
+    assert {row["source"]["path"] for row in contracts} == {row["path"] for row in authority["migration"]}
+    for row in contracts:
+        source = root / row["source"]["path"]
+        original = _load(_read(source))
+        assert row["definition"] == original, "Triggers, conditions, shell bodies, matrices, setup, artifacts or publication changed"
+        assert row["source"]["sha256"] == fixture_digest(source.read_bytes())
+        assert set(row["jobs"]) == set(original["jobs"])
+        for name, job in original["jobs"].items():
+            mapping = row["jobs"][name]
+            assert mapping["wall_ms"] == job.get("timeout-minutes", 360) * 60000
+            assert mapping["budget_scope"] == "per-job-instance"
+            assert mapping["binding_required"] is True
+            assert mapping["check_id"] is None or mapping["check_id"] in authority["checks"]
+
+
+@pytest.mark.parametrize(
+    ("workflow", "job"),
+    [
+        ("ci-quality", "lint"),
+        ("ci-quality", "build-wheel"),
+        ("ci-quality", "uv-lock-check"),
+        ("ci-nightly", "universe-equivalence"),
+        ("ci-shard-recapture", "strict-shard-timings-check"),
+        ("contracts", "verify-pins"),
+    ],
+)
+def test_canonical_static_workflow_recipes_are_actual_complete_source_argv(workflow: str, job: str) -> None:
+    from scripts.validation.extract_gates import _commands, _load, _read
+
+    root = Path(__file__).resolve().parents[2]
+    authority = json.loads((root / "tools/validation/gates.json").read_text())
+    name = f"{workflow}.{job}"
+    assert name in authority["checks"], "A compatible actual workflow recipe is missing"
+    definition = _load(_read(root / f".github/workflows/{workflow}.yml"))["jobs"][job]
+    expected = [command for step in definition["steps"] if "run" in step for command in _commands(step["run"])]
+    check = authority["checks"][name]
+    assert check["argv"] == expected and expected
+    assert check["budgets"]["wall_ms"] == definition["timeout-minutes"] * 60000
+    assert check["recipe"]["workflow_job"] == job
+    assert "workflow_context" in check["recipe"]["required_inputs"]
+    assert check["recipe"]["source"]["path"] == f".github/workflows/{workflow}.yml"
+
+
+def test_workflow_contracts_preserve_publication_and_administration_boundaries() -> None:
+    root = Path(__file__).resolve().parents[2]
+    authority = json.loads((root / "tools/validation/gates.json").read_text())
+    contracts = authority.get("workflow_contracts")
+    assert isinstance(contracts, list), "Missing actual workflow contracts"
+    rows = {row["source"]["path"]: row for row in contracts}
+    assert "ci-shard-recapture.recapture-shard-timings" not in authority["checks"]
+    assert rows[".github/workflows/contracts-release.yml"]["definition"]["jobs"]["publish"]["permissions"] == {"contents": "write"}
+    assert rows[".github/workflows/docs-pages.yml"]["definition"]["jobs"]["deploy"]["needs"] == "build"
+    assert rows[".github/workflows/ci-aggregate.yml"]["definition"]["jobs"]["aggregate-gate"]["needs"] == ["collect", "diff-cover"]
+
+
+def test_native_full_inspection_discloses_all_unresolved_workflow_jobs(native_selector: Path) -> None:
+    authority = Path(__file__).resolve().parents[2] / "tools/validation/gates.json"
+    result = subprocess.run([str(native_selector), str(authority), "full"], capture_output=True, text=True, timeout=20, check=True)
+    selected = json.loads(result.stdout)
+    assert "unbound_workflow_jobs" in selected, "Native preview hides the remaining workflow bindings"
+    assert selected["unbound_workflow_jobs"]
+    assert "release.build-release" in selected["unbound_workflow_jobs"]
+    assert "ci-windows.windows-critical" in selected["unbound_workflow_jobs"]
+    assert selected["selection_only"] is True and selected["execution_supported"] is False
+
+
 def test_router_recipe_construction_refuses_changed_source_epoch(tmp_path: Path) -> None:
     from scripts.validation.extract_gates import executable_router_specification
 
