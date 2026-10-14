@@ -111,6 +111,107 @@ def test_local_prose_adapter_refuses_missing_changed_or_unsafe_inputs(fault: str
         evaluate_prose(request, authority)
 
 
+@pytest.mark.parametrize("kind", ["prose", "results"])
+def test_bound_classifier_cli_preserves_success_and_refusal_metadata(tmp_path: Path, capsys: pytest.CaptureFixture[str], kind: str) -> None:
+    from scripts.validation.check_inputs import main
+
+    source = tmp_path / "request.json"
+    args = [kind, str(source)]
+    if kind == "prose":
+        request, raw = prose_input()
+        authority = tmp_path / "authority.json"
+        authority.write_bytes(raw)
+        args.extend(["--authority", str(authority)])
+    else:
+        request = result_input()
+    source.write_text(json.dumps(request))
+    assert main(args) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["validation_performed"] is False
+    source.write_text('{"schema_version":1,"schema_version":1}')
+    assert main(args) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "Local input refused\n"
+
+
+def test_result_cli_preserves_blocking_exit_and_rejects_foreign_authority(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from scripts.validation.check_inputs import main
+
+    path = tmp_path / "results.json"
+    request = result_input()
+    request["results"][0]["conclusion"] = "failure"
+    path.write_text(json.dumps(request))
+    assert main(["results", str(path)]) == 1
+    assert json.loads(capsys.readouterr().out)["blocking"] == {"lint": "failure"}
+    assert main(["results", str(path), "--authority", str(path)]) == 2
+    assert capsys.readouterr().out == ""
+    assert main(["prose", str(path)]) == 2
+
+
+@pytest.mark.parametrize("form", ["symlink", "directory", "fifo", "oversize", "invalid-json", "missing"])
+def test_classifier_file_boundary_refuses_without_body_diagnostics(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], form: str
+) -> None:
+    from scripts.validation import check_inputs
+    import os
+
+    path = tmp_path / "input.json"
+    if form == "symlink":
+        target = tmp_path / "target.json"
+        target.write_text(json.dumps(result_input()))
+        path.symlink_to(target)
+    elif form == "directory":
+        path.mkdir()
+    elif form == "fifo":
+        os.mkfifo(path)
+    elif form == "oversize":
+        monkeypatch.setattr(check_inputs, "MAX_BYTES", 1)
+        path.write_bytes(b"{}")
+    elif form == "invalid-json":
+        path.write_bytes(b"private-invalid-body")
+    assert check_inputs.main(["results", str(path)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "Local input refused\n"
+
+
+@pytest.mark.parametrize("fault", ["wrong-version", "wrong-kind", "empty-name", "bad-hash", "zero-tree", "overlap", "unselected-ran", "many-rows", "nul-name"])
+def test_results_closed_shape_and_roster_limits_refuse(fault: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    from scripts.validation import check_inputs
+
+    request = result_input()
+    if fault == "wrong-version":
+        request["schema_version"] = True
+    elif fault == "wrong-kind":
+        request["kind"] = "prose"
+    elif fault == "empty-name":
+        request["selected"] = [""]
+    elif fault == "bad-hash":
+        request["binding"]["specification_sha256"] = "g" * 64
+    elif fault == "zero-tree":
+        request["binding"]["candidate_tree"] = "0" * 40
+    elif fault == "overlap":
+        request["unselected"] = request["selected"].copy()
+    elif fault == "unselected-ran":
+        request["results"][1]["conclusion"] = "success"
+    elif fault == "many-rows":
+        monkeypatch.setattr(check_inputs, "MAX_ROWS", 1)
+    else:
+        request["selected"] = ["lint\0"]
+    with pytest.raises(ValueError, match="input"):
+        check_inputs.evaluate_results(request)
+
+
+def test_bound_prose_handles_known_absence_without_downrouting() -> None:
+    from scripts.validation.check_inputs import evaluate_prose
+
+    request, authority = prose_input()
+    request["blobs"][0]["base"] = None
+    request["blobs"][0]["base_sha256"] = None
+    assert evaluate_prose(request, authority)["prose_only"] is False
+
+
 def local_specification() -> dict[str, object]:
     def check(argv: list[str]) -> dict[str, object]:
         return {
@@ -142,6 +243,51 @@ def local_specification() -> dict[str, object]:
             "test-docs": check(["python", "-m", "pytest", "tests/docs", "-q"]),
         },
     }
+
+
+def recipe_specification() -> dict[str, Any]:
+    specification: Any = local_specification()
+    specification["schema_version"] = 2
+    specification["migration"] = [{"path": ".github/workflows/fixture.yml", "sha256": "a" * 64, "role": "migration-baseline"}]
+    for definition in specification["checks"].values():
+        definition["recipe"] = {
+            "source": {"path": ".github/workflows/fixture.yml", "sha256": "a" * 64, "role": "migration-baseline"},
+            "python_version": "3.12",
+            "advisory": False,
+            "required_inputs": ["candidate", "base", "dependencies"],
+            "conditions": ["success"],
+            "instances": ["default"],
+        }
+    return specification
+
+
+def test_native_accepts_explicit_recipe_metadata_without_executing_it(tmp_path: Path, native_selector: Path) -> None:
+    path = write_local(tmp_path, recipe_specification())
+    result = subprocess.run([str(native_selector), str(path), "full"], check=False, capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["validation_performed"] is False
+
+
+@pytest.mark.parametrize("fault", ["unknown-input", "condition-count", "unknown-condition", "missing-recipe", "source-drift", "unknown-field"])
+def test_native_refuses_unmapped_or_incomplete_recipe_metadata(tmp_path: Path, native_selector: Path, fault: str) -> None:
+    specification = recipe_specification()
+    recipe = specification["checks"]["lint"]["recipe"]
+    if fault == "unknown-input":
+        recipe["required_inputs"] = ["guessed-credential"]
+    elif fault == "condition-count":
+        recipe["conditions"] = []
+    elif fault == "unknown-condition":
+        recipe["conditions"] = ["guessed"]
+    elif fault == "missing-recipe":
+        del specification["checks"]["lint"]["recipe"]
+    elif fault == "source-drift":
+        recipe["source"]["sha256"] = "b" * 64
+    else:
+        recipe["surprise"] = True
+    path = write_local(tmp_path, specification)
+    result = subprocess.run([str(native_selector), str(path), "full"], capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0
+    assert result.stdout == ""
 
 
 def write_local(root: Path, specification: dict[str, object]) -> Path:

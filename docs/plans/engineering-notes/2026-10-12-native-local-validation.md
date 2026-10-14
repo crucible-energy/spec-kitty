@@ -359,3 +359,8 @@ Root assigns the sole existing lane to this implementer and explicitly grants na
 ### Known Limitations
 
 The new input adapter and complete executable recipe specification are not yet implemented or qualified. Native staged construction, execution, containment, statement coverage, hooks, platform evidence, publication, and hosted retirement remain open. The action resolver reports the primary checkout's doctrine root; the actual owned prompt and this checkout's current charter remain the source of action-specific guidance. That context-source discrepancy is recorded for its owner, not silently treated as corrected.
+
+
+### Recipe Schema Failing-First Boundary
+
+The actual native selector rejects a schema-two recipe proposal before any command execution. Its new positive acceptance control is genuinely RED; six paired refusal controls are retained. The original process joined with one failure and six passes. The recipe schema will bind each command's conditional phase and matrix instance, explicit unbound prerequisites, advisory posture, Python version, and exact pinned migration source. Source mapping changes require a new reviewed source epoch; a recipe declaration does not qualify execution, containment, Linux, Windows, release, or publication.
