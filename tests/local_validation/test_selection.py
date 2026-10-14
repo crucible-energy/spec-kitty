@@ -1501,6 +1501,75 @@ def test_native_commit_target_uses_declared_mode_and_platform(tmp_path: Path, na
     assert actual["selection_only"] is True and actual["execution_supported"] is False
 
 
+@pytest.mark.parametrize("mode", ["platform", "release", "package", "docs"])
+def test_native_qualification_mode_selects_declared_checks_and_dependencies(tmp_path: Path, native_selector: Path, mode: str) -> None:
+    """Mode inspection follows the same commands/graph, without executing them."""
+    specification: Any = local_specification()
+    specification["checks"]["test-docs"]["modes"] = [mode]
+    specification["checks"]["test-docs"]["dependencies"] = ["lint"]
+    specification["checks"]["lint"]["modes"] = ["commit", "full", mode]
+    # Runtime remains unrelated even though its path group exists. No path is
+    # invented to activate qualification, and no recipe or tool is executed.
+    path = write_local(tmp_path, specification)
+    result = subprocess.run([str(native_selector), str(path), "--platform", "linux", mode], capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    actual = json.loads(result.stdout)
+    assert actual["selected_jobs"] == ["lint", "test-docs"]
+    assert actual["matched_groups"] == [] and actual["unmatched_src"] is False
+    assert {row["check"] for row in actual["selected_reasons"]} == {"lint", "test-docs"}
+    assert {tuple(row[key] for key in ("check", "kind", "reference")) for row in actual["selected_reasons"]} == {
+        ("lint", "mode", mode),
+        ("test-docs", "mode", mode),
+        ("lint", "dependency", "test-docs"),
+    }
+    assert actual["target_checked"] is True and actual["requested_platform"] == "linux"
+    assert actual["selection_only"] is True and actual["validation_performed"] is False and actual["execution_supported"] is False
+
+
+@pytest.mark.parametrize("mode", ["platform", "release", "package", "docs"])
+def test_python_qualification_mode_preserves_the_same_declared_roster(mode: str) -> None:
+    from scripts.ci.gate_selection import router_from_local_document
+
+    specification: Any = local_specification()
+    specification["checks"]["test-docs"]["modes"] = [mode]
+    specification["checks"]["test-docs"]["dependencies"] = ["lint"]
+    specification["checks"]["lint"]["modes"] = ["commit", "full", mode]
+    selected = select_gates([], router=router_from_local_document(specification), mode=mode)
+    assert selected.selected_jobs == {"lint", "test-docs"}
+    assert selected.matched_groups == frozenset() and selected.unmatched_src is False
+
+
+@pytest.mark.parametrize("mode", ["platform", "release", "package", "docs", "unqualified"])
+def test_python_qualification_mode_refuses_unmapped_current_requirements(mode: str) -> None:
+    with pytest.raises(ValueError, match="mode|applicable"):
+        select_gates([], mode=mode)
+
+
+@pytest.mark.parametrize("mode", ["platform", "release", "package", "docs"])
+def test_native_qualification_mode_refuses_empty_current_recipe_roster(native_selector: Path, mode: str) -> None:
+    """The real authority has not mapped these modes; always-on work cannot qualify them."""
+    authority = Path(__file__).resolve().parents[2] / "tools/validation/gates.json"
+    result = subprocess.run([str(native_selector), str(authority), mode], capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0 and result.stdout == ""
+    assert "NoApplicableChecks" in result.stderr
+
+
+@pytest.mark.parametrize("fault", ["mode", "platform", "paths"])
+def test_native_qualification_mode_refuses_incompatible_required_work(tmp_path: Path, native_selector: Path, fault: str) -> None:
+    specification: Any = local_specification()
+    specification["checks"]["test-docs"]["modes"] = ["docs"]
+    specification["checks"]["test-docs"]["dependencies"] = ["lint"]
+    specification["checks"]["lint"]["modes"] = ["docs"] if fault != "mode" else ["commit"]
+    if fault == "platform":
+        specification["checks"]["lint"]["platforms"] = ["windows"]
+    arguments = [str(native_selector), str(write_local(tmp_path, specification)), "--platform", "linux", "docs"]
+    if fault == "paths":
+        arguments.append("docs/operator.md")
+    result = subprocess.run(arguments, capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0 and result.stdout == ""
+    assert ("UnexpectedChangedPaths" if fault == "paths" else "UnavailableRequiredCheck") in result.stderr
+
+
 @pytest.mark.parametrize("fault", ["platform", "mode", "dependency-platform", "unknown-platform", "missing-platform", "routing-only"])
 def test_native_target_refuses_unavailable_required_checks(tmp_path: Path, native_selector: Path, fault: str) -> None:
     specification: Any = local_specification()

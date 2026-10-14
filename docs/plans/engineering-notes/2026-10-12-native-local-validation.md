@@ -519,3 +519,19 @@ The smallest classification regression controls now pass thirty-three checks. On
 
 
 The eight-path consumer successor joins with 544 real passes and one static wiring refusal: the corpus authority test still searches for the obsolete whole-selector name. Root grants a third exact companion extension, `tests/ci/test_corpus_select.py`, after verifying its clean state and existing assertions; it expires at reviewed correction. Preserve nonempty corpus, workflow output, prose and Packs assertions. Replace only the final substring pin with actual AST proof that both corpus predicates import and call the shared classifier, without a comment or alias to game the old gate. All nine intended paths belong in the next frozen subject. No production or native source/build changes occur; test this one control before the required final gate and retain the earlier refusal.
+
+## October 14, 2026 — Complete The Declared Mode Selection Interface
+
+### User Experience Findings
+
+Independent review approves the exact unknown-surface successor at `bfdee506b32a0d2c5c1e6db01be728649201806b`; its three temporary consumer companions close as reviewed work. A compact requirement/evidence frontier distinguishes WP01 specification and selection from WP02 staged receipts, WP03 execution and containment, WP04 hook installation, and WP05 actual qualification and retirement. The unchanged nineteen-workflow inventory identifies seventeen workflows without executable local mappings. Router and Packs declarations do not qualify the other workflows, their missing budgets, matrices, platform install topology, trusted-base validators, artifacts, or publication prerequisites.
+
+The declared public interface includes platform, release, package, and docs modes, but native selection only accepts pr, commit, and full. Package is also missing from command-mode validation. Python whole-gate selection silently treats an unknown mode as a path preview. Eleven actual native controls fail against the unchanged reviewed image, and nine public Python controls reproduce missing mode selection or missing refusal. These are real selection observations; no validator, platform, packaging, or publication action executes.
+
+### Engineering Decisions
+
+Select explicit qualification inspections from the existing canonical check-mode declarations and their dependency graph, preserving stable reasons and order. Reject a mode with no applicable checks, incompatible required work, or changed paths supplied to a qualification inspection; qualification is not a route inferred from invented paths. Preserve current commit/full previews and the separate path classifier. The canonical recipes remain unchanged: today's unimplemented qualification families refuse instead of granting authority to always-on commit work. No second routing map, new executor, shell expansion, or invented command is introduced.
+
+### Known Limitations
+
+This is a WP01 selection increment, not completion of T002 or WP01. Full workflow translations and prerequisite bindings remain required. Existing actual native explicit-entry measurements retain their narrow scope; they do not satisfy the required full executable-statement denominator or threshold. Real Linux and Windows execution remain UNKNOWN. Staged candidate construction, actual execution, process containment, installed hooks, publication, hosted retirement, and default-main integration remain in their owning later phases. Current native source changes need fresh source accounting, build/closure, actual counter and semantic controls, required delivery gates, and sequential independent review. Prior refusals, source images, and evidence remain immutable.
