@@ -409,3 +409,7 @@ Preserve the platform requirements, finite bounds, regular-file and link safegua
 ### Known Limitations
 
 The fix and successor gates are pending. Real Windows execution, installed hooks, native execution, WP01 completion, and hosted retirement remain unqualified. Simulated flag loss or API behavior cannot establish Windows qualification. No shared service, host, Source, store, model, or canonical effect is selected.
+
+### Reproduction Fixture Correction
+
+The first isolated proxy omitted the ordinary `open` function as well as the POSIX flags. Its three failures therefore stopped at that fixture omission and cannot establish the exact reviewed defect. The original diagnostic and first test commit remain preserved. Restoring only `open` reproduces the actual missing `O_NOFOLLOW` exception in all three controls before any input content is opened. The corrected original joins with three failures and 187 unrelated controls deselected; no flag-loss simulation establishes a Windows pass.

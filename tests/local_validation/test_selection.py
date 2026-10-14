@@ -437,7 +437,7 @@ def windows_input_seam(monkeypatch: pytest.MonkeyPatch, api: SimulatedWindowsInp
     from scripts.validation import check_inputs
 
     # Replace only the adapter's os reference: no shared process/module flag mutation.
-    proxy = SimpleNamespace(name="nt", O_RDONLY=os.O_RDONLY, fstat=os.fstat, close=os.close, fdopen=os.fdopen)
+    proxy = SimpleNamespace(name="nt", O_RDONLY=os.O_RDONLY, open=os.open, fstat=os.fstat, close=os.close, fdopen=os.fdopen)
     monkeypatch.setattr(check_inputs, "os", proxy)
     monkeypatch.setattr(check_inputs, "_windows_api", lambda: api, raising=False)
 
