@@ -550,7 +550,7 @@ def _pack_check(name: str, job: dict[str, object], source: dict[str, str]) -> di
 
 def _argument_commands(run: str) -> tuple[list[list[str]], list[dict[str, object]]] | None:
     """Normalize only complete quoted variable words, without shell evaluation."""
-    if "@environment." in run or any(character not in " \t\n" and unicodedata.category(character)[0] in {"C", "Z"} for character in run):
+    if "`" in run or "@environment." in run or any(character not in " \t\n" and unicodedata.category(character)[0] in {"C", "Z"} for character in run):
         return None
     references: list[tuple[str, str, str]] = []
 
@@ -558,7 +558,7 @@ def _argument_commands(run: str) -> tuple[list[list[str]], list[dict[str, object
         references.append((match[2] or match[3], match[1], match[4]))
         return f'"@environment.{len(references) - 1}"'
 
-    pattern = r'(?<!\S)"([^"$\\\n]*)\$(?:\{([A-Z][A-Z0-9_]*)\}|([A-Z][A-Z0-9_]*))([^"$\\\n]*)"(?=\s|$)'
+    pattern = r'(?<!\S)"([^"$\\\n]*)\$(?:\{([A-Z][A-Z0-9_]*)\}|([A-Z][A-Z0-9_]*)(?![A-Za-z0-9_]))([^"$\\\n]*)"(?=\s|$)'
     commands = _commands(re.sub(pattern, replace, run))
     if commands is None:
         return None

@@ -359,10 +359,12 @@ fn validateWorkflowProgram(value: Value, job: std.json.ObjectMap) !void {
     const argv = argv_value.array.items;
     var words: usize = 0;
     for (argv) |command| {
-        const args = try strings(command);
-        if (args.len == 0 or args.len > 4096 or args[0].string.len == 0) return error.InvalidWorkflowProgram;
+        if (command != .array) return error.InvalidWorkflowProgram;
+        const args = command.array.items;
+        if (args.len == 0 or args.len > 4096) return error.InvalidWorkflowProgram;
         words += args.len;
-        for (args) |arg| if (arg.string.len > 16384 or std.mem.indexOfScalar(u8, arg.string, 0) != null) return error.InvalidWorkflowProgram;
+        for (args) |arg| if (arg != .string or arg.string.len > 16384 or std.mem.indexOfScalar(u8, arg.string, 0) != null) return error.InvalidWorkflowProgram;
+        if (args[0].string.len == 0) return error.InvalidWorkflowProgram;
     }
     if (words > 32768) return error.InputLimit;
     const control_value = program.get("controls") orelse return error.InvalidWorkflowProgram;
