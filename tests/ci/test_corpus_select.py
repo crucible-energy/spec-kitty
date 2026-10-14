@@ -20,6 +20,7 @@ test here is red with ``ModuleNotFoundError`` (never ``importorskip``).
 
 from __future__ import annotations
 
+import ast
 import json
 import shlex
 from pathlib import Path
@@ -256,4 +257,18 @@ def test_corpus_group_is_live_and_feeds_prose_scan_and_packs() -> None:
     prose_scan_runs = "\n".join(str(step.get("run", "")) for step in workflow["jobs"]["prose-scan"]["steps"])
     assert 'filters.get("corpus"' in prose_scan_runs, "prose-scan must keep reading the router corpus group"
     source = (_REPO_ROOT / _SCRIPT_REL).read_text(encoding="utf-8")
-    assert "select_gates" in source and '"corpus"' in source, "corpus_select must consume the router corpus group"
+    tree = ast.parse(source)
+    imports = {
+        alias.asname or alias.name
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom) and node.module == "scripts.ci.gate_selection"
+        for alias in node.names
+        if alias.name == "classify_paths"
+    }
+    assert imports, "corpus_select must import the shared classification authority"
+    functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+    for name in ("corpus_selected", "_reason"):
+        assert any(isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in imports for node in ast.walk(functions[name])), (
+            f"{name} must call the imported classification authority"
+        )
+    assert '"corpus"' in source, "corpus_select must consume the router corpus group"

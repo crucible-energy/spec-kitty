@@ -588,8 +588,8 @@ def executable_router_specification(root: Path) -> dict[str, object]:
         data_groups.append(group)
     for name, groups in packs_model.job_gates.items():
         gates[name] = sorted("corpus" if group == "corpus" else "packs_" + group for group in groups)
-    authority["routing"] = {"filters": filters, "job_gates": gates, "non_source_groups": sorted(data_groups)}
-    authority["schema_version"] = 3
+    authority["routing"] = {"filters": filters, "job_gates": gates, "non_source_groups": sorted(data_groups), "unknown_surface_policy": "refuse-path-sensitive"}
+    authority["schema_version"] = 4
     authority["migration"] = [{"path": row["path"], "sha256": row["sha256"], "role": "migration-baseline"} for row in inventory["workflows"]]
     authority["checks"] = {name: _router_check(name, _mapping(value), normalized_source) for name, value in jobs.items() if name != "changes"}
     checks = _mapping(authority["checks"])

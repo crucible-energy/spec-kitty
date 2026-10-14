@@ -2,6 +2,7 @@
 
 import json
 import hashlib
+from fnmatch import fnmatch
 import os
 import subprocess
 from pathlib import Path
@@ -964,13 +965,27 @@ def test_checked_in_authority_matches_pinned_hosted_routing(native_selector: Pat
         ".github/workflows/ci-router.yml",
         "src/unmapped/new_surface.py",
     ]
+    unknown = [
+        path
+        for path in paths
+        if not path.startswith("src/") and not any(fnmatch(path, pattern) for group in local.routing_groups for pattern in local.filters[group])
+    ]
     for mode in ("pr", "full"):
-        expected = select_gates(paths, router=hosted, mode=mode)
-        python_actual = select_gates(paths, router=local, mode=mode)
+        supported = paths
+        if mode != "full" and unknown:
+            # The current policy deliberately refuses formerly unclassified paths.
+            with pytest.raises(ValueError, match="Unsupported changed surface"):
+                select_gates(paths, router=local, mode=mode)
+            refused = subprocess.run([str(native_selector), str(local_authority), mode, *paths], capture_output=True, text=True, timeout=20)
+            assert refused.returncode != 0 and refused.stdout == ""
+            assert "UnsupportedChangedSurface" in refused.stderr
+            supported = [path for path in paths if path not in unknown]
+        expected = select_gates(supported, router=hosted, mode=mode)
+        python_actual = select_gates(supported, router=local, mode=mode)
         assert python_actual == expected
-        assert select_gates(paths, mode=mode) == expected
+        assert select_gates(supported, mode=mode) == expected
         result = subprocess.run(
-            [str(native_selector), str(local_authority), mode, *paths],
+            [str(native_selector), str(local_authority), mode, *supported],
             check=True,
             capture_output=True,
             text=True,
@@ -1701,22 +1716,30 @@ def test_native_warning_policy_matches_pinned_ascii_grep_rule(tmp_path: Path, na
 
 
 @pytest.mark.parametrize("consumer", ["python", "native"])
+@pytest.mark.parametrize("mode", ["pr", "commit"])
 @pytest.mark.parametrize(
-    "paths", [["future-native/worker.zig"], ["docs/guide.md", "future-native/worker.zig"], ["tools/zig/validation_selection.zig"], ["future-native/odd\nname.zig"]]
+    "paths",
+    [
+        ["future-native/worker.zig"],
+        ["docs/guide.md", "future-native/worker.zig"],
+        ["tools/zig/validation_selection.zig"],
+        ["future-native/odd\nname.zig"],
+        [".github/CODEOWNERS"],
+    ],
 )
-def test_canonical_unknown_surface_refuses_instead_of_always_on_preview(native_selector: Path, consumer: str, paths: list[str]) -> None:
+def test_canonical_unknown_surface_refuses_instead_of_always_on_preview(native_selector: Path, consumer: str, mode: str, paths: list[str]) -> None:
     """Unmapped non-src work cannot silently credit only the always-on roster."""
     authority = Path(__file__).resolve().parents[2] / "tools/validation/gates.json"
     if consumer == "python":
         with pytest.raises(ValueError, match="Unsupported changed surface"):
-            select_gates(paths, router=load_router(authority))
+            select_gates(paths, router=load_router(authority), mode=mode)
     else:
-        result = subprocess.run([str(native_selector), str(authority), "pr", *paths], capture_output=True, text=True, timeout=20)
+        result = subprocess.run([str(native_selector), str(authority), mode, *paths], capture_output=True, text=True, timeout=20)
         assert result.returncode != 0 and result.stdout == ""
         assert "UnsupportedChangedSurface" in result.stderr
 
 
-@pytest.mark.parametrize("paths", [["scripts/validation/extract_gates.py"], ["src/new/unmapped.py"], ["docs/guide.md", "src/new/unmapped.py"]])
+@pytest.mark.parametrize("paths", [["scripts/ci/gate_selection.py"], ["src/new/unmapped.py"], ["docs/guide.md", "src/new/unmapped.py"]])
 def test_canonical_known_or_conservative_source_path_remains_supported(native_selector: Path, paths: list[str]) -> None:
     authority = Path(__file__).resolve().parents[2] / "tools/validation/gates.json"
     expected = select_gates(paths, router=load_router(authority))
@@ -1733,3 +1756,40 @@ def test_explicit_full_inspection_remains_conservative_for_unknown_surface(nativ
     assert set(actual["selected_jobs"]) == set(json.loads(authority.read_text())["checks"])
     assert actual["selected_jobs"] == sorted(expected.selected_jobs)
     assert actual["execution_supported"] is False
+
+
+@pytest.mark.parametrize("policy", [None, "accept-always-on", ["refuse-path-sensitive"]])
+def test_schema_four_refuses_missing_or_weakened_unknown_policy(tmp_path: Path, native_selector: Path, policy: object) -> None:
+    authority: Any = json.loads((Path(__file__).resolve().parents[2] / "tools/validation/gates.json").read_text())
+    if policy is None:
+        authority["routing"].pop("unknown_surface_policy")
+    else:
+        authority["routing"]["unknown_surface_policy"] = policy
+    path = write_local(tmp_path, authority)
+    with pytest.raises(ValueError, match="unknown-surface routing policy"):
+        load_router(path)
+    result = subprocess.run([str(native_selector), str(path), "pr", "docs/guide.md"], capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0 and result.stdout == ""
+    assert "InvalidRouting" in result.stderr
+
+
+@pytest.mark.parametrize("field", ["non_source_groups", "stderr_policy"])
+def test_schema_four_missing_required_native_binding_refuses(tmp_path: Path, native_selector: Path, field: str) -> None:
+    authority: Any = json.loads((Path(__file__).resolve().parents[2] / "tools/validation/gates.json").read_text())
+    if field == "non_source_groups":
+        authority["routing"].pop(field)
+    else:
+        next(iter(authority["checks"].values())).pop(field)
+    result = subprocess.run([str(native_selector), str(write_local(tmp_path, authority)), "pr", "docs/guide.md"], capture_output=True, text=True, timeout=20)
+    assert result.returncode != 0 and result.stdout == ""
+    assert ("InvalidRouting" if field == "non_source_groups" else "InvalidChecks") in result.stderr
+
+
+def test_partial_classification_cannot_replace_complete_surface_selection() -> None:
+    from scripts.ci.gate_selection import classify_paths
+
+    router = load_router()
+    assert classify_paths(["future-native/worker.zig"], router=router) == (frozenset(), False)
+    with pytest.raises(ValueError, match="Unsupported changed surface"):
+        select_gates(["future-native/worker.zig"], router=router)
+    assert classify_paths(["src/new/unmapped.py"], router=router)[1] is True

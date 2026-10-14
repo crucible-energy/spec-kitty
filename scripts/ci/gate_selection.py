@@ -43,6 +43,7 @@ __all__ = [
     "Router",
     "load_router",
     "router_from_local_document",
+    "classify_paths",
     "select_gates",
     "select_modules",
 ]
@@ -72,6 +73,7 @@ class Router:
     job_gates: dict[str, frozenset[str]]
     non_source_groups: frozenset[str] = frozenset()
     non_conservative_jobs: frozenset[str] = frozenset()
+    refuse_unmatched_non_source: bool = False
 
     @property
     def routing_groups(self) -> frozenset[str]:
@@ -153,11 +155,14 @@ def _local_router(document: object) -> Router:
     if not isinstance(document, dict):
         raise ValueError("Local routing authority must be an object")
     version = document.get("schema_version")
-    if type(version) is not int or version not in {1, 2, 3}:
+    if type(version) is not int or version not in {1, 2, 3, 4}:
         raise ValueError("Unsupported local authority schema version")
     routing = document.get("routing")
     if not isinstance(routing, dict):
         raise ValueError("Local routing authority requires a routing object")
+    unknown_policy = routing.get("unknown_surface_policy")
+    if (version == 4 or unknown_policy is not None) and unknown_policy != "refuse-path-sensitive":
+        raise ValueError("Unsupported unknown-surface routing policy")
     filters = _routing_rows(routing.get("filters"))
     gates = _routing_rows(routing.get("job_gates"))
     for groups in gates.values():
@@ -186,6 +191,7 @@ def _local_router(document: object) -> Router:
         job_gates={name: frozenset(groups) for name, groups in gates.items()},
         non_source_groups=frozenset(data),
         non_conservative_jobs=frozenset(non_conservative),
+        refuse_unmatched_non_source=unknown_policy == "refuse-path-sensitive",
     )
 
 
@@ -214,6 +220,20 @@ def _match_groups(paths: list[str], router: Router) -> frozenset[str]:
     return frozenset(hit)
 
 
+def classify_paths(changed_paths: Iterable[str | Path], *, router: Router | None = None) -> tuple[frozenset[str], bool]:
+    """Classify route groups and source fallback; this cannot accept a gate.
+
+    Corpus and module consumers need their own scoped classification even when
+    a whole path-sensitive gate must refuse an unrelated uncovered surface.
+    """
+    router = router or load_router()
+    paths = [str(path) for path in changed_paths]
+    matched = _match_groups(paths, router)
+    source_patterns = tuple(pattern for group in router.src_backed_groups for pattern in router.filters[group])
+    unmatched_src = any(path.startswith("src/") and not any(fnmatch.fnmatch(path, pattern) for pattern in source_patterns) for path in paths)
+    return matched, unmatched_src
+
+
 def select_gates(
     changed_paths: Iterable[str | Path],
     *,
@@ -229,10 +249,11 @@ def select_gates(
     """
     router = router or load_router()
     paths = [str(path) for path in changed_paths]
-    matched = _match_groups(paths, router)
-
-    source_patterns = tuple(pattern for group in router.src_backed_groups for pattern in router.filters[group])
-    unmatched_src = any(path.startswith("src/") and not any(fnmatch.fnmatch(path, pattern) for pattern in source_patterns) for path in paths)
+    if router.refuse_unmatched_non_source and mode != "full":
+        patterns = tuple(pattern for group in router.routing_groups for pattern in router.filters[group])
+        if any(not path.startswith("src/") and not any(fnmatch.fnmatch(path, pattern) for pattern in patterns) for path in paths):
+            raise ValueError("Unsupported changed surface; explicit routing or full inspection required")
+    matched, unmatched_src = classify_paths(paths, router=router)
 
     gated_selected = frozenset(
         job
@@ -421,9 +442,9 @@ def select_modules(
     router = router or load_router()
     modules = _registry_module_names(registry_path)
     paths = [str(path) for path in changed_paths]
-    selection = select_gates(paths, router=router, mode=mode)
-    if mode == "full" or selection.unmatched_src or _selection_authority_paths(registry_path).intersection(paths):
+    matched, unmatched_src = classify_paths(paths, router=router)
+    if mode == "full" or unmatched_src or _selection_authority_paths(registry_path).intersection(paths):
         return modules
-    src_selected = selection.matched_groups & modules
+    src_selected = matched & modules
     test_selected = _modules_for_test_paths(paths, router=router, registry_path=registry_path, modules=modules)
     return src_selected | test_selected

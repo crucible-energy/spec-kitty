@@ -293,7 +293,7 @@ fn validateRecipes(root: std.json.ObjectMap, version: i64) !void {
     var iterator = checks.iterator();
     while (iterator.next()) |entry| {
         const check = try object(entry.value_ptr.*);
-        if (version == 3 and (!check.contains("unmatched_source") or !check.contains("stderr_policy"))) return error.InvalidChecks;
+        if (version >= 3 and (!check.contains("unmatched_source") or !check.contains("stderr_policy"))) return error.InvalidChecks;
         _ = try requiredStrings(check, "platforms");
         const recipe = check.get("recipe") orelse return error.InvalidRecipe;
         try validateRecipe(recipe, check.get("argv").?.array.items.len, migration.array.items);
@@ -378,13 +378,19 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
     try rejectUnknownFields(document, &.{ "schema_version", "source", "routing", "modules", "checks", "migration" });
     try validateOptionalSections(root);
     const version = root.get("schema_version") orelse return error.UnsupportedSchemaVersion;
-    if (version != .integer or (version.integer != 1 and version.integer != 2 and version.integer != 3)) return error.UnsupportedSchemaVersion;
+    if (version != .integer or (version.integer != 1 and version.integer != 2 and version.integer != 3 and version.integer != 4)) return error.UnsupportedSchemaVersion;
     try validateRecipes(root, version.integer);
     const routing = try object(root.get("routing") orelse return error.InvalidRouting);
-    try rejectUnknownFields(root.get("routing").?, &.{ "filters", "job_gates", "non_source_groups" });
+    try rejectUnknownFields(root.get("routing").?, &.{ "filters", "job_gates", "non_source_groups", "unknown_surface_policy" });
+    var refuse_unknown = false;
+    if (routing.get("unknown_surface_policy")) |policy| {
+        if (policy != .string or !std.mem.eql(u8, policy.string, "refuse-path-sensitive")) return error.InvalidRouting;
+        refuse_unknown = true;
+    }
+    if (version.integer == 4 and !refuse_unknown) return error.InvalidRouting;
     var non_source: []const Value = &.{};
     if (routing.get("non_source_groups")) |data| non_source = try strings(data);
-    if (version.integer == 3 and !routing.contains("non_source_groups")) return error.InvalidRouting;
+    if (version.integer >= 3 and !routing.contains("non_source_groups")) return error.InvalidRouting;
     const filters = try object(routing.get("filters") orelse return error.InvalidRouting);
     const gates = try object(routing.get("job_gates") orelse return error.InvalidRouting);
     try validate(filters, gates, non_source, root);
@@ -396,6 +402,7 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
         var parts = std.mem.splitScalar(u8, path, '/');
         while (parts.next()) |part| if (std.mem.eql(u8, part, "..")) return error.InvalidPath;
         var known_source = false;
+        var known_route = false;
         var fit = filters.iterator();
         while (fit.next()) |entry| {
             const name = entry.key_ptr.*;
@@ -403,11 +410,13 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
             for (entry.value_ptr.array.items) |pattern| {
                 if (try matches(pattern.string, path)) {
                     try matched.put(name, {});
+                    known_route = true;
                     known_source = known_source or sourceGroup(filters, name, non_source);
                     break;
                 }
             }
         }
+        if (refuse_unknown and !known_route and !std.mem.startsWith(u8, path, "src/") and !std.mem.eql(u8, mode, "full")) return error.UnsupportedChangedSurface;
         unmatched = unmatched or (std.mem.startsWith(u8, path, "src/") and !known_source);
     }
     const all = unmatched or std.mem.eql(u8, mode, "full");

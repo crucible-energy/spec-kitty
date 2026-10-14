@@ -8,11 +8,11 @@ predicate being mirrored is the router's own ``changes.outputs.corpus`` fold in
 
     (mode == 'full' || unmatched src/**) ? 'true' : <the `corpus` dorny filter group>
 
-That predicate is answered here by :func:`scripts.ci.gate_selection.select_gates`,
+That predicate is answered here by :func:`scripts.ci.gate_selection.classify_paths`,
 which parses the router's ``corpus`` filter group straight out of ``ci-router.yml``.
 There is deliberately NO glob list in this module or in ``packs.yml`` (C-003, #2476:
 a second hand-maintained encoding is the drift hazard the authority exists to close);
-the unmatched-``src/**`` fan-out (C-008, #4368) is inherited from ``select_gates``.
+the unmatched-``src/**`` fan-out (C-008, #4368) is inherited from ``classify_paths``.
 
 The workflow step runs this file as a bare script before any ``uv sync``; PyYAML is
 the only third-party import (pulled in by ``gate_selection``), installed by the
@@ -44,7 +44,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.ci.gate_selection import Router, load_router, select_gates  # noqa: E402  (import after the path guard above)
+from scripts.ci.gate_selection import Router, classify_paths, load_router  # noqa: E402  (import after the path guard above)
 
 __all__ = ["corpus_selected", "decide", "main"]
 
@@ -56,17 +56,17 @@ _FULL_MODE = "full"
 
 def corpus_selected(paths: Sequence[str], *, router: Router, mode: str = "pr") -> bool:
     """Whether ``paths`` select the corpus lane (the router's ``changes.outputs.corpus`` fold)."""
-    selection = select_gates(paths, router=router, mode=mode)
-    return mode == _FULL_MODE or selection.unmatched_src or _CORPUS_GROUP in selection.matched_groups
+    matched, unmatched_src = classify_paths(paths, router=router)
+    return mode == _FULL_MODE or unmatched_src or _CORPUS_GROUP in matched
 
 
 def _reason(paths: Sequence[str], *, router: Router, mode: str) -> str:
     if mode == _FULL_MODE:
         return "full mode runs everything"
-    selection = select_gates(paths, router=router, mode=mode)
-    if selection.unmatched_src:
+    matched, unmatched_src = classify_paths(paths, router=router)
+    if unmatched_src:
         return "unmatched src/** fan-out (C-008)"
-    if _CORPUS_GROUP in selection.matched_groups:
+    if _CORPUS_GROUP in matched:
         return "diff touches the router corpus group"
     return "no corpus path in the diff"
 

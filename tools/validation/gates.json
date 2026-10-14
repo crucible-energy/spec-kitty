@@ -2920,9 +2920,10 @@
     "non_source_groups": [
       "packs_built_in",
       "packs_internal"
-    ]
+    ],
+    "unknown_surface_policy": "refuse-path-sensitive"
   },
-  "schema_version": 3,
+  "schema_version": 4,
   "source": {
     "path": ".github/workflows/ci-router.yml",
     "role": "migration-baseline",

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.ci.gate_selection import load_router, select_gates, select_modules
+from scripts.ci.gate_selection import DEFAULT_ROUTER_PATH, load_router, select_gates, select_modules
 from scripts.ci.prose_only import prose_only_pr_verdict
 
 pytestmark = pytest.mark.fast
@@ -81,7 +81,8 @@ def test_an_ops_data_only_diff_selects_the_corpus_job(path: str) -> None:
 
 
 def test_codeowners_alone_selects_nothing_in_the_router() -> None:
-    router = load_router()
+    """Retain the pinned hosted oracle; this is not current whole-gate acceptance."""
+    router = load_router(DEFAULT_ROUTER_PATH)
 
     selection = select_gates([".github/CODEOWNERS"], router=router)
 
@@ -125,3 +126,9 @@ def test_contracts_files_plus_a_code_edit_do_not_classify_as_prose_only() -> Non
 
 def test_a_contracts_only_diff_is_not_prose_only_because_it_never_needed_the_down_route() -> None:
     assert prose_only_pr_verdict(list(CONTRACTS_ONLY_PATHS[:2]), _getter({}), _doc_globs()) is False
+
+
+def test_current_codeowners_surface_requires_a_genuine_local_binding() -> None:
+    """Contracts classification cannot stand in for whole local qualification."""
+    with pytest.raises(ValueError, match="Unsupported changed surface"):
+        select_gates([".github/CODEOWNERS"], router=load_router())
