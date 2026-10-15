@@ -1038,6 +1038,13 @@ sys.exit(code)
 def linux_probe_operation(inputs: Path, fixture: Path, mode: str | None, expected: str) -> tuple[str, list[str]]:
     if mode is None:
         return "/input/executor", ["memory-sample", "/input/request.json"]
+    if mode == "cgroup":
+        (fixture / "proc/self").mkdir()
+        (fixture / "proc/self/cgroup").write_bytes(b"0::/battery\n")
+        counter = fixture / "sys-root/sys/fs/cgroup/battery/memory.peak"
+        counter.parent.mkdir(parents=True)
+        counter.write_bytes(b"123\n")
+        return "/input/executor", ["memory-cgroup", "/input/request.json"]
     if mode == "proc":
         (inputs / "proc-reader.py").write_text(LINUX_PROC_READER)
         return "/usr/local/bin/python3", ["/input/proc-reader.py"]
@@ -1093,6 +1100,20 @@ def linux_actual_pid(fixture: Path, terminal: dict[str, Any], owned: bool) -> in
     pid = retained["actual_native_pid"]
     assert type(pid) is int and pid > 1
     return pid
+
+
+def linux_public_request(mode: str | None, changes: dict[str, Any] | None) -> dict[str, Any]:
+    if mode == "cgroup":
+        return {"schema_version": 1, "proc_root": "/output/fixture/proc", "sys_root": "/output/fixture/sys-root", "wall_ms": 5000, **(changes or {})}
+    return {
+        "schema_version": 1,
+        "destination": "/output/fixture/new-state",
+        "proc_root": "/output/fixture/proc",
+        "interval_ms": 0,
+        "max_samples": 3,
+        "wall_ms": 5000,
+        **(changes or {}),
+    }
 
 
 def linux_public_call(
@@ -1186,15 +1207,7 @@ def linux_public_call(
         (proc / "meminfo").write_bytes(body)
     shutil.copyfile(image, inputs / "executor")
     (inputs / "executor").chmod(0o500)
-    value = {
-        "schema_version": 1,
-        "destination": "/output/fixture/new-state",
-        "proc_root": "/output/fixture/proc",
-        "interval_ms": 0,
-        "max_samples": 3,
-        "wall_ms": 5000,
-        **(changes or {}),
-    }
+    value = linux_public_request(probe_mode, changes)
     assert control in {"normal", "fifo", "symlink", "directory", "denied", "sigint", "sigterm", "custody-data"}
     linux_input_fixture(proc, body, control)
     entrypoint, operation = linux_probe_operation(inputs, fixture, linux_fixture_mode(owned_fixture, probe_mode, control, changes), probe_expectation)
@@ -1253,7 +1266,7 @@ def linux_public_call(
         '"memory":{{json .HostConfig.Memory}},"swap":{{json .HostConfig.MemorySwap}},'
         '"cpu":{{json .HostConfig.NanoCpus}},"pids":{{json .HostConfig.PidsLimit}},"mounts":{{json .Mounts}},'
         '"cap_drop":{{json .HostConfig.CapDrop}},"security":{{json .HostConfig.SecurityOpt}},'
-        '"ulimits":{{json .HostConfig.Ulimits}},"pid_mode":{{json .HostConfig.PidMode}},"tmpfs":{{json .HostConfig.Tmpfs}}}'
+        '"ulimits":{{json .HostConfig.Ulimits}},"pid_mode":{{json .HostConfig.PidMode}},"tmpfs":{{json (index .HostConfig "Tmpfs")}}}'
     )
 
     def metadata(name: str) -> dict[str, Any]:
@@ -1323,6 +1336,18 @@ def test_actual_linux_foreground_public_entry_is_usable(sampler_binary: Path, tm
     state = oracle.from_json(Path(result["state_path"]).read_text())
     assert state is not None and state.pid == 1 and state.samples == 3
     assert state.source == "meminfo" and state.baseline_bytes == state.peak_bytes == 8388608
+
+
+@pytest.mark.integration
+def test_actual_linux_cgroup_value_is_usable_by_unchanged_report(sampler_binary: Path, tmp_path: Path) -> None:
+    if sampler_binary.read_bytes()[:4] != b"\x7fELF":
+        pytest.skip("Requires an explicitly bound actual Linux image")
+    result = linux_public_call(sampler_binary, tmp_path, probe_mode="cgroup")
+    assert result["native_exit_code"] == 0 and result["stderr"] == "", result
+    assert result["stdout"] == '{"schema_version":1,"source":"cgroup-v2-memory-peak","peak_bytes":123}\n'
+    measured = json.loads(result["stdout"])
+    report = oracle.render_report(oracle.initial_state(0), measured["peak_bytes"], warn_bytes=10 * oracle.GIB, error_bytes=12 * oracle.GIB)
+    assert report == ["peak_rss_bytes=0 source=unavailable baseline_bytes=0 delta_bytes=0 samples=0 elapsed_s=0.0 cgroup_peak_bytes=123"]
 
 
 @pytest.mark.integration

@@ -1812,3 +1812,70 @@ output mount. This helper is test transport; it is not a native launcher or
 signal backend. Other controls and all production sources remain unchanged.
 The new helper branch, finite input roster and recorder require separate
 qualification before its statement observations or delivery gates are accepted.
+
+
+## October 15, 2026 — Finite Cgroup Peak Reader
+
+### User Experience Findings
+
+The bounded Linux foreground sampler is delivered at `d34e3fb5`. Canonical status
+still has WP03 in progress, with WP01 and WP02 approved. The next source-local
+dependency of the architectural sampler stop/report path is its cgroup peak
+reader. Detached start/stop and the complete check lifecycle remain separate.
+The mission branch is an existing dependency stack; its declared review base
+lacks the predecessor sampler and executor, so this increment does not create
+an independent ready PR or imply a merge.
+
+### Engineering Decisions
+
+Root accepted the prospective cgroup contract, with the actual pinned CPython
+3.14.7 oracle and its observed 4,300-digit limit recorded in a separate immutable
+correction. The existing Python 3.11 test controller remains distinct. First
+commit a real public `memory-cgroup` RED against the delivered native image,
+requiring measured integer 123 from a private tree and the unchanged report
+consumer's secondary field. Missing setup is not a product RED.
+
+Implement one finite read-only operation in the existing sampler/executable.
+Reuse the current bounded reader with an optional actual input-observation
+record, preserving existing callers. The closed request and ASCII/u64 domain
+make unsupported inputs visible. Missing measurements stay null, never zero.
+Retained namespace and file identities, the original deadline, owned descriptor
+close and signal restoration govern every exit before a usable result.
+
+Actual Linux `/proc/self` is a kernel alias. Only a Linux procfs descriptor
+proved by target-owned fstatfs metadata may resolve that exact alias to the
+native process's own decimal PID. Bound the raw target, open the numeric child
+without following links, and recheck the alias and relationship before output.
+This exception never grants arbitrary symlink traversal. The pinned target C
+headers and musl implementation define the ABI; no guessed layout or new runtime
+is selected. Actual compilation and live cgroup context still need proof.
+
+The user's Linux/macOS priority governs current sequencing. Windows remains
+explicitly unqualified and is deferred; this changes neither its requirements
+nor the meaning of a passing platform claim. Use the same existing bounded
+Linux container route, with no service, image pull, cgroup write, protected
+resource, or new observer. Private exact twins and live kernel measurements
+retain separate evidence and input-continuity meanings.
+
+### Known Limitations
+
+This component is not native stop/report, detached sampler ownership, Linux
+child execution, full architectural-fast qualification, gate adoption or WP03
+completion. Current Python validators, selection, budgets and reporting remain
+authoritative. New source review, actual controls, complete native statement
+accounting with retained misses and required frozen delivery gates remain open.
+
+### Genuine Public RED and Setup Boundary
+
+The unchanged foreground public control passed, with three actual samples and
+joined container disposal. The new cgroup control reached the same pinned Linux
+executable and refused `InvalidArguments` instead of returning the fixture peak
+123. The original two-control run joined with one pass and one genuine failure;
+its complete raw output and inputs remain in the external cgroup evidence.
+
+The first attempt never started native code: Docker omitted the unused Tmpfs
+metadata key. The test transport now looks up that optional key safely, while
+still requiring the exact mount and owner fields whenever tmpfs was requested.
+The exact created, unstarted owned container was verified and removed. A later
+external runner path typo also failed before execution. Both setup failures are
+retained separately and receive no product proof credit.
