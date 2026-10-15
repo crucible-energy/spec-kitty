@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -18,6 +18,16 @@ from tests.local_validation.test_candidate import repository as repository
 
 SOURCE = ROOT / "tools/zig/validation_receipt.zig"
 CANDIDATE_SOURCE = ROOT / "tools/zig/validation_candidate.zig"
+NATIVE_SOURCES = [
+    ROOT / "tools/zig" / name
+    for name in [
+        "validation_candidate.zig",
+        "validation_receipt.zig",
+        "validation_execution.zig",
+        "validation_selection.zig",
+        "validation_process_darwin.zig",
+    ]
+]
 
 
 def retain_native_build_metadata(image: Path, sources: list[Path], argv: list[str], completed: subprocess.CompletedProcess[bytes]) -> None:
@@ -49,7 +59,7 @@ def receipt_binary(tmp_path_factory: pytest.TempPathFactory) -> Path:
     image = tmp_path_factory.mktemp("native-receipt") / "receipt"
     argv = [shutil.which("zig") or "zig", "build-exe", "-j1", "-OReleaseSafe", "-lc", str(SOURCE), "-femit-bin=" + str(image)]
     compiled = subprocess.run(argv, check=True, capture_output=True, timeout=90)
-    retain_native_build_metadata(image, [SOURCE, CANDIDATE_SOURCE], argv, compiled)
+    retain_native_build_metadata(image, NATIVE_SOURCES, argv, compiled)
     return image
 
 
@@ -61,7 +71,7 @@ def receipt_call(binary: Path, operation: str, path: Path, environment: dict[str
 def bound_inputs(candidate_binary: Path, receipt_binary: Path, repository: Path, tmp_path: Path) -> dict[str, Any]:
     tools = repository / "tools/zig"
     tools.mkdir(parents=True)
-    for source in [SOURCE, CANDIDATE_SOURCE]:
+    for source in NATIVE_SOURCES:
         shutil.copyfile(source, tools / source.name)
     launcher = repository / "launcher.sh"
     launcher.write_text('#!/bin/sh\nexec "$WP02_NATIVE_RECEIPT" verify "$WP02_BINDING"\n')
@@ -83,8 +93,7 @@ def bound_inputs(candidate_binary: Path, receipt_binary: Path, repository: Path,
     for role, path in [
         ("launcher", launcher),
         ("specification", authority),
-        ("native_source", tools / SOURCE.name),
-        ("native_source", tools / CANDIDATE_SOURCE.name),
+        *(("native_source", tools / source.name) for source in NATIVE_SOURCES),
         ("dependency_lock", lock),
     ]:
         bindings.append({"role": role, "path": str(path), "candidate_path_hex": os.fsencode(path.relative_to(repository)).hex()})
@@ -134,7 +143,7 @@ def test_actual_native_binding_has_complete_current_identities_and_no_environmen
     assert binding["candidate_manifest_sha256"] == digest(bound_inputs["manifest_path"].read_bytes())
     assert binding["native_executable"]["sha256"] == digest(receipt_binary.read_bytes())
     assert {row["role"] for row in binding["files"]} == {"launcher", "specification", "native_source", "toolchain", "dependency_lock", "observed_dependency"}
-    assert len(binding["native_sources"]) == 2
+    assert len(binding["native_sources"]) == len(NATIVE_SOURCES)
     assert "fixture value, never raw receipt data" not in json.dumps(binding)
     result = receipt_call(receipt_binary, "verify", bound_inputs["binding_path"], bound_inputs["environment"])
     assert result.returncode == 0, result.stderr

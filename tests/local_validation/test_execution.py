@@ -1198,9 +1198,7 @@ def test_probe_and_native_boundaries_refuse_invalid_inputs_before_effect(process
     assert not marker.exists()
 
 
-def test_binding_cannot_omit_the_actual_process_implementation(
-    receipt_binary: Path, bound_inputs: dict[str, Any]
-) -> None:
+def test_binding_cannot_omit_the_actual_process_implementation(receipt_binary: Path, bound_inputs: dict[str, Any]) -> None:
     """The public binding must carry the implementation that will own execution.
 
     This exercises the existing binding entry, rather than treating an absent

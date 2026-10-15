@@ -4,13 +4,13 @@ const candidate = @import("validation_candidate.zig");
 const Allocator = std.mem.Allocator;
 const Value = std.json.Value;
 const FileRequest = struct { role: []const u8, path: []const u8, candidate_path_hex: ?[]const u8 };
-const Check = struct { id: []const u8, argv: []const []const []const u8, closure_proof: ?Value };
+pub const Check = struct { id: []const u8, argv: []const []const []const u8, closure_proof: ?Value };
 const Request = struct { schema_version: u8, candidate_manifest: []const u8, files: []const FileRequest, environment_names: []const []const u8, checks: []const Check };
 const File = struct { role: []const u8, path: []const u8, candidate_path_hex: ?[]const u8, sha256: []const u8, mode: u32 };
 const Environment = struct { name: []const u8, present: bool, sha256: ?[]const u8 };
 const Source = struct { name: []const u8, sha256: []const u8 };
 const Executable = struct { path: []const u8, sha256: []const u8, mode: u32 };
-const Binding = struct {
+pub const Binding = struct {
     schema_version: u8 = 1,
     binding_only: bool = true,
     acceptance_performed: bool = false,
@@ -25,7 +25,7 @@ const Binding = struct {
 };
 const PlanRequest = struct { binding: []const u8, check_id: []const u8 };
 
-fn exact(comptime T: type, allocator: Allocator, value: Value) !T {
+pub fn exact(comptime T: type, allocator: Allocator, value: Value) !T {
     const fields = try candidate.object(value);
     const names = std.meta.fieldNames(T);
     if (fields.count() != names.len) return error.InvalidBinding;
@@ -59,8 +59,12 @@ fn bind(init: std.process.Init, request: Request) !Binding {
     const sources = try allocator.dupe(Source, &.{
         .{ .name = "validation_candidate.zig", .sha256 = try candidate.hash(allocator, @embedFile("validation_candidate.zig")) },
         .{ .name = "validation_receipt.zig", .sha256 = try candidate.hash(allocator, @embedFile("validation_receipt.zig")) },
+        .{ .name = "validation_execution.zig", .sha256 = try candidate.hash(allocator, @embedFile("validation_execution.zig")) },
+        .{ .name = "validation_selection.zig", .sha256 = try candidate.hash(allocator, @embedFile("validation_selection.zig")) },
+        .{ .name = "validation_process_darwin.zig", .sha256 = try candidate.hash(allocator, @embedFile("validation_process_darwin.zig")) },
     });
-    var found_sources = [_]bool{ false, false };
+    const found_sources = try allocator.alloc(bool, sources.len);
+    for (found_sources) |*found| found.* = false;
     var roles = std.StringHashMap(void).init(allocator);
     var files: std.ArrayList(File) = .empty;
     for (request.files) |input| {
@@ -98,7 +102,8 @@ fn bind(init: std.process.Init, request: Request) !Binding {
         try roles.put(input.role, {});
         try files.append(allocator, .{ .role = input.role, .path = path, .candidate_path_hex = input.candidate_path_hex, .sha256 = sha, .mode = stat.permissions.toMode() });
     }
-    if (roles.count() != 6 or !found_sources[0] or !found_sources[1]) return error.IncompleteBinding;
+    if (roles.count() != 6) return error.IncompleteBinding;
+    for (found_sources) |found| if (!found) return error.IncompleteBinding;
     std.mem.sort(File, files.items, {}, fileOrder);
     for (files.items, 0..) |file, index| {
         if (index > 0 and !fileOrder({}, files.items[index - 1], file)) return error.DuplicateBinding;
@@ -186,9 +191,9 @@ fn pythonPlan(init: std.process.Init, request: PlanRequest) ![]const u8 {
 // The consumer checks their complete identities; it does not infer arbitrary
 // program semantics from argv, check names, caller booleans, or group_disposed.
 // No production qualification document is shipped by this module.
-const Pin = struct { path: []const u8, resolved: []const u8, sha256: []const u8, mode: u32 };
-const Limits = struct { wall_ms: u64, cleanup_ms: u64, stdout_bytes: usize, stderr_bytes: usize, processes: usize, resident_bytes: usize };
-const Qualification = struct {
+pub const Pin = struct { path: []const u8, resolved: []const u8, sha256: []const u8, mode: u32 };
+pub const Limits = struct { wall_ms: u64, cleanup_ms: u64, stdout_bytes: usize, stderr_bytes: usize, processes: usize, resident_bytes: usize };
+pub const Qualification = struct {
     schema_version: u8,
     scope: []const u8,
     platform: []const u8,
@@ -240,11 +245,11 @@ const RecordRequest = struct { binding: []const u8, check_id: []const u8, witnes
 const ReuseRequest = struct { binding: []const u8, check_id: []const u8, evidence: ?[]const u8 };
 const AcceptRequest = struct { binding: []const u8, evidence: []const []const u8 };
 
-fn equal(allocator: Allocator, a: anytype, b: @TypeOf(a)) !bool {
+pub fn equal(allocator: Allocator, a: anytype, b: @TypeOf(a)) !bool {
     return std.mem.eql(u8, try candidate.json(allocator, a), try candidate.json(allocator, b));
 }
 
-fn pin(init: std.process.Init, path: []const u8) !Pin {
+pub fn pin(init: std.process.Init, path: []const u8) !Pin {
     const allocator = init.arena.allocator();
     if (!std.fs.path.isAbsolute(path) or !validWord(path)) return error.InvalidEvidence;
     const resolved = try std.Io.Dir.cwd().realPathFileAlloc(init.io, path, allocator);
@@ -259,19 +264,19 @@ fn currentPin(init: std.process.Init, expected: Pin) !void {
     if (!try equal(init.arena.allocator(), expected, try pin(init, expected.path))) return error.EvidenceDrift;
 }
 
-fn checkById(binding: Binding, id: []const u8) !Check {
+pub fn checkById(binding: Binding, id: []const u8) !Check {
     for (binding.checks) |check| {
         if (std.mem.eql(u8, check.id, id)) return check;
     }
     return error.UnknownCheck;
 }
 
-fn loadBinding(init: std.process.Init, path: []const u8) !Binding {
+pub fn loadBinding(init: std.process.Init, path: []const u8) !Binding {
     const value = try candidate.parse(init.arena.allocator(), try candidate.read(init.arena.allocator(), init.io, path));
     return currentBinding(init, value.value);
 }
 
-fn qualification(init: std.process.Init, binding: Binding, check: Check) !Qualification {
+pub fn qualification(init: std.process.Init, binding: Binding, check: Check) !Qualification {
     const allocator = init.arena.allocator();
     if (@import("builtin").os.tag != .macos or check.argv.len != 1) return error.UnqualifiedClosure;
     var selected: ?Qualification = null;
@@ -317,6 +322,15 @@ fn qualification(init: std.process.Init, binding: Binding, check: Check) !Qualif
         }
         if (!bound) return error.UnboundDependency;
     }
+    // Execute the canonical pinned command identity itself. A separately bound
+    // resolved file cannot authorize an argv alias that may later be retargeted.
+    const command = try pin(init, q.argv[0]);
+    if (!std.mem.eql(u8, command.path, command.resolved)) return error.UnboundExecutable;
+    var command_bound = false;
+    for (q.runtime_files) |file| {
+        if (try equal(allocator, command, file)) command_bound = true;
+    }
+    if (!command_bound) return error.UnboundExecutable;
     const manifest_value = try candidate.parse(allocator, try candidate.read(allocator, init.io, binding.request.candidate_manifest));
     const manifest = try exact(candidate.Manifest, allocator, manifest_value.value);
     var program_bound = false;
@@ -327,7 +341,7 @@ fn qualification(init: std.process.Init, binding: Binding, check: Check) !Qualif
     return q;
 }
 
-fn bindingSha(init: std.process.Init, binding: Binding) ![]const u8 {
+pub fn bindingSha(init: std.process.Init, binding: Binding) ![]const u8 {
     return candidate.hash(init.arena.allocator(), try candidate.json(init.arena.allocator(), binding));
 }
 
@@ -441,7 +455,7 @@ fn withChecksum(init: std.process.Init, evidence: Evidence) ![]const u8 {
     return candidate.json(allocator, parsed.value);
 }
 
-fn run(init: std.process.Init) !void {
+pub fn run(init: std.process.Init) !void {
     const allocator = init.arena.allocator();
     const args = try init.minimal.args.toSlice(allocator);
     if (args.len != 3) return error.InvalidArguments;
