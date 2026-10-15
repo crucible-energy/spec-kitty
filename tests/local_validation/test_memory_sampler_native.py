@@ -2184,3 +2184,246 @@ def test_native_memory_report_renders_delivered_artifacts(sampler_binary: Path, 
         "summary_line": oracle.summary_line(state, peak),
     }
     assert state_path.read_bytes() == state_bytes and cgroup_artifact.read_bytes() == cgroup_result.stdout
+
+
+def report_state(**changes: Any) -> dict[str, Any]:
+    return {"baseline_bytes": oracle.GIB, "peak_bytes": 3 * oracle.GIB, "samples": 4, "pid": 7, "elapsed_seconds": 12.34, "source": "meminfo", **changes}
+
+
+def report_request(directory: Path, state: bytes | None, peak: int | None = 777, **changes: Any) -> tuple[Path, dict[str, Any]]:
+    state_path = directory / "state.json"
+    if state is not None:
+        state_path.write_bytes(state)
+        state_path.chmod(0o600)
+    group_path = directory / "cgroup-result.json"
+    group_path.write_text(json.dumps({"schema_version": 1, "source": "unavailable" if peak is None else "cgroup-v2-memory-peak", "peak_bytes": peak}))
+    group_path.chmod(0o600)
+    value = {
+        "schema_version": 1,
+        "state_path": str(state_path),
+        "cgroup_path": str(group_path),
+        "warn_bytes": 10 * oracle.GIB,
+        "error_bytes": 12 * oracle.GIB,
+        "wall_ms": 5000,
+        **changes,
+    }
+    path = directory / "report-request.json"
+    path.write_text(json.dumps(value))
+    path.chmod(0o600)
+    return path, value
+
+
+def expected_report(state: bytes | None, path: str, peak: int | None, warn: int, limit: int) -> dict[str, Any]:
+    parsed = oracle.from_json(state.decode()) if state is not None else None
+    warnings: list[str] = []
+    if parsed is None:
+        warnings.append(f"::warning title=memory sampler::no usable sampler state at {path}; was `start` run?")
+        parsed = oracle.initial_state(0)
+    elif parsed.source == "unavailable":
+        warnings.append("::warning title=memory sampler::no /proc/meminfo sample was recorded; peak memory is unavailable")
+    return {
+        "schema_version": 1,
+        "report_lines": warnings + oracle.render_report(parsed, peak, warn_bytes=warn, error_bytes=limit),
+        "summary_line": oracle.summary_line(parsed, peak),
+    }
+
+
+@pytest.mark.parametrize("elapsed", [0.0, -0.0, 0.05, 0.15, 1.25, -1.25, 1.75, -1.75, 2.675, 1000000.05, 5e-324, 2.2250738585072014e-308, 1.7976931348623157e308])
+def test_native_report_binary64_fixed_rounding(sampler_binary: Path, tmp_path: Path, elapsed: float) -> None:
+    raw = json.dumps(report_state(elapsed_seconds=elapsed)).encode()
+    path, value = report_request(tmp_path, raw)
+    result = invoke(sampler_binary, "memory-report", path, tmp_path)
+    assert result.returncode == 0 and result.stderr == b"", result.stderr
+    assert json.loads(result.stdout) == expected_report(raw, value["state_path"], 777, value["warn_bytes"], value["error_bytes"])
+
+
+@pytest.mark.parametrize("peak", [10 * oracle.GIB - 1, 10 * oracle.GIB, 12 * oracle.GIB - 1, 12 * oracle.GIB, 0, -1, 2**127 - 1])
+def test_native_report_exact_annotation_boundaries(sampler_binary: Path, tmp_path: Path, peak: int) -> None:
+    raw = json.dumps(report_state(peak_bytes=peak)).encode()
+    path, value = report_request(tmp_path, raw, 0)
+    result = invoke(sampler_binary, "memory-report", path, tmp_path)
+    assert result.returncode == 0 and result.stderr == b"", result.stderr
+    assert json.loads(result.stdout) == expected_report(raw, value["state_path"], 0, value["warn_bytes"], value["error_bytes"])
+
+
+@pytest.mark.parametrize(
+    "warn,limit", [(0, 0), (1, 1), (20 * oracle.GIB, 10 * oracle.GIB), (107374, 107375), (999999 * oracle.GIB, 1000000 * oracle.GIB), (2**64 - 1, 2**64 - 1)]
+)
+def test_native_report_threshold_general_format(sampler_binary: Path, tmp_path: Path, warn: int, limit: int) -> None:
+    raw = json.dumps(report_state(peak_bytes=limit)).encode()
+    path, value = report_request(tmp_path, raw, None, warn_bytes=warn, error_bytes=limit)
+    result = invoke(sampler_binary, "memory-report", path, tmp_path)
+    assert result.returncode == 0 and result.stderr == b"", result.stderr
+    assert json.loads(result.stdout) == expected_report(raw, value["state_path"], None, warn, limit)
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        None,
+        b"{truncated",
+        b"[]",
+        b"{}",
+        b"\xef\xbb\xbf{}",
+        json.dumps(report_state(samples=True)).encode(),
+        json.dumps(report_state(pid=7.0)).encode(),
+        json.dumps(report_state(source="unknown")).encode(),
+        json.dumps(report_state(baseline_bytes=-1, peak_bytes=-1, samples=-1, pid=-1, elapsed_seconds=-0.0)).encode(),
+        json.dumps(report_state(source="unavailable", samples=0)).encode(),
+        json.dumps(report_state(extra={"unicode": "\U0001f600"})).encode(),
+        (json.dumps(report_state())[:-1] + ',"samples":false,"samples":9}').encode(),
+        (json.dumps(report_state())[:-1] + ',"samples":false}').encode(),
+    ],
+)
+def test_native_report_state_shape_and_fallback(sampler_binary: Path, tmp_path: Path, raw: bytes | None) -> None:
+    path, value = report_request(tmp_path, raw, None, cgroup_path=None)
+    result = invoke(sampler_binary, "memory-report", path, tmp_path)
+    assert result.returncode == 0 and result.stderr == b"", result.stderr
+    assert json.loads(result.stdout) == expected_report(raw, value["state_path"], None, value["warn_bytes"], value["error_bytes"])
+
+
+@pytest.mark.parametrize(
+    "raw,reason",
+    [
+        (json.dumps(report_state(peak_bytes=2**127)).encode(), "UnsupportedReportValue"),
+        (json.dumps(report_state(baseline_bytes=-(2**127) - 1)).encode(), "UnsupportedReportValue"),
+        (json.dumps(report_state(peak_bytes=2**127 - 1, baseline_bytes=-1)).encode(), "UnsupportedReportValue"),
+        (json.dumps(report_state(samples=2**127)).encode(), "UnsupportedReportValue"),
+        (json.dumps(report_state(elapsed_seconds=float("nan"))).encode(), "UnsupportedReportValue"),
+        (json.dumps(report_state(elapsed_seconds=float("inf"))).encode(), "UnsupportedReportValue"),
+        ((json.dumps(report_state())[:-1] + ',"extra":"\\ud800"}').encode(), "UnsupportedSamplerEncoding"),
+        ((json.dumps(report_state())[:-1] + ',"extra":' + "[" * 65 + "0" + "]" * 65 + "}").encode(), "UnsupportedReportValue"),
+        (b"\xff", "UnsupportedSamplerEncoding"),
+        (b" " * 65537, "SamplerInputLimit"),
+    ],
+)
+def test_native_report_unsupported_never_becomes_zero(sampler_binary: Path, tmp_path: Path, raw: bytes, reason: str) -> None:
+    path, _ = report_request(tmp_path, raw)
+    result = invoke(sampler_binary, "memory-report", path, tmp_path)
+    assert result.returncode == 1 and result.stdout == b"" and result.stderr == f"error: execution refused: {reason}\n".encode()
+    assert (tmp_path / "state.json").read_bytes() == raw
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"schema_version": 256},
+        {"schema_version": True},
+        {"warn_bytes": -1},
+        {"error_bytes": 2**64},
+        {"wall_ms": 0},
+        {"wall_ms": 3600001},
+        {"state_path": True},
+        {"cgroup_path": []},
+        {"unexpected": 1},
+    ],
+)
+def test_native_report_closed_request(sampler_binary: Path, tmp_path: Path, change: dict[str, Any]) -> None:
+    path, _ = report_request(tmp_path, json.dumps(report_state()).encode(), **change)
+    result = invoke(sampler_binary, "memory-report", path, tmp_path)
+    assert result.returncode == 1 and result.stdout == b"" and result.stderr == b"error: execution refused: InvalidReportRequest\n"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b"{}",
+        b"not json",
+        b'{"schema_version":1,"source":"unavailable","peak_bytes":0}',
+        b'{"schema_version":1,"source":"cgroup-v2-memory-peak","peak_bytes":null}',
+        b'{"schema_version":true,"source":"unavailable","peak_bytes":null}',
+        b'{"schema_version":1,"source":"cgroup-v2-memory-peak","peak_bytes":18446744073709551616}',
+        b'{"schema_version":1,"source":"unavailable","peak_bytes":null,"peak_bytes":null}',
+    ],
+)
+def test_native_report_cgroup_artifact_is_exact(sampler_binary: Path, tmp_path: Path, raw: bytes) -> None:
+    path, _ = report_request(tmp_path, json.dumps(report_state()).encode())
+    (tmp_path / "cgroup-result.json").write_bytes(raw)
+    result = invoke(sampler_binary, "memory-report", path, tmp_path)
+    assert result.returncode == 1 and result.stdout == b"" and result.stderr == b"error: execution refused: InvalidCgroupResult\n"
+
+
+@pytest.mark.parametrize("warn,limit", [(1, 2), (107374, 107375), (999999 * oracle.GIB, 1000000 * oracle.GIB)])
+def test_native_report_warning_threshold_text(sampler_binary: Path, tmp_path: Path, warn: int, limit: int) -> None:
+    raw = json.dumps(report_state(peak_bytes=warn)).encode()
+    path, value = report_request(tmp_path, raw, None, warn_bytes=warn, error_bytes=limit)
+    result = invoke(sampler_binary, "memory-report", path, tmp_path)
+    assert result.returncode == 0 and result.stderr == b"", result.stderr
+    assert json.loads(result.stdout) == expected_report(raw, value["state_path"], None, warn, limit)
+
+
+@pytest.mark.parametrize(
+    "control",
+    [
+        "state-symlink",
+        "cgroup-symlink",
+        "state-fifo",
+        "state-directory",
+        "state-hardlink",
+        "state-mode",
+        "parent-mode",
+        "cgroup-missing",
+        "request-symlink",
+        "duplicate-request",
+    ],
+)
+def test_native_report_input_custody_refuses_unsafe_or_missing_artifacts(sampler_binary: Path, tmp_path: Path, control: str) -> None:
+    path, _ = report_request(tmp_path, json.dumps(report_state()).encode())
+    target = tmp_path / ("cgroup-result.json" if control.startswith("cgroup-") else "state.json")
+    reason = "UnsafeSamplerInput"
+    if control.endswith("symlink"):
+        if control == "request-symlink":
+            target = path
+        retained = target.with_name("retained-" + target.name)
+        target.rename(retained)
+        target.symlink_to(retained.name)
+    elif control == "state-fifo":
+        target.unlink()
+        os.mkfifo(target, 0o600)
+    elif control == "state-directory":
+        target.unlink()
+        target.mkdir(mode=0o700)
+    elif control == "state-hardlink":
+        os.link(target, tmp_path / "retained-state.json")
+    elif control == "state-mode":
+        target.chmod(0o644)
+    elif control == "parent-mode":
+        tmp_path.chmod(0o755)
+        reason = "UnsafeSamplerDirectory"
+    elif control == "cgroup-missing":
+        target.unlink()
+        reason = "SamplerInputUnreadable"
+    else:
+        raw = path.read_text()
+        path.write_text(raw[:-1] + ',"wall_ms":5000}')
+        reason = "InvalidReportRequest"
+    result = invoke(sampler_binary, "memory-report", path, tmp_path)
+    assert result.returncode == 1 and result.stdout == b"" and result.stderr == f"error: execution refused: {reason}\n".encode()
+
+
+@pytest.mark.parametrize("token", ["-0", "-0.0", "-0e0"])
+def test_native_report_elapsed_integer_and_float_zero(sampler_binary: Path, tmp_path: Path, token: str) -> None:
+    raw = json.dumps(report_state()).replace('"elapsed_seconds": 12.34', '"elapsed_seconds": ' + token).encode()
+    path, value = report_request(tmp_path, raw)
+    result = invoke(sampler_binary, "memory-report", path, tmp_path)
+    assert result.returncode == 0 and result.stderr == b"", result.stderr
+    assert json.loads(result.stdout) == expected_report(raw, value["state_path"], 777, value["warn_bytes"], value["error_bytes"])
+
+
+@pytest.mark.parametrize("placement", ["extra", "nested", "overwritten", "string", "float", "negative"])
+@pytest.mark.parametrize("digits", [4300, 4301])
+def test_native_report_parser_wide_integer_limit(sampler_binary: Path, tmp_path: Path, placement: str, digits: int) -> None:
+    # CPython applies this limit while parsing every integer, even ignored or
+    # subsequently overwritten fields. Strings and float tokens are distinct.
+    assert sys.get_int_max_str_digits() == 4300
+    base = json.dumps(report_state())[1:-1]
+    number = "9" * digits
+    if placement == "overwritten":
+        raw = ('{"samples":' + number + "," + base + "}").encode()
+    else:
+        token = {"extra": number, "nested": "[" + number + "]", "string": '"' + number + '"', "float": number + ".0", "negative": "-" + number}[placement]
+        raw = ("{" + base + ',"extra":' + token + "}").encode()
+    path, value = report_request(tmp_path, raw)
+    result = invoke(sampler_binary, "memory-report", path, tmp_path)
+    assert result.returncode == 0 and result.stderr == b"", result.stderr
+    assert json.loads(result.stdout) == expected_report(raw, value["state_path"], 777, value["warn_bytes"], value["error_bytes"])

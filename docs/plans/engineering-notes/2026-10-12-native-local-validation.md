@@ -2010,3 +2010,53 @@ The original tuple was not retained, so the exact changed field is unknown.
 The corrected controller excludes access time, retains stable input metadata
 and bytes, and completed both pinned pure-oracle calls. This setup failure is
 separate from the two genuine missing-operation RED outcomes.
+
+### Report Implementation Decisions And Pending Qualification
+
+The renderer accepts the existing state and cgroup response artifacts through
+one closed request. It returns a schema-1 envelope containing the unchanged
+Python report and summary strings. The host summary remains untouched; callers
+still need a separately qualified final-sample, termination, and append owner.
+State integers retain their signs, invalid shapes follow the documented warning
+fallback, and unsupported numeric or encoding domains explicitly refuse.
+
+Fixed decimal output rounds the exact binary64 rational once to nearest with
+ties to even. Threshold text uses the Python six-significant-digit rule, including
+its exponent decision after rounding. This is report-specific code, not a new
+general formatting framework. The first compiler attempt exposed Darwin's
+st_mtimespec/st_ctimespec field names and Zig JSON's actual error set; those setup
+diagnostics are retained. Existing sampler and cgroup callers are unchanged.
+
+The report scope registers each acquired descriptor before subsequent identity
+checks, retains the first artifact observation, and verifies parent custody and
+input bytes separately. Its all-exit disposition attempts every owned close and
+restores the signal owner before a result can escape. One entry deadline is
+tightened after request decoding, rather than reset between inputs or formatting.
+Readonly snapshots establish observed continuity, not an external writer lock.
+
+Observed focused results: the two original public controls passed, then 67
+report cases and 13 additional warning/custody cases passed on their frozen
+ordinary builds. A pinned CPython 3.14.7 pure-function comparison matched all 44
+retained successful cases. Those comparison pins were captured after the native
+test runs and grant no invocation-time input closure or native statement credit.
+Complete changed-statement instrumentation, actual paired input closure, Linux
+runtime report controls, final custody/signal controls, independent source/evidence
+review, and required delivery gates remain pending. Previous native statement
+misses and scopes are preserved; a cross-build does not complete platform proof.
+
+### Report Parser Review Corrections
+
+The frozen first report candidate has two actual parity failures. A literal JSON
+integer elapsed value of -0 becomes positive zero in Python before conversion to
+float; native parsing retained a negative sign. Float spellings -0.0 and -0e0
+must retain their signs. The parser also must apply the pinned Python 4,300-digit
+integer-token limit before ignored or overwritten state fields disappear. These
+otherwise supported parser failures use the existing unusable-state warning
+fallback; required-field values outside the supported signed range still refuse.
+Strings and floating-point tokens have separate parser rules.
+
+The original frozen candidate, actual native/Python raw comparisons, and new
+regression failures remain in external report-component-r1 evidence. These tests
+record genuine defects before repair; prior successful report cases do not cover
+these boundaries. No source instrumentation or broad delivery gate has run on
+the known-invalid candidate. The independent review and correction remain pending.
