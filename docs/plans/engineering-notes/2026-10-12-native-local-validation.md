@@ -1243,3 +1243,56 @@ needed, and no Linux runtime qualification follows. Full affected regressions,
 fresh native statement observation, required gates, fixed-candidate independent
 review, and implementation delivery remain required. Windows stays deferred;
 the original unqualified preparation remains protected.
+
+### October 15, 2026 – Candidate SDK Custody Repair
+
+#### User Experience Findings
+
+Candidate refusal must close its original child and pipes, including when SDK
+setup or metadata disposal reports failure. The public regression already
+committed at `8f5d76ee` reproduces the old failure without reverting the proper
+working patch. Seven additional controls exercise actions/attributes setup,
+standard-input setup, output descriptor setup, spawn flags, and both reported
+postlaunch metadata-disposal failures. The last two perform real disposal
+before reporting failure; they require the adapter to join its exact child.
+No fixture recovery, remaining child, descriptor loss, repository change, or
+candidate-directory creation may be hidden behind the expected refusal.
+
+#### Engineering Decisions
+
+Keep the repair private to candidate Git launch, preserving file stdin and
+the actual 256 MiB stdout/file and 1 MiB stderr limits. Use SDK spawn actions
+with close-on-exec defaults and pipe descriptors duplicated above standard
+input/output/error. Transfer read-end custody to the retained child before
+handling postlaunch metadata errors. This is the existing qualified Darwin
+pattern, without changing the general executor or receipt acceptance policy.
+The test-only fault shim is reused and constrained to the fixture's own PID;
+it never enters a production image.
+
+Retain the complete current statement inventory, including unobserved cleanup
+and refusal paths. The canonical collector agrees with the unmodified compiler
+AST; every node retains its role and span. A small private Zig proof deriver
+reproduces the previously reviewed origin-based instrumentation byte for byte
+and refuses foreign source identity, duplicate units, or invalid bounds.
+This avoids another subject-specific foreign-language transformation. It is
+private evidence tooling, not a newly qualified public instrumentation product.
+The existing trace decoder and paired native CLI observer remain unchanged.
+
+Actual observations combine the candidate CLI's ordinary/measured semantic
+pairs, the three failed-executable controls, and seven SDK fault controls.
+Both ordinary and measured custody controls must satisfy the same kernel and
+descriptor assertions. Source entry is not branch coverage or successful
+completion. Preserve all raw streams, seals, image/toolchain bindings, exact
+denominators, missed units, and final gate results externally in
+`native-wp03-execution-evidence-20261015/candidate-observer-r1` and its parent.
+Freeze this source, test, and log before independent review and final delivery
+checks; recording those results must not change the validated candidate.
+
+#### Known Limitations
+
+This increment repairs candidate capture on macOS; it does not approve WP03,
+qualify a general executor, prove all-descendant containment, enable receipt
+reuse, or install a hook. Linux execution remains explicitly unqualified by
+this module and Windows remains deferred. Unobserved native statements and
+historical failed/setup attempts remain recorded. No model, GPU, serving,
+Source, Store, credential, corpus admission, or production effect is selected.

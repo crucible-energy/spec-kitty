@@ -3,6 +3,20 @@
 //! plumbing is distinct from the later general validator execution backend.
 const std = @import("std");
 const builtin = @import("builtin");
+// The installed Zig 0.16 Threaded pre-exec error path can lose its forked
+// child and parent pipes before returning an error. Use the same SDK launch
+// boundary qualified by validation_process_darwin, without changing Git stdin
+// or this module's independent capture limits. No general executor is implied.
+const git_c = if (builtin.os.tag == .macos) @cImport({
+    @cInclude("unistd.h");
+    @cInclude("fcntl.h");
+    @cInclude("errno.h");
+    @cInclude("sys/spawn.h");
+}) else struct {};
+const git_spawn = if (builtin.os.tag == .macos) @cImport({
+    @cDefine("_POSIX_C_SOURCE", "200809L");
+    @cInclude("spawn.h");
+}) else struct {};
 pub const Allocator = std.mem.Allocator;
 pub const Value = std.json.Value;
 const limit = 256 * 1024 * 1024;
@@ -147,14 +161,12 @@ pub const Context = struct {
         var argv: std.ArrayList([]const u8) = .empty;
         try argv.appendSlice(self.allocator, &.{ self.git_executable, "--no-pager", "--no-optional-locks", "-c", "core.fsmonitor=false", "-C", self.repository });
         try argv.appendSlice(self.allocator, tail);
-        var stdin: std.process.SpawnOptions.StdIo = .ignore;
         var input_file: ?std.Io.File = null;
         defer if (input_file) |file| file.close(self.io);
         if (input) |path| {
             input_file = try std.Io.Dir.cwd().openFile(self.io, path, .{});
-            stdin = .{ .file = input_file.? };
         }
-        var child = try std.process.spawn(self.io, .{ .argv = argv.items, .environ_map = self.environment, .stdin = stdin, .stdout = .pipe, .stderr = .pipe });
+        var child = try spawnGit(self, argv.items, input_file);
         defer child.kill(self.io);
         var buffers: std.Io.File.MultiReader.Buffer(2) = undefined;
         var reader: std.Io.File.MultiReader = undefined;
@@ -191,6 +203,98 @@ pub const Context = struct {
         return result[0 .. result.len - 1];
     }
 };
+
+fn gitPipe() ![2]c_int {
+    var descriptors: [2]c_int = undefined;
+    if (git_c.pipe(&descriptors) != 0) return error.PipeCreationFailed;
+    errdefer {
+        _ = git_c.close(descriptors[0]);
+        _ = git_c.close(descriptors[1]);
+    }
+    // Preserve callers with a closed standard descriptor. No temporary pipe
+    // endpoint may be overwritten by a child stdin/stdout/stderr file action.
+    for (&descriptors) |*fd| {
+        const duplicate = git_c.fcntl(fd.*, git_c.F_DUPFD_CLOEXEC, @as(c_int, 3));
+        if (duplicate < 0) return error.PipeCreationFailed;
+        _ = git_c.close(fd.*);
+        fd.* = duplicate;
+    }
+    return descriptors;
+}
+
+fn spawnGit(context: *Context, arguments: []const []const u8, input: ?std.Io.File) !std.process.Child {
+    var arena = std.heap.ArenaAllocator.init(context.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const argv = try allocator.allocSentinel(?[*:0]u8, arguments.len, null);
+    for (arguments, 0..) |argument, index| {
+        if (std.mem.indexOfScalar(u8, argument, 0) != null) return error.InvalidArguments;
+        argv[index] = (try allocator.dupeZ(u8, argument)).ptr;
+    }
+    for (context.environment.keys(), context.environment.values()) |key, value| {
+        if (key.len == 0 or std.mem.indexOfAny(u8, key, "=\x00") != null or std.mem.indexOfScalar(u8, value, 0) != null) return error.InvalidEnvironment;
+    }
+    const environment = try context.environment.createPosixBlock(allocator, .{});
+    var actions: git_spawn.posix_spawn_file_actions_t = null;
+    if (git_spawn.posix_spawn_file_actions_init(&actions) != 0) return error.SpawnSetupFailed;
+    var actions_active = true;
+    defer if (actions_active) {
+        _ = git_spawn.posix_spawn_file_actions_destroy(&actions);
+    };
+    var attributes: git_spawn.posix_spawnattr_t = null;
+    if (git_spawn.posix_spawnattr_init(&attributes) != 0) return error.SpawnSetupFailed;
+    var attributes_active = true;
+    defer if (attributes_active) {
+        _ = git_spawn.posix_spawnattr_destroy(&attributes);
+    };
+    if (git_spawn.posix_spawnattr_setflags(&attributes, git_c.POSIX_SPAWN_CLOEXEC_DEFAULT) != 0) return error.SpawnSetupFailed;
+    if (input) |file| {
+        if (git_spawn.posix_spawn_file_actions_adddup2(&actions, file.handle, 0) != 0) return error.SpawnSetupFailed;
+    } else if (git_spawn.posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", git_c.O_RDONLY, 0) != 0) return error.SpawnSetupFailed;
+    const out = try gitPipe();
+    defer _ = git_c.close(out[1]);
+    var out_owned = true;
+    errdefer if (out_owned) {
+        _ = git_c.close(out[0]);
+    };
+    const err = try gitPipe();
+    defer _ = git_c.close(err[1]);
+    var err_owned = true;
+    errdefer if (err_owned) {
+        _ = git_c.close(err[0]);
+    };
+    if (git_spawn.posix_spawn_file_actions_adddup2(&actions, out[1], 1) != 0 or git_spawn.posix_spawn_file_actions_adddup2(&actions, err[1], 2) != 0) return error.SpawnSetupFailed;
+    try context.io.checkCancel();
+    var pid: git_c.pid_t = 0;
+    const spawn_error = git_spawn.posix_spawn(&pid, argv[0].?, &actions, &attributes, @ptrCast(argv.ptr), @ptrCast(environment.slice.ptr));
+    const actions_error = git_spawn.posix_spawn_file_actions_destroy(&actions);
+    actions_active = false;
+    const attributes_error = git_spawn.posix_spawnattr_destroy(&attributes);
+    attributes_active = false;
+    if (spawn_error != 0) {
+        if (spawn_error == git_c.ENOENT) return error.FileNotFound;
+        if (spawn_error == git_c.EACCES) return error.AccessDenied;
+        if (spawn_error == git_c.ENOEXEC) return error.InvalidExe;
+        return error.SpawnFailed;
+    }
+    var child: std.process.Child = .{
+        .id = pid,
+        .thread_handle = {},
+        .stdin = null,
+        .stdout = .{ .handle = out[0], .flags = .{ .nonblocking = false } },
+        .stderr = .{ .handle = err[0], .flags = .{ .nonblocking = false } },
+        .request_resource_usage_statistics = false,
+    };
+    // Transfer read-end custody once, before any postlaunch error cleanup.
+    // Child.kill retains the exact direct child and closes these two handles.
+    out_owned = false;
+    err_owned = false;
+    if (actions_error != 0 or attributes_error != 0) {
+        child.kill(context.io);
+        return error.SpawnMetadataCleanupFailed;
+    }
+    return child;
+}
 
 pub const Entry = struct {
     path_hex: []const u8,

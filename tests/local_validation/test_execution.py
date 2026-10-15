@@ -1029,18 +1029,18 @@ def candidate_spawn_closure_source() -> str:
     replacements = (
         (
             'const owner = @import("validation_process_darwin.zig");',
-            'const owner = @import("validation_candidate.zig");\nconst warm_owner = @import("warm_owner.zig");',
+            'const owner = @import("validation_candidate.zig");\nconst warm_owner = @import("warm_owner.zig");\nextern "c" fn wp03_spawn_faults(c_uint) void;',
         ),
         (
             'const executable=if(args.len==2) args[1] else "/wp03/nonexistent/executable";',
-            "if(args.len!=4) return error.InvalidArguments;\n    const executable=args[1];",
+            "if(args.len!=5) return error.InvalidArguments;\n    const executable=args[1];\n    const fault_mode=try std.fmt.parseInt(c_uint,args[4],10);",
         ),
         ("const warm=try owner.run(", "const warm=try warm_owner.run("),
         (
             "const result=owner.run(allocator,init.io,.{.argv=&.{executable},.environment=&environment});",
             'const request_bytes=try owner.json(allocator,.{.schema_version=1,.repository=args[2],.base="HEAD",.destination=args[3],.git_executable=executable});\n'
             "    const request=try owner.parse(allocator,request_bytes);\n"
-            "    const result=owner.capture(allocator,init.io,&environment,request.value);",
+            "    wp03_spawn_faults(fault_mode);\n    const result=owner.capture(allocator,init.io,&environment,request.value);\n    wp03_spawn_faults(0);",
         ),
         (
             "if(result) |success| success.deinit(allocator) else |err| {error_name=@errorName(err);}",
@@ -1070,8 +1070,15 @@ def candidate_spawn_closure_probe(tmp_path_factory: pytest.TempPathFactory) -> P
         (directory / ("validation_candidate.zig" if source == candidate else "warm_owner.zig")).write_bytes(source.read_bytes())
     probe = directory / "probe.zig"
     probe.write_text(candidate_spawn_closure_source())
+    shim = directory / "spawn-faults.c"
+    shim.write_text(SIGACTION_FAULT_LIBRARY)
+    library = directory / "spawn-faults.dylib"
+    shim_build = subprocess.run(["cc", "-dynamiclib", str(shim), "-o", str(library)], capture_output=True, timeout=30)
+    (directory / "shim.stdout.log").write_bytes(shim_build.stdout)
+    (directory / "shim.stderr.log").write_bytes(shim_build.stderr)
+    assert shim_build.returncode == 0, shim_build.stderr
     image = directory / "probe"
-    argv = [shutil.which("zig") or "zig", "build-exe", "-j1", "-OReleaseSafe", "-lc", str(probe), "-femit-bin=" + str(image)]
+    argv = [shutil.which("zig") or "zig", "build-exe", "-j1", "-OReleaseSafe", "-lc", str(probe), str(library), "-femit-bin=" + str(image)]
     built = subprocess.run(argv, capture_output=True, timeout=120)
     (directory / "build.stdout.log").write_bytes(built.stdout)
     (directory / "build.stderr.log").write_bytes(built.stderr)
@@ -1082,6 +1089,8 @@ def candidate_spawn_closure_probe(tmp_path_factory: pytest.TempPathFactory) -> P
                 "exit_code": built.returncode,
                 "sources": {str(source): digest(source.read_bytes()) for source in sources},
                 "harness_sha256": digest(probe.read_bytes()),
+                "shim_sha256": digest(shim.read_bytes()),
+                "shim_image_sha256": digest(library.read_bytes()),
                 "image_sha256": digest(image.read_bytes()) if built.returncode == 0 else None,
             }
         )
@@ -1100,7 +1109,7 @@ def test_candidate_failed_git_spawn_retains_no_child_or_pipe_descriptors(
         executable.chmod(0o644 if failure == "denied" else 0o755)
     destination = tmp_path / "never created candidate"
     before = snapshot(repository)
-    result = subprocess.run([str(candidate_spawn_closure_probe), str(executable), str(repository), str(destination)], capture_output=True, timeout=12)
+    result = subprocess.run([str(candidate_spawn_closure_probe), str(executable), str(repository), str(destination), "0"], capture_output=True, timeout=12)
     (tmp_path / "owner.stdout.log").write_bytes(result.stdout)
     (tmp_path / "owner.stderr.log").write_bytes(result.stderr)
     assert snapshot(repository) == before
@@ -1115,6 +1124,28 @@ def test_candidate_failed_git_spawn_retains_no_child_or_pipe_descriptors(
     assert observed["exact_terminal_children_reaped"] == [], "Candidate capture must not require test-harness child recovery"
     assert observed["before_fds"] == observed["after_fds"]
     assert observed["assertion_passed"]
+
+
+@pytest.mark.parametrize("mode", [1, 2, 4, 7, 8, 9, 10])
+def test_candidate_sdk_setup_and_postlaunch_failure_retains_custody(candidate_spawn_closure_probe: Path, repository: Path, tmp_path: Path, mode: int) -> None:
+    """Real SDK cleanup runs even when its reported status is faulted."""
+    destination = tmp_path / "never created candidate"
+    before = snapshot(repository)
+    executable = shutil.which("git")
+    assert executable is not None
+    result = subprocess.run([str(candidate_spawn_closure_probe), executable, str(repository), str(destination), str(mode)], capture_output=True, timeout=12)
+    (tmp_path / "owner.stdout.log").write_bytes(result.stdout)
+    (tmp_path / "owner.stderr.log").write_bytes(result.stderr)
+    assert result.returncode == 0, result.stderr + result.stdout
+    observed = json.loads(result.stdout)
+    assert observed["error_name"] == ("SpawnMetadataCleanupFailed" if mode in (8, 9) else "SpawnSetupFailed")
+    assert observed["before_children"] == observed["settled_children"] == []
+    assert set(observed["unwaitable_kernel_inventory_pids"]) == {row["pid"] for row in observed["after_children"]}
+    assert observed["recovery_terminal_observations"] == observed["exact_terminal_children_reaped"] == []
+    assert observed["before_fds"] == observed["after_fds"]
+    assert observed["assertion_passed"]
+    assert snapshot(repository) == before
+    assert not destination.exists()
 
 
 @pytest.mark.parametrize("cwd_mode", ["path", "dir"])
