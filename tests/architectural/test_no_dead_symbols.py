@@ -379,10 +379,6 @@ _CATEGORY_B_GRANDFATHERED_LEGACY: frozenset[SymbolKey] = frozenset(
         # specify_cli.status.lifecycle_events::PROJECT_INITIALIZED
         SymbolKey("PROJECT_INITIALIZED", "ee097bd3221c588159762747beceb7db48856f2f323d8551524f02e238770723"),
         SymbolKey("WP_CREATED", "4f61af61cf1570deb1b34ef633f688e26483b680cc965d27f75415e188289732"),  # specify_cli.status.lifecycle_events::WP_CREATED
-        # specify_cli.status.lifecycle_events::append_lifecycle_event
-        SymbolKey("append_lifecycle_event", "44bbd8d10caea88cf4765a3952d39b9c790cb33de16111d5110aa3fb2d574659"),
-        # specify_cli.status.lifecycle_events::has_lifecycle_event
-        SymbolKey("has_lifecycle_event", "ded63398ebd799f9cbdb0519033bf4ed4cb4dee39e51837f7c1b1fe7d562e69d"),
         # specify_cli.status.lifecycle_events::project_event_log_path
         SymbolKey("project_event_log_path", "b865a8c81e88c0816fd94a24242e9bfff14f6504da477813fc99b160049f3f70"),
         # specify_cli.status.uninitialized_hint::find_wp_dependency_cycles

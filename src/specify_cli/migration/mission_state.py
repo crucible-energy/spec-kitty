@@ -52,7 +52,7 @@ from specify_cli.status import (
     reduce,
 )
 from specify_cli.status import LIFECYCLE_EVENT_TYPES, is_retrospective_lifecycle_event
-from specify_cli.status.store import ANNOTATION_KIND
+from specify_cli.status import ANNOTATION_KIND
 
 MIGRATION_SCHEMA_VERSION = "1.0.0"
 CANONICAL_ENVELOPE_SCHEMA_VERSION = "3.0.0"

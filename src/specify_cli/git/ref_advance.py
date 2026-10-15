@@ -29,6 +29,7 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Protocol
 
 
 class RefAdvanceError(RuntimeError):
@@ -317,3 +318,34 @@ def advance_branch_ref(
                 f"The worktree is behind its own HEAD (#1826); repair with "
                 f"`git -C {worktree} reset --hard` once the cause is fixed."
             )
+
+
+class RefTransactionRunner(Protocol):
+    """Caller-owned bounded Git runner, retaining its typed refusal contract."""
+
+    def __call__(self, root: Path, args: list[str], *, input_bytes: bytes | None = None) -> bytes: ...
+
+
+def activate_checkout_ref(
+    root: Path,
+    git_dir: Path,
+    branch: str,
+    commit: str,
+    expected_head: str,
+    *,
+    run_git: RefTransactionRunner,
+) -> None:
+    """Atomically create an absent ref and rebind one linked checkout's HEAD.
+
+    The caller holds the mission lock and has verified the linked checkout,
+    clean index/tree, absent destination ownership, safe full ref and immutable
+    commit with exactly the current tree. No existing ref is advanced, so no
+    other checkout needs resynchronization. Git 2.48+ checks the old HEAD oid
+    and absent destination in the SAME transaction; either both edits land or
+    neither does. Never split these operations or fall back to a force update.
+    """
+    transaction = (
+        f"start\noption no-deref\ncreate refs/heads/{branch} {commit}\n"
+        f"option no-deref\nsymref-update HEAD refs/heads/{branch} oid {expected_head}\nprepare\ncommit\n"
+    )
+    run_git(root, ["--git-dir", str(git_dir), "update-ref", "--stdin"], input_bytes=transaction.encode())

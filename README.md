@@ -163,6 +163,8 @@ Start here:
 - [Supported Agents](docs/api/supported-agents.md)
 - [Dashboard Guide](docs/guides/use-dashboard.md)
 - [Install and Upgrade](docs/guides/install-and-upgrade.md)
+- [Owned coordinated-history restoration](docs/migrations/owned-coordinated-history-restoration.md) — explicit pinned recovery, creator-owned unwind, and known limits.
+- [Owned coordinated authority](docs/migrations/owned-coordinated-authority.md) — registered-checkout placement, read-only query, and explicit review/projection operations.
 
 Deeper topics:
 

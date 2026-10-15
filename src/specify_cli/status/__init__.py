@@ -8,8 +8,16 @@ WP state. No frontmatter reads or writes occur in this module.
 
 from pathlib import Path
 
+# Leaf locks must be available before model imports load retrospective emitters.
+from .locking import (
+    FeatureStatusLockTimeoutError,
+    status_log_write_lock,
+    status_replacement_fence,
+    feature_status_lock,
+)
 from .models import (
     AgentAssignment,
+    decode_actor,
     DoneEvidence,
     EventStream,
     GuardContext,
@@ -41,6 +49,7 @@ from .reducer import (
 )
 from .store import (
     is_retrospective_lifecycle_event,
+    ANNOTATION_KIND,
     EVENTS_FILENAME,
     EventPersistenceError,
     StoreError,
@@ -79,6 +88,9 @@ from .wp_state import (
 )
 from .emit import (
     TransitionError,
+    build_status_event,
+    _infer_subtasks_complete as infer_subtasks_complete,
+    _infer_implementation_evidence_from_event_stream as infer_implementation_evidence_from_event_stream,
     build_claim_policy_metadata,
     build_resolved_actor,
     build_self_asserting_actor,
@@ -154,10 +166,7 @@ from .identity_audit import (
     find_duplicate_prefixes,
     summarize,
 )
-from .locking import (
-    FeatureStatusLockTimeoutError,
-    feature_status_lock,
-)
+
 from .preflight import (
     is_dossier_snapshot,
 )
@@ -243,6 +252,13 @@ def uninitialized_status_error(mission_slug: str, wp_id: str, feature_dir: Path)
 COORD_OWNED_STATUS_FILES = frozenset({EVENTS_FILENAME, SNAPSHOT_FILENAME})
 
 __all__ = [
+    "decode_actor",
+    "ANNOTATION_KIND",
+    "build_status_event",
+    "infer_subtasks_complete",
+    "infer_implementation_evidence_from_event_stream",
+    "status_log_write_lock",
+    "status_replacement_fence",
     "ActiveWPStatus",
     "AgentAssignment",
     "actor_identity_str",
