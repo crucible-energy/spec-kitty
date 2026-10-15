@@ -1620,3 +1620,45 @@ instance overrides, result/producer aggregates, or an unqualified platform.
 `architectural-fast` still requires its actual complete start/setup/test/stop
 ownership qualification. Original validators, budgets, routing, and gates stay
 authoritative; this increment does not approve WP03 or enable a publication hook.
+
+## October 15, 2026 — T011 Finite Foreground Sampler Component
+
+### User Experience Findings
+
+The complete recipe increment is delivered at `c3ef7511`; canonical next/status
+still identifies WP03 in progress. The actual architectural battery sampler
+starts a detached session across setup/tests and stops under `always`. Its
+`MemTotal - MemAvailable` measurement differs from Darwin sampled process RSS.
+A working finite native state producer is the next source-local component;
+no current Source validation-job resource or actual Linux backend is admitted.
+
+### Engineering Decisions
+
+The independent design review accepts a bounded foreground sample/state
+operation in the existing native executable, consumed by unchanged Python
+`from_json` and reporting functions. Root coordinates the narrow new module
+`validation_memory_sampler.zig` and focused native test module. Necessary
+receipt/source rosters and three wrappers around the existing Darwin signal
+owner are within this lane; reusing that owner avoids a competing handler.
+The frozen request/domain amendment and original review remain in private
+`sampler-component-r1` evidence. Commit the actual public unknown-operation
+RED, with an existing-operation positive control, before implementation.
+
+The closed versioned request bounds attempts, interval and one wall clock.
+Attempts include unavailable reads; successful state samples remain distinct.
+Preserve signed baseline/peak, last valid duplicates, unchanged unavailable
+state and source-compatible final sampling on SIGTERM within the work budget.
+ASCII meminfo has an explicit finite arithmetic domain; unsupported inputs
+refuse visibly. New private output and nonblocking/no-follow input checks
+retain ownership and prior complete state. Native cancellation, timeout and
+runtime failures are nonzero T011 refusals, an explicit status difference from
+Python's warning/zero runtime behavior. Every actual PID/time remains measured.
+
+### Known Limitations
+
+This component does not port detached start/stop, cgroup reading, full Python
+argparse/Unicode/unbounded-number behavior, or the architectural-fast recipe.
+The initial signal/lifecycle backend is Darwin. Linux execution, complete
+sampler custody, production qualification, gate adoption and WP03 completion
+remain open. The Python sampler, selection, original validators and budgets
+stay authoritative; prior proof and every observation miss remain retained.
