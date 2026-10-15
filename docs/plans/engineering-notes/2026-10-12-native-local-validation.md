@@ -1879,3 +1879,64 @@ still requiring the exact mount and owner fields whenever tmpfs was requested.
 The exact created, unstarted owned container was verified and removed. A later
 external runner path typo also failed before execution. Both setup failures are
 retained separately and receive no product proof credit.
+
+### Implemented Reader and Current Proof Boundary
+
+The public finite operation now uses the existing executable dispatch and shared
+bounded reader. Every retained root, parent/name relationship and observed file
+or absence is inspected before publication; acquired descriptors close once,
+and signal restoration and the original deadline remain authoritative. Counter
+contents can change in a live kernel context; identity checks do not reserve
+immutable bytes. The target-owned Linux fstatfs header and static musl function
+build successfully, with the existing Darwin metadata branch unchanged.
+
+The initial private implementation build exposed Zig 0.16's removed BoundedArray
+API. That compiler failure remains external setup evidence. Fixed-capacity
+ArrayList buffers now impose the declared descriptor, entry and suffix bounds;
+this does not add a runtime dependency or enlarge the accepted input domain.
+
+Focused controls exercise the finite ASCII/u64 and request domain, normalized
+membership selection, null versus zero, unsafe/nonregular inputs and unchanged
+report consumption. The Linux private peak control returns 123. A separate
+joined child in the same isolated Linux container reads actual procfs membership
+and cgroup-v2 memory.peak; independent surrounding values and mount metadata
+remain dynamic context evidence, separate from immutable fixture twins. Exact
+native child PID and exit are retained separately from the test container exit.
+This test-only transport is not a production launcher or general Linux backend.
+
+The frozen candidate still needs independent source review, complete native
+statement inventories and actual observations with every miss retained, and the
+required affected and final delivery gates. Functional results do not replace
+those requirements. External receipts will retain final results without editing
+the validated source or this log.
+
+### Independent Review and Genuine Custody RED
+
+The first frozen cgroup source was rejected for two concrete gaps: fallible
+scope storage or signal acquisition could skip disposition of the acquired
+request, and proc-self dispatch could replace its first observation with a
+second baseline. Preserve that source freeze and its earlier functional results.
+
+A bounded private Linux control delegates every statx observation to the real
+target-owned kernel syscall. It then makes one actual replacement in the owned
+synthetic namespace, preserving the syscall result and errno. No metadata is
+fabricated. The original source accepted both an initially absent self entry
+created after observation and an observed directory replaced after observation.
+A separate request replacement after the final held read was masked by the
+actual busy signal owner. These three controls failed, while the unchanged busy
+owner control passed; all original children and containers joined and disposed.
+The helper and its exact closed transport require separate test qualification
+and receive no product statement credit merely from those functional outcomes.
+
+Repair the setup boundary with fixed storage and immediate registration of the
+acquired request, including final disposition if signal acquisition fails. Use
+one retained self observation for dispatch, held-directory comparison and final
+revalidation. Keep unexercised allocation, race and syscall failure phases as
+explicit misses; do not infer them from neighboring successful controls.
+
+The unchanged statement collector refused the first frozen source's value catch
+and numeric value-if arms. Root authorized a bounded extension using the same
+value-preserving labeled blocks, with complete compiler positions and no new
+trace or decoder framework. Preserve the original refusal. That method needs
+separate value/error/branch and decoder qualification against the corrected
+source before product observations or final delivery gates receive credit.

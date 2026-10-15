@@ -1035,9 +1035,83 @@ sys.exit(code)
 """
 
 
+LINUX_CGROUP_READER = r"""import os, sys, json, stat, hashlib, subprocess
+from pathlib import Path
+root = Path("/output/fixture")
+assert os.getpid() == 1 and os.getuid() != 0
+request = json.loads(Path("/input/request.json").read_bytes())
+assert request == {"schema_version": 1, "proc_root": "/proc", "sys_root": "/", "wall_ms": 5000}
+
+def read(path):
+    before = path.lstat()
+    assert stat.S_ISREG(before.st_mode) and before.st_size <= 65536
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        assert os.fstat(fd).st_ino == before.st_ino
+        value = bytearray()
+        while len(value) <= 65536:
+            part = os.read(fd, 65537 - len(value))
+            if not part: break
+            value.extend(part)
+        assert len(value) <= 65536
+    finally:
+        os.close(fd)
+    return {"path": str(path), "body_hex": value.hex(), "sha256": hashlib.sha256(value).hexdigest(),
+            "device": before.st_dev, "inode": before.st_ino, "mode": before.st_mode}
+
+def sample():
+    target = os.readlink("/proc/self")
+    assert target == str(os.getpid())
+    member = read(Path("/proc") / target / "cgroup")
+    text = bytes.fromhex(member["body_hex"]).decode("ascii")
+    suffix = next(line[3:] for line in text.splitlines() if line.startswith("0::"))
+    parts = [part for part in suffix.split("/") if part and part != "."]
+    assert ".." not in parts
+    peak = read(Path("/sys/fs/cgroup").joinpath(*parts, "memory.peak"))
+    return {"self_raw_target": target, "membership": member, "peak": peak, "value": int(bytes.fromhex(peak["body_hex"]).strip())}
+
+before = sample()
+mount = read(Path("/proc/1/mountinfo"))
+mount_lines = bytes.fromhex(mount["body_hex"]).decode("ascii").splitlines()
+assert any(" - proc " in line and line.split()[4] == "/proc" for line in mount_lines)
+assert any(" - cgroup2 " in line and line.split()[4] == "/sys/fs/cgroup" for line in mount_lines)
+stdout, stderr = root / "cgroup-native.stdout.log", root / "cgroup-native.stderr.log"
+with stdout.open("wb") as out, stderr.open("wb") as err:
+    child = subprocess.Popen(["/input/executor", "memory-cgroup", "/input/request.json"], stdout=out, stderr=err)
+    try: code = child.wait(timeout=10)
+    finally:
+        if child.poll() is None:
+            child.kill(); child.wait(timeout=5)
+after = sample()
+value = json.loads(stdout.read_bytes())
+assert code == 0 and stderr.read_bytes() == b""
+assert before["membership"]["body_hex"] == after["membership"]["body_hex"]
+assert before["peak"]["inode"] == after["peak"]["inode"] and before["value"] <= value["peak_bytes"] <= after["value"]
+receipt = {"joined": True, "actual_native_pid": child.pid, "exact_native_exit_code": code,
+           "before": before, "after": after, "mountinfo": mount, "native_result": value,
+           "scope": "Actual read-only cgroup-v2 inputs in this isolated Linux container; dynamic surrounding values, not immutable twins or a general backend."}
+(root / "cgroup-context.json").write_text(json.dumps(receipt, indent=2) + "\n")
+sys.stdout.buffer.write(stdout.read_bytes()); sys.stderr.buffer.write(stderr.read_bytes()); sys.exit(code)
+"""
+
+
+def linux_cgroup_lifecycle_fixture(fixture: Path, mode: str) -> tuple[str, list[str]]:
+    (fixture / "proc/self").mkdir()
+    (fixture / "proc/self/cgroup").write_bytes(b"0::/battery\n")
+    counter = fixture / "sys-root/sys/fs/cgroup/battery/memory.peak"
+    counter.parent.mkdir(parents=True)
+    counter.write_bytes(b"123\n")
+    if mode == "cgroup-self-absent":
+        (fixture / "proc/self/cgroup").unlink()
+        (fixture / "proc/self").rmdir()
+    return "/input/executor", [mode, "/input/request.json"]
+
+
 def linux_probe_operation(inputs: Path, fixture: Path, mode: str | None, expected: str) -> tuple[str, list[str]]:
     if mode is None:
         return "/input/executor", ["memory-sample", "/input/request.json"]
+    if mode in {"cgroup-busy", "cgroup-busy-drift", "cgroup-self-absent", "cgroup-self-replaced"}:
+        return linux_cgroup_lifecycle_fixture(fixture, mode)
     if mode == "cgroup":
         (fixture / "proc/self").mkdir()
         (fixture / "proc/self/cgroup").write_bytes(b"0::/battery\n")
@@ -1045,6 +1119,9 @@ def linux_probe_operation(inputs: Path, fixture: Path, mode: str | None, expecte
         counter.parent.mkdir(parents=True)
         counter.write_bytes(b"123\n")
         return "/input/executor", ["memory-cgroup", "/input/request.json"]
+    if mode == "cgroup-live":
+        (inputs / "cgroup-reader.py").write_text(LINUX_CGROUP_READER)
+        return "/usr/local/bin/python3", ["/input/cgroup-reader.py"]
     if mode == "proc":
         (inputs / "proc-reader.py").write_text(LINUX_PROC_READER)
         return "/usr/local/bin/python3", ["/input/proc-reader.py"]
@@ -1092,7 +1169,11 @@ def linux_fixture_metadata(initial: dict[str, Any], owned: bool) -> None:
         assert initial["tmpfs"] in [None, {}]
 
 
-def linux_actual_pid(fixture: Path, terminal: dict[str, Any], owned: bool) -> int:
+def linux_actual_pid(fixture: Path, terminal: dict[str, Any], owned: bool, mode: str | None) -> int:
+    if mode == "cgroup-live":
+        retained_live = json.loads((fixture / "cgroup-context.json").read_bytes())
+        assert retained_live["joined"] and retained_live["exact_native_exit_code"] == terminal["state"]["ExitCode"]
+        return int(retained_live["actual_native_pid"])
     if not owned:
         return 1
     retained = json.loads((fixture / "owned-fixture-result.json").read_bytes())
@@ -1103,7 +1184,9 @@ def linux_actual_pid(fixture: Path, terminal: dict[str, Any], owned: bool) -> in
 
 
 def linux_public_request(mode: str | None, changes: dict[str, Any] | None) -> dict[str, Any]:
-    if mode == "cgroup":
+    if mode == "cgroup-live":
+        return {"schema_version": 1, "proc_root": "/proc", "sys_root": "/", "wall_ms": 5000}
+    if mode in {"cgroup", "cgroup-busy", "cgroup-busy-drift", "cgroup-self-absent", "cgroup-self-replaced"}:
         return {"schema_version": 1, "proc_root": "/output/fixture/proc", "sys_root": "/output/fixture/sys-root", "wall_ms": 5000, **(changes or {})}
     return {
         "schema_version": 1,
@@ -1321,7 +1404,7 @@ def linux_public_call(
         "stderr": started.stderr.decode(),
         "cleanup_complete": cleanup_complete,
         "state_path": str(fixture / "new-state/state.json"),
-        "actual_native_pid": linux_actual_pid(fixture, terminal, owned_fixture),
+        "actual_native_pid": linux_actual_pid(fixture, terminal, owned_fixture, probe_mode),
     }
     (directory / "linux-public-result.json").write_text(json.dumps(result))
     return result
@@ -1487,3 +1570,380 @@ def test_actual_linux_proc_sample_and_context(sampler_binary: Path, tmp_path: Pa
     assert state.peak_bytes >= state.baseline_bytes > 0 and 0 <= state.elapsed_seconds <= 5
     assert {item["path"] for item in report["context"]} == {"/proc/self/mountinfo", "/proc/self/cgroup"}
     assert all(0 < report[key]["size"] <= 65536 for key in ["before", "after"])
+
+
+def cgroup_request(directory: Path, membership: bytes = b"0::/battery\n", peak: bytes = b"123\n") -> tuple[Path, dict[str, Any], Path]:
+    proc = directory / "proc"
+    (proc / "self").mkdir(parents=True)
+    (proc / "self/cgroup").write_bytes(membership)
+    sys_root = directory / "sys-root"
+    counter = sys_root / "sys/fs/cgroup/battery/memory.peak"
+    counter.parent.mkdir(parents=True)
+    counter.write_bytes(peak)
+    value = {"schema_version": 1, "proc_root": str(proc), "sys_root": str(sys_root), "wall_ms": 5000}
+    path = directory / "request.json"
+    path.write_text(json.dumps(value))
+    return path, value, counter
+
+
+def assert_cgroup_result(result: subprocess.CompletedProcess[bytes], peak: int | None) -> None:
+    assert result.returncode == 0 and result.stderr == b"", result.stderr
+    expected = {"schema_version": 1, "source": "unavailable" if peak is None else "cgroup-v2-memory-peak", "peak_bytes": peak}
+    assert result.stdout == (json.dumps(expected, separators=(",", ":")) + "\n").encode()
+    # The original consumer retains its warning policy; cgroup is secondary.
+    state = oracle.SamplerState(baseline_bytes=0, elapsed_seconds=0, peak_bytes=0, pid=1, samples=0, source="unavailable")
+    report = oracle.render_report(state, peak, warn_bytes=10 * oracle.GIB, error_bytes=12 * oracle.GIB)
+    assert len(report) == 1
+    assert report[0].endswith(" cgroup_peak_bytes=" + ("na" if peak is None else str(peak)))
+
+
+@pytest.mark.parametrize(
+    ("peak", "expected"),
+    [
+        (b"123\n", 123),
+        (b"0", 0),
+        (b"00000123", 123),
+        (str(2**64 - 1).encode(), 2**64 - 1),
+        (b"0" * 4300, 0),
+        (b"\t\r\n\x1c\x1d\x1e\x1f 123\v\f", 123),
+        (b"", None),
+        (b"max\n", None),
+        (b"+1", None),
+        (b"-1", None),
+        (b"1_2", None),
+        (b"1 2", None),
+        (b"12x", None),
+    ],
+)
+def test_native_cgroup_counter_domain(sampler_binary: Path, tmp_path: Path, peak: bytes, expected: int | None) -> None:
+    path, _, _ = cgroup_request(tmp_path, peak=peak)
+    assert_cgroup_result(invoke(sampler_binary, "memory-cgroup", path, tmp_path), expected)
+
+
+@pytest.mark.parametrize(
+    ("membership", "expected", "root"),
+    [
+        (b"0::/battery\n", 123, False),
+        (b"2:memory:/else\n0:://./battery//.\r\n", 123, False),
+        (b"0::battery\n", 123, False),
+        (b"0::\n", 123, True),
+        (b"0::/\n", 123, True),
+        (b"0::/absent\n0::/battery", None, False),
+        (b"0::/absent/../battery\n0::/battery", None, False),
+        (b"0::/battery/..", None, False),
+        (b"0::../battery", None, False),
+        (b"1:memory:/battery\n", None, False),
+        (b" 0::/battery\n", None, False),
+        (b"", None, False),
+        *[(b"other" + bytes([separator]) + b"0::/battery", 123, False) for separator in (10, 11, 12, 13, 28, 29, 30)],
+    ],
+)
+def test_native_cgroup_membership_domain(sampler_binary: Path, tmp_path: Path, membership: bytes, expected: int | None, root: bool) -> None:
+    path, value, counter = cgroup_request(tmp_path, membership=membership)
+    if root:
+        counter.rename(counter.parent.parent / "memory.peak")
+    # Existing pure Python authority agrees on supported ASCII private inputs.
+    selected = oracle.cgroup_peak_path(membership.decode("ascii"), Path(value["sys_root"]))
+    assert (oracle.read_int_file(selected) if selected is not None else None) == expected
+    assert_cgroup_result(invoke(sampler_binary, "memory-cgroup", path, tmp_path), expected)
+
+
+@pytest.mark.parametrize(
+    ("member", "peak", "reason"),
+    [
+        (b"0::/battery", b"0" * 4301, "UnsupportedCgroupValue"),
+        (b"0::/battery", str(2**64).encode(), "UnsupportedCgroupValue"),
+        (b"0::/battery", b"\xc2\xb2", "UnsupportedCgroupEncoding"),
+        (b"0::/b\xff", b"1", "UnsupportedCgroupEncoding"),
+        (b"0::/" + b"a" * 256, b"1", "UnsupportedCgroupPath"),
+        (b"0::/" + b"/".join([b"a"] * 65), b"1", "UnsupportedCgroupPath"),
+        (b"0::/a\t", b"1", "UnsupportedCgroupPath"),
+        (b"0::/battery", b"1" * 65537, "SamplerInputLimit"),
+    ],
+)
+def test_native_cgroup_explicit_domain_refusals(sampler_binary: Path, tmp_path: Path, member: bytes, peak: bytes, reason: str) -> None:
+    path, _, _ = cgroup_request(tmp_path, member, peak)
+    result = invoke(sampler_binary, "memory-cgroup", path, tmp_path)
+    assert result.returncode == 1 and result.stdout == b"" and result.stderr == f"error: execution refused: {reason}\n".encode()
+
+
+@pytest.mark.parametrize(
+    "control",
+    [
+        "missing-self",
+        "missing-member",
+        "missing-sys",
+        "missing-peak",
+        "member-dir",
+        "member-link",
+        "member-fifo",
+        "peak-dir",
+        "peak-link",
+        "peak-fifo",
+        "self-link",
+        "child-link",
+    ],
+)
+def test_native_cgroup_missing_and_unsafe_inputs(sampler_binary: Path, tmp_path: Path, control: str) -> None:
+    path, value, counter = cgroup_request(tmp_path)
+    target = Path(value["proc_root"]) / "self/cgroup"
+    if control == "missing-self":
+        target.unlink()
+        target.parent.rmdir()
+    elif control == "missing-member":
+        target.unlink()
+    elif control == "missing-sys":
+        shutil.rmtree(Path(value["sys_root"]) / "sys")
+    elif control == "missing-peak":
+        counter.unlink()
+    elif control == "self-link":
+        moved = target.parent.with_name(str(os.getpid()))
+        target.parent.rename(moved)
+        target.parent.symlink_to(moved.name)
+    elif control == "child-link":
+        counter.parent.rename(counter.parent.with_name("moved"))
+        counter.parent.symlink_to("moved")
+    else:
+        target = counter if control.startswith("peak") else target
+        target.unlink()
+        if control.endswith("dir"):
+            target.mkdir()
+        elif control.endswith("link"):
+            target.symlink_to("absent")
+        else:
+            os.mkfifo(target)
+    result = invoke(sampler_binary, "memory-cgroup", path, tmp_path)
+    if control.startswith("missing"):
+        assert_cgroup_result(result, None)
+    else:
+        expected = "UnsafeSamplerDirectory" if control in {"self-link", "child-link"} else "UnsafeSamplerInput"
+        assert result.returncode == 1 and result.stdout == b"" and result.stderr == f"error: execution refused: {expected}\n".encode()
+
+
+@pytest.mark.parametrize(
+    ("key", "replacement"),
+    [
+        ("schema_version", 2),
+        ("schema_version", True),
+        ("wall_ms", 0),
+        ("wall_ms", 3600001),
+        ("wall_ms", 1.0),
+        ("wall_ms", "5"),
+        ("proc_root", None),
+        ("sys_root", []),
+        ("extra", 1),
+    ],
+)
+def test_native_cgroup_closed_request(sampler_binary: Path, tmp_path: Path, key: str, replacement: Any) -> None:
+    path, value, _ = cgroup_request(tmp_path)
+    value[key] = replacement
+    path.write_text(json.dumps(value))
+    result = invoke(sampler_binary, "memory-cgroup", path, tmp_path)
+    assert result.returncode == 1 and result.stdout == b"" and result.stderr == b"error: execution refused: InvalidCgroupRequest\n"
+
+
+@pytest.mark.parametrize("raw", [b"{}", b"[]", b"null", b"{} {}", b'{"schema_version":1,"schema_version":1}', b"\xff"])
+def test_native_cgroup_invalid_json(sampler_binary: Path, tmp_path: Path, raw: bytes) -> None:
+    path = tmp_path / "request.json"
+    path.write_bytes(raw)
+    result = invoke(sampler_binary, "memory-cgroup", path, tmp_path)
+    assert result.returncode == 1 and result.stdout == b"" and result.stderr == b"error: execution refused: InvalidCgroupRequest\n"
+
+
+@pytest.mark.integration
+def test_actual_linux_cgroup_context_matches_surrounding_measurements(sampler_binary: Path, tmp_path: Path) -> None:
+    if sampler_binary.read_bytes()[:4] != b"\x7fELF":
+        pytest.skip("Finite Linux runtime control requires an explicitly bound actual Linux cross-build")
+    result = linux_public_call(sampler_binary, tmp_path, probe_mode="cgroup-live")
+    assert result["native_exit_code"] == 0 and result["stderr"] == "", result
+    context = json.loads((tmp_path / "output/fixture/cgroup-context.json").read_bytes())
+    assert context["joined"] and context["actual_native_pid"] == result["actual_native_pid"] > 1
+    assert context["before"]["value"] <= context["native_result"]["peak_bytes"] <= context["after"]["value"]
+
+
+@pytest.mark.parametrize("suffix", ["/space bearing", "/back\\slash", "/" + "/".join(["a"] * 64)])
+def test_native_cgroup_literal_components_and_maximum_depth(sampler_binary: Path, tmp_path: Path, suffix: str) -> None:
+    path, value, counter = cgroup_request(tmp_path, membership=("0::" + suffix + "\n").encode())
+    selected = Path(value["sys_root"]).joinpath("sys/fs/cgroup", *suffix.split("/")[1:], "memory.peak")
+    selected.parent.mkdir(parents=True)
+    counter.rename(selected)
+    assert_cgroup_result(invoke(sampler_binary, "memory-cgroup", path, tmp_path), 123)
+
+
+@pytest.mark.parametrize("control", ["duplicate", "missing", "exponent", "request-link", "root-link", "relative", "trailing-slash", "dot", "request-large"])
+def test_native_cgroup_request_paths_and_wire_domain(sampler_binary: Path, tmp_path: Path, control: str) -> None:
+    path, value, _ = cgroup_request(tmp_path)
+    reason = "InvalidCgroupRequest"
+    if control == "duplicate":
+        path.write_text(path.read_text()[:-1] + ',"schema_version":1}')
+    elif control == "missing":
+        del value["wall_ms"]
+        path.write_text(json.dumps(value))
+    elif control == "exponent":
+        path.write_text(json.dumps(value).replace('"wall_ms": 5000', '"wall_ms": 5e3'))
+    elif control == "request-link":
+        moved = path.with_name("moved.json")
+        path.rename(moved)
+        path.symlink_to(moved.name)
+        reason = "UnsafeSamplerPath"
+    elif control == "root-link":
+        link = tmp_path / "proc-link"
+        link.symlink_to(value["proc_root"])
+        value["proc_root"] = str(link)
+        path.write_text(json.dumps(value))
+        reason = "UnsafeSamplerPath"
+    elif control == "request-large":
+        path.write_bytes(b" " * 65537)
+        reason = "SamplerInputLimit"
+    else:
+        value["proc_root"] = {"relative": "proc", "trailing-slash": value["proc_root"] + "/", "dot": value["proc_root"] + "/."}[control]
+        path.write_text(json.dumps(value))
+        reason = "InvalidSamplerPath"
+    result = invoke(sampler_binary, "memory-cgroup", path, tmp_path)
+    assert result.returncode == 1 and result.stdout == b"" and result.stderr == f"error: execution refused: {reason}\n".encode()
+
+
+CGROUP_LIFECYCLE_PROBE = r"""const std = @import("std");
+const component = @import("validation_memory_sampler.zig");
+const owner = @import("validation_process_darwin.zig");
+const linux = std.os.linux;
+const c = @cImport({ @cInclude("unistd.h"); @cInclude("fcntl.h"); @cInclude("stdio.h"); @cInclude("sys/stat.h"); });
+const request_path = "/output/fixture/request.json";
+var mode: []const u8 = "";
+var armed = false;
+var changed: u32 = 0;
+var setup_failed = false;
+var initial_request: u64 = 0;
+var held_reads: u32 = 0;
+var first_self_errno: u32 = 0;
+var first_self_inode: u64 = 0;
+fn failed(value: c_int) void { if (value != 0) setup_failed = true; }
+// Preserve the exact target-owned syscall result and errno. The only departure
+// is one REAL namespace replacement in the already owned fixture after the
+// observation has completed. No metadata return, bit, or inode is fabricated.
+export fn statx(fd: std.c.fd_t, name: [*:0]const u8, flags: u32, mask: linux.STATX, value: *linux.Statx) c_int {
+    const raw = linux.statx(fd, name, flags, mask, value);
+    const code = linux.errno(raw);
+    const text = std.mem.span(name);
+    if (armed and changed == 0) {
+        if (std.mem.eql(u8, text, request_path) and code == .SUCCESS) initial_request = value.ino;
+        if (std.mem.eql(u8, mode, "cgroup-busy-drift") and text.len == 0 and code == .SUCCESS and initial_request != 0 and value.ino == initial_request) {
+            held_reads += 1;
+            if (held_reads == 2) {
+                changed += 1;
+                failed(c.rename(request_path, "/output/fixture/retained-request.json"));
+                const file = c.open(request_path, c.O_WRONLY | c.O_CREAT | c.O_EXCL | c.O_CLOEXEC, @as(c_uint, 0o600));
+                if (file < 0) setup_failed = true else {
+                    if (c.write(file, "foreign marker\n", 15) != 15) setup_failed = true;
+                    failed(c.close(file));
+                }
+            }
+        }
+        if ((std.mem.eql(u8, mode, "cgroup-self-absent") or std.mem.eql(u8, mode, "cgroup-self-replaced")) and std.mem.eql(u8, text, "self")) {
+            first_self_errno = @intFromEnum(code);
+            if (code == .SUCCESS) first_self_inode = value.ino;
+            if (std.mem.eql(u8, mode, "cgroup-self-absent")) {
+                if (code != .NOENT) setup_failed = true;
+            } else {
+                if (code != .SUCCESS) setup_failed = true;
+                failed(c.renameat(fd, "self", fd, "retained-self"));
+            }
+            changed += 1;
+            failed(c.mkdirat(fd, "self", 0o755));
+        }
+    }
+    if (code != .SUCCESS) { std.c._errno().* = @intCast(@intFromEnum(code)); return -1; }
+    return @intCast(raw);
+}
+fn require(value: bool) !void { if (!value) return error.CgroupLifecycleControlFailed; }
+fn exercise(init: std.process.Init) !void {
+    const a = init.arena.allocator();
+    const args = try init.minimal.args.toSlice(a);
+    try require(args.len == 3 and std.mem.eql(u8, args[2], "/input/request.json"));
+    mode = args[1];
+    try require(std.mem.eql(u8, mode, "cgroup-busy") or std.mem.eql(u8, mode, "cgroup-busy-drift") or std.mem.eql(u8, mode, "cgroup-self-absent")
+        or std.mem.eql(u8, mode, "cgroup-self-replaced"));
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[2], a, .limited(65536));
+    const file = c.open(request_path, c.O_WRONLY | c.O_CREAT | c.O_EXCL | c.O_CLOEXEC, @as(c_uint, 0o600));
+    try require(file >= 0);
+    try require(c.write(file, bytes.ptr, bytes.len) == bytes.len);
+    try require(c.close(file) == 0);
+    armed = true;
+    var refusal: ?anyerror = null;
+    var status: ?u8 = null;
+    if (std.mem.startsWith(u8, mode, "cgroup-busy")) {
+        var lease = try owner.beginSamplingSignals();
+        status = component.cgroupCommand(init, request_path) catch |problem| blk: { refusal = problem; break :blk null; };
+        try require(try owner.restoreSamplingSignals(&lease) == 0);
+    } else {
+        status = component.cgroupCommand(init, request_path) catch |problem| blk: { refusal = problem; break :blk null; };
+    }
+    armed = false;
+    var next = try owner.beginSamplingSignals();
+    try require(try owner.restoreSamplingSignals(&next) == 0);
+    const report = try std.json.Stringify.valueAlloc(a, .{
+        .mode = mode, .operation_returned_status = status,
+        .operation_error = if (refusal) |problem| @errorName(problem) else "none",
+        .mutations = changed, .setup_failed = setup_failed, .request_held_reads = held_reads,
+        .first_self_errno = first_self_errno, .first_self_inode = first_self_inode, .actual_native_pid = c.getpid(),
+    }, .{});
+    var output = try std.Io.Dir.cwd().createFile(init.io, "/output/fixture/cgroup-lifecycle.json", .{ .exclusive = true });
+    try output.writeStreamingAll(init.io, report); output.close(init.io);
+    try require(!setup_failed and changed == @as(u32, if (std.mem.eql(u8, mode, "cgroup-busy")) 0 else 1));
+    const expected = if (std.mem.eql(u8, mode, "cgroup-busy")) "SignalBridgeBusy" else "SamplerInputDrift";
+    try require(refusal != null and std.mem.eql(u8, @errorName(refusal.?), expected));
+    try std.Io.File.stdout().writeStreamingAll(init.io, "actual-cgroup-custody-refusal;signal-owner-released\n");
+}
+pub fn main(init: std.process.Init) void {
+    exercise(init) catch |problem| std.process.fatal("private cgroup control refused: {s}", .{@errorName(problem)});
+}
+"""
+
+
+@pytest.fixture(scope="session")
+def cgroup_lifecycle_probe(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    build = tmp_path_factory.mktemp("native-cgroup-lifecycle")
+    for source in NATIVE_SOURCES:
+        shutil.copyfile(source, build / source.name)
+    source = build / "main.zig"
+    source.write_text(CGROUP_LIFECYCLE_PROBE)
+    image = build / "probe"
+    argv = [
+        shutil.which("zig") or "zig",
+        "build-exe",
+        "-j1",
+        "-OReleaseSafe",
+        "-lc",
+        "-static",
+        "-target",
+        "aarch64-linux-musl",
+        str(source),
+        "-femit-bin=" + str(image),
+    ]
+    compiled = subprocess.run(argv, capture_output=True, timeout=120)
+    (build / "build.stdout.log").write_bytes(compiled.stdout)
+    (build / "build.stderr.log").write_bytes(compiled.stderr)
+    assert compiled.returncode == 0, compiled.stderr
+    retain_native_build_metadata(image, [source, *NATIVE_SOURCES], argv, compiled)
+    return image
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("mode", ["cgroup-busy", "cgroup-busy-drift", "cgroup-self-absent", "cgroup-self-replaced"])
+def test_actual_linux_cgroup_retains_first_observation_and_finalizes_setup(cgroup_lifecycle_probe: Path, tmp_path: Path, mode: str) -> None:
+    result = linux_public_call(cgroup_lifecycle_probe, tmp_path, probe_mode=mode)
+    witness = json.loads((tmp_path / "output/fixture/cgroup-lifecycle.json").read_bytes())
+    assert witness["mutations"] == (0 if mode == "cgroup-busy" else 1) and not witness["setup_failed"], witness
+    assert witness["actual_native_pid"] == result["actual_native_pid"] == 1
+    assert witness["operation_returned_status"] is None
+    assert witness["operation_error"] == ("SignalBridgeBusy" if mode == "cgroup-busy" else "SamplerInputDrift")
+    if mode == "cgroup-busy-drift":
+        assert witness["request_held_reads"] == 2
+        assert (tmp_path / "output/fixture/request.json").read_bytes() == b"foreign marker\n"
+        assert (tmp_path / "output/fixture/retained-request.json").read_bytes() == (tmp_path / "input/request.json").read_bytes()
+    elif mode == "cgroup-self-absent":
+        assert witness["first_self_errno"] == 2 and (tmp_path / "output/fixture/proc/self").is_dir()
+    elif mode == "cgroup-self-replaced":
+        assert witness["first_self_inode"] != 0 and (tmp_path / "output/fixture/proc/retained-self/cgroup").read_bytes() == b"0::/battery\n"
+    assert result["native_exit_code"] == 0 and result["stderr"] == "" and result["cleanup_complete"], result
+    assert result["stdout"] == "actual-cgroup-custody-refusal;signal-owner-released\n"
