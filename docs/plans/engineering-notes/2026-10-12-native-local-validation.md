@@ -930,3 +930,95 @@ observations, ordinary outcome comparison, owning checks, and required delivery
 gate. Final results stay external so recording them cannot change the frozen
 candidate. Checksums and caller-private evidence remain local integrity
 controls, not authenticated execution attestation.
+
+## October 15, 2026 — WP03 Native Execution And Diagnostics
+
+### Ownership And Current Boundary
+
+WP02 is independently and canonically approved by Reviewer Renata, event
+`01M4YYWSDJ36QY5DH26T7M1EZT`, delivered at
+`7d996bd00e1337a0b0f2a487966d37ef296f883c`. The runtime then issues the actual
+WP03 implement step for this same owned checkout. Its generated prompt digest
+is `26956396e8dde75b31bab71c60b5fb03578d116e59a1dd36f42302c73ae69544`.
+Resolve Implementer Ivan and fetch the current action context and cited
+implementation directives before code. The actual actor and assignee remain
+`codex`, with the resolved `implementer-ivan` profile. Normal guarded claimed
+and in-progress events are `01M4YZ6X25YB87AKGEF42TQFAS` and
+`01M4YZ898Z9JYDZA6163QTAQ9S`; no force, skip, new workspace, or ordinary route
+into the protected primary is used.
+
+Root explicitly coordinates continued updates to this independently owned
+mission log. Its existing plan-mandated continuity is the narrow out-of-map
+rationale; no duplicate log or new product path is introduced. WP03 owns only
+its declared execution/process modules and execution/platform tests. WP04
+and the later publication/retirement surface remain outside this increment.
+
+The first WP03 primary snapshot is after the normal claim. It matches the
+exact inherited protected baseline, including HEAD `87abef9`, branch, tracked
+diffs, untracked bytes, and absence of this mission in that checkout. It is not
+retagged as a newly captured preclaim observation. Claim metadata is committed
+and pushed through the supported owned route before the test increment.
+
+### First Native Controls And Scope Decisions
+
+Verify the actual Temet Git blob against the exact committed test fixture:
+revision `7d99ede611abbbfbda4503471fa71b417a6ef177`, path
+`tools/zig/owned_process_group.zig`, SHA-256
+`16dbf37d5d9199e61523e731cf931404e695d7a37fec463519951ba0a26fff8b`.
+The pinned repository has no root `LICENSE` file; preserve that observed
+absence rather than inventing an upstream license. The explicit first-party
+reuse authorization is this mission's approved plan and T010. No third-party
+package, registry, installation, or dependency upgrade is selected.
+
+Before production adaptation, compile and drive that actual reviewed source
+through committed, self-contained native controls. A missing new module or
+command cannot serve as the RED. Distinguish actual success and nonzero exit,
+failed spawn, elapsed timeout, real signal cancellation after EOF, output and
+sampled process/RSS quotas, ordinary descendants, changed groups, and new
+sessions. Inspect PID/start-time identities through SDK-owned Darwin types;
+unknown inspection refuses. Preserve a separately retained unrelated child.
+Finite escaped fixture identities are observed through natural terminal
+exit without signaling an unowned or reused PID.
+
+The explicitly named legacy group-only cleanup oracle tests the unsafe
+consumer inference, not a promise the reviewed foundation made. The helper's
+original-group scope remains correct and limited. An escaped identity still
+alive after the helper returns cannot be credited as globally cleaned from
+`group_disposed` alone. Separately require raw bytes through the execution
+quota and visible streaming before a real child finishes. Retain raw failure
+and successful-control evidence separately before the smallest adaptation.
+
+Root has identified an existing stopped Windows VM and retains its resource
+coordination. Inventory is not execution qualification. Do not invoke the
+Parallels bootstrap wrapper or start the VM without the exact backend,
+commands, bounded resource plan, and owner coordination. Linux CPU-only
+qualification likewise goes through Root's existing strict fleet owner after
+artifacts are pinned. No duplicate host discovery, new VM/service, GPU,
+serving-process, model, corpus, Source/Store, or credential effect is selected.
+
+### Open Qualification
+
+T009–T012 remain incomplete. Streaming, dependency-ordered actual execution,
+current native statement observation, and real platform evidence still need
+implementation and validation. Darwin original-group disposal, sampled usage,
+and the exact imported fixture do not establish general containment, hard
+peaks, Linux/Windows qualification, installed hooks, or publication readiness.
+Unknown cleanup cannot produce acceptance. Retain the earlier receipt limits,
+original 84965's missing acknowledgment, and historical Python coverage
+concurrency failure. Current runs use distinct evidence/coverage roots and
+supported retained pytest temporary directories. Final immutable results stay
+outside the frozen source and documentation candidate.
+
+Observed first native RED: original 62455 joins with exit 1 and an absent owned
+group. Eight controls pass; five fail for the intended reasons. The first
+one-over stdout and stderr reads retain no prefix instead of the required four
+bytes. The changed-group and session controls retain actual live PID/start-time
+identities after original-group disposal, then observe their finite natural
+termination; the legacy group-only inference wrongly credits global cleanup.
+The live-streaming control observes an empty raw file while its real child is
+waiting, followed by the correct complete output only at return. Quiet and
+nonzero exits, failed spawn, timeout, real signal cancellation, same-group
+cleanup, sampled process/RSS quota refusal, and unrelated-child preservation
+provide corresponding successful discriminators. No missing-command, compile,
+or setup failure is counted as this RED. Raw build, diagnostic, kernel, terminal,
+and JUnit evidence remains in `native-wp03-execution-evidence-20261015`.
