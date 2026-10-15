@@ -1978,3 +1978,35 @@ Keep the original observation sets and every remaining native statement miss.
 The changed-statement threshold is a separate gate; no coverage exception or
 unobserved syscall, capacity, platform or restoration branch is inferred from
 neighboring successful checks. Final results belong in external frozen receipts.
+
+### Finite Memory Report Dependency
+
+The next component consumes the existing finalized state and captured cgroup
+response formats. It returns report and summary strings through the existing
+native executable's operation/request convention. It does not take a final
+sample, terminate a sampler, signal a persisted PID, or append a host summary.
+Those effects still belong to the future whole-check lifecycle owner; the real
+architectural-fast start/checks/always-stop recipe remains unsupported.
+
+The independently accepted external contract binds the unchanged Python
+from_json, render_report, threshold, and summary rules, with CPython 3.14.7 as the
+prospective parity oracle. State integers, finite elapsed values, measured zero,
+and unavailable data stay distinct. Immutable artifact bytes and metadata need
+final custody checks on every exit. No new generic transaction or formatter
+framework, production flags, gate change, or platform admission is selected.
+
+Observed RED: both native sample/cgroup prerequisite pairs succeeded, including
+measured zero and unavailable cgroup results. The proposed memory-report entry
+then refused InvalidArguments, so both actual public tests failed at the missing
+operation. Two independent pinned pure-Python calls produced the expected report
+and summary strings from those exact native artifacts. This is an intentionally
+failing test/log increment; implementation and its required gates remain pending.
+Full raw outputs, joined terminal records, input pins, and the accepted contract
+remain under the external report-component-r1 evidence directory.
+
+The first pure-oracle controller stopped before launching its oracle because
+its setup compared whole stat records after reading, including access time.
+The original tuple was not retained, so the exact changed field is unknown.
+The corrected controller excludes access time, retains stable input metadata
+and bytes, and completed both pinned pure-oracle calls. This setup failure is
+separate from the two genuine missing-operation RED outcomes.

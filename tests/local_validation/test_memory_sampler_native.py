@@ -2137,3 +2137,50 @@ def test_actual_linux_selected_cgroup_contract(selected_contract_probe: tuple[Pa
     assert witness["operation_returned_status"] == (0 if expected == "none" else None)
     prefix = '{"schema_version":1,"source":"unavailable","peak_bytes":null}\n' if expected == "none" else ""
     assert result["stdout"] == prefix + "actual-cgroup-custody-refusal;signal-owner-released\n"
+
+
+@pytest.mark.parametrize("counter_bytes,peak", [(b"0\n", 0), (b"max\n", None)])
+def test_native_memory_report_renders_delivered_artifacts(sampler_binary: Path, tmp_path: Path, counter_bytes: bytes, peak: int | None) -> None:
+    sampling = tmp_path / "sampling"
+    sampling.mkdir(mode=0o700)
+    sample_path, sample_value = request(sampling, max_samples=1)
+    sample_result = invoke(sampler_binary, "memory-sample", sample_path, sampling)
+    assert sample_result.returncode == 0 and sample_result.stdout == sample_result.stderr == b""
+    state_path = Path(sample_value["destination"]) / "state.json"
+    state_bytes = state_path.read_bytes()
+    state = oracle.from_json(state_bytes.decode())
+    assert state is not None and state.samples == 1 and state.source == "meminfo"
+
+    cgroup = tmp_path / "cgroup"
+    cgroup.mkdir(mode=0o700)
+    cgroup_path, _, _ = cgroup_request(cgroup, peak=counter_bytes)
+    cgroup_result = invoke(sampler_binary, "memory-cgroup", cgroup_path, cgroup)
+    assert_cgroup_result(cgroup_result, peak)
+    cgroup_artifact = tmp_path / "cgroup-result.json"
+    cgroup_artifact.write_bytes(cgroup_result.stdout)
+    cgroup_artifact.chmod(0o600)
+
+    report_path = tmp_path / "report-request.json"
+    report_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "state_path": str(state_path),
+                "cgroup_path": str(cgroup_artifact),
+                "warn_bytes": 10 * oracle.GIB,
+                "error_bytes": 12 * oracle.GIB,
+                "wall_ms": 5000,
+            }
+        )
+    )
+    report_path.chmod(0o600)
+    reporting = tmp_path / "reporting"
+    reporting.mkdir(mode=0o700)
+    result = invoke(sampler_binary, "memory-report", report_path, reporting)
+    assert result.returncode == 0 and result.stderr == b"", result.stderr
+    assert json.loads(result.stdout) == {
+        "schema_version": 1,
+        "report_lines": oracle.render_report(state, peak, warn_bytes=10 * oracle.GIB, error_bytes=12 * oracle.GIB),
+        "summary_line": oracle.summary_line(state, peak),
+    }
+    assert state_path.read_bytes() == state_bytes and cgroup_artifact.read_bytes() == cgroup_result.stdout
