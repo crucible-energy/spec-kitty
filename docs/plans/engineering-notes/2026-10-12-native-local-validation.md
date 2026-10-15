@@ -1654,6 +1654,17 @@ retain ownership and prior complete state. Native cancellation, timeout and
 runtime failures are nonzero T011 refusals, an explicit status difference from
 Python's warning/zero runtime behavior. Every actual PID/time remains measured.
 
+The frozen r1 review found one real all-exit disposition defect: an input
+error could bypass final output/proc custody checks and mask a simultaneous
+ownership loss. Preserve its actual public-path RED and original frozen source.
+The bounded repair must finalize every acquired output under the same remaining
+wall budget before returning the primary data/cancellation/deadline result;
+observed custody and signal-restoration failures take precedence. Combined
+input-error, signal and deadline controls retain the real first state, original
+state bytes and foreign objects, alongside existing independent primary-error
+and custody-only controls. No additional cleanup budget or unknown-object
+removal is authorized.
+
 ### Known Limitations
 
 This component does not port detached start/stop, cgroup reading, full Python
