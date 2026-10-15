@@ -20,7 +20,7 @@
   "work_packages": {
     "WP01": {
       "actor": "reviewer-renata",
-      "agent": "reviewer-renata",
+      "agent": null,
       "agent_profile": "reviewer-renata",
       "agent_profile_version": "1.0",
       "force_count": 1,
@@ -31,9 +31,11 @@
       "model": "__resolved_model_absent__",
       "notes": [
         "Independent fixed-candidate T001–T004 review PASS at fb2f3c887e61470a80732f6c0852738e9159143f; implementation owner requests canonical review",
-        "Independent Reviewer Renata claim for fixed WP01 T001–T004. Product fb2f3c887e61470a80732f6c0852738e9159143f; admission ba656d29857b02d172e59021051a9d17fb86026a. Sealed PASS report /Users/sam/Documents/Codex/2026-10-08/referenced-chatgpt-conversation-this-is-an/work/native-module-mirror-independent-review-20261014/review.md SHA256 5c22aa1b3b74cc94cc677cd6cf13a6fb28a5bd5c7ff9122b7bb091c74f502354. Current source/dependencies and actual native/consumer/mandatory-gate evidence verified unchanged. No later-WP approval."
+        "Independent Reviewer Renata claim for fixed WP01 T001–T004. Product fb2f3c887e61470a80732f6c0852738e9159143f; admission ba656d29857b02d172e59021051a9d17fb86026a. Sealed PASS report /Users/sam/Documents/Codex/2026-10-08/referenced-chatgpt-conversation-this-is-an/work/native-module-mirror-independent-review-20261014/review.md SHA256 5c22aa1b3b74cc94cc677cd6cf13a6fb28a5bd5c7ff9122b7bb091c74f502354. Current source/dependencies and actual native/consumer/mandatory-gate evidence verified unchanged. No later-WP approval.",
+        "Independent review requests changes: canvas_update_needed. Active selected SPDD doctrine and actual renderer require missing kitty-specs/native-local-validation-01M4S619/reasons-canvas.md before approval. Native product T001–T004 PASS remains valid at fb2f3c887e61470a80732f6c0852738e9159143f; sealed report SHA256 5c22aa1b3b74cc94cc677cd6cf13a6fb28a5bd5c7ff9122b7bb091c74f502354. See structured feedback for exact authority and smallest source-backed remediation. No code failure or later-WP approval inferred."
       ],
       "provider": "__resolved_provider_absent__",
+      "review": null,
       "review_result": {
         "feedback_path": "/Users/sam/git/crucible/_worktrees/spec-kitty-owned-single-branch-recovery/kitty-specs/native-local-validation-01M4S619/tasks/WP01-canonical-selection/review-cycle-1.md",
         "reference": "review-cycle://native-local-validation-01M4S619/WP01-canonical-selection/review-cycle-1.md",
@@ -41,13 +43,13 @@
         "verdict": "changes_requested"
       },
       "role": "reviewer",
-      "shell_pid": 35844,
-      "shell_pid_created_at": "1792024405.630148",
+      "shell_pid": 68999,
+      "shell_pid_created_at": "1792024627.450736",
       "subtasks": {
-        "T001": "done",
-        "T002": "done",
-        "T003": "done",
-        "T004": "done"
+        "T001": "planned",
+        "T002": "planned",
+        "T003": "planned",
+        "T004": "planned"
       }
     },
     "WP02": {
