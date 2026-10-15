@@ -67,7 +67,8 @@
       "last_transition_at": "2026-10-15T04:44:36.042199+00:00",
       "model": "__resolved_model_absent__",
       "notes": [
-        "Begin sequential WP02 exact staged candidate and reusable check identity after actual WP01 canonical approval"
+        "Begin sequential WP02 exact staged candidate and reusable check identity after actual WP01 canonical approval",
+        "T005–T008 implemented and validated; independent full WP02 review pending. Frozen source/docs and actual native proof: /Users/sam/Documents/Codex/2026-10-08/referenced-chatgpt-conversation-this-is-an/work/native-wp02-candidate-evidence-20261014/receipt-f2-validation.json. Review ALL candidate and receipt work, including candidate commits before refreshed ad94629 planning pin. WP03–WP05 qualification remains separate."
       ],
       "provider": "__resolved_provider_absent__",
       "role": "implementer",
