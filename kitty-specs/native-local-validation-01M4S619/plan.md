@@ -66,6 +66,23 @@ The imported Darwin helper observes and disposes members of its original process
 
 Add real changed-group and `setsid` escape controls alongside ordinary descendants. Qualify each supervised command and platform against the required ownership contract. An unsupported containment/supervision boundary refuses acceptance or remains explicitly unqualified; group disposal alone cannot satisfy the all-owned-children terminal requirement. If stronger ownership support is needed, extend a bounded owning backend with identity-safe controls, without signaling unrelated processes or introducing a separate VM or service merely for this gate. Missing ownership proof is a qualification gap to address, not a passing outcome.
 
+### WP02 self-contained ownership fixture
+
+WP02 may create `tests/local_validation/fixtures/owned_process_group.zig` as an
+exact test-only copy of the Temet helper pinned above. Assert SHA-256
+`16dbf37d5d9199e61523e731cf931404e695d7a37fec463519951ba0a26fff8b`
+before compiling temporary test harnesses. Committed regressions must not depend
+on an operator's Documents artifacts, a sibling checkout, or a network fetch.
+
+Use its actual result, retained streams, failure, original-group disposal, and
+sampled usage to test tiny, source-closed fixture programs. Preserve its Darwin,
+group-escape, and sampled-resource limits. The unchanged helper is fixture input,
+not a second maintained production supervisor. Changes to it require a new
+reviewed pin; production adaptation and streaming/platform work remain WP03.
+This does not qualify unknown check closures or relax native coverage for the
+maintained WP02 product. Its receipt module consumes evidence; caller Booleans
+and a check name cannot confer cleanup or reuse qualification.
+
 ### Relevant Input Closure And Positive Reuse
 
 Each check declares its relevant input closure: candidate files and modes, transitive first-party imports/configuration, base-dependent inputs, executable/launcher/source and specification, toolchain, locked and observed dependencies, relevant environment, platform, and command/budgets. An unproved closure selects fresh execution conservatively. A receipt for an old global candidate cannot qualify a new staged tree. Assemble the current receipt from current bindings and only individually reusable check evidence whose complete relevant closure matches and whose policy permits reuse.
