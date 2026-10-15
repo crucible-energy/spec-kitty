@@ -564,3 +564,94 @@ def test_review_ascii_columns_integer_grammar(executor_binary: Path, tmp_path: P
 def test_review_short_help_equals_and_compact_neighbors(executor_binary: Path, tmp_path: Path, argument: str) -> None:
     result = native_cli(executor_binary, tmp_path, [argument])
     assert (result.returncode, result.stdout, result.stderr) == oracle_cli([argument])
+
+
+def reviewed_grammar_classes() -> list[tuple[str, list[str], str]]:
+    """Finite independent-review input table; outcomes always come from the frozen oracle."""
+    cases: list[tuple[str, list[str], str]] = []
+    for count in range(1, 9):
+        cluster = "-" + "h" * count
+        for value in ["", "foo", "a'b", "line\n\\tail"]:
+            cases.append(("cluster-equals", [cluster + "=" + value], "80"))
+        cases.append(("cluster-plain", [cluster], "80"))
+    for count in range(1, 9):
+        for suffix in ["f", "f=foo", "fh=foo", "foo=bar", "-h=foo"]:
+            cases.append(("cluster-tail", ["-" + "h" * count + suffix], "80"))
+    for option in ["--h", "--he", "--hel", "--help"]:
+        cases.append(("long-help", [option], "80"))
+        for value in ["", "foo", "a'b", "line\n\\tail"]:
+            cases.append(("long-help-value", [option + "=" + value], "80"))
+    for option in ["--c", "--ch", "--cha", "--change", "--changelog"]:
+        for value in ["CHANGELOG.md", "with=equals.md", "-1\n", ""]:
+            cases.append(("long-changelog-value", [option + "=" + value], "80"))
+    for argument in ["--hh=foo", "--helpX=foo", "--changeX=foo", "--=foo", "-ch=foo"]:
+        cases.append(("option-neighbor", [argument], "80"))
+    for argv in [
+        ["-h=foo", "--unknown"],
+        ["-hh=foo", "--unknown"],
+        ["--unknown", "-hh=foo"],
+        ["--changelog", "--help"],
+        ["--changelog", "-hh=foo"],
+        ["--changelog", "--c=CHANGELOG.md"],
+    ]:
+        cases.append(("option-order-arity", argv, "80"))
+    for columns in ["40", "+40", "-40", " 40 ", "\t+4_0\r", "4_0", "+4_0", "-4_0", "00_40", "+0", "-0", "", " ", "\t\r\n"]:
+        cases.append(("ascii-columns", ["--help"], columns))
+    for columns in ["+", "-", "_40", "40_", "4__0", "+_40", "--40", "40.0", "0x28", "4 0", "+ 40", "\x1c40", "40\x1f"]:
+        cases.append(("invalid-ascii-columns", ["--help"], columns))
+    assert len(cases) == 158
+    for argv in [
+        ["--help", "--=foo"],
+        ["-h", "--=foo"],
+        ["--changelog", "--=foo"],
+        ["--=foo", "--help"],
+        ["--", "--=foo"],
+        ["--help", "--", "--=foo"],
+        ["--changelog", "--", "--=foo"],
+        ["-h-h"],
+        ["-hh-h"],
+    ]:
+        cases.append(("prescan-terminator-tail", argv, "80"))
+    return cases
+
+
+@pytest.mark.parametrize(("kind", "argv", "columns"), reviewed_grammar_classes())
+def test_review_complete_supported_grammar_table(
+    executor_binary: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str, argv: list[str], columns: str
+) -> None:
+    from scripts.docs import check_changelog_style as oracle
+
+    for filename in ["CHANGELOG.md", "with=equals.md", "-1\n"]:
+        (tmp_path / filename).write_text("## [Unreleased]\n### Internal\n- Documentation corrected.\n")
+    monkeypatch.setattr(oracle, "REPO_ROOT", tmp_path)
+    monkeypatch.setenv("COLUMNS", columns)
+    result = native_cli(executor_binary, tmp_path, argv, tmp_path)
+    assert (result.returncode, result.stdout, result.stderr) == oracle_cli(argv), kind
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "-odd name.md",
+        "--unknown name.md",
+        "--- name.md",
+        "-1 ",
+        "- name.md",
+        "--h unknown.md",
+        "-h unknown.md",
+        "-hh unknown.md",
+        "--help=odd name",
+        "--c=odd name",
+        "-x=name with space",
+        "-odd\tname.md",
+        "-odd\u2003name.md",
+    ],
+)
+def test_review_dash_leading_filename_classification(executor_binary: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, filename: str) -> None:
+    from scripts.docs import check_changelog_style as oracle
+
+    (tmp_path / filename).write_text("## [Unreleased]\n### Internal\n- Documentation corrected.\n")
+    monkeypatch.setattr(oracle, "REPO_ROOT", tmp_path)
+    argv = ["--changelog", filename]
+    result = native_cli(executor_binary, tmp_path, argv, tmp_path)
+    assert (result.returncode, result.stdout, result.stderr) == oracle_cli(argv)

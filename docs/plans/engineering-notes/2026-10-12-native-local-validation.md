@@ -1498,3 +1498,23 @@ handling while compact `-hfoo` retains its accepted help behavior. Preserve the
 current-image RED with valid and invalid separator/sign neighbors before
 validating the supported ASCII integer grammar and the exact short-option
 split. This does not expand the recorded Unicode/environment qualification.
+
+
+The r3 repair validates an optional ASCII sign and decimal digits with only a
+single underscore between digits before integer conversion. It recognizes
+explicit values only for the exact short `-h=` prefix alongside existing long
+options, preserving compact help behavior. The unchanged property-data subject
+and its observation method retain their existing identities; changed-source
+proofs are refreshed after the r3 freeze.
+
+#### Supported parser classes after the frozen-r3 table
+
+The independent finite grammar table separates recognized short-help clusters,
+unknown suffixes, equals separators and option continuations, long-option
+abbreviations, pre-scan ambiguity, option arity/order, and supported ASCII
+integer forms. The repair follows the pinned `argparse` class ordering for this
+checker's two options, including space-bearing dash-leading filename values;
+it does not add a generic parser. Retain all 174 original comparisons: 158 are
+in the supported scope; the 16 explicitly unqualified environment cases include
+11 observed differences (Unicode digits/whitespace and positive integer
+overflow). Matching excluded cases do not establish their qualification.
