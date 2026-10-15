@@ -1568,6 +1568,41 @@ Fixture compilation, candidate capture, and binding succeed; this is actual
 missing recipe behavior, not a source/tool/setup failure. Raw diagnostics and
 exact source/image pins remain in the private recipe evidence.
 
+The first implementation reuses the existing native spawn/poll/drain/disposal
+path through a persistent check scope; it introduces no second scheduler.
+The scope owns one signal bridge, original work deadline, cumulative raw and
+display accounting, sampled maxima, and one measured owner-disposal allowance.
+Legacy single-command APIs and receipt/reuse qualification remain separate
+from the new bound command-index lookup. Per-command raw logs and outcomes
+preserve command-index stderr policy and the first validation failure.
+
+A focused deadline assertion initially assumed a second child must start.
+Actual source-bound revalidation can consume the remaining shared work budget
+first. The corrected control still requires the real first effect, retained
+terminal evidence and elapsed shared-budget refusal; it admits no setup/binding
+failure or executable cleanup time. Preserve the failed assertion/report and
+the independent disposition outside the candidate. Final frozen checks and
+native observations remain external and do not require another log mutation.
+
+The independent frozen-r1 review identified three precise boundary defects:
+reloading a self-consistent replacement binding did not compare its entire
+identity with the prepared binding; final check revalidation ran after the
+persistent scope ended; and exact retained quota incorrectly blocked a quiet
+successor. Five real public controls fail against that frozen image, including
+SIGTERM observed while the actual final-revalidation input descriptor is open.
+Preserve those RED outputs before the bounded repair. Reaching quota may admit
+a zero-output argv; crossing it still refuses and retains only the declared
+prefix. This clarifies the existing capture contract without raising a limit.
+
+The retained 700 ms deadline case also failed before its first command could
+complete. Successful ordinary controls measure roughly 0.2 seconds per binding
+check and 8–45 ms per ordinary child. The replacement fixture uses an ordinary
+first command and an 1800 ms second command under a 2000 ms whole-check budget;
+the second delay remains below a fresh per-command budget. Require the actual
+first completion, a shared-clock timeout within work plus owner disposal, and
+no executable `always` effect. This is fixture calibration, not a product
+performance improvement or relaxed production threshold.
+
 ### Known Limitations
 
 This bounded scope does not admit a detached sampler, unknown descendants,

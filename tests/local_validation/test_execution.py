@@ -1222,7 +1222,8 @@ pub fn main(init: std.process.Init) !void {
     if (args.len != 6) return error.InvalidArguments;
     if (init.environ_map.count() != 1 or !std.mem.eql(u8, init.environ_map.get("WP03_FLAG") orelse "", "declared value")) return error.InvalidEnvironment;
     const app = try std.Io.Dir.cwd().readFileAlloc(init.io, "app.py", a, .limited(1024));
-    try std.Io.File.stdout().writeStreamingAll(init.io, module.value ++ "\n");
+    const quiet = std.mem.eql(u8, args[4], "silent") or std.mem.startsWith(u8, args[4], "one-");
+    if (!quiet) try std.Io.File.stdout().writeStreamingAll(init.io, module.value ++ "\n");
     if (!std.mem.eql(u8, module.value, "STAGED") or !std.mem.eql(u8, app, "PASS\n")) std.process.exit(7);
     const dependency = try std.Io.Dir.cwd().readFileAlloc(init.io, args[3], a, .limited(1024));
     if (!std.mem.eql(u8, dependency, "GOOD\n")) std.process.exit(9);
@@ -1234,6 +1235,12 @@ pub fn main(init: std.process.Init) !void {
     try marker.writeStreamingAll(init.io, if (std.mem.eql(u8, args[1], "producer")) "producer\n" else "consumer\n");
     marker.close(init.io);
     if (std.mem.eql(u8, args[4], "delay")) std.Io.sleep(init.io, .fromMilliseconds(400), .awake) catch {};
+    if (std.mem.eql(u8, args[4], "near-deadline")) std.Io.sleep(init.io, .fromMilliseconds(1800), .awake) catch {};
+    if (quiet) {
+        if (std.mem.eql(u8, args[4], "one-stdout")) try std.Io.File.stdout().writeStreamingAll(init.io, "X");
+        if (std.mem.eql(u8, args[4], "one-stderr")) try std.Io.File.stderr().writeStreamingAll(init.io, "X");
+        return;
+    }
     if (std.mem.eql(u8, args[4], "wait")) {
         var count: usize = 0;
         while (count < 300) : (count += 1) {
@@ -1251,6 +1258,11 @@ pub fn main(init: std.process.Init) !void {
     try std.Io.File.stdout().writeStreamingAll(init.io, &output);
     if (std.mem.eql(u8, args[4], "warning")) try std.Io.File.stderr().writeStreamingAll(init.io, "Warning: recipe step\n");
     try std.Io.File.stderr().writeStreamingAll(init.io, &diagnostic);
+    if (std.mem.eql(u8, args[4], "drift-at-end")) {
+        const dependency_file = try std.Io.Dir.cwd().createFile(init.io, args[3], .{});
+        defer dependency_file.close(init.io);
+        try dependency_file.writeStreamingAll(init.io, "DRIFT\n");
+    }
     if (std.mem.eql(u8, args[4], "nonzero")) std.process.exit(13);
 }
 """
@@ -1411,6 +1423,11 @@ def configure_recipe_control(
     cleanup[2] = str(tmp_path / "recipe-cleanup-marker")
     steps = [[*producer], second, [*producer]]
     conditions = ["success", "success", "always"]
+    if case == "always-nonzero":
+        steps[-1][4] = "nonzero"
+    if case in {"cancel", "drift"}:
+        steps[0][4] = "wait"
+        steps[-1] = cleanup
     if case in {"nonzero", "warning"}:
         steps[1][4] = case
         steps.insert(2, [*producer])
@@ -1422,8 +1439,16 @@ def configure_recipe_control(
         steps[1][2] = str(tmp_path / "recipe-second-marker")
         steps[-1] = cleanup
         if case == "deadline":
-            steps[0][4] = steps[1][4] = "delay"
+            steps[1][4] = "near-deadline"
+    if case.startswith("exact-"):
+        steps[1][1] = "producer"
+        steps[1][2] = str(tmp_path / "recipe-second-marker")
+        steps[1][4] = case.removeprefix("exact-")
+        steps[-1] = cleanup
+        steps[-1][4] = "silent"
     checks["z-producer"]["argv"] = steps
+    if case == "final-drift":
+        checks["a-consumer"]["argv"][0][4] = "drift-at-end"
     qualifications.clear()
     seen: set[tuple[str, ...]] = set()
     for name, check in checks.items():
@@ -1442,21 +1467,44 @@ def configure_recipe_control(
         check["stderr_policy"] = ["allow"] * len(check["argv"])
         if name == "z-producer" and case == "warning":
             check["stderr_policy"][1] = "reject-warning-prefix"
-        if case == "quota":
-            check["budgets"]["stdout_bytes"] = 30000
-        if case == "deadline":
-            check["budgets"]["wall_ms"] = 700
+        adjust_recipe_budget(check["budgets"], case)
         for argv in check["argv"]:
             if tuple(argv) in seen:
                 continue
             seen.add(tuple(argv))
             q = copy.deepcopy(original[name])
             q["argv"] = argv
-            if case == "quota":
-                q["limits"]["stdout_bytes"] = 30000
-            if case == "deadline":
-                q["limits"]["wall_ms"] = 700
+            adjust_recipe_budget(q["limits"], case)
             qualifications.append(q)
+    configure_unsupported_recipe(checks["z-producer"]["recipe"], case)
+
+
+def adjust_recipe_budget(budget: dict[str, Any], case: str) -> None:
+    if case == "quota":
+        budget["stdout_bytes"] = 30000
+    elif case == "deadline":
+        budget["wall_ms"] = 2000
+    elif case.startswith("exact-"):
+        budget.update(stdout_bytes=20007, stderr_bytes=9000)
+
+
+def configure_unsupported_recipe(recipe: dict[str, Any], case: str) -> None:
+    if case == "unsupported-input":
+        recipe["required_inputs"].append("results")
+    elif case == "unsupported-condition":
+        recipe["conditions"][0] = "decision"
+    elif case == "unsupported-instance":
+        recipe["instances"][1] = "other"
+    elif case == "unsupported-environment":
+        recipe["instance_environment"] = {"native": {"EXTRA": "unqualified value"}}
+    elif case == "unsupported-package":
+        recipe["packages"] = {"native": "unqualified package"}
+    elif case == "unsupported-advisory":
+        recipe["advisory"] = True
+    elif case == "unsupported-applicability":
+        recipe["applicability"] = "routing-and-not-prose"
+    elif case == "unsupported-observation":
+        recipe["observed_dependencies"] = ["a-consumer"]
 
 
 def execution_inputs(
@@ -1704,8 +1752,224 @@ def test_native_recipe_never_resets_work_or_output_budget_for_next_argv_or_alway
         raw = b"".join(Path(row["stdout_log"]["path"]).read_bytes() for row in producer["steps"] if row["stdout_log"])
         assert len(raw) == 30000 and producer["result"]["stdout_retained_bytes"] == len(raw)
     else:
-        assert producer["steps"][0]["result"]["elapsed_ms"] < 700
-        assert producer["steps"][1]["result"]["failure"] == "wall_timeout"
+        assert producer["steps"][0]["result"]["elapsed_ms"] < 2000
+        first = producer["steps"][0]
+        assert first["result"]["leader_reaped"] and first["result"]["group_disposed"]
+        assert Path(first["stdout_log"]["path"]).read_bytes() == b"STAGED\n" + b"O" * 20000
+        assert inputs["marker"].read_bytes() == b"producer\n", "the first command actually completed"
+        assert 2000 <= producer["result"]["elapsed_ms"] <= 3000
+        assert producer["result"]["failure"] == "wall_timeout"
+        # Current-binding verification belongs to the same work lifetime. It
+        # may exhaust the remainder before a second child can safely start.
+        second = producer["steps"][1]
+        if second["result"] is None:
+            assert second["reason"] == "wall_timeout"
+            assert not (tmp_path / "recipe-second-marker").exists()
+            assert second["stdout_log"] and Path(second["stdout_log"]["path"]).read_bytes() == b""
+        else:
+            assert second["result"]["failure"] == "wall_timeout"
+
+
+@pytest.mark.parametrize("context", ["input", "condition", "instance", "environment", "package", "advisory", "applicability", "observation"])
+def test_native_recipe_refuses_unsupported_context_before_any_effect(
+    candidate_binary: Path, executor_binary: Path, repository: Path, tmp_path: Path, serial_program: dict[str, Any], context: str
+) -> None:
+    inputs = execution_inputs(candidate_binary, executor_binary, repository, tmp_path, serial_program, recipe_case="unsupported-" + context)
+    before = snapshot(repository)
+    result, report = run_execution(executor_binary, inputs)
+    assert snapshot(repository) == before
+    assert result.returncode != 0 and b"UnsupportedRecipeBinding" in result.stderr
+    assert report == {} and not list(inputs["logs"].iterdir()) and not inputs["marker"].exists()
+
+
+def test_native_recipe_terminal_always_failure_blocks_its_required_consumer(
+    candidate_binary: Path, executor_binary: Path, repository: Path, tmp_path: Path, serial_program: dict[str, Any]
+) -> None:
+    inputs = execution_inputs(candidate_binary, executor_binary, repository, tmp_path, serial_program, recipe_case="always-nonzero")
+    before = snapshot(repository)
+    result, report = run_execution(executor_binary, inputs)
+    assert snapshot(repository) == before
+    assert result.returncode != 0 and report["accepted"] is False and report["qualified_scope_joined"] is True
+    producer, consumer = report["results"]
+    assert [row["status"] for row in producer["steps"]] == ["passed", "passed", "refused"]
+    assert producer["reason"] == "nonzero-exit" and producer["result"]["exit_code"] == 13
+    assert producer["steps"][-1]["result"]["exit_code"] == 13 and consumer["status"] == "blocked"
+
+
+def test_native_recipe_failed_spawn_cannot_launch_always_or_claim_terminal_custody(
+    candidate_binary: Path, executor_binary: Path, repository: Path, tmp_path: Path, serial_program: dict[str, Any]
+) -> None:
+    inputs = execution_inputs(candidate_binary, executor_binary, repository, tmp_path, serial_program, recipe_case="ordinary", invalid_image=True)
+    before = snapshot(repository)
+    result, report = run_execution(executor_binary, inputs)
+    assert snapshot(repository) == before
+    assert result.returncode != 0 and report["accepted"] is False and report["qualified_scope_joined"] is False
+    producer, consumer = report["results"]
+    assert [row["status"] for row in producer["steps"]] == ["refused", "blocked", "blocked"]
+    assert producer["steps"][0]["result"] is None and producer["steps"][0]["reason"] == "SpawnFailed"
+    assert consumer["status"] == "blocked" and not inputs["marker"].exists()
+
+
+@pytest.mark.parametrize("effect", ["cancel", "candidate", "tool", "dependency", "binding-replacement"])
+def test_native_recipe_refuses_between_command_drift_or_cancellation_without_running_always(
+    candidate_binary: Path, executor_binary: Path, repository: Path, tmp_path: Path, serial_program: dict[str, Any], effect: str
+) -> None:
+    inputs = execution_inputs(candidate_binary, executor_binary, repository, tmp_path, serial_program, recipe_case="cancel" if effect == "cancel" else "drift")
+    before = snapshot(repository)
+    stdout, stderr = tmp_path / "invocation.stdout.log", tmp_path / "invocation.stderr.log"
+    with stdout.open("wb") as out, stderr.open("wb") as err:
+        child = subprocess.Popen([str(executor_binary), "execute", str(inputs["request_path"])], env=inputs["environment"], stdout=out, stderr=err)
+        try:
+            deadline = time.monotonic() + 10
+            while not inputs["marker"].exists() and child.poll() is None and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert inputs["marker"].read_bytes() == b"producer\n", stderr.read_bytes()
+            if effect == "cancel":
+                child.send_signal(signal.SIGTERM)
+            else:
+                if effect == "candidate":
+                    candidate = Path(json.loads(inputs["manifest_path"].read_bytes())["root"])
+                    (candidate / "app.py").write_bytes(b"DRIFT\n")
+                elif effect == "tool":
+                    Path(inputs["qualifications"][0]["argv"][0]).chmod(0o711)
+                elif effect == "binding-replacement":
+                    replace_binding_with_extra_input(executor_binary, inputs, tmp_path / "replacement-input", b"new valid dependency\n")
+                else:
+                    inputs["observed"].write_bytes(b"DRIFT\n")
+                inputs["release"].write_bytes(b"release\n")
+            exact_exit = child.wait(timeout=15)
+            assert exact_exit != 0
+            (tmp_path / "joined-process.json").write_bytes(canonical({"pid": child.pid, "exact_exit_code": exact_exit, "effect": effect}))
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.wait(timeout=5)
+    assert snapshot(repository) == before
+    report = json.loads((inputs["logs"] / "run.json").read_bytes())
+    assert report["accepted"] is False
+    producer, consumer = report["results"]
+    assert consumer["status"] == "blocked"
+    assert producer["steps"][-1]["status"] == "blocked" and not (tmp_path / "recipe-cleanup-marker").exists()
+    first = producer["steps"][0]
+    assert first["result"]["leader_reaped"] and first["result"]["group_disposed"]
+    if effect == "cancel":
+        assert first["result"]["failure"] == "cancelled"
+    else:
+        assert b"InputDrift" in (inputs["logs"] / "run.json").read_bytes()
+
+
+def replace_binding_with_extra_input(image: Path, inputs: dict[str, Any], extra: Path, raw: bytes) -> None:
+    from tests.local_validation.test_receipt import receipt_call
+
+    extra.write_bytes(raw)
+    request = json.loads(inputs["bind_request"].read_bytes())
+    request["files"].append({"role": "observed_dependency", "path": str(extra), "candidate_path_hex": None})
+    inputs["bind_request"].write_bytes(canonical(request))
+    original = json.loads(inputs["binding_path"].read_bytes())
+    rebound = receipt_call(image, "bind", inputs["bind_request"], inputs["environment"])
+    assert rebound.returncode == 0, rebound.stderr
+    replacement = json.loads(rebound.stdout)
+    assert replacement != original and replacement["checks"] == original["checks"]
+    (extra.parent / "original-binding.json").write_bytes(canonical(original))
+    inputs["binding_path"].write_bytes(rebound.stdout)
+
+
+@pytest.mark.parametrize("mode", ["silent", "one-stdout", "one-stderr"])
+def test_native_recipe_exact_quota_admits_only_a_quiet_successor(
+    candidate_binary: Path, executor_binary: Path, repository: Path, tmp_path: Path, serial_program: dict[str, Any], mode: str
+) -> None:
+    inputs = execution_inputs(candidate_binary, executor_binary, repository, tmp_path, serial_program, recipe_case="exact-" + mode)
+    before = snapshot(repository)
+    result, report = run_execution(executor_binary, inputs)
+    assert snapshot(repository) == before
+    producer, consumer = report["results"]
+    first, second, last = producer["steps"]
+    assert first["status"] == "passed" and (tmp_path / "recipe-second-marker").read_bytes() == b"producer\n"
+    assert first["result"]["stdout_retained_bytes"] == 20007 and first["result"]["stderr_retained_bytes"] == 9000
+    if mode == "silent":
+        assert result.returncode == 0, result.stderr
+        assert report["accepted"] and producer["status"] == consumer["status"] == "passed"
+        assert second["status"] == last["status"] == "passed"
+        assert Path(second["stdout_log"]["path"]).read_bytes() == Path(second["stderr_log"]["path"]).read_bytes() == b""
+    else:
+        assert result.returncode != 0 and not report["accepted"]
+        stream = mode.removeprefix("one-")
+        assert second["reason"] == stream + "_limit" and second["result"][stream + "_observed_bytes"] == 1
+        assert second["result"][stream + "_retained_bytes"] == 0
+        assert Path(second[stream + "_log"]["path"]).read_bytes() == b""
+        assert last["status"] == consumer["status"] == "blocked" and not (tmp_path / "recipe-cleanup-marker").exists()
+
+
+def wait_for_child_open_file(child: subprocess.Popen[bytes], path: Path, timeout: float) -> dict[str, int]:
+    """Observe this owned child's actual kernel FD table; never inject a callback."""
+    import ctypes
+    import struct
+
+    library = ctypes.CDLL("/usr/lib/libproc.dylib", use_errno=True)
+    descriptors = ctypes.create_string_buffer(8 * 4096)
+    vnode = ctypes.create_string_buffer(8192)
+    expected = os.fsencode(path.resolve()) + b"\0"
+    deadline = time.monotonic() + timeout
+    while child.poll() is None and time.monotonic() < deadline:
+        count = library.proc_pidinfo(child.pid, 1, 0, descriptors, len(descriptors))
+        assert count >= 0 and count % 8 == 0 and count < len(descriptors), "bounded descriptor inspection must succeed"
+        for fd, kind in struct.iter_unpack("II", descriptors.raw[:count]):
+            if kind == 1:
+                size = library.proc_pidfdinfo(child.pid, fd, 2, vnode, len(vnode))
+                if size > 0 and expected in vnode.raw[:size]:
+                    return {"pid": child.pid, "fd": fd, "fd_kind": kind, "inspection_bytes": size}
+        time.sleep(0.001)
+    raise AssertionError("owned child never opened final-revalidation input")
+
+
+def test_native_recipe_final_revalidation_retains_signal_owner(
+    candidate_binary: Path, executor_binary: Path, repository: Path, tmp_path: Path, serial_program: dict[str, Any]
+) -> None:
+    inputs = execution_inputs(candidate_binary, executor_binary, repository, tmp_path, serial_program, recipe_case="ordinary")
+    sentinel = tmp_path / "final-revalidation-input"
+    replace_binding_with_extra_input(executor_binary, inputs, sentinel, b"F" * (16 * 1024 * 1024))
+    before = snapshot(repository)
+    stdout, stderr = tmp_path / "invocation.stdout.log", tmp_path / "invocation.stderr.log"
+    with stdout.open("wb") as out, stderr.open("wb") as err:
+        child = subprocess.Popen([str(executor_binary), "execute", str(inputs["request_path"])], env=inputs["environment"], stdout=out, stderr=err)
+        try:
+            deadline = time.monotonic() + 15
+            last_out = inputs["logs"] / "1-0.stdout.log"
+            last_err = inputs["logs"] / "1-0.stderr.log"
+            while child.poll() is None and time.monotonic() < deadline:
+                if last_out.exists() and last_err.exists() and last_out.stat().st_size == 20007 and last_err.stat().st_size == 9000:
+                    break
+                time.sleep(0.001)
+            assert last_out.read_bytes() == b"STAGED\n" + b"O" * 20000 and last_err.read_bytes() == b"E" * 9000
+            assert inputs["marker"].read_bytes() == b"consumer\n"
+            observed = wait_for_child_open_file(child, sentinel, 10)
+            child.send_signal(signal.SIGTERM)
+            code = child.wait(timeout=15)
+            (tmp_path / "final-revalidation-signal.json").write_bytes(canonical({**observed, "exact_exit_code": code, "signal": signal.SIGTERM}))
+            assert code != 0
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.wait(timeout=5)
+    assert snapshot(repository) == before
+    report = json.loads((inputs["logs"] / "run.json").read_bytes())
+    assert not report["accepted"] and report["results"][-1]["status"] == "refused"
+    assert report["results"][-1]["result"]["failure"] == "cancelled"
+    assert report["results"][-1]["result"]["leader_reaped"] and report["results"][-1]["result"]["group_disposed"]
+
+
+def test_native_recipe_final_revalidation_refuses_last_command_input_drift(
+    candidate_binary: Path, executor_binary: Path, repository: Path, tmp_path: Path, serial_program: dict[str, Any]
+) -> None:
+    inputs = execution_inputs(candidate_binary, executor_binary, repository, tmp_path, serial_program, recipe_case="final-drift")
+    before = snapshot(repository)
+    result, report = run_execution(executor_binary, inputs)
+    assert snapshot(repository) == before
+    assert result.returncode != 0 and not report["accepted"]
+    last = report["results"][-1]
+    assert last["steps"][-1]["status"] == "passed" and inputs["observed"].read_bytes() == b"DRIFT\n"
+    assert last["status"] == "refused" and last["reason"] == "InputDrift"
+    assert last["result"]["leader_reaped"] and last["result"]["group_disposed"]
 
 
 def test_native_execution_observes_dependency_order_staged_imports_and_exact_raw_logs(
