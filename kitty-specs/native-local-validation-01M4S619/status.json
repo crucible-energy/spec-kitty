@@ -35,7 +35,8 @@
         "Independent review requests changes: canvas_update_needed. Active selected SPDD doctrine and actual renderer require missing kitty-specs/native-local-validation-01M4S619/reasons-canvas.md before approval. Native product T001–T004 PASS remains valid at fb2f3c887e61470a80732f6c0852738e9159143f; sealed report SHA256 5c22aa1b3b74cc94cc677cd6cf13a6fb28a5bd5c7ff9122b7bb091c74f502354. See structured feedback for exact authority and smallest source-backed remediation. No code failure or later-WP approval inferred.",
         "Resume WP01 documentation-only retrospective REASONS Canvas repair for review-cycle-1 canvas_update_needed",
         "Retrospective REASONS Canvas addresses review-cycle-1 canvas_update_needed; request independent R/O/N/S comparison with preserved product PASS",
-        "Independent Reviewer Renata re-review claim after R1 canvas repair. Repair subject598b43246753355fe5bb3ef4e92a032dabddbe38; actual canvas SHA256 d6fa821ff9b506afe84bfde71dca0be6ea9177077c118f84537a02e160692a45. Read seven-section retrospective canvas/log and independently compared Requirements, Operations, Norms and Safeguards with qualified WP01 product fb2f3c887e61470a80732f6c0852738e9159143f. No broad test replay or later-WP admission."
+        "Independent Reviewer Renata re-review claim after R1 canvas repair. Repair subject598b43246753355fe5bb3ef4e92a032dabddbe38; actual canvas SHA256 d6fa821ff9b506afe84bfde71dca0be6ea9177077c118f84537a02e160692a45. Read seven-section retrospective canvas/log and independently compared Requirements, Operations, Norms and Safeguards with qualified WP01 product fb2f3c887e61470a80732f6c0852738e9159143f. No broad test replay or later-WP admission.",
+        "Independent R/O/N/S re-review approved. R1 resolved by the retrospective seven-section canvas in documentation commit d57f5f1f6ce7f8ece5c3ca867c88bbbe16887e4d, repair subject 598b43246753355fe5bb3ef4e92a032dabddbe38. Comparison classification approved: existing Deviations honestly preserve the prior omission and scope history. Requirements, Operations, Norms and Safeguards match qualified WP01 product fb2f3c887e61470a80732f6c0852738e9159143f. New docs 52-pass and required fast 2451-pass / 5-skip evidence verified; unchanged native and consumer proof reused without broad replay. Review SHA256 a915547631227a408704c6ec63b1ff8665605a72759210233a18de5cf78d3aa1. No later-package qualification or WP02 admission."
       ],
       "provider": "__resolved_provider_absent__",
       "review": null,
@@ -46,8 +47,8 @@
         "verdict": "approved"
       },
       "role": "reviewer",
-      "shell_pid": 26567,
-      "shell_pid_created_at": "1792025929.191481",
+      "shell_pid": 94413,
+      "shell_pid_created_at": "1792026038.451426",
       "subtasks": {
         "T001": "done",
         "T002": "done",
