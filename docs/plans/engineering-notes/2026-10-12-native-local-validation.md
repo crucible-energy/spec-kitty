@@ -1518,3 +1518,14 @@ it does not add a generic parser. Retain all 174 original comparisons: 158 are
 in the supported scope; the 16 explicitly unqualified environment cases include
 11 observed differences (Unicode digits/whitespace and positive integer
 overflow). Matching excluded cases do not establish their qualification.
+
+
+The r4 parser repair walks recognized help-cluster characters before executing
+help, distinguishes explicit equals and prefix continuations from unknown
+suffixes, and performs long-prefix ambiguity detection before consuming actions.
+A bare option terminator ends that pre-scan. Changelog-value classification
+preserves recognized option precedence, negative-number matching, and the
+pinned parser's ASCII-space fallback for otherwise unknown dash-leading values.
+The complete supported table and direct ordering/filename controls are checked
+against the unchanged Python oracle; excluded environment classes remain
+outside the qualification.

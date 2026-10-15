@@ -6,6 +6,7 @@ const candidate = @import("validation_candidate.zig");
 const receipt = @import("validation_receipt.zig");
 const selection = @import("validation_selection.zig");
 const process = @import("validation_process_darwin.zig");
+const changelog = @import("validation_changelog.zig");
 const Allocator = std.mem.Allocator;
 const Value = std.json.Value;
 const Request = struct { binding: []const u8, specification: []const u8, mode: []const u8, diagnostics: []const u8 };
@@ -234,15 +235,21 @@ fn execute(init: std.process.Init, request: Request) !bool {
     return accepted;
 }
 
-fn run(init: std.process.Init) !void {
+fn run(init: std.process.Init) !u8 {
     const allocator = init.arena.allocator();
     const args = try init.minimal.args.toSlice(allocator);
     if (args.len != 3) return error.InvalidArguments;
-    if (!std.mem.eql(u8, args[1], "execute")) return receipt.run(init);
+    if (std.mem.eql(u8, args[1], "changelog-style")) return changelog.command(init, args[2]);
+    if (!std.mem.eql(u8, args[1], "execute")) {
+        try receipt.run(init);
+        return 0;
+    }
     const request = try receipt.exact(Request, allocator, (try candidate.parse(allocator, try candidate.read(allocator, init.io, args[2]))).value);
     if (!try execute(init, request)) return error.ExecutionRefused;
+    return 0;
 }
 
 pub fn main(init: std.process.Init) void {
-    run(init) catch |failure| std.process.fatal("execution refused: {s}", .{@errorName(failure)});
+    const status = run(init) catch |failure| std.process.fatal("execution refused: {s}", .{@errorName(failure)});
+    if (status != 0) std.process.exit(status);
 }

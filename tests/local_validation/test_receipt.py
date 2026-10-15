@@ -26,6 +26,8 @@ NATIVE_SOURCES = [
         "validation_execution.zig",
         "validation_selection.zig",
         "validation_process_darwin.zig",
+        "validation_changelog.zig",
+        "validation_unicode14.zig",
     ]
 ]
 
