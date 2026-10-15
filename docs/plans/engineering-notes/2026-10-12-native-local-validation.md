@@ -1428,3 +1428,55 @@ Linux, arbitrary validators, hooks, or the rest of WP03. Actual source/component
 closure and native statement observations must accompany independent behavioral
 parity review. Full failed and successful evidence is retained externally under
 `native-wp03-execution-evidence-20261015/changelog-component-r1`.
+
+
+#### Changelog component boundary decisions
+
+The native checker retains the Python parser's distinct release-extraction and
+entry-parsing fence behavior, Unicode code-point lengths, nested-item ownership,
+reference and token boundaries, deterministic finding order, and exact summary
+and exit meanings. The same executable dispatches `changelog-style`; the existing
+Python gate remains authoritative. A strict JSON request supplies the canonical
+absolute repository root and checker flags. Unknown fields, duplicate fields,
+invalid types, and ambiguous root aliases refuse before checking a file.
+
+Unicode-14 data includes printable membership for Python-compatible filename
+error representations in addition to word, decimal, and whitespace membership.
+Its generated provenance and complete scalar/code-point property vector are
+external evidence. No runtime Python, locale data, or subprocess implements the
+checker. Help and usage wrapping use the checker's two fixed options and width
+rules, including captured `COLUMNS` controls. Qualification covers the pinned
+CPython 3.11.15 / Unicode 14 oracle and the measured host; non-ASCII or arbitrarily
+large `COLUMNS` values and interactive terminal resize behavior remain outside
+this captured-output proof.
+
+Private qualification controls run this actual native component through the
+existing staged candidate, input binding, selection, and serial execution seams.
+They distinguish staged clean/live bad from staged bad/live clean and bind the
+component request plus complete native source closure. Their private schema-1
+authority does not authorize a production selection change. A separate native
+test helper applies process-fork/process-exec denial only to its own child, checks
+ordinary fork/exec availability and joined cleanup, then checks the component
+under effective denial. SDK stub and Mach-O linkage observations accompany that
+bounded control; they do not attest the complete loaded system cache or qualify
+general descendant containment.
+
+Actual RED, parser differences, and setup failures stay in the external evidence.
+The module-only observation deriver explicitly has no `main`/fatal boundary:
+its native caller seals after the command result, including nonzero outcomes.
+The data module receives an observer-only standard-library import in private
+measured copies. Production sources and the frozen Python oracle receive no
+measurement hooks. Complete native statement denominators and retained misses
+must be reviewed separately from behavioral parity.
+
+#### Independent frozen-r1 review and repair boundary
+
+Independent review found three concrete CLI parity gaps after the first frozen
+candidate: Python's negative-number pattern accepts exactly one final line feed;
+Python's `COLUMNS` integer parsing accepts surrounding ASCII whitespace; and an
+explicit help value uses Python representation rather than manual quotation.
+The actual r1 comparisons and source pins remain external. Focused regressions
+include real negative-number filenames plus rejected extra-line-feed/CRLF/text
+neighbors. Preserve their actual RED before repairing the parser, integer input,
+and diagnostic representation together, then freeze r2 and qualify that source.
+No passing r1 coverage result disposes of these behavioral findings.
