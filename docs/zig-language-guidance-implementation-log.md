@@ -9,7 +9,8 @@
 ## Engineering Decisions
 
 - Record Zig as the language for new repo-owned implementation in the charter
-  interview answer, runtime charter directive, curated charter, and agent guide.
+  interview answer, runtime charter directive and its local selection, curated
+  charter, and agent guide.
 - Keep the current Python CLI and PyPI release as a retained reference. Permit
   bounded Python repairs until a reviewed Zig replacement proves parity.
 

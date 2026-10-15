@@ -18,10 +18,10 @@ governance:
     rules: []
   doctrine:
     selected_paradigms: []
-    # This project-level directive is deliberately selected rather than added
-    # to shipped action indexes: it must reach every review runtime without
-    # becoming product-wide doctrine for downstream projects.
+    # Project-level directives reach local agent context without becoming
+    # product-wide doctrine for downstream projects.
     selected_directives:
+    - DIR-002
     - DIR-014
     - DIR-015
     selected_tactics: []
