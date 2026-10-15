@@ -1,7 +1,7 @@
 {
-  "event_count": 21,
-  "last_event_id": "01M4YZ6X25YB87AKGEF42TQFAS",
-  "materialized_at": "2026-10-15T05:05:27.622002+00:00",
+  "event_count": 22,
+  "last_event_id": "01M4YZ898Z9JYDZA6163QTAQ9S",
+  "materialized_at": "2026-10-15T05:06:12.895141+00:00",
   "mission_number": "",
   "mission_slug": "native-local-validation-01M4S619",
   "mission_type": "software-dev",
@@ -10,10 +10,10 @@
     "approved": 2,
     "blocked": 0,
     "canceled": 0,
-    "claimed": 1,
+    "claimed": 0,
     "done": 0,
     "for_review": 0,
-    "in_progress": 0,
+    "in_progress": 1,
     "in_review": 0,
     "planned": 2
   },
@@ -94,9 +94,9 @@
       "agent_profile_version": "1.0",
       "assignee": "codex",
       "force_count": 0,
-      "lane": "claimed",
-      "last_event_id": "01M4YZ6X25YB87AKGEF42TQFAS",
-      "last_transition_at": "2026-10-15T05:05:27.622002+00:00",
+      "lane": "in_progress",
+      "last_event_id": "01M4YZ898Z9JYDZA6163QTAQ9S",
+      "last_transition_at": "2026-10-15T05:06:12.895141+00:00",
       "model": "__resolved_model_absent__",
       "notes": [
         "Claim sequential WP03 after canonical WP02 approval; actual runtime step and current implementer profile/action context loaded. No WP04 work or platform qualification inferred."
