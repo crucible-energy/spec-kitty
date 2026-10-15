@@ -1603,6 +1603,16 @@ first completion, a shared-clock timeout within work plus owner disposal, and
 no executable `always` effect. This is fixture calibration, not a product
 performance improvement or relaxed production threshold.
 
+The r2 repair compares the entire canonical current binding to the prepared
+binding before each indexed qualification. Each recipe performs its final
+complete binding and command qualification checks after raw-log joins and
+before restoring the persistent scope's signal owner or checking its final
+work deadline. The final whole-run recheck remains. Exact-quota successors
+reuse zero remaining capture capacity; actual extra bytes still trigger the
+existing bounded capture refusal. Real last-command dependency drift and
+kernel-observed final-revalidation cancellation controls distinguish that
+lifetime from a later whole-run-only refusal.
+
 ### Known Limitations
 
 This bounded scope does not admit a detached sampler, unknown descendants,

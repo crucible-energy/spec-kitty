@@ -89,10 +89,12 @@ pub const Result = struct {
     }
 };
 
-pub fn run(allocator: std.mem.Allocator, io: std.Io, options: Options) !Result {
-    if (builtin.os.tag != .macos) return error.PlatformUnsupported;
-    const limits = options.limits;
-    if (options.argv.len == 0 or !std.fs.path.isAbsolute(options.argv[0]) or limits.wall_ms == 0 or limits.wall_ms > 3_600_000 or limits.cleanup_ms == 0 or limits.cleanup_ms > 5000 or limits.stdout_bytes > 16 * 1024 * 1024 or limits.stderr_bytes > 16 * 1024 * 1024 or limits.processes == 0 or limits.processes > 64 or limits.resident_bytes == 0) return error.InvalidProcessBudget;
+fn validBudget(limits: Limits) bool {
+    return limits.wall_ms != 0 and limits.wall_ms <= 3_600_000 and limits.cleanup_ms != 0 and limits.cleanup_ms <= 5000 and limits.stdout_bytes <= 16 * 1024 * 1024 and limits.stderr_bytes <= 16 * 1024 * 1024 and limits.processes != 0 and limits.processes <= 64 and limits.resident_bytes != 0;
+}
+
+fn validateOptions(io: std.Io, options: Options) !void {
+    if (options.argv.len == 0 or !std.fs.path.isAbsolute(options.argv[0]) or !validBudget(options.limits)) return error.InvalidProcessBudget;
     if ((options.stdout_sink == null) != (options.stderr_sink == null)) return error.InvalidLogSink;
     if (options.stdout_sink != null and (options.display_bytes == 0 or options.display_bytes > 65536)) return error.InvalidLogSink;
     var identities: [2]c.struct_stat = undefined;
@@ -102,9 +104,14 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io, options: Options) !Result {
         if (c.fstat(file.handle, &identities[index]) != 0) return error.InvalidLogSink;
     };
     if (options.stdout_sink != null and identities[0].st_dev == identities[1].st_dev and identities[0].st_ino == identities[1].st_ino) return error.InvalidLogSink;
+}
+
+pub fn run(allocator: std.mem.Allocator, io: std.Io, options: Options) !Result {
+    if (builtin.os.tag != .macos) return error.PlatformUnsupported;
+    try validateOptions(io, options);
     const started = now(io);
     var signals = try SignalBridge.install();
-    var result = runOwned(allocator, io, options, started) catch |failure| {
+    var result = runOwned(allocator, io, options, started, null) catch |failure| {
         _ = try signals.restore();
         return failure;
     };
@@ -124,6 +131,130 @@ pub fn runLogged(allocator: std.mem.Allocator, io: std.Io, options: Options, sin
     logged.stderr_sink = sinks.stderr;
     return run(allocator, io, logged);
 }
+
+/// One synchronous check lifetime. Commands must have separately qualified
+/// no-process-creation closure: each group joins before another argv starts.
+/// This context is not a descendant namespace or a detached-sampler owner.
+pub const CheckScope = struct {
+    limits: Limits,
+    started: i96,
+    deadline: i96,
+    cleanup_used_ns: i96 = 0,
+    signals: SignalBridge,
+    active: bool = true,
+    stopped: bool = false,
+    custody_complete: bool = true,
+    leaders_reaped: bool = true,
+    groups_disposed: bool = true,
+    stdout: std.ArrayList(u8) = .empty,
+    stderr: std.ArrayList(u8) = .empty,
+    display_bytes: usize,
+    stdout_observed: u64 = 0,
+    stderr_observed: u64 = 0,
+    stdout_retained: usize = 0,
+    stderr_retained: usize = 0,
+    retention_known: bool = true,
+    max_processes: usize = 0,
+    max_resident: u64 = 0,
+    failure: ?Failure = null,
+    exit_code: ?u8 = null,
+    failed_exit_seen: bool = false,
+
+    pub fn begin(allocator: std.mem.Allocator, io: std.Io, limits: Limits, display_bytes: usize) !CheckScope {
+        if (builtin.os.tag != .macos) return error.PlatformUnsupported;
+        if (!validBudget(limits) or display_bytes == 0 or display_bytes > 65536) return error.InvalidProcessBudget;
+        var output: std.ArrayList(u8) = .empty;
+        errdefer output.deinit(allocator);
+        try output.ensureTotalCapacity(allocator, display_bytes);
+        var diagnostic: std.ArrayList(u8) = .empty;
+        errdefer diagnostic.deinit(allocator);
+        try diagnostic.ensureTotalCapacity(allocator, display_bytes);
+        const started = now(io);
+        const signals = try SignalBridge.install();
+        return .{ .limits = limits, .started = started, .deadline = started + @as(i96, limits.wall_ms) * std.time.ns_per_ms, .signals = signals, .display_bytes = display_bytes, .stdout = output, .stderr = diagnostic };
+    }
+
+    pub fn ready(self: *CheckScope, io: std.Io) !void {
+        if (!self.active or self.stopped) return error.CheckScopeStopped;
+        if (pending_signal.load(.monotonic) != 0) return error.OperationCancelled;
+        if (now(io) >= self.deadline) return error.OperationDeadlineExceeded;
+        if (self.stdout_retained > self.limits.stdout_bytes) return error.StdoutBudgetExceeded;
+        if (self.stderr_retained > self.limits.stderr_bytes) return error.StderrBudgetExceeded;
+        if (self.cleanup_used_ns >= @as(i96, self.limits.cleanup_ms) * std.time.ns_per_ms) return error.CleanupBudgetExceeded;
+    }
+
+    /// The initial limits, clock and signal owner cannot be reset by a step.
+    pub fn runLogged(self: *CheckScope, allocator: std.mem.Allocator, io: std.Io, options: Options, sinks: LogSinks) !Result {
+        if (builtin.os.tag != .macos) return error.PlatformUnsupported;
+        try self.ready(io);
+        var current = options;
+        current.limits = self.limits;
+        current.limits.stdout_bytes -= self.stdout_retained;
+        current.limits.stderr_bytes -= self.stderr_retained;
+        current.absolute_deadline_ns = @min(self.deadline, options.absolute_deadline_ns orelse std.math.maxInt(i96));
+        current.display_bytes = self.display_bytes;
+        current.stdout_sink = sinks.stdout;
+        current.stderr_sink = sinks.stderr;
+        try validateOptions(io, current);
+        const outcome = runOwned(allocator, io, current, now(io), self) catch |failure| {
+            self.stopped = true;
+            self.custody_complete = false;
+            self.leaders_reaped = false;
+            self.groups_disposed = false;
+            self.retention_known = false;
+            return failure;
+        };
+        self.stdout.appendSliceAssumeCapacity(outcome.stdout);
+        self.stderr.appendSliceAssumeCapacity(outcome.stderr);
+        self.stdout_observed += outcome.stdout_observed_bytes;
+        self.stderr_observed += outcome.stderr_observed_bytes;
+        if (outcome.stdout_retained_bytes) |count| self.stdout_retained += count else self.retention_known = false;
+        if (outcome.stderr_retained_bytes) |count| self.stderr_retained += count else self.retention_known = false;
+        self.max_processes = @max(self.max_processes, outcome.max_sampled_processes);
+        self.max_resident = @max(self.max_resident, outcome.max_sampled_resident_bytes);
+        self.leaders_reaped = self.leaders_reaped and outcome.leader_reaped;
+        self.groups_disposed = self.groups_disposed and outcome.group_disposed;
+        self.custody_complete = self.leaders_reaped and self.groups_disposed;
+        if (!self.failed_exit_seen) {
+            self.exit_code = outcome.exit_code;
+            self.failed_exit_seen = outcome.exit_code == null or outcome.exit_code.? != 0;
+        }
+        if (outcome.failure) |failure| {
+            if (self.failure == null) self.failure = failure;
+            self.stopped = true;
+        }
+        if (!self.custody_complete or !self.retention_known) self.stopped = true;
+        return outcome;
+    }
+
+    fn dispose(self: *CheckScope, owner: *Ownership, io: std.Io) bool {
+        const started = now(io);
+        const remaining = @max(0, @as(i96, self.limits.cleanup_ms) * std.time.ns_per_ms - self.cleanup_used_ns);
+        const disposed = owner.disposeUntil(io, started + remaining);
+        self.cleanup_used_ns += @max(0, now(io) - started);
+        return disposed;
+    }
+
+    pub fn finish(self: *CheckScope, allocator: std.mem.Allocator, io: std.Io) !Result {
+        if (!self.active) return error.CheckScopeStopped;
+        self.active = false;
+        const received = try self.signals.restore();
+        if (received != 0 and self.failure == null) self.failure = .cancelled;
+        if (now(io) >= self.deadline and self.failure == null) self.failure = .wall_timeout;
+        const output = try allocator.dupe(u8, self.stdout.items);
+        errdefer allocator.free(output);
+        return .{ .stdout = output, .stderr = try allocator.dupe(u8, self.stderr.items), .failure = self.failure, .exit_code = self.exit_code, .leader_reaped = self.leaders_reaped, .group_disposed = self.groups_disposed, .elapsed_ms = @intCast(@divTrunc(now(io) - self.started, std.time.ns_per_ms)), .max_sampled_processes = self.max_processes, .max_sampled_resident_bytes = self.max_resident, .stdout_observed_bytes = self.stdout_observed, .stderr_observed_bytes = self.stderr_observed, .stdout_retained_bytes = if (self.retention_known) self.stdout_retained else null, .stderr_retained_bytes = if (self.retention_known) self.stderr_retained else null };
+    }
+
+    pub fn deinit(self: *CheckScope, allocator: std.mem.Allocator) void {
+        if (self.active) {
+            self.active = false;
+            _ = self.signals.restore() catch {};
+        }
+        self.stdout.deinit(allocator);
+        self.stderr.deinit(allocator);
+    }
+};
 
 // Process-wide handlers have a single synchronous owner. They perform only a
 // native lock-free atomic store; allocation, inspection and signals stay here.
@@ -170,7 +301,12 @@ const SignalBridge = struct {
     }
 };
 
-fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started: i96) !Result {
+fn disposeOwned(owner: *Ownership, io: std.Io, cleanup_ms: u32, scope: ?*CheckScope) bool {
+    if (scope) |check| return check.dispose(owner, io);
+    return owner.dispose(io, cleanup_ms);
+}
+
+fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started: i96, scope: ?*CheckScope) !Result {
     const limits = options.limits;
     const deadline = @min(started + @as(i96, limits.wall_ms) * std.time.ns_per_ms, options.absolute_deadline_ns orelse std.math.maxInt(i96));
     if (now(io) >= deadline) return error.OperationDeadlineExceeded;
@@ -178,16 +314,20 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
     if (options.stdout_sink != null) stdout_preview = options.display_bytes;
     var stderr_preview = limits.stderr_bytes;
     if (options.stderr_sink != null) stderr_preview = options.display_bytes;
+    if (scope) |check| {
+        stdout_preview = @min(stdout_preview, check.display_bytes - check.stdout.items.len);
+        stderr_preview = @min(stderr_preview, check.display_bytes - check.stderr.items.len);
+    }
     var out = try Capture.init(allocator, limits.stdout_bytes, stdout_preview, options.stdout_sink);
     defer out.list.deinit(allocator);
     var err = try Capture.init(allocator, limits.stderr_bytes, stderr_preview, options.stderr_sink);
     defer err.list.deinit(allocator);
     if (now(io) >= deadline) return error.OperationDeadlineExceeded;
     if (pending_signal.load(.monotonic) != 0) return error.OperationCancelled;
-    var child = try spawnOwned(allocator, io, options, deadline);
+    var child = try spawnOwned(allocator, io, options, deadline, scope);
     var owner = Ownership{ .pid = child.id.? };
     defer {
-        if (owner.valid and !owner.reaped) _ = owner.dispose(io, limits.cleanup_ms);
+        if (owner.valid and !owner.reaped) _ = disposeOwned(&owner, io, limits.cleanup_ms, scope);
         if (child.stdout) |file| file.close(io);
         if (child.stderr) |file| file.close(io);
         child.id = null;
@@ -242,7 +382,7 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
             // A terminal leader remains WNOWAIT-owned while its entire original
             // group is disposed. Pipe EOF is never used as process completion.
             if (terminal) {
-                if (!owner.dispose(io, limits.cleanup_ms)) {
+                if (!disposeOwned(&owner, io, limits.cleanup_ms, scope)) {
                     failure = .cleanup_failed;
                     if (!owner.valid and !owner.reaped) failure = .ownership_lost;
                 }
@@ -278,7 +418,7 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
             break;
         }
     }
-    if (!owner.reaped and owner.valid and !owner.dispose(io, limits.cleanup_ms)) {
+    if (!owner.reaped and owner.valid and !disposeOwned(&owner, io, limits.cleanup_ms, scope)) {
         failure = .cleanup_failed;
         if (!owner.valid and !owner.reaped) failure = .ownership_lost;
     }
@@ -294,7 +434,7 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
 // SDK posix_spawn reports pre-exec failure without losing an already forked
 // identity inside std.Io.Threaded. All allocation and file-action setup precedes
 // the syscall; every unsuccessful attempt closes its exact parent descriptors.
-fn spawnOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, deadline: i96) !std.process.Child {
+fn spawnOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, deadline: i96, scope: ?*CheckScope) !std.process.Child {
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const temporary = arena.allocator();
@@ -359,7 +499,7 @@ fn spawnOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, deadli
         return error.SpawnFailed;
     }
     var owner = Ownership{ .pid = pid };
-    errdefer _ = owner.dispose(io, options.limits.cleanup_ms);
+    errdefer _ = disposeOwned(&owner, io, options.limits.cleanup_ms, scope);
     if (actions_error != 0 or attributes_error != 0) return error.SpawnMetadataCleanupFailed;
     return .{ .id = pid, .thread_handle = {}, .stdin = null, .stdout = .{ .handle = out[0], .flags = .{ .nonblocking = false } }, .stderr = .{ .handle = err[0], .flags = .{ .nonblocking = false } }, .request_resource_usage_statistics = false };
 }
@@ -414,11 +554,14 @@ const Ownership = struct {
     }
 
     fn dispose(self: *Ownership, io: std.Io, cleanup_ms: u32) bool {
+        return self.disposeUntil(io, now(io) + @as(i96, cleanup_ms) * std.time.ns_per_ms);
+    }
+
+    fn disposeUntil(self: *Ownership, io: std.Io, deadline: i96) bool {
         if (!self.valid) return false;
         if (self.reaped) return self.disposed;
         if (self.cleanup_attempted) return false;
         self.cleanup_attempted = true;
-        const deadline = now(io) + @as(i96, cleanup_ms) * std.time.ns_per_ms;
         while (now(io) < deadline) {
             // Check ownership immediately before every group signal. The leader
             // is intentionally not reaped, reserving its PID/PGID against reuse.

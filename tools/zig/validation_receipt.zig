@@ -279,8 +279,21 @@ pub fn loadBinding(init: std.process.Init, path: []const u8) !Binding {
 }
 
 pub fn qualification(init: std.process.Init, binding: Binding, check: Check) !Qualification {
-    const allocator = init.arena.allocator();
     if (@import("builtin").os.tag != .macos or check.argv.len != 1) return error.UnqualifiedClosure;
+    return qualificationArgv(init, binding, check.argv[0]);
+}
+
+/// Resolve only an actual command in this complete, current bound check.
+/// Legacy receipt/reuse callers retain their single-command qualification API.
+pub fn qualificationAt(init: std.process.Init, binding: Binding, id: []const u8, index: usize) !Qualification {
+    const check = try checkById(binding, id);
+    if (index >= check.argv.len) return error.UnqualifiedClosure;
+    return qualificationArgv(init, binding, check.argv[index]);
+}
+
+fn qualificationArgv(init: std.process.Init, binding: Binding, argv: []const []const u8) !Qualification {
+    const allocator = init.arena.allocator();
+    if (@import("builtin").os.tag != .macos) return error.UnqualifiedClosure;
     var selected: ?Qualification = null;
     for (binding.files) |file| {
         if (!std.mem.eql(u8, file.role, "specification")) continue;
@@ -290,7 +303,7 @@ pub fn qualification(init: std.process.Init, binding: Binding, check: Check) !Qu
         if (documents != .array or documents.array.items.len > 4096) return error.UnqualifiedClosure;
         for (documents.array.items) |document| {
             const q = try exact(Qualification, allocator, document);
-            if (!try equal(allocator, q.argv, check.argv[0])) continue;
+            if (!try equal(allocator, q.argv, argv)) continue;
             if (selected != null) return error.DuplicateBinding;
             selected = q;
         }
