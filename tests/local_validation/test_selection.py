@@ -1253,6 +1253,11 @@ fn allocateWorkflowSelection(allocator: std.mem.Allocator, document: std.json.Va
     defer selected.deinit(allocator);
     try std.testing.expectEqual(@as(usize, 92), selected.unbound_workflow_jobs.len);
 }
+fn allocateModules(allocator: std.mem.Allocator, document: std.json.Value) !void {
+    const modules = try selection.selectModules(allocator, document, &.{ "tests/status/test_store.py", "tests/ci/test_wiring.py" }, "pr", &.{});
+    defer allocator.free(modules);
+    try std.testing.expectEqual(@as(usize, 5), modules.len);
+}
 fn allocateBoundProgram(allocator: std.mem.Allocator, document: std.json.Value) !void {
     var environment: std.process.Environ.Map = .init(std.testing.allocator);
     defer environment.deinit();
@@ -1282,6 +1287,8 @@ test "selection allocation and input bounds" {
     defer workflow.deinit();
     try std.testing.checkAllAllocationFailures(std.testing.allocator, allocateWorkflowSelection, .{workflow.value});
     try std.testing.checkAllAllocationFailures(no_resize.allocator(), allocateWorkflowSelection, .{workflow.value});
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, allocateModules, .{workflow.value});
+    try std.testing.checkAllAllocationFailures(no_resize.allocator(), allocateModules, .{workflow.value});
     try std.testing.checkAllAllocationFailures(std.testing.allocator, allocateBoundProgram, .{workflow.value});
     try std.testing.checkAllAllocationFailures(no_resize.allocator(), allocateBoundProgram, .{workflow.value});
     try std.testing.expectEqual(no_resize.allocated_bytes, no_resize.freed_bytes);
@@ -1289,6 +1296,7 @@ test "selection allocation and input bounds" {
     defer std.testing.allocator.free(paths);
     @memset(paths, "docs/operator.md");
     try std.testing.expectError(error.InputLimit, selection.select(std.testing.allocator, parsed.value, paths, "pr"));
+    try std.testing.expectError(error.InputLimit, selection.selectModules(std.testing.allocator, workflow.value, paths, "pr", &.{}));
 }
 """
 
@@ -2690,3 +2698,84 @@ def test_native_module_projection_matches_canonical_consumer_and_test_mirrors(na
     assert actual["selected_modules"] == sorted(expected)
     assert actual["module_projection_only"] is True
     assert actual["selection_only"] is True and actual["validation_performed"] is False and actual["execution_supported"] is False
+    if twin is not None:
+        source = subprocess.run([str(native_selector), str(authority), "inspect-modules", mode, *twin], check=True, capture_output=True, text=True, timeout=20)
+        assert json.loads(source.stdout) == actual
+
+
+@pytest.mark.parametrize("paths", [["tests/status-like/test.py"], ["future-native/unknown.zig"], ["tests/status/test.py", "docs/guide.md"]])
+def test_native_module_projection_keeps_directory_boundaries_and_noop_semantics(native_selector: Path, paths: list[str]) -> None:
+    from scripts.ci.gate_selection import select_modules
+
+    authority = Path(__file__).resolve().parents[2] / "tools/validation/gates.json"
+    result = subprocess.run([str(native_selector), str(authority), "inspect-modules", "commit", *paths], check=True, capture_output=True, text=True, timeout=20)
+    assert json.loads(result.stdout)["selected_modules"] == sorted(select_modules(paths))
+    assert json.loads(result.stdout)["module_projection_only"] is True
+
+
+@pytest.mark.parametrize("name", ["tools/validation/gates.json", ".github/workflows/ci-router.yml", ".github/ci-module-registry.yml"])
+def test_native_module_projection_recognizes_bound_absolute_authority(native_selector: Path, name: str) -> None:
+    from scripts.ci.gate_selection import select_modules
+
+    repository = Path(__file__).resolve().parents[2]
+    path = str(repository / name)
+    result = subprocess.run(
+        [str(native_selector), str(repository / "tools/validation/gates.json"), "inspect-modules", "pr", path],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert json.loads(result.stdout)["selected_modules"] == sorted(select_modules([path]))
+
+
+@pytest.mark.parametrize("form", ["explicit", "mirror", "single-file-trailing"])
+def test_native_module_projection_uses_changed_registry_data(tmp_path: Path, native_selector: Path, form: str) -> None:
+    from scripts.ci.gate_selection import select_modules
+
+    authority = json.loads((Path(__file__).resolve().parents[2] / "tools/validation/gates.json").read_text())
+    row = next(row for row in authority["modules"] if row["module"] == "status")
+    path = "tests/renamed local/test.py"
+    if form == "explicit":
+        row["test_dirs"] = ["tests/renamed local/"]
+    elif form == "mirror":
+        row["roots"] = ["src/renamed_status/**"]
+        authority["routing"]["filters"]["status"] = row["roots"][:]
+        path = "tests/renamed_status/test.py"
+    else:
+        row["roots"] = ["src/custom_file.py/"]
+        row["test_dirs"] = []
+        authority["routing"]["filters"]["status"] = ["src/custom_file.py"]
+        path = "tests/custom_file/test.py"
+    source = write_local(tmp_path, authority)
+    expected = select_modules([path], router=load_router(source), registry_path=source)
+    result = subprocess.run([str(native_selector), str(source), "inspect-modules", "pr", path], check=True, capture_output=True, text=True, timeout=20)
+    assert json.loads(result.stdout)["selected_modules"] == sorted(expected)
+
+
+@pytest.mark.parametrize("fault", ["missing", "empty", "duplicate", "roots-type", "directory-type", "escape", "pattern", "unsafe-path", "mode"])
+def test_native_module_projection_refuses_ambiguous_or_unsafe_inputs(tmp_path: Path, native_selector: Path, fault: str) -> None:
+    authority = json.loads((Path(__file__).resolve().parents[2] / "tools/validation/gates.json").read_text())
+    paths, mode = ["docs/guide.md"], "pr"
+    if fault == "missing":
+        del authority["modules"]
+    elif fault == "empty":
+        authority["modules"] = []
+    elif fault == "duplicate":
+        authority["modules"].append(authority["modules"][0].copy())
+    elif fault == "roots-type":
+        authority["modules"][0]["roots"] = "src/"
+    elif fault == "directory-type":
+        authority["modules"][0]["test_dirs"] = [1]
+    elif fault == "escape":
+        authority["modules"][0]["roots"] = ["src/../escape/**"]
+    elif fault == "pattern":
+        authority["modules"][0]["roots"] = ["src/?/**"]
+    elif fault == "unsafe-path":
+        paths = ["tests/../escape.py"]
+    else:
+        mode = "accept"
+    result = subprocess.run(
+        [str(native_selector), str(write_local(tmp_path, authority)), "inspect-modules", mode, *paths], capture_output=True, text=True, timeout=20
+    )
+    assert result.returncode != 0 and result.stdout == "" and "selection refused" in result.stderr

@@ -897,6 +897,128 @@ pub fn select(allocator: Allocator, document: Value, paths: []const []const u8, 
     return .{ .matched_groups = owned_groups, .unmatched_src = unmatched, .selected_jobs = owned_jobs, .selected_code_shards = try shards.toOwnedSlice(allocator), .selected_reasons = reasons, .unbound_workflow_jobs = unbound };
 }
 
+fn modulePath(path: []const u8) !void {
+    if (path.len == 0 or path.len > 4096 or path[0] == '/' or std.mem.indexOfScalar(u8, path, 0) != null) return error.InvalidPath;
+    var parts = std.mem.splitScalar(u8, path, '/');
+    while (parts.next()) |part| if (std.mem.eql(u8, part, "..")) return error.InvalidPath;
+}
+
+fn within(path: []const u8, directory: []const u8) bool {
+    const prefix = std.mem.trimEnd(u8, directory, "/");
+    return std.mem.eql(u8, path, prefix) or (path.len > prefix.len and std.mem.startsWith(u8, path, prefix) and path[prefix.len] == '/');
+}
+
+fn moduleMirror(allocator: Allocator, root: []const u8) ![]const u8 {
+    var base = std.mem.trimEnd(u8, root, "/");
+    const directory = std.mem.endsWith(u8, base, "/**");
+    if (directory) base = std.mem.trimEnd(u8, base[0 .. base.len - 3], "/");
+    if (std.mem.lastIndexOfScalar(u8, base, '/')) |index| base = base[index + 1 ..];
+    if (!directory) {
+        if (std.mem.indexOfScalar(u8, base, '*')) |index| base = base[0..index];
+        if (std.mem.lastIndexOfScalar(u8, base, '.')) |index| base = base[0..index];
+    }
+    if (base.len == 0) return error.UnsupportedPattern;
+    return std.fmt.allocPrint(allocator, "tests/{s}", .{base});
+}
+
+/// Module inspection mirrors the existing Python consumer. It cannot accept a
+/// whole gate: unrelated paths may legitimately contribute no module here.
+pub fn selectModules(allocator: Allocator, document: Value, paths: []const []const u8, mode: []const u8, authority_paths: []const []const u8) ![]const []const u8 {
+    if (!oneOf(mode, &.{ "pr", "commit", "full" })) return error.UnsupportedMode;
+    const inspected = try select(allocator, document, &.{}, "full");
+    defer inspected.deinit(allocator);
+    const root = document.object;
+    const module_value = root.get("modules") orelse return error.InvalidModules;
+    if (module_value != .array or module_value.array.items.len == 0 or module_value.array.items.len > 4096) return error.InvalidModules;
+    const rows = module_value.array.items;
+    for (rows, 0..) |row, index| {
+        const fields = row.object;
+        const name = fields.get("module").?.string;
+        for (rows[0..index]) |previous| if (std.mem.eql(u8, previous.object.get("module").?.string, name)) return error.InvalidModules;
+        for ([_][]const u8{ "roots", "test_dirs" }) |field| {
+            if (fields.get(field)) |values| {
+                if (values != .array or values.array.items.len > 4096) return error.InvalidModules;
+                for (values.array.items) |value| {
+                    if (value != .string) return error.InvalidModules;
+                    try modulePath(value.string);
+                    if (std.mem.eql(u8, field, "roots")) _ = try matches(value.string, "");
+                }
+            }
+        }
+    }
+    if (paths.len > 32768) return error.InputLimit;
+    const routing = root.get("routing").?.object;
+    const filters = routing.get("filters").?.object;
+    var non_source: []const Value = &.{};
+    if (routing.get("non_source_groups")) |value| non_source = value.array.items;
+    var all = std.mem.eql(u8, mode, "full");
+    var matched = std.StringHashMap(void).init(allocator);
+    defer matched.deinit();
+    for (paths) |path| {
+        const authority = oneOf(path, authority_paths) or oneOf(path, &.{ "tools/validation/gates.json", ".github/workflows/ci-router.yml", ".github/ci-module-registry.yml" });
+        if (authority) {
+            all = true;
+            continue;
+        }
+        try modulePath(path);
+        var known_source = false;
+        var iterator = filters.iterator();
+        while (iterator.next()) |entry| {
+            if (probe(entry.key_ptr.*)) continue;
+            for (entry.value_ptr.array.items) |pattern| {
+                if (try matches(pattern.string, path)) {
+                    try matched.put(entry.key_ptr.*, {});
+                    known_source = known_source or sourceGroup(filters, entry.key_ptr.*, non_source);
+                    break;
+                }
+            }
+        }
+        if (std.mem.startsWith(u8, path, "src/") and !known_source) all = true;
+        if (!within(path, "tests")) continue;
+        for (rows) |row| {
+            const fields = row.object;
+            if (fields.get("test_dirs")) |directories| {
+                for (directories.array.items) |directory| {
+                    if (within(path, directory.string)) try matched.put(fields.get("module").?.string, {});
+                }
+            }
+            if (fields.get("roots")) |roots| {
+                for (roots.array.items) |source_root| {
+                    const source = std.mem.trimEnd(u8, source_root.string, "/");
+                    const mirror = try moduleMirror(allocator, source);
+                    defer allocator.free(mirror);
+                    if (!within(path, mirror)) continue;
+                    var source_probe = source;
+                    var allocated: ?[]const u8 = null;
+                    if (std.mem.endsWith(u8, source, "/**")) {
+                        allocated = try std.fmt.allocPrint(allocator, "{s}/__ci_probe__.py", .{std.mem.trimEnd(u8, source[0 .. source.len - 3], "/")});
+                        source_probe = allocated.?;
+                    }
+                    defer if (allocated) |bytes| allocator.free(bytes);
+                    var probes = filters.iterator();
+                    while (probes.next()) |entry| {
+                        if (probe(entry.key_ptr.*)) continue;
+                        for (entry.value_ptr.array.items) |pattern| {
+                            if (try matches(pattern.string, source_probe)) {
+                                try matched.put(entry.key_ptr.*, {});
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    var selected: std.ArrayList([]const u8) = .empty;
+    defer selected.deinit(allocator);
+    for (rows) |row| {
+        const name = row.object.get("module").?.string;
+        if (all or matched.contains(name)) try selected.append(allocator, name);
+    }
+    std.mem.sort([]const u8, selected.items, {}, ordered);
+    return selected.toOwnedSlice(allocator);
+}
+
 fn reasonOrdered(_: void, a: SelectionReason, b: SelectionReason) bool {
     if (!std.mem.eql(u8, a.check, b.check)) return std.mem.lessThan(u8, a.check, b.check);
     if (!std.mem.eql(u8, a.kind, b.kind)) return std.mem.lessThan(u8, a.kind, b.kind);
@@ -995,6 +1117,8 @@ fn run(init: std.process.Init) !void {
     const allocator = init.arena.allocator();
     const args = try init.minimal.args.toSlice(allocator);
     if (args.len < 3) return error.InvalidArguments;
+    const inspect_modules = std.mem.eql(u8, args[2], "inspect-modules");
+    if (inspect_modules and args.len < 4) return error.InvalidArguments;
     const inspect_program = std.mem.eql(u8, args[2], "inspect-program");
     const bind_program = std.mem.eql(u8, args[2], "bind-program-environment");
     if ((inspect_program or bind_program) and args.len != 4) return error.InvalidArguments;
@@ -1011,6 +1135,28 @@ fn run(init: std.process.Init) !void {
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], allocator, .limited(16 * 1024 * 1024));
     const parsed = try std.json.parseFromSlice(Value, allocator, bytes, .{ .duplicate_field_behavior = .@"error" });
     defer parsed.deinit();
+    if (inspect_modules) {
+        const absolute = try std.Io.Dir.cwd().realPathFileAlloc(init.io, args[1], allocator);
+        var aliases: std.ArrayList([]const u8) = .empty;
+        defer aliases.deinit(allocator);
+        try aliases.append(allocator, args[1]);
+        try aliases.append(allocator, absolute);
+        const suffix = "/tools/validation/gates.json";
+        if (std.mem.endsWith(u8, absolute, suffix)) {
+            const repository = absolute[0 .. absolute.len - suffix.len];
+            try aliases.append(allocator, try std.fmt.allocPrint(allocator, "{s}/.github/workflows/ci-router.yml", .{repository}));
+            try aliases.append(allocator, try std.fmt.allocPrint(allocator, "{s}/.github/ci-module-registry.yml", .{repository}));
+        }
+        const modules = try selectModules(allocator, parsed.value, args[4..], args[3], aliases.items);
+        defer allocator.free(modules);
+        var module_output: std.Io.Writer.Allocating = .init(allocator);
+        defer module_output.deinit();
+        var module_stringify: std.json.Stringify = .{ .writer = &module_output.writer };
+        try module_stringify.write(.{ .selected_modules = modules, .module_projection_only = true, .selection_only = true, .validation_performed = false, .execution_supported = false });
+        try module_output.writer.writeByte('\n');
+        try std.Io.File.stdout().writeStreamingAll(init.io, module_output.written());
+        return;
+    }
     if (inspect_program or bind_program) {
         const inspected = try select(allocator, parsed.value, &.{}, "full");
         defer inspected.deinit(allocator);
