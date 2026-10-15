@@ -7,6 +7,7 @@ import os
 import subprocess
 from contextlib import contextmanager
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -212,6 +213,55 @@ def test_mixed_offsets_preserve_causal_order_and_original_values(checkouts: Chec
     restored = [json.loads(line) for line in (checkouts.directory / "status.events.jsonl").read_text().splitlines()]
     assert restored == expected
     assert (tree(checkouts.primary), tree(checkouts.sibling)) == protected
+
+
+def _source_with_json_number(checkouts: Checkouts, literal: str) -> str:
+    def change(directory: Path):
+        path = directory / "status.events.jsonl"
+        lines = path.read_text().splitlines()
+        assert json.loads(lines[-1])["kind"] == "annotation"
+        lines[-1] = lines[-1][:-1] + ',"legacy_number":' + literal + '}'
+        path.write_text("\n".join(lines) + "\n")
+
+    return checkouts.amend_source(change)
+
+
+@pytest.mark.parametrize("literal", ["1e400", "1e-400", "1.234567890123456789"])
+@pytest.mark.parametrize("apply", [False, True])
+def test_lossy_json_numbers_refuse_before_any_write(checkouts: Checkouts, literal: str, apply: bool):
+    """A valid JSON number must never silently become infinity, zero or rounded."""
+    source = _source_with_json_number(checkouts, literal)
+    roots = (checkouts.primary, checkouts.owned, checkouts.sibling)
+    before = [tree(root) for root in roots]
+    result = checkouts.invoke(*(["--apply"] if apply else []), sources=[checkouts.target, source])
+    assert result.exit_code == 1, result.output
+    report = json.loads(result.stdout)
+    assert not report["applied"]
+    assert "number" in report["error"].lower() and "preserv" in report["error"].lower()
+    assert [tree(root) for root in roots] == before
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Apply requires POSIX fd-relative no-follow IO")
+@pytest.mark.parametrize("literal", ["0.1", "1.25e2", "0e-400", "1e-300", "9007199254740993123456789", "1.000000000000000000", "-0.0"])
+def test_roundtrip_json_numbers_preserve_records(checkouts: Checkouts, literal: str):
+    """Ordinary decimals, exact integers and signed zero keep their JSON values."""
+    source = _source_with_json_number(checkouts, literal)
+    expected = [json.loads(line, parse_float=Decimal) for line in git(
+        checkouts.owned, "show", f"{source}:kitty-specs/{SLUG}/status.events.jsonl"
+    ).splitlines()]
+    roots = (checkouts.primary, checkouts.owned, checkouts.sibling)
+    before = [tree(root) for root in roots]
+    preview = checkouts.invoke(sources=[checkouts.target, source])
+    assert preview.exit_code == 0, preview.output
+    assert [tree(root) for root in roots] == before
+    applied = checkouts.invoke("--apply", sources=[checkouts.target, source])
+    assert applied.exit_code == 0, applied.output
+    restored = [json.loads(line, parse_float=Decimal) for line in (checkouts.directory / "status.events.jsonl").read_text().splitlines()]
+    assert restored == expected
+    value = expected[-1]["legacy_number"]
+    if isinstance(value, Decimal) and value.is_zero():
+        assert restored[-1]["legacy_number"].is_signed() == value.is_signed()
+    assert (tree(checkouts.primary), tree(checkouts.sibling)) == (before[0], before[2])
 
 
 @pytest.mark.skipif(os.name != "posix", reason="Apply requires POSIX fd-relative no-follow IO")
