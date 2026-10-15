@@ -99,7 +99,8 @@
       "last_transition_at": "2026-10-15T05:06:12.895141+00:00",
       "model": "__resolved_model_absent__",
       "notes": [
-        "Claim sequential WP03 after canonical WP02 approval; actual runtime step and current implementer profile/action context loaded. No WP04 work or platform qualification inferred."
+        "Claim sequential WP03 after canonical WP02 approval; actual runtime step and current implementer profile/action context loaded. No WP04 work or platform qualification inferred.",
+        "Begin WP03 implementation under actual claimed codex/Implementer Ivan ownership. First reproduce execution/escape/streaming controls against the exact reviewed Darwin foundation; platform proof remains separate."
       ],
       "provider": "__resolved_provider_absent__",
       "role": "implementer"
