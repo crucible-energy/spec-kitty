@@ -550,3 +550,17 @@ def test_review_explicit_help_value_representation_parity(executor_binary: Path,
     argv = ["--help=" + value]
     result = native_cli(executor_binary, tmp_path, argv)
     assert (result.returncode, result.stdout, result.stderr) == oracle_cli(argv)
+
+
+@pytest.mark.parametrize("columns", ["4__0", "_40", "40_", "4_0", "1_00", "+40", "+-40", "4_a", ""])
+def test_review_ascii_columns_integer_grammar(executor_binary: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, columns: str) -> None:
+    monkeypatch.setenv("COLUMNS", columns)
+    argv = ["--help"]
+    result = native_cli(executor_binary, tmp_path, argv)
+    assert (result.returncode, result.stdout, result.stderr) == oracle_cli(argv)
+
+
+@pytest.mark.parametrize("argument", ["-h=", "-h=foo", "-h==foo", "-hfoo", "-hfoo=bar"])
+def test_review_short_help_equals_and_compact_neighbors(executor_binary: Path, tmp_path: Path, argument: str) -> None:
+    result = native_cli(executor_binary, tmp_path, [argument])
+    assert (result.returncode, result.stdout, result.stderr) == oracle_cli([argument])

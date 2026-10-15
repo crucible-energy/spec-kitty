@@ -1480,3 +1480,21 @@ include real negative-number filenames plus rejected extra-line-feed/CRLF/text
 neighbors. Preserve their actual RED before repairing the parser, integer input,
 and diagnostic representation together, then freeze r2 and qualify that source.
 No passing r1 coverage result disposes of these behavioral findings.
+
+
+The r2 repair removes exactly one final line feed from the negative-number
+matching view, trims the supported ASCII whitespace around `COLUMNS`, and reuses
+the existing Unicode-14 Python representation formatter for explicit help
+values. The property-data source is unchanged. Final source-specific validation
+and independent dispositions remain external so recording a pass does not
+change the candidate under validation.
+
+#### Independent frozen-r2 neighbor controls
+
+The bounded follow-up confirmed those repairs and identified two neighboring
+argument differences: Zig's integer parser permits malformed underscore
+placement that Python rejects, and short `-h=...` values need explicit-value
+handling while compact `-hfoo` retains its accepted help behavior. Preserve the
+current-image RED with valid and invalid separator/sign neighbors before
+validating the supported ASCII integer grammar and the exact short-option
+split. This does not expand the recorded Unicode/environment qualification.
