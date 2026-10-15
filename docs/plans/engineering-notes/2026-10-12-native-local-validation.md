@@ -2060,3 +2060,11 @@ regression failures remain in external report-component-r1 evidence. These tests
 record genuine defects before repair; prior successful report cases do not cover
 these boundaries. No source instrumentation or broad delivery gate has run on
 the known-invalid candidate. The independent review and correction remain pending.
+
+The first corrective attempt retained the elapsed negative-zero failure. Exact
+Zig 0.16 source inspection established why: its general JSON integer-format
+predicate deliberately classifies -0 as floating point. The report boundary
+needs Python's lexical JSON integer distinction instead, including state integer
+fields, threshold values, and measured cgroup zero. New field-specific controls
+preserve that complete class before repair. The failed corrective image and
+outputs remain external; no product measurement or broad gate used that image.

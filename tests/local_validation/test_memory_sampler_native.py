@@ -2427,3 +2427,20 @@ def test_native_report_parser_wide_integer_limit(sampler_binary: Path, tmp_path:
     result = invoke(sampler_binary, "memory-report", path, tmp_path)
     assert result.returncode == 0 and result.stderr == b"", result.stderr
     assert json.loads(result.stdout) == expected_report(raw, value["state_path"], 777, value["warn_bytes"], value["error_bytes"])
+
+
+@pytest.mark.parametrize("location", ["baseline_bytes", "peak_bytes", "samples", "pid", "warn_bytes", "error_bytes", "cgroup_peak"])
+def test_native_report_integer_negative_zero_fields(sampler_binary: Path, tmp_path: Path, location: str) -> None:
+    state = report_state(**{location: 0}) if location in {"baseline_bytes", "peak_bytes", "samples", "pid"} else report_state()
+    raw = json.dumps(state).replace('"' + location + '": 0', '"' + location + '": -0').encode()
+    peak = 0 if location == "cgroup_peak" else 777
+    path, value = report_request(tmp_path, raw, peak=peak)
+    if location in {"warn_bytes", "error_bytes"}:
+        value[location] = 0
+        path.write_text(json.dumps(value).replace('"' + location + '": 0', '"' + location + '": -0'))
+    elif location == "cgroup_peak":
+        group = Path(value["cgroup_path"])
+        group.write_text(group.read_text().replace('"peak_bytes": 0', '"peak_bytes": -0'))
+    result = invoke(sampler_binary, "memory-report", path, tmp_path)
+    assert result.returncode == 0 and result.stderr == b"", result.stderr
+    assert json.loads(result.stdout) == expected_report(raw, value["state_path"], peak, value["warn_bytes"], value["error_bytes"])
