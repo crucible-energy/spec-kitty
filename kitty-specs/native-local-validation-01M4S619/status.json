@@ -58,7 +58,7 @@
     },
     "WP02": {
       "actor": "reviewer-renata",
-      "agent": "codex",
+      "agent": "reviewer-renata",
       "agent_profile": "reviewer-renata",
       "agent_profile_version": "1.0",
       "force_count": 0,
@@ -68,7 +68,8 @@
       "model": "__resolved_model_absent__",
       "notes": [
         "Begin sequential WP02 exact staged candidate and reusable check identity after actual WP01 canonical approval",
-        "T005–T008 implemented and validated; independent full WP02 review pending. Frozen source/docs and actual native proof: /Users/sam/Documents/Codex/2026-10-08/referenced-chatgpt-conversation-this-is-an/work/native-wp02-candidate-evidence-20261014/receipt-f2-validation.json. Review ALL candidate and receipt work, including candidate commits before refreshed ad94629 planning pin. WP03–WP05 qualification remains separate."
+        "T005–T008 implemented and validated; independent full WP02 review pending. Frozen source/docs and actual native proof: /Users/sam/Documents/Codex/2026-10-08/referenced-chatgpt-conversation-this-is-an/work/native-wp02-candidate-evidence-20261014/receipt-f2-validation.json. Review ALL candidate and receipt work, including candidate commits before refreshed ad94629 planning pin. WP03–WP05 qualification remains separate.",
+        "Capture actual completed independent Reviewer Renata review of WP02 at 85d231beee92b43c5448fcfea5ed637ed37f50f8. Report /Users/sam/Documents/Codex/2026-10-08/referenced-chatgpt-conversation-this-is-an/work/native-wp02-independent-review-20261015/review.md SHA256 72c6531117e252b3528a22d9278d3ae15610fedda287ed56684e5b1c0bd94071; original planning provenance and full candidate/receipt scope preserved."
       ],
       "provider": "__resolved_provider_absent__",
       "role": "reviewer",
