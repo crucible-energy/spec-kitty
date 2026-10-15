@@ -1389,3 +1389,42 @@ Their tests are committed separately before the repair. The repair will require
 the exact canonical command image in the qualified runtime and current binding,
 and repeat complete qualification-pin checks before each launch and at final
 acceptance. A resolved path alone cannot authorize an alias that is executed.
+
+## October 15, 2026 — Actual Native Changelog Component
+
+### User Experience Findings
+
+Root selected the complete changelog-style component after the bounded serial
+execution increment. The maintained Python checker, its shared release-section
+extractor, and its existing planted and positive fixtures remain the behavioral
+oracle. The first native control drives the existing executable operation entry
+with a real clean changelog; an unknown operation refuses instead of producing
+the required clean summary. This is distinct from a missing-source/build error.
+
+### Engineering Decisions
+
+Root authorizes `tools/zig/validation_changelog.zig`, focused native parity tests,
+the existing executable dispatch, and complete receipt-source roster changes.
+Root also authorizes `tools/zig/validation_unicode14.zig`: immutable property
+ranges generated from the pinned Python 3.11.15 / Unicode 14.0.0 oracle, with
+exhaustive code-point parity and provenance retained in external evidence. This
+is a Unicode-14 qualification, not version-independent Python parity. Preserve
+Unicode alphanumeric word boundaries, decimal digits, whitespace, and
+code-point lengths, including non-ASCII neighbors of otherwise ASCII tokens.
+
+The native operation is `changelog-style <request.json>` with exact fields
+`repository_root` and `argv` (the checker flags). The explicit absolute repository
+anchor preserves cwd-independent relative changelog resolution when the native
+image lives outside the repository. No generic launcher, Python child, alternate
+router, or inferred repository discovery is introduced. Root approved this narrow
+wrapper and the additional Unicode data path. Parser oddities, fence differences,
+exemptions, and finding ordering remain contract behavior.
+
+### Known Limitations
+
+`tools/validation/gates.json`, selection, and the Python oracle remain unchanged.
+This increment cannot migrate the full docs-lint recipe or qualify check_spelling,
+Linux, arbitrary validators, hooks, or the rest of WP03. Actual source/component
+closure and native statement observations must accompany independent behavioral
+parity review. Full failed and successful evidence is retained externally under
+`native-wp03-execution-evidence-20261015/changelog-component-r1`.
