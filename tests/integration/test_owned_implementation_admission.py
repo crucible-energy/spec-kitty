@@ -26,14 +26,37 @@ class Admission:
     pin: str
 
     def invoke(self, *extra: str):
-        return CliRunner().invoke(_get_app(), [
-            "migrate", COMMAND, "--mission", SLUG, "--owned-checkout", str(self.authority.owned),
-            "--wp-id", "WP03", "--code-checkout", str(self.slot), "--code-commit", self.pin,
-            "--dependency-pin", f"WP01={self.pin}", "--dependency-pin", f"WP02={self.pin}", "--json", *extra,
-        ])
+        return CliRunner().invoke(
+            _get_app(),
+            [
+                "migrate",
+                COMMAND,
+                "--mission",
+                SLUG,
+                "--owned-checkout",
+                str(self.authority.owned),
+                "--wp-id",
+                "WP03",
+                "--code-checkout",
+                str(self.slot),
+                "--code-commit",
+                self.pin,
+                "--dependency-pin",
+                f"WP01={self.pin}",
+                "--dependency-pin",
+                f"WP02={self.pin}",
+                "--json",
+                *extra,
+            ],
+        )
 
     def snapshot(self):
-        return self.authority.snapshot(), tree(self.slot), git(self.slot, "ls-files", "-v"), git(self.slot, "cat-file", "--batch-all-objects", "--batch-check=%(objectname)")
+        return (
+            self.authority.snapshot(),
+            tree(self.slot),
+            git(self.slot, "ls-files", "-v"),
+            git(self.slot, "cat-file", "--batch-all-objects", "--batch-check=%(objectname)"),
+        )
 
 
 @pytest.fixture
@@ -44,8 +67,13 @@ def admission(authority: Authority, monkeypatch: pytest.MonkeyPatch):
 
     a = authority
     manifest = {
-        "version": 1, "mission_slug": SLUG, "mission_id": MID, "mission_branch": COORD, "target_branch": TARGET,
-        "computed_at": "2026-09-08T09:00:00+00:00", "computed_from": "dependency_graph+ownership",
+        "version": 1,
+        "mission_slug": SLUG,
+        "mission_id": MID,
+        "mission_branch": COORD,
+        "target_branch": TARGET,
+        "computed_at": "2026-09-08T09:00:00+00:00",
+        "computed_from": "dependency_graph+ownership",
         "lanes": [
             {"lane_id": "lane-a", "wp_ids": ["WP01"], "write_scope": ["WP01.txt"], "depends_on_lanes": []},
             {"lane_id": "lane-b", "wp_ids": ["WP02", "WP03"], "write_scope": ["WP02.txt", "WP03.txt"], "depends_on_lanes": ["lane-a"]},
@@ -61,7 +89,11 @@ def admission(authority: Authority, monkeypatch: pytest.MonkeyPatch):
     slot = a.primary.parent / "existing-code"
     git(a.owned, "worktree", "add", "-qb", COORD + "-lane-b", str(slot), a.target_pin)
     original = owned_coordination.git_operation
-    monkeypatch.setattr(owned_coordination, "git_operation", lambda root, args, **kw: original(root, ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", *args], **kw))
+    monkeypatch.setattr(
+        owned_coordination,
+        "git_operation",
+        lambda root, args, **kw: original(root, ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", *args], **kw),
+    )
     assert a.placement("--apply").exit_code == 0
     pin = git(slot, "rev-parse", "HEAD")
     log = a.directory / "status.events.jsonl"
@@ -69,23 +101,36 @@ def admission(authority: Authority, monkeypatch: pytest.MonkeyPatch):
     for wp in ("WP01", "WP02"):
         if wp == "WP01":
             historical = next(row for row in rows if row.get("wp_id") == wp and row.get("to_lane") == "approved")
-            rows.append({**historical, "event_id": "01M204R7Y759H4DV93ZP8V3298", "from_lane": "approved", "to_lane": "in_review", "at": "2026-09-09T00:00:00+00:00"})
+            rows.append(
+                {**historical, "event_id": "01M204R7Y759H4DV93ZP8V3298", "from_lane": "approved", "to_lane": "in_review", "at": "2026-09-09T00:00:00+00:00"}
+            )
             approval = {**historical, "event_id": "01M204R7Y759H4DV93ZP8V3299", "at": "2026-09-09T00:00:01+00:00"}
             rows.append(approval)
         else:
-            approval = {**next(row for row in reversed(rows) if row.get("wp_id") == wp and "to_lane" in row),
-                        "event_id": "01M204R7Y759H4DV93ZP8V3300", "from_lane": "in_review", "to_lane": "approved", "at": "2026-09-09T00:00:00+00:00"}
+            approval = {
+                **next(row for row in reversed(rows) if row.get("wp_id") == wp and "to_lane" in row),
+                "event_id": "01M204R7Y759H4DV93ZP8V3300",
+                "from_lane": "in_review",
+                "to_lane": "approved",
+                "at": "2026-09-09T00:00:00+00:00",
+            }
             rows.append(approval)
         request = OwnedReviewRequest(wp, "independent-current-reviewer", "approved", f"review://fixture/{wp}/{pin}", pin)
-        approval.update({"actor": request.reviewer, "review_ref": request.reference,
-                         "review_result": {"reviewer": request.reviewer, "verdict": "approved", "reference": request.reference},
-                         "evidence": {"review": {"reviewer": request.reviewer, "verdict": "approved", "reference": request.reference}},
-                         "policy_metadata": {"owned_review_request": request.key(MID), "reviewed_commit": pin, "fresh_review": True}})
+        approval.update(
+            {
+                "actor": request.reviewer,
+                "review_ref": request.reference,
+                "review_result": {"reviewer": request.reviewer, "verdict": "approved", "reference": request.reference},
+                "evidence": {"review": {"reviewer": request.reviewer, "verdict": "approved", "reference": request.reference}},
+                "policy_metadata": {"owned_review_request": request.key(MID), "reviewed_commit": pin, "fresh_review": True},
+            }
+        )
     log.write_text(encode(rows))
     materialize(a.directory)
     commit(a.owned)
     # Actual primary is intentionally missing this mission; it is never the status fallback.
     import shutil
+
     shutil.rmtree(a.primary / "kitty-specs")
     return Admission(a, slot, pin)
 
@@ -103,7 +148,9 @@ def test_computed_proof_pins_real_git_facts_without_mutation(admission: Admissio
     a = admission.authority
     before = admission.snapshot()
     proof = checked(admission, admission.invoke())
-    assert proof["admitted"] and proof["wp_id"] == "WP03" and proof["lane_id"] == "lane-b"
+    assert proof["admitted"] is False
+    assert proof["proof_ready"] is True and proof["kind"] == "owned_implementation_preview"
+    assert proof["wp_id"] == "WP03" and proof["lane_id"] == "lane-b"
     assert proof["roots"]["status_root"] == str(a.owned)
     assert proof["roots"]["code_root"] == str(admission.slot)
     assert proof["authority_commit"] == git(a.owned, "rev-parse", "HEAD")
@@ -120,11 +167,17 @@ def test_computed_proof_pins_real_git_facts_without_mutation(admission: Admissio
     assert admission.snapshot() == before
 
 
-@pytest.mark.parametrize("fault,code", [
-    ("prose", "OWNED_DEPENDENCY_BINDING_MISSING"), ("stale", "OWNED_DEPENDENCY_BINDING_REFUSED"),
-    ("wrong-wp", "OWNED_DEPENDENCY_BINDING_REFUSED"), ("self-review", "OWNED_DEPENDENCY_BINDING_REFUSED"),
-    ("not-ready", "OWNED_DEPENDENCIES_NOT_READY"), ("not-planned", "OWNED_IMPLEMENTATION_LANE_REFUSED"),
-])
+@pytest.mark.parametrize(
+    "fault,code",
+    [
+        ("prose", "OWNED_DEPENDENCY_BINDING_MISSING"),
+        ("stale", "OWNED_DEPENDENCY_BINDING_REFUSED"),
+        ("wrong-wp", "OWNED_DEPENDENCY_BINDING_REFUSED"),
+        ("self-review", "OWNED_DEPENDENCY_BINDING_REFUSED"),
+        ("not-ready", "OWNED_DEPENDENCIES_NOT_READY"),
+        ("not-planned", "OWNED_IMPLEMENTATION_LANE_REFUSED"),
+    ],
+)
 def test_recorded_approval_is_required_and_exact(admission: Admission, fault: str, code: str):
     a = admission.authority
     log = a.directory / "status.events.jsonl"
@@ -195,14 +248,17 @@ def test_existing_slot_requires_exact_clean_inactive_owned_authority(admission: 
     assert admission.snapshot() == before
 
 
-@pytest.mark.parametrize("extra,code", [
-    (["--wp-id", "WP99"], "OWNED_IMPLEMENTATION_WP_REFUSED"),
-    (["--wp-id", "../WP03"], "OWNED_IMPLEMENTATION_INPUT_REFUSED"),
-    (["--mission", "../escape"], "OWNED_IMPLEMENTATION_VALIDATION_REFUSED"),
-    (["--code-commit", "HEAD"], "OWNED_IMPLEMENTATION_INPUT_REFUSED"),
-    (["--dependency-pin", "WP01=HEAD"], "OWNED_IMPLEMENTATION_INPUT_REFUSED"),
-    (["--dependency-pin", "WP99=" + "a" * 40], "OWNED_DEPENDENCY_PINS_REFUSED"),
-])
+@pytest.mark.parametrize(
+    "extra,code",
+    [
+        (["--wp-id", "WP99"], "OWNED_IMPLEMENTATION_WP_REFUSED"),
+        (["--wp-id", "../WP03"], "OWNED_IMPLEMENTATION_INPUT_REFUSED"),
+        (["--mission", "../escape"], "OWNED_IMPLEMENTATION_VALIDATION_REFUSED"),
+        (["--code-commit", "HEAD"], "OWNED_IMPLEMENTATION_INPUT_REFUSED"),
+        (["--dependency-pin", "WP01=HEAD"], "OWNED_IMPLEMENTATION_INPUT_REFUSED"),
+        (["--dependency-pin", "WP99=" + "a" * 40], "OWNED_DEPENDENCY_PINS_REFUSED"),
+    ],
+)
 def test_bad_explicit_inputs_fail_closed(admission: Admission, extra: list[str], code: str):
     before = admission.snapshot()
     checked(admission, admission.invoke(*extra), code)
@@ -210,8 +266,21 @@ def test_bad_explicit_inputs_fail_closed(admission: Admission, extra: list[str],
 
 
 def test_missing_dependency_proposal_never_silently_skips(admission: Admission):
-    args = ["migrate", COMMAND, "--mission", SLUG, "--owned-checkout", str(admission.authority.owned),
-            "--wp-id", "WP03", "--code-checkout", str(admission.slot), "--code-commit", admission.pin, "--json"]
+    args = [
+        "migrate",
+        COMMAND,
+        "--mission",
+        SLUG,
+        "--owned-checkout",
+        str(admission.authority.owned),
+        "--wp-id",
+        "WP03",
+        "--code-checkout",
+        str(admission.slot),
+        "--code-commit",
+        admission.pin,
+        "--json",
+    ]
     before = admission.snapshot()
     checked(admission, CliRunner().invoke(_get_app(), args), "OWNED_DEPENDENCY_PINS_REFUSED")
     assert admission.snapshot() == before
