@@ -1529,3 +1529,49 @@ pinned parser's ASCII-space fallback for otherwise unknown dash-leading values.
 The complete supported table and direct ordering/filename controls are checked
 against the unchanged Python oracle; excluded environment classes remain
 outside the qualification.
+
+## October 15, 2026 — Bounded Multi-Command Recipe Execution
+
+### User Experience Findings
+
+The current public executor refuses every recipe before any command. Repeating
+its single-command owner would reset resource budgets and would not establish a
+complete-check lifecycle. A failed ordinary command also needs an explicit
+distinction between later blocked work and an eligible `always` command.
+
+### Engineering Decisions
+
+Root coordinated the narrow `validation_process_darwin.zig` ownership extension
+with the existing WP03 implementer at base `cdeb12df`. This existing helper owns
+the signal bridge, native spawn, sampling, pipe joins, and terminal disposal;
+the executor must reuse it rather than introduce another supervisor or routing
+map. The accepted source-backed design and its initially rejected cleanup-time
+proposal remain in the private `recipe-execution-r1` evidence.
+
+Planned first admission is a source-closed, single-instance recipe with
+`success`/`always` conditions, an exact selected dependency roster, and no
+unsupported input or environment semantics. Every actual argv shares the same
+original work deadline and cumulative output/display budgets. `always` may
+follow a joined ordinary validation failure only while work budget and current
+qualification remain. The single unreset `cleanup_ms` allowance is solely for
+bounded owner disposal; it never becomes executable `always` time. Exhausted
+work/output, cancellation, drift, or unknown custody starts no next argv.
+
+Real public-entry controls precede production repair: actual source-bound
+commands, staged order, a failed middle command, `always`/dependency blocking,
+command-index stderr policy, cumulative raw-output quotas, and a cumulative
+work deadline. Preserve their actual RED separately before implementation.
+
+Observed before repair: all five new controls reach the existing compiled
+public entry and fail at `UnsupportedRecipeBinding` (5 failed, 68 deselected).
+Fixture compilation, candidate capture, and binding succeed; this is actual
+missing recipe behavior, not a source/tool/setup failure. Raw diagnostics and
+exact source/image pins remain in the private recipe evidence.
+
+### Known Limitations
+
+This bounded scope does not admit a detached sampler, unknown descendants,
+instance overrides, result/producer aggregates, or an unqualified platform.
+`architectural-fast` still requires its actual complete start/setup/test/stop
+ownership qualification. Original validators, budgets, routing, and gates stay
+authoritative; this increment does not approve WP03 or enable a publication hook.

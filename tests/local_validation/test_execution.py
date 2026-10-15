@@ -1233,6 +1233,7 @@ pub fn main(init: std.process.Init) !void {
     const marker = try std.Io.Dir.cwd().createFile(init.io, args[2], .{});
     try marker.writeStreamingAll(init.io, if (std.mem.eql(u8, args[1], "producer")) "producer\n" else "consumer\n");
     marker.close(init.io);
+    if (std.mem.eql(u8, args[4], "delay")) std.Io.sleep(init.io, .fromMilliseconds(400), .awake) catch {};
     if (std.mem.eql(u8, args[4], "wait")) {
         var count: usize = 0;
         while (count < 300) : (count += 1) {
@@ -1248,7 +1249,9 @@ pub fn main(init: std.process.Init) !void {
     const output: [20000]u8 = @splat('O');
     const diagnostic: [9000]u8 = @splat('E');
     try std.Io.File.stdout().writeStreamingAll(init.io, &output);
+    if (std.mem.eql(u8, args[4], "warning")) try std.Io.File.stderr().writeStreamingAll(init.io, "Warning: recipe step\n");
     try std.Io.File.stderr().writeStreamingAll(init.io, &diagnostic);
+    if (std.mem.eql(u8, args[4], "nonzero")) std.process.exit(13);
 }
 """
 
@@ -1389,6 +1392,73 @@ def execution_request_fault(request: dict[str, str], logs: Path, qualification_f
         request["diagnostics"] = json.loads(manifest_path.read_bytes())["root"]
 
 
+def configure_recipe_control(
+    checks: dict[str, Any],
+    qualifications: list[dict[str, Any]],
+    commands: dict[str, list[str]],
+    source: dict[str, str],
+    tmp_path: Path,
+    case: str,
+) -> None:
+    """Bind real source-closed argv; no callback or caller Boolean runs a step."""
+    import copy
+
+    original = {name: copy.deepcopy(q) for name, q in zip(commands, qualifications, strict=True)}
+    producer = commands["z-producer"]
+    second = [*producer]
+    second[1] = "consumer"
+    cleanup = [*producer]
+    cleanup[2] = str(tmp_path / "recipe-cleanup-marker")
+    steps = [[*producer], second, [*producer]]
+    conditions = ["success", "success", "always"]
+    if case in {"nonzero", "warning"}:
+        steps[1][4] = case
+        steps.insert(2, [*producer])
+        steps[2][2] = str(tmp_path / "recipe-skipped-marker")
+        steps[-1] = cleanup
+        conditions = ["success", "success", "success", "always"]
+    if case in {"quota", "deadline"}:
+        steps[1][1] = "producer"
+        steps[1][2] = str(tmp_path / "recipe-second-marker")
+        steps[-1] = cleanup
+        if case == "deadline":
+            steps[0][4] = steps[1][4] = "delay"
+    checks["z-producer"]["argv"] = steps
+    qualifications.clear()
+    seen: set[tuple[str, ...]] = set()
+    for name, check in checks.items():
+        check["recipe"] = {
+            "source": source,
+            "python_version": "3.12",
+            "advisory": False,
+            "required_inputs": ["candidate"],
+            "conditions": conditions if name == "z-producer" else ["success"],
+            "instances": ["native"] * len(check["argv"]),
+            "applicability": "routing",
+            "packages": {},
+            "instance_environment": {},
+            "observed_dependencies": check["dependencies"],
+        }
+        check["stderr_policy"] = ["allow"] * len(check["argv"])
+        if name == "z-producer" and case == "warning":
+            check["stderr_policy"][1] = "reject-warning-prefix"
+        if case == "quota":
+            check["budgets"]["stdout_bytes"] = 30000
+        if case == "deadline":
+            check["budgets"]["wall_ms"] = 700
+        for argv in check["argv"]:
+            if tuple(argv) in seen:
+                continue
+            seen.add(tuple(argv))
+            q = copy.deepcopy(original[name])
+            q["argv"] = argv
+            if case == "quota":
+                q["limits"]["stdout_bytes"] = 30000
+            if case == "deadline":
+                q["limits"]["wall_ms"] = 700
+            qualifications.append(q)
+
+
 def execution_inputs(
     candidate_binary: Path,
     executor_binary: Path,
@@ -1400,6 +1470,7 @@ def execution_inputs(
     waiting: bool = False,
     staged: bytes = b"PASS\n",
     fault: str | None = None,
+    recipe_case: str | None = None,
 ) -> dict[str, Any]:
     from tests.local_validation.test_candidate import capture, git
     from tests.local_validation.test_receipt import NATIVE_SOURCES, file_pin, receipt_call
@@ -1480,11 +1551,14 @@ def execution_inputs(
         for name, argv in commands.items()
     }
     execution_policy_fault(checks, qualifications, commands, executor_binary, tmp_path, fault)
+    if recipe_case:
+        configure_recipe_control(checks, qualifications, commands, policy_source, tmp_path, recipe_case)
     authority.write_bytes(
         canonical(
             {
-                "schema_version": 1,
+                "schema_version": 2 if recipe_case else 1,
                 "source": policy_source,
+                **({"migration": [policy_source]} if recipe_case else {}),
                 "routing": {"filters": {"core": ["src/**"]}, "job_gates": {name: [] for name in commands}},
                 "checks": checks,
             }
@@ -1526,7 +1600,7 @@ def execution_inputs(
                 "candidate_manifest": str(manifest_path),
                 "files": files,
                 "environment_names": ["WP03_FLAG"],
-                "checks": [{"id": name, "argv": [argv], "closure_proof": None} for name, argv in commands.items()],
+                "checks": [{"id": name, "argv": checks[name]["argv"], "closure_proof": None} for name in commands],
             }
         )
     )
@@ -1566,6 +1640,72 @@ def run_execution(image: Path, inputs: dict[str, Any]) -> tuple[subprocess.Compl
     result = subprocess.run([str(image), "execute", str(inputs["request_path"])], env=inputs["environment"], capture_output=True, timeout=30)
     report = json.loads((inputs["logs"] / "run.json").read_bytes()) if (inputs["logs"] / "run.json").exists() else {}
     return result, report
+
+
+def test_native_recipe_preserves_declared_order_and_complete_check_logs(
+    candidate_binary: Path, executor_binary: Path, repository: Path, tmp_path: Path, serial_program: dict[str, Any]
+) -> None:
+    inputs = execution_inputs(candidate_binary, executor_binary, repository, tmp_path, serial_program, recipe_case="ordinary")
+    before = snapshot(repository)
+    result, report = run_execution(executor_binary, inputs)
+    assert snapshot(repository) == before
+    assert result.returncode == 0, result.stderr
+    assert report["accepted"] and report["qualified_scope_joined"]
+    assert report["selected_checks"] == ["z-producer", "a-consumer"]
+    producer, consumer = report["results"]
+    assert producer["status"] == consumer["status"] == "passed"
+    assert [row["status"] for row in producer["steps"]] == ["passed"] * 3
+    assert inputs["marker"].read_bytes() == b"consumer\n"
+    assert sum(Path(row["stdout_log"]["path"]).stat().st_size for row in producer["steps"]) == 3 * 20007
+    assert producer["result"]["stdout_retained_bytes"] == 3 * 20007
+    assert len(producer["result"]["stdout"]) == 8192
+    for row in producer["steps"]:
+        assert Path(row["stdout_log"]["path"]).read_bytes() == b"STAGED\n" + b"O" * 20000
+        assert Path(row["stderr_log"]["path"]).read_bytes() == b"E" * 9000
+        assert row["result"]["leader_reaped"] and row["result"]["group_disposed"]
+        assert row["result"]["all_owned_children_terminal"] is False
+    assert report["general_validator_qualification"] is False and report["hook_installed"] is False
+
+
+@pytest.mark.parametrize(("failure", "reason"), [("nonzero", "nonzero-exit"), ("warning", "output-policy-refused")])
+def test_native_recipe_joined_failure_runs_always_without_erasing_failure(
+    candidate_binary: Path, executor_binary: Path, repository: Path, tmp_path: Path, serial_program: dict[str, Any], failure: str, reason: str
+) -> None:
+    inputs = execution_inputs(candidate_binary, executor_binary, repository, tmp_path, serial_program, recipe_case=failure)
+    before = snapshot(repository)
+    result, report = run_execution(executor_binary, inputs)
+    assert snapshot(repository) == before
+    assert report, result.stderr
+    assert result.returncode != 0 and report["accepted"] is False and report["qualified_scope_joined"] is True
+    producer, consumer = report["results"]
+    assert producer["reason"] == reason and consumer["status"] == "blocked"
+    assert [row["status"] for row in producer["steps"]] == ["passed", "refused", "blocked", "passed"]
+    assert (tmp_path / "recipe-cleanup-marker").read_bytes() == b"producer\n"
+    assert not (tmp_path / "recipe-skipped-marker").exists()
+    if failure == "nonzero":
+        assert producer["steps"][1]["result"]["exit_code"] == 13
+
+
+@pytest.mark.parametrize(("case", "reason"), [("quota", "stdout_limit"), ("deadline", "wall_timeout")])
+def test_native_recipe_never_resets_work_or_output_budget_for_next_argv_or_always(
+    candidate_binary: Path, executor_binary: Path, repository: Path, tmp_path: Path, serial_program: dict[str, Any], case: str, reason: str
+) -> None:
+    inputs = execution_inputs(candidate_binary, executor_binary, repository, tmp_path, serial_program, recipe_case=case)
+    before = snapshot(repository)
+    result, report = run_execution(executor_binary, inputs)
+    assert snapshot(repository) == before
+    assert report, result.stderr
+    assert result.returncode != 0 and report["accepted"] is False
+    producer, consumer = report["results"]
+    assert [row["status"] for row in producer["steps"]] == ["passed", "refused", "blocked"]
+    assert producer["reason"] == reason and consumer["status"] == "blocked"
+    assert not (tmp_path / "recipe-cleanup-marker").exists(), "cleanup_ms must never become executable always time"
+    if case == "quota":
+        raw = b"".join(Path(row["stdout_log"]["path"]).read_bytes() for row in producer["steps"] if row["stdout_log"])
+        assert len(raw) == 30000 and producer["result"]["stdout_retained_bytes"] == len(raw)
+    else:
+        assert producer["steps"][0]["result"]["elapsed_ms"] < 700
+        assert producer["steps"][1]["result"]["failure"] == "wall_timeout"
 
 
 def test_native_execution_observes_dependency_order_staged_imports_and_exact_raw_logs(
