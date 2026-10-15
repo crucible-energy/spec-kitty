@@ -1665,6 +1665,12 @@ state bytes and foreign objects, alongside existing independent primary-error
 and custody-only controls. No additional cleanup budget or unknown-object
 removal is authorized.
 
+The repair collects the primary result, inspects both retained namespaces on
+all exits after acquisition, and returns observed custody failure first. The
+same signal lease remains installed through disposition. Normal success also
+checks the original absolute deadline after closing owned handles and restoring
+the prior handlers; no clock or cleanup allowance is reset.
+
 ### Known Limitations
 
 This component does not port detached start/stop, cgroup reading, full Python

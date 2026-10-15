@@ -696,3 +696,15 @@ const Capture = struct {
         if (size > keep) return error.OutputLimit;
     }
 };
+
+// Foreground no-child components share the same exclusive process signal owner.
+// The inferred lease type stays internal; callers cannot install another bridge.
+pub fn beginSamplingSignals() !SignalBridge {
+    return SignalBridge.install();
+}
+pub fn samplingSignal() u32 {
+    return pending_signal.load(.monotonic);
+}
+pub fn restoreSamplingSignals(lease: *SignalBridge) !u32 {
+    return lease.restore();
+}

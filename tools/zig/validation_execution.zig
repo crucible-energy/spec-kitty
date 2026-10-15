@@ -7,6 +7,7 @@ const receipt = @import("validation_receipt.zig");
 const selection = @import("validation_selection.zig");
 const process = @import("validation_process_darwin.zig");
 const changelog = @import("validation_changelog.zig");
+const memory_sampler = @import("validation_memory_sampler.zig");
 const Allocator = std.mem.Allocator;
 const Value = std.json.Value;
 const Request = struct { binding: []const u8, specification: []const u8, mode: []const u8, diagnostics: []const u8 };
@@ -415,6 +416,7 @@ fn run(init: std.process.Init) !u8 {
     const args = try init.minimal.args.toSlice(allocator);
     if (args.len != 3) return error.InvalidArguments;
     if (std.mem.eql(u8, args[1], "changelog-style")) return changelog.command(init, args[2]);
+    if (std.mem.eql(u8, args[1], "memory-sample")) return memory_sampler.command(init, args[2]);
     if (!std.mem.eql(u8, args[1], "execute")) {
         try receipt.run(init);
         return 0;

@@ -64,6 +64,7 @@ fn bind(init: std.process.Init, request: Request) !Binding {
         .{ .name = "validation_process_darwin.zig", .sha256 = try candidate.hash(allocator, @embedFile("validation_process_darwin.zig")) },
         .{ .name = "validation_changelog.zig", .sha256 = try candidate.hash(allocator, @embedFile("validation_changelog.zig")) },
         .{ .name = "validation_unicode14.zig", .sha256 = try candidate.hash(allocator, @embedFile("validation_unicode14.zig")) },
+        .{ .name = "validation_memory_sampler.zig", .sha256 = try candidate.hash(allocator, @embedFile("validation_memory_sampler.zig")) },
     });
     const found_sources = try allocator.alloc(bool, sources.len);
     for (found_sources) |*found| found.* = false;
