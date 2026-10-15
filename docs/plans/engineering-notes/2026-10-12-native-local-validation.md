@@ -2,7 +2,7 @@
 title: Native Local Validation
 description: Implementation decisions, usability findings, and qualification limits for the native local gate.
 doc_status: active
-audience: docs/context/audience/internal/ai-collaboration-agent.md
+audience: ../../context/audience/internal/ai-collaboration-agent.md
 updated: '2026-10-14'
 ---
 
@@ -706,3 +706,21 @@ Thirty-two focused controls pass, including changed registry data, absolute auth
 The first fresh grammar comparison retains 1248 native runtime statements but its predecessor observer omits one deferred conditional call. Preserve that actual comparison failure. Extend only the external observation copy's `IfExpr` body callback: delegate the original parser operation, record its returned body node, and return it unchanged. The installed parser is untouched. The extended observer preserves compiler AST equality and now exactly matches all 1248 current statements, including the conditional deferred cleanup call. No collector rule, denominator entry, or threshold is removed or changed. The unchanged maintained collector's source and its separately reviewed native proof remain reusable only with matching inputs.
 
 Freeze these notes, native source, and tests before the full owning/affected-consumer gates, fresh source/toolchain/image binding, and one mandatory fast delivery gate. Record current native paired observations and every miss in external immutable receipts. Each final suite uses a distinct run-owned Python coverage database and JSON output, preventing the previous concurrent database collision. Report actual source-entry observations without converting them into branch coverage, universal Zig support, executor qualification, or a WP01 approval. All historical failures, original handles and cleanup boundaries, including unacknowledged original 84965, remain preserved. Root owns sequential independent review of the delivered freeze and full WP01 readiness.
+
+## October 14, 2026 — Retrospective REASONS Canvas Repair
+
+### User Experience Findings
+
+The canonical reviewer correctly withheld approval despite the native product PASS: active SPDD doctrine requires a REASONS Canvas, and none existed. [Review-cycle-1](../../../kitty-specs/native-local-validation-01M4S619/tasks/WP01-canonical-selection/review-cycle-1.md) records `canvas_update_needed`. Its supported rejection reset WP01 and T001–T004 to planned and released the prior claim. The wire records `force: true` for this backward rejection because the normal event serializer requires it; no CLI force option or bypass was used. Product correctness evidence at `fb2f3c887e61470a80732f6c0852738e9159143f` remains valid, while the earlier readiness recommendation is superseded.
+
+### Engineering Decisions
+
+Resume the actual WP01 through supported owned commands with the resolved `implementer-ivan` profile. Root explicitly authorizes exactly the [mission canvas](../../../kitty-specs/native-local-validation-01M4S619/reasons-canvas.md) and this existing log. This is documentation repair, not a change to source ownership, task requirements, charter, or tests. Deliver the two explicit documentation paths through normal guarded commits before lifecycle submission; the owned review auto-commit scope guard remains enabled. No mutating task re-finalization or lane recomputation is needed.
+
+Use the canonical seven-section template at `src/charter/offering/templates/fragments/reasons-canvas-template.md`; the skill's former `src/doctrine` path has moved. Actual activation is true and explicitly selects the paradigm, fill/review tactics, and directive 038. Label authoring **RETROSPECTIVE**, dated October 14 in America/Chicago. Link existing spec, plan, task, contract, glossary, and evidence authorities. Preserve append-only Deviations and the original missing-canvas finding; do not imply a preimplementation canvas or prior canvas approval existed. The maintained audience-presence check exposed repository-relative persona references in the initial canvas and existing log metadata; correct both to actual page-relative references before the final documentation freeze.
+
+Trace delivered WP01 extraction, selection, consumer equivalence, complete native measurement, and the additive registry-derived module projection to Requirements and Operations. Preserve the actual collector ownership amendment `e6f189128af3c19c39fa1492560768b212033c97` and module RED/correction evidence. Keep exact staging/reuse, execution/platform supervision, installed hooks, and qualification/retirement explicitly with WP02–WP05. New documentation requires its own freeze and link/structure/docs checks plus the ordinary mandatory fast baseline; unchanged relevant product proof remains pinned separately. Retain final outcomes externally rather than editing the frozen docs after validation.
+
+### Known Limitations
+
+This canvas repairs the current reasoning artifact; it cannot make the omitted preimplementation authoring step historical fact. Its R/O/N/S comparison and canonical approval still belong to the independent reviewer. No source behavior, threshold, task requirement, or later-package qualification changes. All earlier failed attempts, historical Python coverage concurrency limits, original 84965's missing acknowledgment, and custody/cleanup boundaries remain preserved. No WP02 work, self-approval, primary-checkout mutation, installed hook, platform result, publication, hosted retirement, or savings is claimed.
