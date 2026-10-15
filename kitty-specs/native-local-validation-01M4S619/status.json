@@ -92,11 +92,15 @@
       "agent": "codex",
       "agent_profile": "implementer-ivan",
       "agent_profile_version": "1.0",
+      "assignee": "codex",
       "force_count": 0,
       "lane": "claimed",
       "last_event_id": "01M4YZ6X25YB87AKGEF42TQFAS",
       "last_transition_at": "2026-10-15T05:05:27.622002+00:00",
       "model": "__resolved_model_absent__",
+      "notes": [
+        "Claim sequential WP03 after canonical WP02 approval; actual runtime step and current implementer profile/action context loaded. No WP04 work or platform qualification inferred."
+      ],
       "provider": "__resolved_provider_absent__",
       "role": "implementer"
     },
