@@ -15,11 +15,17 @@ answers:
     gates, development workflow, and safety rules. The charter is the
     single source of truth for all agents and contributors.
   languages_frameworks: >
-    Python 3.11+ for all CLI and library code. Key dependencies: typer,
-    rich, ruamel.yaml, pytest, mypy (strict mode). Cross-platform: Linux,
-    macOS, Windows 10+.
+    Zig for new repo-owned CLI, library, tooling, adapter, and test code.
+    Swift is allowed for Apple-platform work; TypeScript, JavaScript, HTML,
+    and CSS are allowed for browser-facing work. Other new-language choices
+    require Sam's explicit approval for the exact change.
+    Retained Python CLI and library code requires Python 3.11+ for bounded
+    corrections, contract preservation, and migration. Its key dependencies
+    remain typer, rich, ruamel.yaml, pytest, and mypy (strict mode).
+    Cross-platform: Linux, macOS, Windows 10+.
   testing_requirements: >
-    90%+ test coverage for new code. mypy --strict must pass.
+    New Zig code needs focused Zig tests and a safe-mode build. Retained
+    Python changes keep 90%+ pytest coverage and mypy --strict.
     Integration tests for CLI commands; unit tests for core logic.
     Run only the affected test packages for scoped changes; full suite
     reserved for mission-level validation, cross-cutting changes, and
@@ -29,14 +35,17 @@ answers:
     documentation updated. Sonar: complexity ceiling 15; no empty exception
     handlers; repeated non-trivial literals become constants.
   review_policy: >
-    1 approval required. CI checks must pass. Pre-commit hooks must pass.
-    All changes land via pull request — no direct pushes to main.
+    0 approvals required. Self-review is acceptable when the change works as
+    advertised, relevant checks pass, and no regression is introduced.
+    Independent review is optional. Pre-commit hooks must pass. All changes
+    land via pull request — no direct pushes to main.
   performance_targets: >
     CLI operations < 2 seconds for typical projects. Dashboard supports
     100+ work packages without lag. No unnecessary git clones/checkouts.
   deployment_constraints: >
-    Cross-platform: Linux, macOS, Windows 10+. Python 3.11+. Git required.
-    PyPI distribution via automated release workflow.
+    Cross-platform: Linux, macOS, Windows 10+. The retained Python CLI
+    requires Python 3.11+ and Git; PyPI distribution remains in the existing
+    automated release workflow until a Zig replacement passes parity gates.
   documentation_policy: >
     CLI commands must have clear help text with examples. Public APIs need
     docstrings. Breaking changes documented in CHANGELOG.md. Architecture

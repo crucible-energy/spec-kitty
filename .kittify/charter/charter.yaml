@@ -7,7 +7,7 @@ governance:
     type_checking: mypy --strict
   quality:
     linting: ''
-    pr_approvals: 1
+    pr_approvals: 0
     pre_commit_hooks: false
   commits: {}
   performance:
@@ -18,10 +18,10 @@ governance:
     rules: []
   doctrine:
     selected_paradigms: []
-    # This project-level directive is deliberately selected rather than added
-    # to shipped action indexes: it must reach every review runtime without
-    # becoming product-wide doctrine for downstream projects.
+    # Project-level directives reach local agent context without becoming
+    # product-wide doctrine for downstream projects.
     selected_directives:
+    - DIR-002
     - DIR-014
     - DIR-015
     selected_tactics: []
@@ -54,8 +54,8 @@ directives:
     severity: warn
     references: []
   - id: DIR-002
-    title: '**Python 3.11+** (no legacy Python 2 support)'
-    description: '**Python 3.11+** (no legacy Python 2 support)'
+    title: Zig for new implementation; Python 3.11+ for retained code
+    description: New repo-owned CLI, library, tooling, adapter, and test implementation must use Zig. Retained Python code requires Python 3.11+ and is limited to bounded correctness or safety repairs, contract preservation, and migration until reviewed Zig parity permits replacement. Swift is allowed for Apple-platform work; TypeScript, JavaScript, HTML, and CSS are allowed for browser-facing work. A language outside these Zig, Apple-platform, and browser-facing cases needs Sam's explicit approval for that exact change.
     severity: warn
     references: []
   - id: DIR-003
