@@ -714,6 +714,35 @@ def backfill_runtime_state_cmd(
         raise typer.Exit(1)
 
 
+@app.command(name="preview-owned-implementation")
+def preview_owned_implementation_cmd(
+    mission: Annotated[str, typer.Option("--mission", help="Existing owned coordinated mission.")],
+    owned_checkout: Annotated[Path, typer.Option("--owned-checkout", help="Registered inactive coordination authority.")],
+    wp_id: Annotated[str, typer.Option("--wp-id", help="Existing planned WP identity.")],
+    code_checkout: Annotated[Path, typer.Option("--code-checkout", help="Exact existing registered code lane slot.")],
+    code_commit: Annotated[str, typer.Option("--code-commit", help="Full immutable requested code-slot HEAD.")],
+    dependency_pin: Annotated[
+        list[str] | None, typer.Option("--dependency-pin", help="Repeat WP##=immutable-SHA proposals; actual recorded approval is required.")
+    ] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Bounded computed proof or precise refusal.")] = False,
+) -> None:
+    """Preview admission only; no apply mode, allocation, status write or DAG advance."""
+    from specify_cli.coordination.owned import OwnedCoordinationError
+    from specify_cli.coordination.owned_admission import preview_owned_implementation
+
+    try:
+        repository = locate_project_root()
+        if repository is None:
+            raise ValueError("Could not locate the invoking repository")
+        report = preview_owned_implementation(repository, owned_checkout, mission, wp_id, code_checkout, code_commit, dependency_pin or [])
+    except (ValueError, RuntimeError, OSError, TypeError) as exc:
+        data: dict[str, Any] = exc.to_dict() if isinstance(exc, OwnedCoordinationError) else {"code": "OWNED_IMPLEMENTATION_VALIDATION_REFUSED", "error": str(exc)}
+        data.update({"admitted": False, "proof_ready": False, "applied": False, "allocated": False, "runtime_advanced": False, "write": False})
+        print(json.dumps(data) if json_output else f"Preview refused: {data['code']}: {exc}")
+        raise typer.Exit(1) from exc
+    print(json.dumps(report, indent=2) if json_output else f"Preview proof ready: {wp_id} on {report['lane_id']}; admission not granted; write=False")
+
+
 @app.command(name="refresh-owned-review-projection")
 def refresh_owned_review_projection_cmd(
     mission: Annotated[str, typer.Option("--mission", help="Existing coordinated mission.")],

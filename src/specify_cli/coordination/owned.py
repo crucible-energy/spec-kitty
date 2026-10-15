@@ -251,6 +251,9 @@ class OwnedCoordinationContext:
     anchor: str
     head: str
     event_counts: tuple[int, int, int, int]
+    common_ancestor: str
+    planning_ancestor: str
+    planning_counts: tuple[int, int, int, int]
 
     def roots(self) -> dict[str, str]:
         """Expose logical partition roots while retaining repository identity separately."""
@@ -276,7 +279,7 @@ def resolve_owned_coordination(repository: Path, checkout: Path, handle: str) ->
     anchor, target, pin = _anchor(root, meta)
     if branch_oid(root, meta["target_branch"]) != target:
         raise OwnedCoordinationError("OWNED_PLANNING_DRIFT", "Target ref advanced beyond the explicit planning binding")
-    validate_pins(root, directory, meta, target, pin)
+    pin_facts = validate_pins(root, directory, meta, target, pin)
     current_rows, current_source = load_source(root, directory, head, meta)  # Validate current coord log, no husk fallback.
     target_rows, _ = load_source(root, directory, target, meta)
     current_by_id = {row["event_id"]: row for row in current_rows}
@@ -296,6 +299,9 @@ def resolve_owned_coordination(repository: Path, checkout: Path, handle: str) ->
         anchor,
         head,
         (counts["rows"], counts["transitions"], counts["annotations"], counts["non_lane"]),
+        pin_facts["common_ancestor"],
+        pin_facts["planning_ancestor"],
+        tuple(pin_facts["counts"][name] for name in ("rows", "transitions", "annotations", "non_lane")),
     ), snapshot
 
 

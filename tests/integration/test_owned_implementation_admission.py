@@ -11,7 +11,7 @@ import pytest
 from typer.testing import CliRunner
 
 from specify_cli import _get_app
-from specify_cli.status.reducer import materialize
+from specify_cli.status import materialize
 from tests.integration.test_owned_coordinated_authority import Authority, COORD, authority as authority
 from tests.integration.test_restore_owned_mission_history import MID, SLUG, TARGET, commit, encode, git, tree
 
@@ -60,7 +60,7 @@ class Admission:
 
 
 @pytest.fixture
-def admission(authority: Authority, monkeypatch: pytest.MonkeyPatch):
+def admission(authority: Authority, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest):
     """Real external coordination and existing code slot; dirty primary has no mission."""
     from specify_cli.migration import owned_coordination
     from specify_cli.coordination.owned_status import OwnedReviewRequest
@@ -79,6 +79,15 @@ def admission(authority: Authority, monkeypatch: pytest.MonkeyPatch):
             {"lane_id": "lane-b", "wp_ids": ["WP02", "WP03"], "write_scope": ["WP02.txt", "WP03.txt"], "depends_on_lanes": ["lane-a"]},
         ],
     }
+    fault = getattr(request, "param", None)
+    if fault == "duplicate-wp":
+        manifest["lanes"][0]["wp_ids"].append("WP03")
+    elif fault == "wrong-mission":
+        manifest["mission_id"] = "01M204R7Y759H4DV93ZP8V3TM1"
+    elif fault == "invalid-lane":
+        manifest["lanes"][0]["lane_id"] = "../escape"
+    elif fault == "malformed":
+        del manifest["lanes"][0]["wp_ids"]
     raw = json.dumps(manifest)
     (a.directory / "lanes.json").write_text(raw)
     a.target_pin = commit(a.owned)
@@ -139,6 +148,8 @@ def checked(admission: Admission, result, code: str | None = None):
     assert result.exit_code == (1 if code else 0), result.output
     data = json.loads(result.stdout)
     assert data["allocated"] is False and data["runtime_advanced"] is False and data["write"] is False
+    assert data["admitted"] is False
+    assert data["proof_ready"] is (code is None)
     if code:
         assert data["code"] == code
     return data
@@ -158,6 +169,8 @@ def test_computed_proof_pins_real_git_facts_without_mutation(admission: Admissio
     assert proof["slot"]["tree"] == git(a.owned, "rev-parse", admission.pin + "^{tree}")
     assert proof["common_ancestor"] == git(a.owned, "merge-base", a.target_pin, a.coord_pin)
     assert proof["planning_ancestor"] == a.coord_pin
+    assert proof["counts"]["rows"] == len(git(a.owned, "show", f"{a.target_pin}:kitty-specs/{SLUG}/status.events.jsonl").splitlines())
+    assert proof["counts"]["rows"] < len((a.directory / "status.events.jsonl").read_text().splitlines())
     assert set(proof["dependencies"]) == {"WP01", "WP02"}
     for wp, binding in proof["dependencies"].items():
         assert binding["commit"] == admission.pin and binding["approval_event_id"]
@@ -283,4 +296,48 @@ def test_missing_dependency_proposal_never_silently_skips(admission: Admission):
     ]
     before = admission.snapshot()
     checked(admission, CliRunner().invoke(_get_app(), args), "OWNED_DEPENDENCY_PINS_REFUSED")
+    assert admission.snapshot() == before
+
+
+@pytest.mark.parametrize("admission", ["duplicate-wp", "wrong-mission", "invalid-lane", "malformed"], indirect=True)
+def test_declared_mapping_must_match_authority(admission: Admission):
+    before = admission.snapshot()
+    checked(admission, admission.invoke(), "OWNED_IMPLEMENTATION_MAPPING_REFUSED")
+    assert admission.snapshot() == before
+
+
+def test_final_freshness_check_observes_concurrent_branch_change(admission: Admission, monkeypatch: pytest.MonkeyPatch):
+    from specify_cli.coordination import owned_admission
+
+    original = owned_admission.dependency_binding
+    changed = False
+
+    def bind(*args):
+        nonlocal changed
+        result = original(*args)
+        if not changed:
+            git(admission.slot, "switch", "-qc", "concurrent-code-owner")
+            changed = True
+        return result
+
+    monkeypatch.setattr(owned_admission, "dependency_binding", bind)
+    result = admission.invoke()
+    assert changed and result.exit_code == 1, result.output
+    data = json.loads(result.stdout)
+    assert data["admitted"] is False and data["proof_ready"] is False
+    assert data["code"] == "OWNED_IMPLEMENTATION_SLOT_REFUSED"
+    assert git(admission.slot, "branch", "--show-current") == "concurrent-code-owner"
+
+
+@pytest.mark.parametrize("fault", ["planning-drift", "blob-not-commit"])
+def test_requested_code_pin_preserves_original_planning(admission: Admission, fault: str):
+    if fault == "planning-drift":
+        (admission.slot / "kitty-specs" / SLUG / "plan.md").write_text("different plan")
+        admission.pin = commit(admission.slot)
+        code = "OWNED_IMPLEMENTATION_PLANNING_REFUSED"
+    else:
+        admission.pin = git(admission.slot, "rev-parse", "HEAD:WP02.txt")
+        code = "OWNED_IMPLEMENTATION_PIN_REFUSED"
+    before = admission.snapshot()
+    checked(admission, admission.invoke(), code)
     assert admission.snapshot() == before
