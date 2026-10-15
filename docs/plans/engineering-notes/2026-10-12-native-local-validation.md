@@ -724,3 +724,21 @@ Trace delivered WP01 extraction, selection, consumer equivalence, complete nativ
 ### Known Limitations
 
 This canvas repairs the current reasoning artifact; it cannot make the omitted preimplementation authoring step historical fact. Its R/O/N/S comparison and canonical approval still belong to the independent reviewer. No source behavior, threshold, task requirement, or later-package qualification changes. All earlier failed attempts, historical Python coverage concurrency limits, original 84965's missing acknowledgment, and custody/cleanup boundaries remain preserved. No WP02 work, self-approval, primary-checkout mutation, installed hook, platform result, publication, hosted retirement, or savings is claimed.
+
+## October 14, 2026 — WP02 Exact Staged Candidate And Reusable Evidence
+
+### User Experience Findings
+
+WP01 is canonically approved at `4ea3f47138c91f189af5c211fba5792a4d6861d4`, with its actual independent review and retrospective-canvas comparison preserved. The supported owned query identifies WP02, and the normal claim records `implementer-ivan` before any candidate implementation. Continue sequentially in this same checkout.
+
+Two actual paired staging controls fail against the explicitly selected historical direct-live validator command: staged failure with unstaged success exits zero, while staged success with unstaged failure exits seven. The command exists and runs on the shared fixture; both live/staged versions and untracked files, refs, index, hooks, and registered worktrees remain unchanged. This demonstrates the live-source hazard, not a claim that an absent native command performed identity validation. The native candidate boundary is still absent at this RED point; missing-source or command setup failures will not count as staged-identity proof. Raw original 61167 joins with exit one and observed group absence in `native-wp02-candidate-evidence-20261014`.
+
+### Engineering Decisions
+
+Root authorizes the four declared WP02 candidate/receipt source and test paths. Continue this existing log as the independently owned mission record required by the plan and standing workflow; that is the concise out-of-map justification, not a new documentation surface or source-ownership expansion. Preserve the approved REASONS scope, task requirements, admitted lane membership, and all unrelated work.
+
+First deliver genuine RED controls, then materialize staged blobs and modes with byte-safe Git plumbing into one private, unregistered candidate context. Keep live index/object/ref/hook state protected; retain actual repository, common directory, index, tree, parent, and base identities. Reject gitlinks, unsafe paths/links, and unqualified inputs visibly. Follow with complete per-check input/import bindings, positive actual reuse versus fresh execution, paired drift invalidation, and a real fixture Git acceptance boundary. A prior global receipt cannot qualify a new candidate; unproved closure executes fresh. General execution supervision, installed hook integration, and platform/publication retirement remain later packages.
+
+### Known Limitations
+
+This is initial paired RED, not candidate materialization, receipt integrity, reuse, or WP02 completion. Reuse qualified WP01 proof only on unchanged relevant identities. New native sources need complete current statement inventories, supported-grammar transformation, and actual native observations at the required threshold without exclusions. Keep unsupported semantics and external acceptance-race limits explicit, preserve every failure, isolate coverage/run evidence, freeze source/docs before required final gates, and use normal guarded commits and one origin destination. No new framework, dependency, agent, branch, operational checkout, WP03 work, model, or Source/Store effect is introduced.
