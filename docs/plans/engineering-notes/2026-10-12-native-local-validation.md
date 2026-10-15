@@ -3,7 +3,7 @@ title: Native Local Validation
 description: Implementation decisions, usability findings, and qualification limits for the native local gate.
 doc_status: active
 audience: ../../context/audience/internal/ai-collaboration-agent.md
-updated: '2026-10-14'
+updated: '2026-10-15'
 ---
 
 # Native Local Validation
@@ -12,7 +12,7 @@ updated: '2026-10-14'
 
 Deliver unattended local validation of the exact staged candidate, with Zig 0.16 execution, preserved validators, and qualified hosted retirement. Owner: Samuel Goff. Mission: `native-local-validation-01M4S619`. Branch: `codex/native-local-validation`. Review base: `fix/owned-analysis-implementation`. Tracker: [issue 91](https://github.com/crucible-energy/spec-kitty/issues/91).
 
-The spec and canonical issue matrix are committed and pushed. Architecture and contracts are authored; implementation, independent acceptance, installed hook behavior, and retirement remain pending.
+Current: WP01 and WP02 are canonically approved. WP03 is claimed and in progress; its first Darwin execution increment is described below. General execution, real platform qualification, installed hook behavior, publication migration, and hosted retirement remain incomplete. Earlier sections retain their historical state and evidence.
 
 ## User Experience Findings
 
@@ -34,7 +34,7 @@ The spec and canonical issue matrix are committed and pushed. Architecture and c
 
 ## Known Limitations
 
-No native gate, installed hook, equivalence proof, Linux/Windows execution, release/publication migration, or hosted retirement is completed. The command matrix and numeric budgets still require extraction and execution evidence. Compatible-line delivery does not prove default-main integration or Temet adoption. Model quality, service deployment, and savings remain unmeasured.
+Current qualification is bounded by the approved WP01 selector and statement collector and WP02 staged-candidate and receipt identity. No complete native gate, installed hook, general executor, real Linux/Windows execution qualification, release/publication migration, or hosted retirement is completed. Compatible-line delivery does not prove default-main integration or Temet adoption. Model quality, service deployment, and savings remain unmeasured.
 
 ## Validation And Delivery
 
@@ -1022,3 +1022,107 @@ cleanup, sampled process/RSS quota refusal, and unrelated-child preservation
 provide corresponding successful discriminators. No missing-command, compile,
 or setup failure is counted as this RED. Raw build, diagnostic, kernel, terminal,
 and JUnit evidence remains in `native-wp03-execution-evidence-20261015`.
+
+
+## WP03 Darwin Streaming And Failed-Spawn Custody Increment
+
+### Scope And User Experience Findings
+
+Observed: the first delivered RED is `b01a0c3`; it precedes this adaptation.
+The source adapts the exact [committed foundation fixture](../../../tests/local_validation/fixtures/owned_process_group.zig)
+into [Darwin process ownership](../../../tools/zig/validation_process_darwin.zig),
+with [actual execution controls](../../../tests/local_validation/test_execution.py).
+The owner coordinates this existing engineering log as the mandatory narrow
+out-of-map documentation update; no new ownership or lifecycle state is implied.
+
+Raw files now receive bytes while the real child is still running. Independent
+bounded display excerpts cannot truncate execution diagnostics. A one-over-quota
+read retains the entire allowed prefix and then refuses. Identical descriptors,
+different descriptors for the same inode, linked files, nonempty files, and
+unusable sinks cannot silently merge or discard diagnostics. A failed write
+leaves retained-byte completeness unknown rather than claiming zero complete
+bytes. Caller-owned regular sinks and borrowed contexts must remain stable
+through the synchronous call; concurrent external mutation is not qualified.
+
+An actual failed executable launch exposed a separate custody defect in the
+installed Zig 0.16 Threaded spawn path: the error returned with a waitable child
+and two parent pipe descriptors retained outside the caller. The paired probe
+records the exact PID, terminal kernel observation, and descriptor difference;
+it recovers only that retained direct child and never sweeps `waitpid(-1)`.
+A missing command alone is not this proof. The SDK-spawn replacement passes the
+same probe without a harness reap or descriptor change. Transient SDK inventory
+entries that are already unwaitable must settle under bounded read-only
+observation; they grant no signal or reap authority. This finding does not
+establish the cause of any separate physical-owner incident. Temet correction
+belongs to its existing owner and is not performed by this increment.
+
+The exact environment test uses a native child. CPython/CoreFoundation startup
+can add a process-local environment entry and is an unsuitable exact native
+launch oracle. The untrusted harness validates environment keys before calling
+`std.process.Environ.Map.put`, whose typed contract asserts key validity. That
+harness refusal enters no product statement; an absent trace is permitted only
+for that exact pre-owner request and result boundary. Valid owner calls still
+require their complete sealed trace.
+
+### Engineering Decisions And Native Evidence
+
+Reuse remains pinned to Temet `7d99ede611abbbfbda4503471fa71b417a6ef177`,
+`tools/zig/owned_process_group.zig`, SHA-256
+`16dbf37d5d9199e61523e731cf931404e695d7a37fec463519951ba0a26fff8b`.
+The authorized plan/T010 supplies first-party reuse authority. That snapshot has
+no root LICENSE; no license or broader qualification is invented. The fixture
+remains exact. SDK-owned opaque spawn types avoid unrelated unsupported Mach
+header translations. All launch setup and allocation precede `posix_spawn`;
+every owned descriptor has failure cleanup. A successful returned PID is
+retained before postlaunch metadata cleanup can fail. No compiler or sibling
+source is edited.
+
+Value-producing conditionals were normalized into equivalent variables and
+guarded assignments only after the qualified collector explicitly refused the
+unsupported grammar. Preserve that source pin and refusal rather than remove
+units or change collector rules. The current source has 415 runtime statement
+entries, independently cross-checked against the installed compiler parser;
+all structural, declaration, compile-time, and expression roles remain visible.
+No condition, transfer, cleanup body, or measurement-tool statement is excluded.
+
+Generic instrumentation that performs diagnostic I/O from an asynchronous
+signal handler is refused as semantically unqualified, even when its run ends
+successfully. The derived observation seam records actual handler entry with
+one lock-free atomic presence store, then emits that observation from the caller
+after handler restoration. Retained assembly must show the added store without
+new allocation, I/O, or locking. A real signal must observe the callback; a
+synthetically pending cancellation must not invent it. Deferred signal-entry
+emission records presence, not chronological callback ordering. Raw failures,
+including an empty-source seal attempt and an external Python setup failure,
+remain separate from product RED and accepted measurement evidence.
+
+Thirty-five native private controls currently pass, including all ten test-only
+SDK setup/metadata fault modes, exact child and descriptor custody, allocation
+rollback, real handler restoration faults, cancellation, and prelaunch guards.
+The test-only interposer is restricted to its fixture PID and is never linked
+into a production image. Synthetic disposal faults first perform real metadata
+destruction, then alter its reported status. Ordinary and instrumented outcomes
+must still agree on the frozen source and assertions. Final denominator,
+observation, build/dependency closure, required gates, and delivery results are
+retained externally under `native-wp03-execution-evidence-20261015` so recording
+validation does not change the frozen candidate.
+
+### Known Limitations And Remaining Work
+
+This useful increment does not complete T009–T012 or WP03. Darwin explicitly
+reports original-process-group scope, sampled process/RSS usage, and
+`all_owned_children_terminal = false`. Changed-group and session escapes remain
+unqualified; group disposal alone can never authorize global cleanup or a
+passing general executor. Peak limits, race-free containment, and arbitrary
+external mutations are not claimed. SDK cwd actions require macOS 26 or later;
+the actual local host/SDK proof is macOS 27, not older-system qualification.
+
+Dependency-ordered general execution, qualified cleanup binding into receipts,
+Linux supervision, and Windows Job execution remain open. Root coordinates the
+existing Linux resource and stopped Windows VM only after exact artifacts and
+bounded controls are pinned. Inventory is not platform qualification. No fleet,
+VM, serving process, GPU, model, corpus, Source/Store, credential, or publication
+effect is part of this local increment. The historical Python coverage collision
+and original 84965's missing acknowledgment remain explicit; distinct run-owned
+coverage databases, retained temporary roots, and actual original joins are used
+for current evidence. No threshold, validator, or acceptance rule is waived.
