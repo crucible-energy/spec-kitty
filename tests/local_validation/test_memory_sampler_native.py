@@ -656,3 +656,227 @@ def test_actual_native_sampling_works_with_fork_and_exec_denied(ownership_probe:
     state = oracle.from_json((Path(value["destination"]) / "state.json").read_text())
     assert state is not None and state.samples == 3 and state.baseline_bytes == 8388608
     assert state.pid == json.loads((tmp_path / "invocation.json").read_bytes())["pid"]
+
+
+@pytest.mark.integration
+def test_existing_public_sampler_cross_builds_for_linux(tmp_path: Path) -> None:
+    """Build the actual public executable, keeping portability RED separate from runtime proof."""
+    build = tmp_path / "linux-source"
+    build.mkdir()
+    for source in NATIVE_SOURCES:
+        shutil.copyfile(source, build / source.name)
+    image = build / "executor"
+    compiler = shutil.which("zig") or "zig"
+    argv = [
+        compiler,
+        "build-exe",
+        "-j1",
+        "-OReleaseSafe",
+        "-target",
+        "aarch64-linux-musl",
+        "-static",
+        "-lc",
+        str(build / "validation_execution.zig"),
+        "-femit-bin=" + str(image),
+    ]
+    compiled = subprocess.run(argv, capture_output=True, timeout=180)
+    (build / "build.stdout.log").write_bytes(compiled.stdout)
+    (build / "build.stderr.log").write_bytes(compiled.stderr)
+    (build / "build-result.json").write_text(
+        json.dumps(
+            {
+                "argv": argv,
+                "joined": True,
+                "exact_exit_code": compiled.returncode,
+                "compiler_sha256": digest(Path(compiler).read_bytes()),
+                "sources": {source.name: digest(source.read_bytes()) for source in NATIVE_SOURCES},
+                "scope": "Actual public Linux cross-build; no Linux runtime outcome is inferred from compilation.",
+            }
+        )
+    )
+    assert compiled.returncode == 0, compiled.stderr.decode()
+    retain_native_build_metadata(image, [build / source.name for source in NATIVE_SOURCES], argv, compiled)
+
+
+LINUX_IMAGE = "sha256:6b13e377e404ac4a3e8f307f79fa0621893d931bbd73d6c3116bc4a1556e0b2c"
+
+
+def linux_public_call(image: Path, directory: Path) -> dict[str, Any]:
+    """Own exactly one bounded foreground container; never inspect its arguments or environment."""
+    import pwd
+
+    docker = shutil.which("docker")
+    assert docker is not None, "Linux runtime setup requires the existing Docker CLI; never install or pull"
+    # pytest isolates HOME. Use only the already-verified account-owned Desktop
+    # socket, without importing operator Docker config or changing that isolation.
+    socket = Path(pwd.getpwuid(os.getuid()).pw_dir) / ".docker/run/docker.sock"
+    assert socket.is_socket() and socket.stat().st_uid == os.getuid(), "Existing owned local Desktop socket is required"
+    config = directory / "empty-docker-config"
+    config.mkdir(mode=0o700)
+    prefix = [docker, "--config", str(config), "--host", "unix://" + str(socket)]
+    calls: list[dict[str, Any]] = []
+
+    def call(arguments: list[str], name: str) -> subprocess.CompletedProcess[bytes]:
+        argv = [*prefix, *arguments]
+        stdout, stderr = directory / (name + ".stdout.log"), directory / (name + ".stderr.log")
+        expired = False
+        with stdout.open("wb") as out, stderr.open("wb") as err:
+            child = subprocess.Popen(argv, env={"PATH": "/usr/bin:/bin"}, stdout=out, stderr=err)
+            try:
+                code = child.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                expired = True
+                child.kill()
+                code = child.wait(timeout=5)
+        calls.append({"argv": argv, "pid": child.pid, "joined": True, "exact_exit_code": code, "timed_out": expired})
+        (directory / "docker-invocations.json").write_text(json.dumps(calls))
+        assert not expired, "Original Docker invocation timed out; retain logs and dispose only the owned container"
+        assert stdout.stat().st_size <= 1024 * 1024 and stderr.stat().st_size <= 1024 * 1024
+        return subprocess.CompletedProcess(argv, code, stdout.read_bytes(), stderr.read_bytes())
+
+    executor = call(
+        ["info", "--format", '{"os":{{json .OSType}},"architecture":{{json .Architecture}},"version":{{json .ServerVersion}}}'],
+        "executor",
+    )
+    assert executor.returncode == 0 and json.loads(executor.stdout) == {"os": "linux", "architecture": "aarch64", "version": "29.8.0"}, (
+        "Only the reviewed existing Linux executor is admitted"
+    )
+    inspected = call(["image", "inspect", LINUX_IMAGE, "--format", "{{.Id}}"], "image")
+    assert inspected.returncode == 0 and inspected.stdout.decode().strip() == LINUX_IMAGE, "Pinned image must already exist; no pull"
+    inputs, output = directory / "input", directory / "output"
+    inputs.mkdir(mode=0o700)
+    output.mkdir(mode=0o700)
+    fixture = output / "fixture"
+    fixture.mkdir(mode=0o700)
+    proc = fixture / "proc"
+    proc.mkdir()
+    body = b"MemTotal: 16384 kB\nMemAvailable: 8192 kB\n"
+    (proc / "meminfo").write_bytes(body)
+    shutil.copyfile(image, inputs / "executor")
+    (inputs / "executor").chmod(0o500)
+    value = {
+        "schema_version": 1,
+        "destination": "/output/fixture/new-state",
+        "proc_root": "/output/fixture/proc",
+        "interval_ms": 0,
+        "max_samples": 3,
+        "wall_ms": 5000,
+    }
+    request_bytes = json.dumps(value).encode()
+    (inputs / "request.json").write_bytes(request_bytes)
+    owner = os.urandom(12).hex()
+    for path in [inputs, output]:
+        assert "," not in str(path), "The finite Docker bind fixture excludes commas"
+    created = call(
+        [
+            "create",
+            "--name",
+            "spec-kitty-linux-sampler-" + owner,
+            "--label",
+            "spec-kitty-native-owner=" + owner,
+            "--pull",
+            "never",
+            "--network",
+            "none",
+            "--read-only",
+            "--user",
+            f"{os.getuid()}:{os.getgid()}",
+            "--cap-drop",
+            "ALL",
+            "--security-opt",
+            "no-new-privileges=true",
+            "--pids-limit",
+            "64",
+            "--cpus",
+            "1",
+            "--memory",
+            "256m",
+            "--memory-swap",
+            "256m",
+            "--ulimit",
+            "nofile=128:128",
+            "--mount",
+            f"type=bind,src={inputs},dst=/input,readonly",
+            "--mount",
+            f"type=bind,src={output},dst=/output",
+            "--entrypoint",
+            "/input/executor",
+            LINUX_IMAGE,
+            "memory-sample",
+            "/input/request.json",
+        ],
+        "create",
+    )
+    assert created.returncode == 0, created.stderr
+    container = created.stdout.decode().strip()
+    assert len(container) == 64 and all(c in "0123456789abcdef" for c in container), "Unknown created handle must not be guessed"
+    template = (
+        '{"id":{{json .Id}},"image":{{json .Image}},"owner":{{json (index .Config.Labels "spec-kitty-native-owner")}},'
+        '"state":{{json .State}},"user":{{json .Config.User}},"network":{{json .HostConfig.NetworkMode}},'
+        '"readonly":{{json .HostConfig.ReadonlyRootfs}},"privileged":{{json .HostConfig.Privileged}},'
+        '"memory":{{json .HostConfig.Memory}},"swap":{{json .HostConfig.MemorySwap}},'
+        '"cpu":{{json .HostConfig.NanoCpus}},"pids":{{json .HostConfig.PidsLimit}},"mounts":{{json .Mounts}},'
+        '"cap_drop":{{json .HostConfig.CapDrop}},"security":{{json .HostConfig.SecurityOpt}},'
+        '"ulimits":{{json .HostConfig.Ulimits}},"pid_mode":{{json .HostConfig.PidMode}}}'
+    )
+
+    def metadata(name: str) -> dict[str, Any]:
+        result = call(["inspect", container, "--format", template], name)
+        assert result.returncode == 0, "Owned container identity is unknown; no guessed cleanup"
+        data: dict[str, Any] = json.loads(result.stdout)
+        assert data["id"] == container and data["owner"] == owner and data["image"] == LINUX_IMAGE
+        return data
+
+    terminal: dict[str, Any] = {}
+    cleanup_complete = False
+    try:
+        initial = metadata("created-state")
+        assert initial["user"] == f"{os.getuid()}:{os.getgid()}" and os.getuid() != 0
+        assert initial["network"] == "none" and initial["readonly"] and not initial["privileged"]
+        assert initial["memory"] == initial["swap"] == 256 * 1024 * 1024 and initial["cpu"] == 1000000000 and initial["pids"] == 64
+        assert initial["cap_drop"] == ["ALL"] and any(item in ["no-new-privileges", "no-new-privileges=true"] for item in initial["security"])
+        assert initial["pid_mode"] in ["", "private"] and initial["ulimits"] == [{"Name": "nofile", "Soft": 128, "Hard": 128}]
+        assert len(initial["mounts"]) == 2
+        assert {item["Destination"]: (item["Source"], item["RW"], item["Type"]) for item in initial["mounts"]} == {
+            "/input": (str(inputs), False, "bind"),
+            "/output": (str(output), True, "bind"),
+        }
+        started = call(["start", "--attach", container], "start")
+        terminal = metadata("terminal-state")
+        assert not terminal["state"]["Running"] and not terminal["state"]["OOMKilled"], "No completion inferred from attach exit"
+    finally:
+        current = metadata("cleanup-state")
+        if current["state"]["Running"]:
+            stopped = call(["stop", "--time", "2", container], "stop")
+            assert stopped.returncode == 0
+            current = metadata("stopped-state")
+        assert not current["state"]["Running"], "Unknown cleanup retains the owned container handle"
+        removed = call(["rm", container], "remove")
+        cleanup_complete = removed.returncode == 0 and removed.stdout.decode().strip() == container
+        (directory / "cleanup.json").write_text(json.dumps({"container": container, "owner": owner, "terminal": current, "removed": cleanup_complete}))
+        assert cleanup_complete, "Owned container removal failed; preserve the exact handle"
+    assert (proc / "meminfo").read_bytes() == body and (inputs / "request.json").read_bytes() == request_bytes
+    assert digest((inputs / "executor").read_bytes()) == digest(image.read_bytes())
+    result = {
+        "container": container,
+        "joined": True,
+        "native_exit_code": terminal["state"]["ExitCode"],
+        "docker_attach_exit_code": started.returncode,
+        "stdout": started.stdout.decode(),
+        "stderr": started.stderr.decode(),
+        "cleanup_complete": cleanup_complete,
+        "state_path": str(fixture / "new-state/state.json"),
+    }
+    (directory / "linux-public-result.json").write_text(json.dumps(result))
+    return result
+
+
+@pytest.mark.integration
+def test_actual_linux_foreground_public_entry_is_usable(sampler_binary: Path, tmp_path: Path) -> None:
+    if sampler_binary.read_bytes()[:4] != b"\x7fELF":
+        pytest.skip("Finite Linux runtime control requires an explicitly bound actual Linux cross-build")
+    result = linux_public_call(sampler_binary, tmp_path)
+    assert result["native_exit_code"] == 0 and result["stdout"] == result["stderr"] == "", result
+    state = oracle.from_json(Path(result["state_path"]).read_text())
+    assert state is not None and state.pid == 1 and state.samples == 3
+    assert state.source == "meminfo" and state.baseline_bytes == state.peak_bytes == 8388608

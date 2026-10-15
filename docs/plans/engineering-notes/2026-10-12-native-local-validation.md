@@ -1679,3 +1679,46 @@ The initial signal/lifecycle backend is Darwin. Linux execution, complete
 sampler custody, production qualification, gate adoption and WP03 completion
 remain open. The Python sampler, selection, original validators and budgets
 stay authoritative; prior proof and every observation miss remain retained.
+
+## October 15, 2026 — Finite Foreground Sampler Linux Qualification
+
+### User Experience Findings
+
+The finite foreground sampler is delivered at `48b78cc9`. Its explicit Darwin
+guard and shared signal type still leave actual Linux execution unqualified.
+An already-running local Docker Linux arm64 engine and an existing immutable
+Python image provide a bounded local CPU route without GX10 or Parallels.
+The unreviewed cgroup reader proposal is preserved and deferred: qualify this
+existing foreground dependency before adding another measurement operation.
+
+### Engineering Decisions
+
+Root accepted the frozen private `linux-sampler-component-r1/contract-r1.md`
+before RED or code execution. Cross-build the actual existing public executable
+with pinned Zig 0.16.0 for static arm64 musl. Preserve its actual compiler result
+before any portability repair; a source compile refusal is distinct from an
+executed platform refusal or a missing tool/runtime setup failure.
+
+The original static Linux cross-build passed. The real public runtime control
+then produced `PlatformUnsupported`, native exit 1, with empty stdout; its
+container reached terminal state and was removed. Preserve this discriminating
+RED before repair. An earlier attempt could not find Docker context metadata
+under pytest's isolated HOME and never created a container. That is retained as
+setup failure. The bounded controller now uses the verified account-owned local
+socket, empty private Docker config and an explicit minimal child environment;
+it neither copies operator configuration nor relaxes pytest isolation.
+
+Only the existing sampler guard and shared signal bridge may gain finite Linux
+support. Reuse target C-owned signal types and preserve the atomic-only handler.
+The existing child executor and CheckScope remain Darwin only. Actual controls
+use independently owned network-disabled, nonroot, resource-bounded containers
+from the already-present pinned image, exact private mounts and joined cleanup.
+Neither process arguments nor inherited environment values are inspected.
+
+### Known Limitations
+
+No Linux runtime proof is established by this initial RED boundary. Docker
+Desktop mount behavior, VM-wide proc memory and actual process/cgroup context
+must remain labeled separately. Cgroup reading, detached ownership, the complete
+architectural-fast recipe, GX10 execution, production qualification, gate adoption
+and WP03 completion remain open. No original validator or budget is relaxed.
