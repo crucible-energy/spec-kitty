@@ -1940,3 +1940,41 @@ value-preserving labeled blocks, with complete compiler positions and no new
 trace or decoder framework. Preserve the original refusal. That method needs
 separate value/error/branch and decoder qualification against the corrected
 source before product observations or final delivery gates receive credit.
+
+### Corrective Source Boundary
+
+The repaired scope uses fixed storage and registers the acquired request before
+signal acquisition. A failed acquisition runs the same final disposition. If
+partial signal installation itself reports failed restoration, custody is still
+inspected and restoration retains highest refusal priority. A single initial
+self observation now governs dispatch, directory-open identity comparison and
+final continuity; a later observation cannot replace that baseline.
+
+The first corrective build caught a Zig optional error-union coercion mismatch.
+That actual compiler/setup failure is retained separately from product refusal.
+The repaired original four controls then passed. Before the final corrective
+freeze, the signal-acquisition catch was made explicit about restoration priority;
+the exact final control/build receipts remain external. Rare allocation, signal
+installation/restoration and syscall failures are not inferred covered from the
+busy-owner or namespace controls.
+
+### Additional Cgroup Contract Controls
+
+Review selected explicit gaps in the unchanged public reader contract: a
+four-member object missing a required key, numeric conversion ranges, total
+normalized path length before traversal, regular-file roots and self entries,
+observed-name disappearance, a private fake proc alias, and real SIGTERM with
+restoration of a previously installed handler. The Linux controls use fixed
+private images and actual namespace or signal effects. Their syscall forwarding
+requires its own real-kernel baseline; no metadata or error result is fabricated.
+
+A private counter permission control distinguishes actual metadata availability
+from a denied data open. It accepts unavailable output only for the observed
+readable metadata case; unknown metadata must still refuse. It retains the
+original bytes and actual permission state, with bounded owned container cleanup.
+These tests do not introduce production options or grant backend qualification.
+
+Keep the original observation sets and every remaining native statement miss.
+The changed-statement threshold is a separate gate; no coverage exception or
+unobserved syscall, capacity, platform or restoration branch is inferred from
+neighboring successful checks. Final results belong in external frozen receipts.

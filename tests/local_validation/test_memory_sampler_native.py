@@ -1947,3 +1947,193 @@ def test_actual_linux_cgroup_retains_first_observation_and_finalizes_setup(cgrou
         assert witness["first_self_inode"] != 0 and (tmp_path / "output/fixture/proc/retained-self/cgroup").read_bytes() == b"0::/battery\n"
     assert result["native_exit_code"] == 0 and result["stderr"] == "" and result["cleanup_complete"], result
     assert result["stdout"] == "actual-cgroup-custody-refusal;signal-owner-released\n"
+
+
+def cgroup_contract_probe_source(control: str, original: str) -> str:
+    assert control in {"removed", "fake-self", "sigterm", "denied-counter"}
+    source = original
+
+    def swap(old: str, new: str) -> None:
+        nonlocal source
+        assert source.count(old) == 1, old
+        source = source.replace(old, new, 1)
+
+    swap('@cInclude("sys/stat.h");', '@cInclude("sys/stat.h"); @cInclude("signal.h");')
+    swap(
+        'var mode: []const u8 = "";',
+        """var mode: []const u8 = "";
+var signals_sent: u32 = 0;
+var denied_metadata_errno: u32 = 0;
+var denied_open_errno: u32 = 0;
+var prior_hits = std.atomic.Value(u32).init(0);
+fn prior(_: c_int) callconv(.c) void { _ = prior_hits.fetchAdd(1, .monotonic); }""",
+    )
+    swap(
+        "    if (armed and changed == 0) {",
+        """    if (armed and changed == 0) {
+        if (std.mem.eql(u8, mode, "sigterm") and signals_sent == 0 and std.mem.eql(u8, text, "self") and code == .SUCCESS) {
+            signals_sent += 1;
+            failed(c.raise(c.SIGTERM));
+        }""",
+    )
+    swap(
+        '(std.mem.eql(u8, mode, "cgroup-self-absent") or std.mem.eql(u8, mode, "cgroup-self-replaced")) and',
+        '(std.mem.eql(u8, mode, "cgroup-self-absent") or std.mem.eql(u8, mode, "cgroup-self-replaced") or std.mem.eql(u8, mode, "removed")) and',
+    )
+    swap(
+        '            failed(c.mkdirat(fd, "self", 0o755));',
+        '            if (!std.mem.eql(u8, mode, "removed")) failed(c.mkdirat(fd, "self", 0o755));',
+    )
+    swap("    mode = args[1];", '    mode = "' + control + '";')
+    swap(
+        """    try require(std.mem.eql(u8, mode, "cgroup-busy") or std.mem.eql(u8, mode, "cgroup-busy-drift") or std.mem.eql(u8, mode, "cgroup-self-absent")
+        or std.mem.eql(u8, mode, "cgroup-self-replaced"));""",
+        '    try require(std.mem.eql(u8, args[1], "memory-cgroup"));',
+    )
+    swap(
+        "    armed = true;",
+        """    var action = std.mem.zeroes(c.struct_sigaction);
+    action.__sa_handler.sa_handler = prior;
+    try require(c.sigemptyset(&action.sa_mask) == 0);
+    var previous_term: c.struct_sigaction = undefined;
+    try require(c.sigaction(c.SIGTERM, &action, &previous_term) == 0);
+    defer _ = c.sigaction(c.SIGTERM, &previous_term, null);
+    if (std.mem.eql(u8, mode, "fake-self")) {
+        failed(c.rename("/output/fixture/proc/self", "/output/fixture/proc/retained-self"));
+        failed(c.symlink("retained-self", "/output/fixture/proc/self"));
+        changed += 1;
+    }
+    if (std.mem.eql(u8, mode, "denied-counter")) {
+        const counter = "/output/fixture/sys-root/sys/fs/cgroup/battery/memory.peak";
+        failed(c.chmod(counter, 0));
+        changed += 1;
+        var observed = std.mem.zeroes(linux.Statx);
+        const wanted: linux.STATX = .{ .TYPE = true, .MODE = true, .NLINK = true, .UID = true, .INO = true, .SIZE = true, .MTIME = true, .CTIME = true };
+        denied_metadata_errno = @intFromEnum(linux.errno(linux.statx(linux.AT.FDCWD, counter, linux.AT.SYMLINK_NOFOLLOW, wanted, &observed)));
+        try require(denied_metadata_errno == 0 or denied_metadata_errno == @intFromEnum(linux.E.ACCES));
+        const data = c.open(counter, c.O_RDONLY | c.O_NONBLOCK | c.O_NOFOLLOW | c.O_CLOEXEC);
+        if (data >= 0) { _ = c.close(data); return error.CounterPermissionControlFailed; }
+        denied_open_errno = @intFromEnum(std.c.errno(@as(c_int, -1)));
+        try require(denied_open_errno == @intFromEnum(linux.E.ACCES));
+    }
+    try require(!setup_failed);
+    armed = true;""",
+    )
+    swap(
+        "    armed = false;",
+        """    armed = false;
+    try require(prior_hits.load(.monotonic) == 0);
+    try require(c.raise(c.SIGTERM) == 0);
+    try require(prior_hits.load(.monotonic) == 1);""",
+    )
+    swap(
+        "        .mode = mode, .operation_returned_status = status,",
+        """        .mode = mode, .operation_returned_status = status,
+        .signals_sent = signals_sent, .restored_prior_hits = prior_hits.load(.monotonic),
+        .denied_metadata_errno = denied_metadata_errno, .denied_open_errno = denied_open_errno,""",
+    )
+    swap(
+        '    try require(!setup_failed and changed == @as(u32, if (std.mem.eql(u8, mode, "cgroup-busy")) 0 else 1));',
+        """    try require(!setup_failed and changed == @as(u32, if (std.mem.eql(u8, mode, "sigterm")) 0 else 1));
+    try require(signals_sent == @as(u32, if (std.mem.eql(u8, mode, "sigterm")) 1 else 0));""",
+    )
+    swap(
+        """    const expected = if (std.mem.eql(u8, mode, "cgroup-busy")) "SignalBridgeBusy" else "SamplerInputDrift";
+    try require(refusal != null and std.mem.eql(u8, @errorName(refusal.?), expected));""",
+        """    if (std.mem.eql(u8, mode, "denied-counter") and denied_metadata_errno == 0) {
+        try require(refusal == null and status != null and status.? == 0);
+    } else {
+        const expected = """
+        'if (std.mem.eql(u8, mode, "sigterm")) "Cancelled" else '
+        'if (std.mem.eql(u8, mode, "fake-self")) "UnsafeSamplerDirectory" else '
+        'if (std.mem.eql(u8, mode, "denied-counter")) "SamplerPathObservationFailed" else "SamplerInputDrift"'
+        """;
+        try require(refusal != null and std.mem.eql(u8, @errorName(refusal.?), expected));
+    }""",
+    )
+    return source
+
+
+@pytest.mark.parametrize(
+    "control",
+    [
+        "missing-key",
+        "schema-range",
+        "wall-range",
+        "total-path",
+        "regular-root",
+        "regular-self",
+    ],
+)
+def test_native_cgroup_selected_contract_boundaries(sampler_binary: Path, tmp_path: Path, control: str) -> None:
+    path, value, counter = cgroup_request(tmp_path)
+    reason = "InvalidCgroupRequest"
+    if control == "missing-key":
+        del value["wall_ms"]
+        value["unexpected"] = 5000
+    elif control == "schema-range":
+        value["schema_version"] = 256
+    elif control == "wall-range":
+        value["wall_ms"] = -1
+    elif control == "total-path":
+        (Path(value["proc_root"]) / "self/cgroup").write_bytes(("0:://./" + "/./".join(["a" * 255] * 17) + "\n").encode())
+        reason = "UnsupportedCgroupPath"
+    elif control == "regular-root":
+        target = tmp_path / "regular-proc"
+        target.write_bytes(b"owned regular root\n")
+        value["proc_root"] = str(target)
+        reason = "UnsafeSamplerDirectory"
+    else:
+        target = Path(value["proc_root"]) / "self"
+        target.rename(target.with_name("retained-self"))
+        target.write_bytes(b"owned regular self\n")
+        reason = "UnsafeSamplerDirectory"
+    path.write_text(json.dumps(value))
+    result = invoke(sampler_binary, "memory-cgroup", path, tmp_path)
+    assert result.returncode == 1 and result.stdout == b"" and result.stderr == f"error: execution refused: {reason}\n".encode()
+    assert counter.read_bytes() == b"123\n"
+
+
+@pytest.fixture(scope="session")
+def selected_contract_probe() -> tuple[Path, str]:
+    supplied = os.environ.get("CGROUP_CONTRACT_PROBE_BINDING")
+    if not supplied:
+        pytest.skip("Requires an explicitly bound fixed Linux contract helper")
+    binding = json.loads(Path(supplied).read_bytes())
+    for name, expected in binding["sources"].items():
+        assert digest((ROOT / name).read_bytes()) == expected
+    control = binding["control"]
+    source = cgroup_contract_probe_source(control, CGROUP_LIFECYCLE_PROBE)
+    assert digest(source.encode()) == binding["original_helper_sha256"]
+    image = Path(binding["image"])
+    assert digest(image.read_bytes()) == binding["image_sha256"]
+    return image, control
+
+
+@pytest.mark.integration
+def test_actual_linux_selected_cgroup_contract(selected_contract_probe: tuple[Path, str], tmp_path: Path) -> None:
+    image, control = selected_contract_probe
+    result = linux_public_call(image, tmp_path, probe_mode="cgroup")
+    witness = json.loads((tmp_path / "output/fixture/cgroup-lifecycle.json").read_bytes())
+    assert result["joined"] and result["cleanup_complete"] and result["native_exit_code"] == 0 and result["stderr"] == ""
+    assert witness["mode"] == control and witness["actual_native_pid"] == result["actual_native_pid"] == 1 and not witness["setup_failed"]
+    assert witness["restored_prior_hits"] == 1 and witness["signals_sent"] == (1 if control == "sigterm" else 0)
+    assert witness["mutations"] == (0 if control == "sigterm" else 1)
+    if control == "removed":
+        expected = "SamplerInputDrift"
+        assert witness["first_self_inode"] > 0 and not (tmp_path / "output/fixture/proc/self").exists()
+        assert (tmp_path / "output/fixture/proc/retained-self/cgroup").read_bytes() == b"0::/battery\n"
+    elif control == "fake-self":
+        expected = "UnsafeSamplerDirectory"
+        assert (tmp_path / "output/fixture/proc/self").is_symlink()
+        assert os.readlink(tmp_path / "output/fixture/proc/self") == "retained-self"
+    elif control == "sigterm":
+        expected = "Cancelled"
+    else:
+        assert witness["denied_open_errno"] == 13 and witness["denied_metadata_errno"] in [0, 13]
+        expected = "SamplerPathObservationFailed" if witness["denied_metadata_errno"] == 13 else "none"
+        assert (tmp_path / "output/fixture/sys-root/sys/fs/cgroup/battery/memory.peak").lstat().st_mode & 0o777 == 0
+    assert witness["operation_error"] == expected
+    assert witness["operation_returned_status"] == (0 if expected == "none" else None)
+    prefix = '{"schema_version":1,"source":"unavailable","peak_bytes":null}\n' if expected == "none" else ""
+    assert result["stdout"] == prefix + "actual-cgroup-custody-refusal;signal-owner-released\n"
