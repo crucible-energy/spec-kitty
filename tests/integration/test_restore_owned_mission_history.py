@@ -188,6 +188,33 @@ def test_default_preview_restores_real_history_without_effects(checkouts: Checko
 
 
 @pytest.mark.skipif(os.name != "posix", reason="Apply requires POSIX fd-relative no-follow IO")
+def test_mixed_offsets_preserve_causal_order_and_original_values(checkouts: Checkouts):
+    """Equivalent aware timestamps must not reorder a claim before its planning."""
+    def change(directory: Path):
+        log = directory / "status.events.jsonl"
+        rows = [json.loads(line) for line in log.read_text().splitlines()]
+        claimed = next(row for row in rows if row.get("wp_id") == "WP01" and row.get("to_lane") == "claimed")
+        claimed["at"] = "2026-09-08T15:00:02-05:00"
+        log.write_text(encode(rows))
+
+    source = checkouts.amend_source(change)
+    expected = [json.loads(line) for line in git(
+        checkouts.owned, "show", f"{source}:kitty-specs/{SLUG}/status.events.jsonl"
+    ).splitlines()]
+    protected = tree(checkouts.primary), tree(checkouts.sibling)
+    before = tree(checkouts.owned)
+    preview = checkouts.invoke(sources=[checkouts.target, source])
+    assert preview.exit_code == 0, preview.output
+    assert json.loads(preview.stdout)["lanes"] == {"WP01": "approved", "WP02": "in_review", "WP03": "planned"}
+    assert tree(checkouts.owned) == before
+    applied = checkouts.invoke("--apply", sources=[checkouts.target, source])
+    assert applied.exit_code == 0, applied.output
+    restored = [json.loads(line) for line in (checkouts.directory / "status.events.jsonl").read_text().splitlines()]
+    assert restored == expected
+    assert (tree(checkouts.primary), tree(checkouts.sibling)) == protected
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Apply requires POSIX fd-relative no-follow IO")
 def test_apply_preserves_records_and_is_idempotent(checkouts: Checkouts):
     primary, sibling = tree(checkouts.primary), tree(checkouts.sibling)
     lanes = (checkouts.directory / "lanes.json").read_bytes()
