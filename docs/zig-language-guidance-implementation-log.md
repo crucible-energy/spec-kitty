@@ -13,6 +13,9 @@
   charter, and agent guide.
 - Keep the current Python CLI and PyPI release as a retained reference. Permit
   bounded Python repairs until a reviewed Zig replacement proves parity.
+- Align the charter's interview answer and approval count with Sam's
+  self-review rule; independent review remains optional, while validation and
+  no-regression evidence remain required.
 
 ## Known Limitations
 

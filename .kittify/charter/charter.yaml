@@ -7,7 +7,7 @@ governance:
     type_checking: mypy --strict
   quality:
     linting: ''
-    pr_approvals: 1
+    pr_approvals: 0
     pre_commit_hooks: false
   commits: {}
   performance:

@@ -35,8 +35,10 @@ answers:
     documentation updated. Sonar: complexity ceiling 15; no empty exception
     handlers; repeated non-trivial literals become constants.
   review_policy: >
-    1 approval required. CI checks must pass. Pre-commit hooks must pass.
-    All changes land via pull request — no direct pushes to main.
+    0 approvals required. Self-review is acceptable when the change works as
+    advertised, relevant checks pass, and no regression is introduced.
+    Independent review is optional. Pre-commit hooks must pass. All changes
+    land via pull request — no direct pushes to main.
   performance_targets: >
     CLI operations < 2 seconds for typical projects. Dashboard supports
     100+ work packages without lag. No unnecessary git clones/checkouts.

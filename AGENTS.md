@@ -91,6 +91,8 @@ src/doctrine/missions/mission-steps/{mission_type}/{step_id}/prompt.md  (SOURCE)
 
 - Open a **full, non-draft** pull request only for a coherent, locally validated
   slice that is ready to merge when its required remote checks pass.
+- Self-review is acceptable when the change works as advertised, relevant
+  checks pass, and no regression is introduced. Independent review is optional.
 - Do not open a pull request merely because a change exists, a reviewer might
   prefer a smaller diff, or a remote runner is convenient.
 - Optimize for automated proof and regression coverage. A pull request never
