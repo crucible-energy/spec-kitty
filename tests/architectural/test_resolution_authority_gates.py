@@ -152,7 +152,11 @@ CANONICALIZER_FLOOR = 44
 # census: 2 -> 4. Floor raised 2 -> 4 to the honest re-measured count (the two
 # new sites were UNSEEN before, not un-routed — this is a visibility fix, not a
 # regression to route away).
-COORD_AUTHORITY_WRITE_FLOOR = 4
+# 2026-10-15 / #106: main already replaced the agent_tasks_ports kind-blind
+# resolver with resolve_status_surface. The exact live census is now 3; only
+# recovery.py remains among the two historical WP11 sites. The non-vacuity
+# test below still proves that losing this remaining site makes the gate red.
+COORD_AUTHORITY_WRITE_FLOOR = 3
 
 # tasks-py-degod WP09 — coord-authority write-floor margin gate (anti-masking).
 # The floor must track the honest live write census: setting it materially BELOW
@@ -1728,17 +1732,13 @@ def test_coord_authority_gate_floor() -> None:
 def test_coord_authority_floor_non_vacuous_against_reverted_by_design_write() -> None:
     """NFR-002 non-vacuity: un-classifying a WP11 by-design write REDS the floor.
 
-    WP11 widened ``_COORD_WRITE_BY_DESIGN`` to surface two previously-unseen
-    coord-owned write helpers (``agent_tasks_ports.py:feature_write_dir``,
-    ``lanes/recovery.py:reconcile_status``) that the write-vs-read predicate had
-    silently classified as reads. ``COORD_AUTHORITY_WRITE_FLOOR`` was raised
-    2 -> 4 to match. This test proves that raise has teeth: it is NOT pinned so
-    high that a plausible future regression — someone reverting either site's
-    by-design classification back to an unflagged READ outside the seam (the
-    exact blind spot this WP fixed) — would silently pass CI. Using ONLY the
-    real live scan (no source mutation, no allowlist mutation), it simulates
-    that regression by re-excluding the two WP11 sites from the write set and
-    asserts the resulting count drops below the pinned floor — i.e. the primary
+    WP11 surfaced two previously unseen helpers. Main subsequently migrated
+    ``agent_tasks_ports.py:feature_write_dir`` to the canonical status resolver;
+    ``lanes/recovery.py:reconcile_status`` remains a by-design kind-blind write.
+    The honest current census/floor is three. Using ONLY the real live scan
+    (no source mutation, no allowlist mutation), this test simulates reverting
+    the remaining helper's classification to an unflagged READ and asserts
+    that the resulting count drops below the pinned floor — i.e. the primary
     ``>= COORD_AUTHORITY_WRITE_FLOOR`` assertion in ``test_coord_authority_gate_floor``
     would fire RED for this exact regression shape, not stay vacuously green.
     """
@@ -1746,15 +1746,14 @@ def test_coord_authority_floor_non_vacuous_against_reverted_by_design_write() ->
     wp11_surfaced_sites = frozenset(
         {"src/specify_cli/agent_tasks_ports.py", "src/specify_cli/lanes/recovery.py"}
     )
-    # Sanity: the two WP11 sites are actually present and write-classified today
-    # — otherwise this "regression" simulation would be vacuous (subtracting
-    # nothing).
+    # The status-router site was migrated on main; exactly the recovery site
+    # remains. Require its presence so the simulation subtracts a real write.
     live_wp11_writes = [
         s for s in live_sites if s.is_write and s.rel_path in wp11_surfaced_sites
     ]
-    assert len(live_wp11_writes) == 2, (
-        "sanity check failed: expected exactly the 2 WP11-surfaced by-design "
-        f"writes live-classified as WRITE, got {len(live_wp11_writes)} "
+    assert len(live_wp11_writes) == 1, (
+        "sanity check failed: expected exactly the remaining WP11 by-design "
+        f"write live-classified as WRITE, got {len(live_wp11_writes)} "
         f"({[s.rel_path for s in live_wp11_writes]}) — the simulation below "
         "would be vacuous"
     )
@@ -1762,7 +1761,7 @@ def test_coord_authority_floor_non_vacuous_against_reverted_by_design_write() ->
         s for s in live_sites if s.is_write and s.rel_path not in wp11_surfaced_sites
     ]
     assert len(regressed_writes) < COORD_AUTHORITY_WRITE_FLOOR, (
-        f"non-vacuity broken: reverting the 2 WP11 by-design sites to unseen "
+        f"non-vacuity broken: reverting the remaining WP11 by-design site to an unseen "
         f"reads leaves {len(regressed_writes)} write-classified sites, which "
         f"must be < COORD_AUTHORITY_WRITE_FLOOR ({COORD_AUTHORITY_WRITE_FLOOR}) "
         "for the floor test to catch this regression shape. If this fails, the "

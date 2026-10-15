@@ -99,7 +99,8 @@ def _row_identity(row: dict[str, Any], meta: dict[str, Any]) -> None:
         raise HistoryRestoreError("Mission aggregate identity does not match the dossier")
 
 
-def _timestamp(row: dict[str, Any]) -> str:
+def _timestamp(row: dict[str, Any]) -> datetime:
+    """Compare aware instants without rewriting the retained timestamp text."""
     when = row.get("at") or row.get("timestamp")
     if not isinstance(when, str):
         raise HistoryRestoreError("Event requires a timestamp")
@@ -109,7 +110,7 @@ def _timestamp(row: dict[str, Any]) -> str:
         raise HistoryRestoreError("Invalid event timestamp") from exc
     if parsed.tzinfo is None:
         raise HistoryRestoreError("Event timestamp requires a timezone")
-    return when
+    return parsed
 
 
 def _rows(raw: bytes, meta: dict[str, Any]) -> list[dict[str, Any]]:

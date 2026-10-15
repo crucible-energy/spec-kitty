@@ -20,7 +20,7 @@
 # header comment below for the routing detail). SHRINK-ONLY: baseline must
 # never rise back above the honest live entry count.
 canonicalizer_baseline: 3
-coord_authority_baseline: 4
+coord_authority_baseline: 3
 
 canonicalizer:
 - qualname: _canonicalize_bare_modern_handle
@@ -74,20 +74,20 @@ coord_authority:
   # legitimate write sites surfaced, not routed), raising honest write count
   # 2 -> 4 and allowlist baseline 2 -> 4.
 - qualname: _mission_dir
-  line: 71
+  line: 72
   rationale: "legitimate coord-owned write that bypasses commit_for_mission by design - coord status authority is at the caller level, not the commit level; PERMANENT fixture"
   file: src/specify_cli/decisions/emit.py
-  token: return resolve_feature_dir_for_mission ( repo_root , mission_slug )
+  # Same sanctioned write; token re-pinned from the live gate diagnostic after
+  # the type-only Path cast. No authority or allowance was added.
+  token: return cast ( Path , resolve_feature_dir_for_mission ( repo_root , mission_slug ) )
 - qualname: WidenPendingStore.__init__
   line: 63
   rationale: "legitimate coord-owned write that bypasses commit_for_mission by design - coord status authority is at the caller level, not the commit level; PERMANENT fixture"
   file: src/specify_cli/widen/state.py
   token: self . _path = resolve_feature_dir_for_mission ( repo_root , mission_slug ) /
-- qualname: RealCoordCommitRouter.feature_write_dir
-  line: 322
-  rationale: "WP11 FR-003 predicate-widen SANCTION: legitimate coord-owned write helper that RETURNS the resolved dir to callers which then commit_artifact/commit_status it (same by-design shape as decisions/emit.py) - the caller-level write indicator is outside this scanner's function-granularity trace; PERMANENT fixture, never remove"
-  file: src/specify_cli/agent_tasks_ports.py
-  token: "write_dir : Path = resolve_feature_dir_for_mission ("
+# Main 0d61e9415 already routes RealCoordCommitRouter.feature_write_dir through
+# resolve_status_surface. Its former kind-blind site is gone; evict the stale
+# allowance and shrink the cap (issue #106), rather than sanction another site.
 - qualname: reconcile_status
   line: 765
   rationale: "WP11 FR-003 predicate-widen SANCTION: legitimate coord-owned write helper - the resolved feature_dir feeds a STATUS-WRITE leg (emit_status_transition_transactional via TransitionRequest) that MUST stay coord-aware (C-001/#2155 analog per the KEEP-coord-aware comment at the call site); the write indicator lives in the callee, not this function body; PERMANENT fixture, never remove"
