@@ -1126,3 +1126,120 @@ effect is part of this local increment. The historical Python coverage collision
 and original 84965's missing acknowledgment remain explicit; distinct run-owned
 coverage databases, retained temporary roots, and actual original joins are used
 for current evidence. No threshold, validator, or acceptance rule is waived.
+
+## WP03 Windows Kernel Control Preparation
+
+Current: the Darwin increment is delivered at `9e553ec4`. WP03 remains in
+progress. The receipt consumer deliberately accepts only its existing exact,
+source-closed, no-process-creation Darwin qualification; its scope string or a
+caller Boolean cannot authorize arbitrary executor cleanup or reuse. Preserve
+that boundary while preparing the declared Windows Job backend and T011.
+
+The [platform control](../../../tests/local_validation/test_platforms.py)
+prepares a self-contained Windows ARM64 native image against an explicitly
+unqualified direct-child baseline. A real kernel witness must observe the
+finite descendant alive after leader return, preserve an unrelated retained
+process, and join both finite controls. It reads or waits on a matching
+creation-time identity; it never signals a PID read from child output. Closing
+only the leader's output-handle inheritance flags prevents a grandchild from
+accidentally extending the capture-pipe lifetime and concealing this boundary.
+
+Observed preparation refusal: translating unused fortified CRT string wrappers
+from the broad bundled `windows.h` fails in Zig 0.16. The control instead reuses
+`std.os.windows` SDK types and access masks with exact documented Win32 function
+declarations. No compiler edit or hardening change is made. The image uses the
+native Zig runtime without a new CRT dependency. Retain all preparation build
+results and source pins separately; compilation and a PE architecture/import
+inspection are not Windows execution qualification or genuine runtime RED.
+
+Root owns capacity, ownership, and actual execution in the existing stopped
+Windows VM. The handoff pins the exact image and source, argv, built-in DLL
+prerequisites, finite lifetimes, capture bounds, and actual RED discriminator.
+A loader/setup failure, an absent kernel observation, or a missing live
+descendant is not that RED. No VM, fleet, service, model, corpus, Source/Store,
+credential, or production Windows backend effect has occurred in preparation.
+Actual Windows RED precedes production implementation. Linux qualification
+continues to wait for Root's physical-resource release.
+
+
+## WP03 Candidate Consumer Custody Repair Authorization
+
+Sam has explicitly deferred Windows and prohibited further Parallels use on
+this Mac. Linux and macOS are the priority. The preceding Windows preparation
+is historical: no genuine Windows RED ran, and no Windows backend or platform
+qualification is claimed. Frozen source, image, setup refusals, and resource
+handoff remain preserved externally. Do not resume Windows investigation or
+VM, service, CLI, UI, or guest actions. This missing qualification does not
+block independently validated Linux/macOS increments.
+
+Root checked the current WP03 prompt, plan, log, and owner map. WP02 is
+canonically approved and closed, and no overlapping candidate editor is active.
+Root expressly coordinates one narrow ownership-map exception to
+[validation_candidate.zig](../../../tools/zig/validation_candidate.zig),
+with regression in the already owned
+[test_execution.py](../../../tests/local_validation/test_execution.py).
+The existing log remains the mandatory coordinated documentation surface.
+This is a T011 dependency-consumer repair, not a broader WP02 rewrite,
+receipt-policy extension, new module, or canonical approval event.
+
+Observed actual RED: the public `candidate.capture` API returns `FileNotFound`
+with a newly waitable direct child and two retained pipe descriptors. Original
+36456 joins with exit 1 and an absent original group. The unchanged kernel/FD
+witness obtains an exact `waitid` terminal observation and reaps only that child;
+it never sweeps or signals an unowned PID. No candidate directory is created,
+and repository status is unchanged. Retain that source, image, and raw result
+under `candidate-spawn-consumer2` beside the original failed-spawn diagnosis.
+A missing executable by itself is not this custody proof.
+
+The minimum repair uses a private SDK launch seam within the existing candidate
+module. Preserve Git file stdin, the existing 256 MiB stdout/file and 1 MiB stderr
+capture limits, public
+capture semantics, and the receipt consumer's existing two-source binding.
+Routing through the current Darwin `run` API would change stdin and output
+bounds. No receipt policy, compiler, Windows surface, or unrelated module is
+part of this exception. Actual paired custody, candidate and affected consumer
+regressions, complete native observation, frozen delivery gates, and independent
+fixed-candidate review remain required. Linux CPU-only qualification follows
+under Root's resource coordination; no serving process or model effect is
+selected.
+
+
+### Deviation: Corrected Candidate Capture Limit Description
+
+The initial repair discussion described the existing candidate capture limit as
+64 MiB. That description was mine and was incorrect; Root initially adopted it.
+The pinned `9e553ec4` source actually defines 256 MiB for stdout/file capture and
+1 MiB for stderr. Root confirmed that source supersedes the mistaken statement.
+Preserve those constants unchanged. This correction neither lowers a bound nor
+rewrites the historical authorization or already delivered evidence.
+
+### October 15, 2026 – Root Resumes The Candidate Custody Regression
+
+Root resumed the interrupted lane after the collaboration registry showed no
+live child owner. The exact pre-existing candidate patch, source, and Windows
+preparation were checkpointed privately before edits. No discarded work or
+Windows execution is part of this recovery.
+
+The persistent public-consumer test reuses the existing kernel/descriptor
+witness and the unchanged pinned ownership foundation to warm the same
+`std.process.spawn` runtime before comparing descriptors. This prevents lazy
+runtime setup from being confused with a leaked pipe. The initial differently
+warmed run is retained as superseded setup evidence, not silently overwritten.
+
+With the exact retained `9e553ec4` candidate source, missing, denied, and
+invalid-format Git executables each produce genuine RED: the API refuses,
+one exact terminal direct child requires fixture recovery, and descriptors
+increase from four to six. The repository and nonexistent candidate destination
+remain unchanged. The same tests against the pre-existing SDK repair are GREEN,
+with no fixture reaping, no remaining children, and unchanged descriptors.
+This source/test evidence is retained under `candidate-custody-red-warmed-temp`
+and `candidate-custody-green-temp` in the existing private WP03 evidence root.
+
+The test is committed separately from implementation, preserving the required
+RED-before-implementation history. It does not approve the uncommitted repair.
+The candidate still explicitly refuses non-macOS execution; an actual Linux
+cross-build succeeds without changing that guard. No portability repair is
+needed, and no Linux runtime qualification follows. Full affected regressions,
+fresh native statement observation, required gates, fixed-candidate independent
+review, and implementation delivery remain required. Windows stays deferred;
+the original unqualified preparation remains protected.

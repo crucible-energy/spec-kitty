@@ -18,7 +18,8 @@ from typing import Any
 
 import pytest
 
-from tests.local_validation.test_candidate import ROOT, digest
+from tests.local_validation.test_candidate import ROOT, digest, snapshot
+from tests.local_validation.test_candidate import repository as repository
 
 SOURCE = ROOT / "tools/zig/validation_process_darwin.zig"
 FOUNDATION = ROOT / "tests/local_validation/fixtures/owned_process_group.zig"
@@ -1019,6 +1020,99 @@ def test_failed_spawn_retains_no_child_or_pipe_descriptors(spawn_closure_probe: 
     assert set(observed["unwaitable_kernel_inventory_pids"]) == {row["pid"] for row in observed["after_children"]}
     assert observed["recovery_terminal_observations"] == []
     assert observed["exact_terminal_children_reaped"] == [], "The adapter must join its own child, without test-harness recovery"
+    assert observed["before_fds"] == observed["after_fds"]
+    assert observed["assertion_passed"]
+
+
+def candidate_spawn_closure_source() -> str:
+    """Drive the public candidate API through the existing kernel/FD witness."""
+    replacements = (
+        (
+            'const owner = @import("validation_process_darwin.zig");',
+            'const owner = @import("validation_candidate.zig");\nconst warm_owner = @import("warm_owner.zig");',
+        ),
+        (
+            'const executable=if(args.len==2) args[1] else "/wp03/nonexistent/executable";',
+            "if(args.len!=4) return error.InvalidArguments;\n    const executable=args[1];",
+        ),
+        ("const warm=try owner.run(", "const warm=try warm_owner.run("),
+        (
+            "const result=owner.run(allocator,init.io,.{.argv=&.{executable},.environment=&environment});",
+            'const request_bytes=try owner.json(allocator,.{.schema_version=1,.repository=args[2],.base="HEAD",.destination=args[3],.git_executable=executable});\n'
+            "    const request=try owner.parse(allocator,request_bytes);\n"
+            "    const result=owner.capture(allocator,init.io,&environment,request.value);",
+        ),
+        (
+            "if(result) |success| success.deinit(allocator) else |err| {error_name=@errorName(err);}",
+            "if(result) |_| {} else |err| {error_name=@errorName(err);}",
+        ),
+    )
+    source = SPAWN_CLOSURE_PROBE
+    for original, replacement in replacements:
+        assert source.count(original) == 1, "The shared custody witness changed; review the actual API composition"
+        source = source.replace(original, replacement)
+    return source
+
+
+@pytest.fixture(scope="session")
+def candidate_spawn_closure_probe(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    if sys.platform != "darwin":
+        pytest.skip("Darwin candidate custody controls do not qualify another platform")
+    directory = tmp_path_factory.mktemp("candidate-spawn-closure")
+    # A retained baseline source can reproduce genuine RED without reverting
+    # an interrupted implementation or silently substituting its new source.
+    candidate = Path(os.environ.get("SPEC_KITTY_CANDIDATE_SPAWN_SOURCE", str(ROOT / "tools/zig/validation_candidate.zig")))
+    # The unchanged foundation warms std.process.spawn itself, including its
+    # lazy runtime descriptors, before the failed-spawn descriptor comparison.
+    assert digest(FOUNDATION.read_bytes()) == FOUNDATION_SHA
+    sources = [candidate, FOUNDATION]
+    for source in sources:
+        (directory / ("validation_candidate.zig" if source == candidate else "warm_owner.zig")).write_bytes(source.read_bytes())
+    probe = directory / "probe.zig"
+    probe.write_text(candidate_spawn_closure_source())
+    image = directory / "probe"
+    argv = [shutil.which("zig") or "zig", "build-exe", "-j1", "-OReleaseSafe", "-lc", str(probe), "-femit-bin=" + str(image)]
+    built = subprocess.run(argv, capture_output=True, timeout=120)
+    (directory / "build.stdout.log").write_bytes(built.stdout)
+    (directory / "build.stderr.log").write_bytes(built.stderr)
+    (directory / "build.json").write_bytes(
+        canonical(
+            {
+                "argv": argv,
+                "exit_code": built.returncode,
+                "sources": {str(source): digest(source.read_bytes()) for source in sources},
+                "harness_sha256": digest(probe.read_bytes()),
+                "image_sha256": digest(image.read_bytes()) if built.returncode == 0 else None,
+            }
+        )
+    )
+    assert built.returncode == 0, built.stderr
+    return image
+
+
+@pytest.mark.parametrize("failure", ["missing", "denied", "invalid-format"])
+def test_candidate_failed_git_spawn_retains_no_child_or_pipe_descriptors(
+    candidate_spawn_closure_probe: Path, repository: Path, tmp_path: Path, failure: str
+) -> None:
+    executable = tmp_path / "git executable"
+    if failure != "missing":
+        executable.write_bytes(b"invalid executable format\n")
+        executable.chmod(0o644 if failure == "denied" else 0o755)
+    destination = tmp_path / "never created candidate"
+    before = snapshot(repository)
+    result = subprocess.run([str(candidate_spawn_closure_probe), str(executable), str(repository), str(destination)], capture_output=True, timeout=12)
+    (tmp_path / "owner.stdout.log").write_bytes(result.stdout)
+    (tmp_path / "owner.stderr.log").write_bytes(result.stderr)
+    assert snapshot(repository) == before
+    assert not destination.exists()
+    assert result.returncode == 0, result.stderr + result.stdout
+    observed = json.loads(result.stdout)
+    assert observed["warm_exit"] == 0
+    assert observed["error_name"] == {"missing": "FileNotFound", "denied": "AccessDenied", "invalid-format": "InvalidExe"}[failure]
+    assert observed["before_children"] == observed["settled_children"] == []
+    assert set(observed["unwaitable_kernel_inventory_pids"]) == {row["pid"] for row in observed["after_children"]}
+    assert observed["recovery_terminal_observations"] == []
+    assert observed["exact_terminal_children_reaped"] == [], "Candidate capture must not require test-harness child recovery"
     assert observed["before_fds"] == observed["after_fds"]
     assert observed["assertion_passed"]
 
