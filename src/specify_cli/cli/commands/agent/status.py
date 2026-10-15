@@ -78,9 +78,7 @@ def _find_mission_slug(
         # C6 (WP05): the bare-modern-slug resolution is the ONE shared seam in
         # ``missions._read_path_resolver`` — the CLI consumes it rather than keeping
         # a byte-for-byte glob clone (NFR-004 single-definition).
-        if resolved_bare := resolve_bare_modern_mission_dir_name(
-            get_main_repo_root(repo_root), raw_handle
-        ):
+        if resolved_bare := resolve_bare_modern_mission_dir_name(get_main_repo_root(repo_root), raw_handle):
             return resolved_bare
         try:
             resolved = resolve_mission_handle(raw_handle, repo_root, json_mode=json_output)
@@ -232,7 +230,6 @@ def emit(
         str | None,
         typer.Option("--mission", help="Mission slug (required in multi-mission repos)"),
     ] = None,
-
     force: Annotated[bool, typer.Option("--force", help="Force transition bypassing guards")] = False,
     reason: Annotated[str | None, typer.Option("--reason", help="Reason for forced transition")] = None,
     evidence_json: Annotated[str | None, typer.Option("--evidence-json", help="JSON string with done evidence")] = None,
@@ -300,8 +297,7 @@ def emit(
                 example = '{"review": {"reviewer": "alice", "verdict": "approved", "reference": "PR#1"}}'
                 _output_error(
                     json_output,
-                    f"Invalid JSON in --evidence-json: {exc}\n"
-                    f"Expected valid JSON object, e.g.: '{example}'",
+                    f"Invalid JSON in --evidence-json: {exc}\nExpected valid JSON object, e.g.: '{example}'",
                 )
                 raise typer.Exit(1)
 
@@ -312,22 +308,24 @@ def emit(
         # FR-004: the MissionStatus aggregate is the sole write entry point.
         # ms.transition() validates and delegates to the transactional path,
         # so this is behavior-preserving relative to the prior direct call.
-        event = ms.transition(TransitionRequest(
-            feature_dir=feature_dir,
-            mission_slug=mission_slug,
-            wp_id=wp_id,
-            to_lane=to,
-            actor=actor,
-            force=force,
-            reason=reason,
-            evidence=evidence,
-            review_ref=review_ref,
-            workspace_context=workspace_context,
-            subtasks_complete=subtasks_complete,
-            implementation_evidence_present=implementation_evidence_present,
-            execution_mode=execution_mode,
-            repo_root=main_repo_root,
-        ))
+        event = ms.transition(
+            TransitionRequest(
+                feature_dir=feature_dir,
+                mission_slug=mission_slug,
+                wp_id=wp_id,
+                to_lane=to,
+                actor=actor,
+                force=force,
+                reason=reason,
+                evidence=evidence,
+                review_ref=review_ref,
+                workspace_context=workspace_context,
+                subtasks_complete=subtasks_complete,
+                implementation_evidence_present=implementation_evidence_present,
+                execution_mode=execution_mode,
+                repo_root=main_repo_root,
+            )
+        )
 
         # ``transition()`` can materialize the coordination worktree and write
         # there even when the initial aggregate read from primary during the
@@ -335,10 +333,14 @@ def emit(
         # event log affected by this command.
         output_feature_dir = feature_dir
         try:
-            output_feature_dir = type(ms).load(
-                repo_root=main_repo_root,
-                mission_slug=mission_slug,
-            ).read_dir
+            output_feature_dir = (
+                type(ms)
+                .load(
+                    repo_root=main_repo_root,
+                    mission_slug=mission_slug,
+                )
+                .read_dir
+            )
         except Exception as reload_exc:  # noqa: BLE001
             logger.debug(
                 "Could not reload mission status after transition for %s: %s",
@@ -360,9 +362,7 @@ def emit(
         _output_result(
             json_output,
             result,
-            f"[green]OK[/green] {event.wp_id}: "
-            f"{event.from_lane} -> {event.to_lane} "
-            f"(event: {event.event_id[:12]}...)",
+            f"[green]OK[/green] {event.wp_id}: {event.from_lane} -> {event.to_lane} (event: {event.event_id[:12]}...)",
         )
 
     except typer.Exit:
@@ -371,6 +371,7 @@ def emit(
         # Check if it's a TransitionError (imported lazily above)
         try:
             from specify_cli.status import TransitionError
+
             if isinstance(exc, TransitionError):
                 _output_error(json_output, str(exc))
                 raise typer.Exit(1)
@@ -384,8 +385,10 @@ def emit(
 @app.command()
 def materialize(
     mission: Annotated[str | None, typer.Option("--mission", help="Mission slug (required in multi-mission repos)")] = None,
-
     json_output: Annotated[bool, typer.Option("--json", help="Machine-readable JSON output")] = False,
+    owned_checkout: Annotated[Path | None, typer.Option("--owned-checkout", help="Explicit coordinated authority; default is projection preview.")] = None,
+    apply: Annotated[bool, typer.Option("--apply", help="Write the verified owned projection; event log stays unchanged.")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Owned projection preview.")] = False,
 ) -> None:
     """Rebuild status.json from the canonical event log.
 
@@ -398,6 +401,28 @@ def materialize(
         spec-kitty agent status materialize --mission 034-my-feature
         spec-kitty agent status materialize --json
     """
+    if owned_checkout is not None:
+        from specify_cli.coordination.owned import OwnedCoordinationError
+        from specify_cli.coordination.owned_status import refresh_owned_projection
+
+        try:
+            if mission is None:
+                raise ValueError("Owned materialization requires --mission")
+            if apply and dry_run:
+                raise ValueError("--apply and --dry-run are mutually exclusive; omit both for preview")
+            repository = locate_project_root()
+            if repository is None:
+                raise ValueError("Could not locate the invoking repository")
+            report = refresh_owned_projection(repository, owned_checkout, mission, apply=apply)
+        except (ValueError, RuntimeError, OSError) as exc:
+            data = exc.to_dict() if isinstance(exc, OwnedCoordinationError) else {"code": "OWNED_COORD_VALIDATION_REFUSED", "error": str(exc), "applied": False}
+            _output_error(json_output, str(exc), data)
+            raise typer.Exit(1) from exc
+        _output_result(json_output, report, "Owned projection refreshed / previewed")
+        return
+    if apply or dry_run:
+        _output_error(json_output, "--apply/--dry-run require explicit --owned-checkout")
+        raise typer.Exit(1)
     try:
         # Resolve repo root
         cwd = Path.cwd().resolve()
@@ -441,10 +466,7 @@ def materialize(
             wp_count = len(snapshot.work_packages)
             event_count = snapshot.event_count
 
-            console.print(
-                f"[green]Materialized[/green] {mission_slug}: "
-                f"{event_count} events -> {wp_count} WPs"
-            )
+            console.print(f"[green]Materialized[/green] {mission_slug}: {event_count} events -> {wp_count} WPs")
 
             # Lane distribution
             lane_parts = []
@@ -466,18 +488,115 @@ def materialize(
 # ---------------------------------------------------------------------------
 
 
+@app.command(name="review-owned")
+def review_owned(
+    mission: Annotated[str, typer.Option("--mission", help="Existing coordinated mission.")],
+    owned_checkout: Annotated[Path, typer.Option("--owned-checkout", help="Registered checkout on its declared coordination ref.")],
+    wp_id: Annotated[str, typer.Option("--wp-id", help="Existing in_review work package.")],
+    reviewer: Annotated[str, typer.Option("--reviewer", help="Actual independent reviewer identity; never inferred.")],
+    verdict: Annotated[str, typer.Option("--verdict", help="Actual approved or changes_requested disposition.")],
+    reference: Annotated[str, typer.Option("--reference", help="Actual independent review evidence reference.")],
+    reviewed_commit: Annotated[str, typer.Option("--reviewed-commit", help="Immutable code commit carrying the matching dossier.")],
+    apply: Annotated[bool, typer.Option("--apply", help="Record the real verdict; operator must commit/push owned event outputs.")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Machine-readable disposition report.")] = False,
+) -> None:
+    """Preview or record a real peer review on the same validated owned authority."""
+    from specify_cli.coordination.owned import OwnedCoordinationError
+    from specify_cli.coordination.owned_status import OwnedReviewRequest, record_owned_review
+
+    try:
+        repository = locate_project_root()
+        if repository is None:
+            raise ValueError("Could not locate the invoking repository")
+        request = OwnedReviewRequest(wp_id, reviewer, verdict, reference, reviewed_commit)
+        report = record_owned_review(repository, owned_checkout, mission, request, apply=apply)
+    except (ValueError, RuntimeError, OSError) as exc:
+        data = exc.to_dict() if isinstance(exc, OwnedCoordinationError) else {"code": "OWNED_COORD_VALIDATION_REFUSED", "error": str(exc), "applied": False}
+        _output_error(json_output, str(exc), data)
+        raise typer.Exit(1) from exc
+    _output_result(json_output, report, "Owned review disposition recorded / previewed")
+
+
+def _owned_handoff_command(
+    mission: str,
+    owned_checkout: Path,
+    wp_id: str,
+    implementer: str,
+    code_commit: str,
+    reference: str,
+    kind: str,
+    reviewer: str | None,
+    scope_proof: str | None,
+    code_checkout: Path | None,
+    apply: bool,
+    json_output: bool,
+) -> None:
+    """Render the explicit owned handoff result without default discovery or issuance."""
+    from specify_cli.coordination.owned import OwnedCoordinationError
+    from specify_cli.coordination.owned_handoff import OwnedHandoffRequest, record_owned_handoff
+
+    try:
+        repository = locate_project_root()
+        if repository is None:
+            raise ValueError("Could not locate the invoking repository")
+        request = OwnedHandoffRequest(kind, wp_id, implementer, code_commit, reference, reviewer, scope_proof)
+        report = record_owned_handoff(repository, owned_checkout, mission, request, apply=apply, code_checkout=code_checkout)
+    except (ValueError, RuntimeError, OSError, AttributeError) as exc:
+        # Canonical protection resolution can reject non-mapping repository
+        # config before gate-policy resolution. Keep that fail-closed refusal
+        # structured here; it never means an uncovered gate may be skipped.
+        data = exc.to_dict() if isinstance(exc, OwnedCoordinationError) else {"code": "OWNED_COORD_VALIDATION_REFUSED", "error": str(exc), "applied": False}
+        _output_error(json_output, str(exc), data)
+        raise typer.Exit(1) from exc
+    _output_result(json_output, report, "Owned review handoff recorded / previewed")
+
+
+@app.command(name="submit-owned-review")
+def submit_owned_review(
+    mission: Annotated[str, typer.Option("--mission", help="Existing coordinated mission.")],
+    owned_checkout: Annotated[Path, typer.Option("--owned-checkout", help="Registered checkout on declared coordination authority.")],
+    wp_id: Annotated[str, typer.Option("--wp-id", help="Existing in_progress work package.")],
+    implementer: Annotated[str, typer.Option("--implementer", help="Actual known implementation identity; historical bindings stay intact.")],
+    code_commit: Annotated[str, typer.Option("--code-commit", help="Immutable implemented code/dossier commit.")],
+    reference: Annotated[str, typer.Option("--reference", help="Public GitHub origin commit URL matching --code-commit.")],
+    scope_proof: Annotated[
+        str | None, typer.Option("--scope-proof", help="Tracked regular proof path at the code pin; integrity only, no invented gate verdict.")
+    ] = None,
+    code_checkout: Annotated[
+        Path | None, typer.Option("--code-checkout", help="Existing registered clean checkout at code pin when active gates require it.")
+    ] = None,
+    apply: Annotated[bool, typer.Option("--apply", help="Run configured gates and submit; default is read-only preview.")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Structured handoff/gate evidence report.")] = False,
+) -> None:
+    """Preview or submit in_progress -> for_review using canonical FSM/gates, never force."""
+    _owned_handoff_command(mission, owned_checkout, wp_id, implementer, code_commit, reference, "submit", None, scope_proof, code_checkout, apply, json_output)
+
+
+@app.command(name="claim-owned-review")
+def claim_owned_review(
+    mission: Annotated[str, typer.Option("--mission", help="Existing coordinated mission.")],
+    owned_checkout: Annotated[Path, typer.Option("--owned-checkout", help="Registered coordination authority.")],
+    wp_id: Annotated[str, typer.Option("--wp-id", help="Existing for_review work package.")],
+    implementer: Annotated[str, typer.Option("--implementer", help="Actual implementer matching the submitted review.")],
+    reviewer: Annotated[str, typer.Option("--reviewer", help="Actual independent reviewer; implementer self-claim refused.")],
+    code_commit: Annotated[str, typer.Option("--code-commit", help="Immutable code pin matching submission.")],
+    reference: Annotated[str, typer.Option("--reference", help="Public GitHub origin commit URL matching --code-commit.")],
+    apply: Annotated[bool, typer.Option("--apply", help="Claim for_review -> in_review; default is preview.")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Structured reviewer claim report.")] = False,
+) -> None:
+    """Claim a submitted owned review without approving, allocating or changing leases."""
+    _owned_handoff_command(mission, owned_checkout, wp_id, implementer, code_commit, reference, "claim", reviewer, None, None, apply, json_output)
+
+
 @app.command()
 def doctor(
     mission: Annotated[
         str | None,
         typer.Option("--mission", help="Mission slug"),
     ] = None,
-
     stale_claimed: Annotated[
         int,
-        typer.Option(
-            "--stale-claimed-days", help="Threshold for stale claims (days)"
-        ),
+        typer.Option("--stale-claimed-days", help="Threshold for stale claims (days)"),
     ] = 7,
     stale_in_progress: Annotated[
         int,
@@ -522,9 +641,7 @@ def doctor(
         )
     except FileNotFoundError as e:
         if json_output:
-            console.print_json(
-                json.dumps({"error": str(e), "healthy": False})
-            )
+            console.print_json(json.dumps({"error": str(e), "healthy": False}))
         else:
             console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
@@ -584,9 +701,7 @@ def doctor(
             table.add_column("Message")
             table.add_column("Action")
             for f in result.findings:
-                severity_style = (
-                    "red" if f.severity == "error" else "yellow"
-                )
+                severity_style = "red" if f.severity == "error" else "yellow"
                 table.add_row(
                     f"[{severity_style}]{f.severity}[/{severity_style}]",
                     str(f.category),
@@ -610,7 +725,6 @@ def lifecycle(
         str | None,
         typer.Option("--mission", help="Mission slug"),
     ] = None,
-
     json_output: Annotated[
         bool,
         typer.Option("--json", help="Machine-readable JSON output"),
@@ -752,7 +866,6 @@ def migrate(
         str | None,
         typer.Option("--mission", "-f", help="Single mission slug to migrate"),
     ] = None,
-
     _all_features: Annotated[
         bool,
         typer.Option("--all", help="Migrate all features in kitty-specs/"),
@@ -836,7 +949,6 @@ def validate(
         str | None,
         typer.Option("--mission", help="Mission slug (required in multi-mission repos)"),
     ] = None,
-
     json_output: Annotated[
         bool,
         typer.Option("--json", help="Machine-readable JSON output"),
@@ -894,9 +1006,7 @@ def validate(
                 )
             )
         else:
-            console.print(
-                f"[green]Status Validation: {mission_slug}[/green]"
-            )
+            console.print(f"[green]Status Validation: {mission_slug}[/green]")
             console.print("No events to validate.")
             console.print("[green]Result: PASS[/green]")
         raise typer.Exit(0)
@@ -915,9 +1025,7 @@ def validate(
             )
         )
     else:
-        console.print(
-            f"\n[bold]Status Validation: {mission_slug}[/bold]"
-        )
+        console.print(f"\n[bold]Status Validation: {mission_slug}[/bold]")
         console.print("-" * 50)
 
         if result.errors:
@@ -932,9 +1040,7 @@ def validate(
 
         if result.passed:
             if result.warnings:
-                console.print(
-                    f"\n[green]Result: PASS[/green] ({len(result.warnings)} warning(s))"
-                )
+                console.print(f"\n[green]Result: PASS[/green] ({len(result.warnings)} warning(s))")
             else:
                 console.print("\n[green]Result: PASS[/green]")
         else:
@@ -954,7 +1060,6 @@ def reconcile(
         str | None,
         typer.Option("--mission", "-f", help="Mission slug (required in multi-mission repos)"),
     ] = None,
-
     _dry_run: Annotated[
         bool,
         typer.Option("--dry-run/--apply", help="Preview vs persist reconciliation events"),

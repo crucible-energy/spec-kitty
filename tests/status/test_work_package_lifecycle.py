@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -85,9 +86,7 @@ def test_genesis_unseeded_wp_is_rejected_with_actionable_message(tmp_path: Path)
     assert "finalize-tasks" in str(exc_info.value)
 
 
-def test_genesis_unseeded_wp_with_other_wp_seeded_also_rejected(
-    tmp_path: Path, seed_to_planned: Callable
-) -> None:
+def test_genesis_unseeded_wp_with_other_wp_seeded_also_rejected(tmp_path: Path, seed_to_planned: Callable) -> None:
     """Genesis rejection fires even when other WPs in the same mission have events."""
     feature_dir = _feature_dir(tmp_path)
     # WP02 is seeded, but WP01 is not.
@@ -105,9 +104,7 @@ def test_genesis_unseeded_wp_with_other_wp_seeded_also_rejected(
         )
 
 
-def test_seeded_wp_happy_path_unaffected_by_genesis_check(
-    tmp_path: Path, seed_to_planned: Callable
-) -> None:
+def test_seeded_wp_happy_path_unaffected_by_genesis_check(tmp_path: Path, seed_to_planned: Callable) -> None:
     """After finalize-tasks seeds genesis→planned, the WP proceeds normally."""
     feature_dir = _feature_dir(tmp_path)
     seed_to_planned(feature_dir, "WP01", slug=_SLUG)
@@ -132,9 +129,7 @@ def test_seeded_wp_happy_path_unaffected_by_genesis_check(
 # ---------------------------------------------------------------------------
 
 
-def test_start_implementation_batches_planned_to_in_progress(
-    tmp_path: Path, seed_to_planned: Callable
-) -> None:
+def test_start_implementation_batches_planned_to_in_progress(tmp_path: Path, seed_to_planned: Callable) -> None:
     feature_dir = _feature_dir(tmp_path)
     seed_to_planned(feature_dir, "WP01", slug=_SLUG)
 
@@ -163,9 +158,7 @@ def test_start_implementation_batches_planned_to_in_progress(
     assert snapshot.work_packages["WP01"]["lane"] == Lane.IN_PROGRESS
 
 
-def test_backgrounded_implementation_start_does_not_strand_claimed(
-    tmp_path: Path, seed_to_planned: Callable
-) -> None:
+def test_backgrounded_implementation_start_does_not_strand_claimed(tmp_path: Path, seed_to_planned: Callable) -> None:
     """A normal start writes claim and progress evidence as one durable batch."""
     feature_dir = _feature_dir(tmp_path)
     seed_to_planned(feature_dir, "WP01", slug=_SLUG)
@@ -242,6 +235,9 @@ def test_real_implement_and_review_claims_persist_structured_latest_binding(
     assert len(stream.annotations) == 1  # golden-count: cardinality-is-contract -- one atomic binding annotation
     assert stream.annotations[0].delta.agent_profile == "python-pedro"
 
+    # #62: this record must follow the real claim, not a fixed past date that
+    # the reducer correctly ignores once the calendar passes it.
+    for_review_at = (datetime.fromisoformat(stream.transitions[-1].at) + timedelta(microseconds=1)).isoformat()
     append_event(
         feature_dir,
         _event(
@@ -249,7 +245,7 @@ def test_real_implement_and_review_claims_persist_structured_latest_binding(
             from_lane=Lane.IN_PROGRESS,
             to_lane=Lane.FOR_REVIEW,
             actor="claude",
-            at="2026-08-01T10:00:00+00:00",
+            at=for_review_at,
         ),
     )
     review_actor = {

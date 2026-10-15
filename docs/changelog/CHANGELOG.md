@@ -19,6 +19,72 @@ _The 3.2.7 development cycle is open. Entries land here as missions merge._
 
 ### ✨ Added
 
+- **Fork owned review submission and independent claim (#60).**
+  `agent status submit-owned-review` previews or applies `in_progress -> for_review`
+  with immutable code/public-reference evidence, canonical subtask/FSM guards and
+  explicit pre-review gate coverage. `claim-owned-review` records the actual distinct
+  reviewer for the submitted code pin before existing `review-owned` verdicts.
+  Both use the validated coordination authority, shared lock, creator-owned IO and
+  committed-request idempotence without allocation, lease override or DAG issuance.
+  See [owned review handoff](../migrations/owned-review-handoff.md) for policy and
+  existing-code-checkout requirements; scoped evidence is never aggregate approval.
+
+  Mandatory owned-gate correction refuses missing/unknown baseline capture identity
+  as structured unverified proof before a test run or status installation. Canonical
+  advisory/default semantics remain unchanged; optional unavailable consumer scope
+  is explicit `no_coverage` with no fabricated process verdict, while required scope
+  gaps block. Consumer command/baseline integration and enforcement approval are
+  documented separately from tool qualification.
+
+- **Fork explicit coordinated authority/query routing (#60).**
+  `migrate restore-owned-coordination` validates immutable planning/status pins
+  and atomically binds a reused registered linked checkout to the missing declared
+  coordination ref without another workspace or DAG events. `next --owned-checkout`
+  queries that genuine authority read-only and refuses unregistered husks. Scoped
+  projection migration and `agent status review-owned` share the validated roots;
+  real-review recording uses canonical FSM/evidence guards and performs no claim,
+  lane allocation or runtime advancement. See [the authority guide](../migrations/owned-coordinated-authority.md).
+
+  Recovery-anchor correction refuses equal target/coordination pins before any
+  mutation and verifies the generated commit's exact ordered parents and target
+  tree before ref/HEAD activation. Placement and query share the same structural
+  check; causal preview/apply and malformed-commit regressions preserve distinct-pin
+  roundtrips and reject unusable authority without changing checkout state.
+
+- **Fork owned coordinated-history restoration (#60).**
+  `migrate restore-owned-mission-history` previews or applies a verified union
+  of immutable status-log pins in an explicitly Git-registered target checkout.
+  It preserves original structured actors, null metadata, review evidence and
+  lifecycle records, refuses conflicts and divergent owned work, and writes a
+  pinned provenance receipt. Retained approvals remain historical. The reducer
+  now carries recorded `review_result` values into the derived snapshot.
+  See [the recovery guide](../migrations/owned-coordinated-history-restoration.md).
+
+  Independent-review corrections bind staging/install/rollback to validated
+  no-follow directory descriptors and serialize supported status/lifecycle
+  appenders on the existing shared mission lock. Late namespace substitutions
+  and destination changes refuse without erasing live records; rollback
+  preserves later edits. Apply explicitly refuses platforms lacking the required
+  fd-relative primitives.
+
+  Fork-boundary correction makes canonical held locks and replacement fences
+  process-owned. Fork children with inherited active status operations close
+  their descriptor copies without unlocking the parent and refuse writes until
+  a fresh interpreter; normal parent/thread reentrance remains unchanged.
+
+  Upstream-protocol correction delegates modern filelock native transitions and
+  fork cleanup to its public API, eliminating overlapping before-fork mutexes.
+  The causal acquire/fork deadlock regression is retained, and native ownership
+  tests accept safe upstream fork refusal while checking parent lock preservation
+  and cleanup. Older supported backends retain the legacy guarded protocol.
+
+  Install-unwind correction separately binds directory IO, rollback and temporary
+  cleanup to the creator PID. A fork child continuing a copied install frame
+  refuses inherited operations and closes only its descriptor copies; matching
+  installed images never authorize child rollback or staging deletion. Causal
+  regressions let children fully unwind after snapshot/receipt installation and
+  verify parent artifacts, staging and native ownership before completion.
+
 - **Fork packaging hooks (entry-point plugins + `DistributionProfile`).**
   Renamed / private-index forks can customize CLI package identity, upgrade
   providers (including built-in PEP 503 `SimpleIndexProvider`), remediation
