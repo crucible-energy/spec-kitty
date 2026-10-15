@@ -53,6 +53,46 @@ checks. Strict typing passes all nineteen production modules; source and
 touched-test lint checks pass. Broader final results belong to their exact
 frozen-candidate receipts; earlier partial diagnostics remain preserved.
 
+### Final boundary self-review
+
+The frozen R1 run completed with 2,519 passed / 26 failed / 6 skipped. Replaying every
+failure node on actual main `0d61e9415` in the SAME checkout/interpreter produced
+13 failed / 13 passed. Compare diagnostics, not just node names: some candidate
+failures added new violations to already failing main gates. Record unchanged
+baseline classes in [issue 107](https://github.com/crucible-energy/spec-kitty/issues/107)
+before relying on the baseline-red policy. Keep all raw failed receipts.
+
+Use one canonical resolver result for the owned dossier and its strict,
+symlink-checked metadata. Reuse it across history, authority and review instead
+of reconstructing mission paths or parsing JSON ad hoc. Derive the short ID
+through the existing authoritative resolver. Runtime and status consumers use
+real public API symbols; add the required facade exports and bump 3.2.7 to 3.2.8
+with the changelog under repository policy. Export leaf locks before model
+initialization loads retrospective emitters, avoiding an import cycle.
+
+The Git ref owner now implements the existing single native transaction that
+creates an absent coordination ref and rebinds symbolic HEAD against the exact
+old oid. Preserve the caller's bounded runner/refusal type and prevalidated
+linked checkout, tree, ownership and mission lock. Never split that transaction
+or fall back to a force update. Existing real-Git abort and competing-ref race
+acceptance tests remain unchanged.
+
+Generic lifecycle persistence functions stay directly importable for existing
+callers/tests. Their typed high-level emitters form the public facade; remove
+the two unused generic declarations from module __all__ and prune exactly their
+two obsolete dead-symbol allowances. The scanner, all other entries and its
+mutation guards remain unchanged. Route the two adjacent main violations
+tracked by issue 71 through actual facade exports too.
+
+The focused repair run finishes with 210 passed / 9 failed in 509.26 seconds: every owned
+history, placement, race, fork and review-handoff case passes. Eight failures
+match main's recorded baseline diagnostics; the ninth identifies those exact
+two dangling allowances and is corrected by pruning them. Strict mypy passes
+all 23 affected modules during iteration. Four linter-enforcement tests now run
+the real pinned Ruff 0.15.16 from an isolated overlay; shared dependencies are
+unchanged. Final frozen-source outcomes, coverage and built-package acceptance
+are recorded externally; these iteration results are not a final gate pass.
+
 ## Known Limitations
 
 2026-10-15: The same four default-coordination failures in
@@ -66,3 +106,12 @@ private provenance. Existing unsupported-platform and process-death recovery
 limits remain in the recovery guides. Newer admission, allocator/DAG issuance,
 canonical export and consumer/production acceptance are separate gates; the
 preserved admission prototype's 24 focused passes do not qualify those claims.
+
+
+Current main also retains the census, surface inventory, old glossary and
+coordination behavioral-guard failures in issue 107. They remain explicit failed
+checks under the repository's baseline-red policy, not passing release proof.
+The separate active issue 91 owner retains the local staged-candidate QA
+migration. No hosted runner or external review service substitutes for this
+lane's self-review, actual command outcomes, changed-code coverage and exact
+built-package acceptance.

@@ -34,7 +34,7 @@ import ulid as _ulid_mod
 
 from specify_cli.decisions.models import IndexEntry
 from specify_cli.events import sanitize_event_for_log
-from specify_cli.status.locking import status_log_write_lock
+from specify_cli.status import status_log_write_lock
 from spec_kitty_events.decisionpoint import (
     DECISION_POINT_OPENED,
     DECISION_POINT_RESOLVED,

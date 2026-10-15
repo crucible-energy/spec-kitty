@@ -13,9 +13,17 @@ All notable changes to the Spec Kitty CLI and templates are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 3.2.7
+## [Unreleased] - 3.2.8
 
-_The 3.2.7 development cycle is open. Entries land here as missions merge._
+### Fixed
+
+- Owned-history recovery compares timezone-aware instants while preserving every
+  original timestamp. Owned coordination uses canonical dossier, mission identity,
+  status facade and atomic Git ref transaction boundaries. Generic lifecycle
+  persistence helpers remain directly importable; typed lifecycle emitters are the
+  public API. Retained Python safety repair; no runtime cutover or release claim.
+
+_The 3.2.8 development cycle is open. Entries land here as missions merge._
 
 ### ✨ Added
 

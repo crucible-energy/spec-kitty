@@ -8,16 +8,17 @@ from typing import Any
 
 import psutil
 
-from specify_cli.context.mission_resolver import AmbiguousHandleError, MissionNotFoundError, resolve_mission
+from specify_cli.context.mission_resolver import AmbiguousHandleError, MissionNotFoundError
 from specify_cli.core.dependency_graph import build_dependency_graph, dependency_readiness_for_wp, detect_cycles
 from specify_cli.core.paths import assert_safe_path_segment
 from specify_cli.core.wps_manifest import load_wps_manifest
 from specify_cli.git.protection_policy import ProtectionPolicy
-from specify_cli.migration.owned_history import _dirty_paths, _ownership, _safe_file
+from specify_cli.lanes.branch_naming import resolve_mid8
+from specify_cli.migration.owned_history import _dirty_paths, _ownership, _safe_file, read_owned_dossier
 from specify_cli.migration.owned_history_io import BoundHistoryDirectory
-from specify_cli.migration.owned_history_sources import _blob, git_bytes, json_object, load_source, validate_meta
-from specify_cli.status.models import StatusSnapshot
-from specify_cli.status.reducer import materialize_snapshot
+from specify_cli.migration.owned_history_sources import _blob, git_bytes, json_object, load_source
+from specify_cli.status import StatusSnapshot
+from specify_cli.status import materialize_snapshot
 
 __all__ = [
     "OwnedCoordinationError",
@@ -134,12 +135,9 @@ def owned_base(repository: Path, checkout: Path, handle: str) -> tuple[Path, Pat
     root = ownership.root
     _backlink(root)
     try:
-        mission = resolve_mission(handle, root)
+        directory, meta = read_owned_dossier(root, handle)
     except (AmbiguousHandleError, MissionNotFoundError) as exc:
         raise OwnedCoordinationError("OWNED_MISSION_REFUSED", str(exc)) from exc
-    directory = root / "kitty-specs" / assert_safe_path_segment(mission.feature_dir.name)
-    meta = json_object(_safe_file(root, directory.relative_to(root) / "meta.json").read_bytes())
-    validate_meta(meta, directory.name)
     for name in (*PLANNING_FILES, "status.events.jsonl", "status.json"):
         _safe_file(root, directory.relative_to(root) / name)
     _git(root, "check-ref-format", f"refs/heads/{meta['coordination_branch']}")
@@ -270,7 +268,7 @@ def resolve_owned_coordination(repository: Path, checkout: Path, handle: str) ->
     if branch != coord or branch_oid(root, coord) != head:
         from specify_cli.missions._read_path_resolver import coord_feature_dir
 
-        husk = coord_feature_dir(root, directory.name, meta["mission_id"][:8]).parent.parent
+        husk = coord_feature_dir(root, directory.name, resolve_mid8(directory.name, mission_id=meta["mission_id"])).parent.parent
         registered = _git(root, "worktree", "list", "--porcelain", "-z").split("\0")
         if husk.exists() and f"worktree {husk}" not in registered:
             raise OwnedCoordinationError("COORD_AUTHORITY_HUSK_UNREGISTERED", "An existing directory is not Git coordination authority", (husk,))

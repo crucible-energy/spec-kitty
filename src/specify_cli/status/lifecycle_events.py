@@ -1013,8 +1013,6 @@ __all__ = [
     "MISSION_EVENTS_FILENAME",
     "project_event_log_path",
     "mission_event_log_path",
-    "append_lifecycle_event",
-    "has_lifecycle_event",
     "emit_project_initialized",
     "emit_mission_created_local",
     "emit_artifact_phase",

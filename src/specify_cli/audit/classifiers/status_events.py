@@ -14,7 +14,7 @@ from ..detectors import (
 from ..models import MissionFinding, Severity
 from ..shape_registry import check_unknown_keys, status_event_row_artifact_type
 from ._details import format_exception_detail
-from specify_cli.status.models import decode_actor
+from specify_cli.status import decode_actor
 
 # Actor format research (from real event logs and tests):
 #

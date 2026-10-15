@@ -19,7 +19,7 @@ from specify_cli.review.scope_source import UNKNOWN_SOURCE_IDENTITY, ScopeSource
 from specify_cli.review.verdict_aggregation import aggregate_verdicts
 from specify_cli.core.vcs.git import merge_base_changed_files
 from specify_cli.git.protection_policy import ProtectionPolicy
-from specify_cli.status.models import Lane
+from specify_cli.status import Lane
 
 __all__ = ["submission_gate"]
 

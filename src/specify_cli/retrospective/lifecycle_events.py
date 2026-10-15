@@ -35,7 +35,7 @@ from typing import Any, Literal
 import ulid as _ulid_mod
 
 from specify_cli.core.time_utils import now_utc_iso
-from specify_cli.status.locking import status_log_write_lock
+from specify_cli.status import status_log_write_lock
 from specify_cli.retrospective.schema import (
     GenRetrospectiveRecord,
     ProvenanceKind,

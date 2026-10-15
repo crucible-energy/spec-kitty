@@ -16,8 +16,8 @@ from typing import Any
 from specify_cli.context.mission_resolver import AmbiguousHandleError, MissionNotFoundError, resolve_mission
 from specify_cli.core.paths import assert_safe_path_segment
 from specify_cli.git.protection_policy import ProtectionPolicy
-from specify_cli.status.locking import feature_status_lock, status_replacement_fence
-from specify_cli.status.reducer import materialize_to_json
+from specify_cli.status import feature_status_lock, status_replacement_fence
+from specify_cli.status import materialize_to_json
 
 from .owned_history_sources import (
     HistoryRestoreError,
@@ -79,23 +79,28 @@ def _safe_file(root: Path, relative: Path) -> Path:
     return path
 
 
+def read_owned_dossier(root: Path, handle: str) -> tuple[Path, dict[str, Any]]:
+    """Resolve one canonical dossier and strictly validate its contained metadata."""
+    assert_safe_path_segment(handle)
+    directory = resolve_mission(handle, root).feature_dir
+    relative = directory.relative_to(root)
+    meta = json_object(_safe_file(root, relative / "meta.json").read_bytes())
+    validate_meta(meta, directory.name)
+    return directory, meta
+
+
 def _target(repository: Path, checkout: Path, handle: str) -> tuple[CheckoutOwnership, Path, dict[str, Any]]:
     assert_safe_path_segment(handle)
     ownership = _ownership(repository, checkout)
     try:
-        resolved = resolve_mission(handle, ownership.root)
+        directory, meta = read_owned_dossier(ownership.root, handle)
     except (AmbiguousHandleError, MissionNotFoundError) as exc:
         raise HistoryRestoreError(str(exc)) from exc
-    slug = assert_safe_path_segment(resolved.feature_dir.name)
-    directory = ownership.root / "kitty-specs" / slug
-    meta_path = _safe_file(ownership.root, Path("kitty-specs") / slug / "meta.json")
-    meta = json_object(meta_path.read_bytes())
-    validate_meta(meta, slug)
     branch = git_bytes(ownership.root, "symbolic-ref", "--short", "HEAD").decode().strip()
     if branch != meta["target_branch"] or ProtectionPolicy.resolve(ownership.root).is_protected(branch):
         raise HistoryRestoreError("Owned checkout must be on the dossier's unprotected target branch")
     for name in _OUTPUT_NAMES:
-        _safe_file(ownership.root, Path("kitty-specs") / slug / name)
+        _safe_file(ownership.root, directory.relative_to(ownership.root) / name)
     return ownership, directory, meta
 
 

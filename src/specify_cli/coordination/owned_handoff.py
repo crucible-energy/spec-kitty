@@ -14,12 +14,12 @@ from specify_cli.coordination.owned_status import implementation_actors, validat
 from specify_cli.migration.owned_history import _replace_batch
 from specify_cli.migration.owned_history_io import BoundHistoryDirectory
 from specify_cli.migration.owned_history_sources import _blob, git_bytes, sha256
-from specify_cli.status.emit import build_status_event, _infer_subtasks_complete, _infer_implementation_evidence_from_event_stream
-from specify_cli.status.locking import feature_status_lock
-from specify_cli.status.models import EventStream, GuardContext, StatusEvent, StatusSnapshot
-from specify_cli.status.reducer import materialize_to_json, reduce
-from specify_cli.status.store import read_event_stream_from_text
-from specify_cli.status.transitions import validate_transition
+from specify_cli.status import build_status_event, infer_subtasks_complete, infer_implementation_evidence_from_event_stream
+from specify_cli.status import feature_status_lock
+from specify_cli.status import EventStream, GuardContext, StatusEvent, StatusSnapshot
+from specify_cli.status import materialize_to_json, reduce
+from specify_cli.status import read_event_stream_from_text
+from specify_cli.status import validate_transition
 
 __all__ = ["OwnedHandoffRequest", "record_owned_handoff"]
 
@@ -122,8 +122,8 @@ def _plan(
         "implementer": request.implementer,
         "reference": request.reference,
     }
-    complete = _infer_subtasks_complete(context.directory, request.wp_id, event_stream=stream)
-    evidence = _infer_implementation_evidence_from_event_stream(stream, request.wp_id)
+    complete = infer_subtasks_complete(context.directory, request.wp_id, event_stream=stream)
+    evidence = infer_implementation_evidence_from_event_stream(stream, request.wp_id)
     if request.kind == "claim":
         _claim_guard(stream, request, state)
         assert request.reviewer is not None

@@ -18,8 +18,10 @@ from specify_cli.coordination.owned import (
     validate_anchor_shape,
     validate_pins,
 )
+from specify_cli.git.ref_advance import activate_checkout_ref
+from specify_cli.migration.owned_history import read_owned_dossier
 from specify_cli.migration.owned_history_io import BoundHistoryDirectory
-from specify_cli.status.locking import feature_status_lock
+from specify_cli.status import feature_status_lock
 
 __all__ = ["restore_owned_coordination"]
 
@@ -93,7 +95,7 @@ def restore_owned_coordination(repository: Path, checkout: Path, handle: str, ta
         if match is None or tuple(map(int, match.groups())) < (2, 48):
             raise OwnedCoordinationError("COORD_GIT_CAPABILITY_UNSUPPORTED", "Atomic symbolic-HEAD/ref transactions require Git 2.48+")
         with feature_status_lock(checkout, meta["mission_slug"], timeout=10):
-            directory = checkout / "kitty-specs" / meta["mission_slug"]
+            directory, _ = read_owned_dossier(checkout, meta["mission_slug"])
             bound = BoundHistoryDirectory(checkout, directory)
             try:
                 images = bound.capture(("meta.json", "status.events.jsonl", "status.json"))
@@ -121,16 +123,9 @@ def restore_owned_coordination(repository: Path, checkout: Path, handle: str, ta
                 locked, _ = _plan(repository, checkout, handle, target, coord)
                 if locked != report:
                     raise OwnedCoordinationError("COORD_PLAN_CHANGED", "Authority plan changed before ref transaction")
-                # Git's oid form verifies HEAD's current referent value within
-                # the same native transaction that creates the coordination ref.
-                # Branch identity has just been revalidated under the mission lock.
-                # A separate target verify is forbidden by Git as a duplicate
-                # update through HEAD; never split this into two ref transactions.
-                transaction = (
-                    f"start\noption no-deref\ncreate refs/heads/{meta['coordination_branch']} {commit}\n"
-                    f"option no-deref\nsymref-update HEAD refs/heads/{meta['coordination_branch']} oid {target}\nprepare\ncommit\n"
+                activate_checkout_ref(
+                    checkout, Path(report["git_dir"]), meta["coordination_branch"], commit, target, run_git=git_operation
                 )
-                git_operation(checkout, [*backend, "update-ref", "--stdin"], input_bytes=transaction.encode())
                 report["head"] = commit
             finally:
                 bound.close()

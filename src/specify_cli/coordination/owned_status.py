@@ -9,16 +9,16 @@ from typing import Any
 import fnmatch
 
 from specify_cli.coordination.owned import OwnedCoordinationContext, OwnedCoordinationError, resolve_owned_coordination
-from specify_cli.migration.owned_history import _replace_batch
+from specify_cli.migration.owned_history import _replace_batch, read_owned_dossier
 from specify_cli.migration.owned_history_io import BoundHistoryDirectory
 from specify_cli.migration.owned_history_sources import _blob, git_bytes, load_source, sha256
 from specify_cli.core.wps_manifest import load_wps_manifest
-from specify_cli.status.emit import build_status_event
-from specify_cli.status.locking import feature_status_lock
-from specify_cli.status.models import DoneEvidence, EventStream, GuardContext, Lane, ReviewResult, StatusSnapshot, actor_identity_str
-from specify_cli.status.reducer import materialize_snapshot, materialize_to_json, reduce
-from specify_cli.status.store import read_event_stream_from_text
-from specify_cli.status.transitions import validate_transition
+from specify_cli.status import build_status_event
+from specify_cli.status import feature_status_lock
+from specify_cli.status import DoneEvidence, EventStream, GuardContext, Lane, ReviewResult, StatusSnapshot, actor_identity_str
+from specify_cli.status import materialize_snapshot, materialize_to_json, reduce
+from specify_cli.status import read_event_stream_from_text
+from specify_cli.status import validate_transition
 
 __all__ = ["OwnedReviewRequest", "record_owned_review", "refresh_owned_projection", "implementation_actors", "validate_owned_review_code"]
 
@@ -38,7 +38,7 @@ def implementation_actors(stream: EventStream, wp_id: str) -> set[str]:
 
 def validate_owned_review_code(context: OwnedCoordinationContext, wp_id: str, pin: str) -> dict[str, Any]:
     """Verify the immutable dossier and authored regular-file code ownership at a pin."""
-    meta = json.loads((context.directory / "meta.json").read_text(encoding="utf-8"))
+    _, meta = read_owned_dossier(context.root, context.slug)
     _, reviewed = load_source(context.root, context.directory, pin, meta)
     manifest = load_wps_manifest(context.directory)
     selected = next((wp for wp in manifest.work_packages if wp.id == wp_id), None) if manifest is not None else None
