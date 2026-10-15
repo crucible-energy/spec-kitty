@@ -680,3 +680,19 @@ The first bounded complete-denominator run passes 183 native checks with 185 act
 Freeze this source, tests, and log before the owning-module, affected-consumer, toolchain/link-input closure, and one mandatory fast gate. Keep their final pass/failure results, current statement observations and misses, all source/toolchain/image hashes, original terminal handles and joined process-group cleanup, and remote publication identity in external receipts under `native-statement-coverage-frontier-20261014`. The earlier source-drift fixture refusal and unsuccessful duplicate commit argument remain actual failed attempts, separate from corrected runs.
 
 Root owns sequential independent review of the complete denominator and observation meaning. Final measured ratios do not independently approve WP01 or its remaining T001–T004 equivalence and guard requirements. All 92 original workflow contexts continue to require bindings, and supported normalized argv remains an inspection/binding result rather than executor qualification. Candidate staging, runtime platform execution, hooks, publication admission, and hosted retirement retain their later work-package owners. No source declaration catalog changes are needed for this collector increment, and no new lane, executor, dependency, API service, or primary-checkout mutation is introduced.
+
+## October 14, 2026 — Native Module And Test-Mirror Projection
+
+### User Experience Findings
+
+Read-only WP01 assessment identifies an actual T001/T003 gap after the scoped complete-statement review: the Python module consumer preserves registry-derived test mirrors, but native selection exposes no corresponding projection. Fourteen paired canonical controls now genuinely fail with `UnsupportedMode`, while their Python source/test twin assertions pass. These include status, CI, local-validation, consolidation, coordination, single-file mirrors, tooling, authority changes, conservative unknown source, full selection, and docs/empty no-op inspection. The original RED receipt is retained externally in `native-module-mirror-wp01-20261014`.
+
+### Engineering Decisions
+
+Root authorizes only the existing native selector, selection tests, and this log. Add `inspect-modules` to the existing native entry as a pure module projection. Derive names, roots, explicit test directories, canonical test mirrors, and source probes from the single JSON authority using the existing routing matcher. Keep whole-gate selection/refusal and existing response shapes unchanged. Module projection explicitly reports that it cannot execute, validate, publish, or accept a gate; docs-only zero modules is a legitimate projection rather than successful empty validation.
+
+Preserve all original native statements and include the newly changed native source in fresh complete inventory, independent compiler-grammar comparison, actual paired native observations, and allocation rollback checks. Reuse physically matching collector and toolchain proof, freeze source/docs before final gates, and run one mandatory fast gate before supported commit/push. Required results remain outside the candidate.
+
+### Known Limitations
+
+This is genuine RED before implementation, not a completed projection. It neither qualifies the 92 workflow execution contexts nor introduces candidate staging, validators, platform supervision, hooks, or retirement. The earlier parallel Python coverage database limitation remains explicit; this increment will isolate coverage output per invocation. Historical original handle 84965/PID 63758 still has no obtained join acknowledgment, and no later run backfills that receipt. WP01 remains in progress pending complete requirement review.

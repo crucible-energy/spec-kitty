@@ -2655,3 +2655,38 @@ def test_native_unsupported_program_still_requires_exact_refusal_envelope(tmp_pa
         mapping["program"][field] = value
     result = subprocess.run([str(native_selector), str(write_local(tmp_path, authority)), "full"], capture_output=True, text=True, timeout=20)
     assert result.returncode != 0 and result.stdout == "" and "InvalidWorkflowProgram" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("paths", "mode", "twin"),
+    [
+        (["tests/status/test_store.py"], "pr", ["src/specify_cli/status/store.py"]),
+        (["tests/ci/test_ci_module_wiring.py"], "pr", ["scripts/ci/gate_selection.py"]),
+        (["tests/local_validation/test_selection.py"], "pr", ["scripts/ci/gate_selection.py"]),
+        (["tests/consolidation/test_x.py"], "pr", ["src/specify_cli/consolidation/executor.py"]),
+        (["tests/coordination/test_x.py"], "pr", ["src/specify_cli/coordination/x.py"]),
+        (["tests/mission/test_x.py"], "pr", ["src/specify_cli/mission.py"]),
+        (["scripts/ci/gate_selection.py"], "pr", None),
+        (["tools/validation/gates.json"], "pr", None),
+        ([".github/ci-module-registry.yml"], "pr", None),
+        ([".github/workflows/ci-router.yml"], "pr", None),
+        (["src/new/unmapped.py"], "pr", None),
+        (["docs/guide.md"], "pr", None),
+        ([], "pr", None),
+        ([], "full", None),
+    ],
+)
+def test_native_module_projection_matches_canonical_consumer_and_test_mirrors(native_selector: Path, paths: list[str], mode: str, twin: list[str] | None) -> None:
+    from scripts.ci.gate_selection import select_modules
+
+    authority = Path(__file__).resolve().parents[2] / "tools/validation/gates.json"
+    router = load_router(authority)
+    expected = select_modules(paths, router=router, registry_path=authority, mode=mode)
+    if twin is not None:
+        assert expected == select_modules(twin, router=router, registry_path=authority, mode=mode)
+    result = subprocess.run([str(native_selector), str(authority), "inspect-modules", mode, *paths], capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    actual = json.loads(result.stdout)
+    assert actual["selected_modules"] == sorted(expected)
+    assert actual["module_projection_only"] is True
+    assert actual["selection_only"] is True and actual["validation_performed"] is False and actual["execution_supported"] is False
