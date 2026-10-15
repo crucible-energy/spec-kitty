@@ -1722,3 +1722,93 @@ Desktop mount behavior, VM-wide proc memory and actual process/cgroup context
 must remain labeled separately. Cgroup reading, detached ownership, the complete
 architectural-fast recipe, GX10 execution, production qualification, gate adoption
 and WP03 completion remain open. No original validator or budget is relaxed.
+
+
+## October 15, 2026 — Linux Foreground Portability Repair
+
+### User Experience Findings
+
+The actual public Linux runtime RED is committed at `e13b283d`. Enabling the
+finite operation exposed a real static-musl build problem: Zig 0.16's C
+translator makes musl's stat structure opaque because timespec contains
+zero-width bitfields. Preserve that failed build separately from the original
+runtime refusal and the earlier Docker setup failure.
+
+The repaired executable cross-builds and produces usable state in the bounded
+Linux container. Focused public controls cover zero and signed memory values,
+last-valid duplicates, unavailable attempts, the finite integer boundary and
+unsafe or unsupported input. Actual SIGINT/SIGTERM controls require a completed
+first state, then the final sample and named cancellation refusal. Deadline and
+combined data/custody controls also require their actual first-state effect.
+These observations are useful component evidence; final review and publication
+gates remain separate.
+
+### Engineering Decisions
+
+Root reviewed the exact static-musl portability amendment before the adapter
+edit. Exact Zig 0.16 has no Linux `std.c.Stat/fstat` surface. Its maintained
+Linux I/O instead uses target-owned `std.os.linux.Statx` and libc statx. Reuse
+those types and the already-bundled musl wrapper; no guessed C structure,
+dynamic runtime, new launcher or broader filesystem abstraction is introduced.
+
+The sampler keeps its original Darwin C branch. Linux projects the target-owned
+statx fields into a normal internal value, requests every used metadata validity
+bit, and refuses incomplete observation. Device identity compares the exact
+major/minor pair plus inode; timestamps retain their target-owned records.
+Native syscall failures preserve libc return and errno. Existing path, type,
+owner, mode, link-count, size and all-exit custody checks remain authoritative.
+The only shared-owner change adapts the target-native signal handler field;
+the atomic-only handler and Darwin child/backend rules remain unchanged.
+
+A test-only appended native entry point compares the real projection with an
+independent Linux Python stat reader, and exercises prior-handler restoration
+and exclusive lease ownership. It is separate from the actual public executable.
+The selected Docker Desktop bind filesystem denies metadata for a mode-zero
+file: both Linux Python lstat and native libc statx return EACCES. The initial
+test incorrectly expected an unavailable read. Preserve that failed assertion;
+the corrected control requires the existing metadata-observation refusal and
+absence of state. Unknown metadata cannot be accepted as an unavailable sample.
+
+Real proc sampling retains bounded before/after kernel snapshots and selected
+same-container mount/cgroup context. Dynamic kernel data are measured inputs,
+not immutable parity fixtures or evidence of container cgroup memory. The
+controller uses exact owned container IDs, selected state/security metadata,
+minimal child environments and joined disposal. No process argument list or
+inherited environment value is inspected.
+
+### Known Limitations
+
+Qualification is limited to the pinned arm64 static-musl executable, existing
+immutable image, Linux executor and observed Docker Desktop mount/proc context.
+It does not establish every Linux kernel/filesystem, an incomplete statx-mask
+outcome, Linux child/CheckScope execution, a kernel fork/exec-denial proof,
+detached ownership, cgroup usage/peak reporting, the complete architectural
+recipe, production/gate adoption or WP03 completion. Required source review,
+complete native statement observations with retained misses and delivery gates
+remain recorded externally against the frozen candidate. Original Python
+validators, selection policy, budgets and gates stay authoritative.
+
+
+### Linux Fixture Ownership Observation
+
+The first process-observed batch retained two actual mismatches: a directory
+input refused its parent ownership before reaching input type validation, and a
+deadline case completed its first state but finally refused directory ownership.
+Private diagnostic copies reproduced the deadline refusal in both ordinary and
+observed images. The direct Linux statx syscall agreed with libc's changed UID;
+a diagnostic forced refresh returned the original UID. Host metadata stayed
+unchanged. Preserve these actual bind filesystem refusals; they do not establish
+ordinary/observed behavioral equality for that filesystem context. No sampler
+custody check, metadata flag, work budget or error precedence is relaxed.
+
+Root approved a two-case fixture correction: only the directory-input and
+deadline controls reconstruct their bounded synthetic fixture on private Linux
+tmpfs, owned by the already selected nonroot caller UID/GID with mode 0700.
+Historical controls observed UID 501:GID 20; those values are not account
+requirements. The pinned image's closed test helper invokes the same public native executable as one joined child, records
+its actual PID and exit separately from the container outcome, and extracts
+bounded nofollow state plus actual before/after metadata to the existing private
+output mount. This helper is test transport; it is not a native launcher or
+signal backend. Other controls and all production sources remain unchanged.
+The new helper branch, finite input roster and recorder require separate
+qualification before its statement observations or delivery gates are accepted.

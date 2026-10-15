@@ -10,6 +10,8 @@
 //! actual platform qualification remains tied to its observed host and SDK.
 //! The unchanged test fixture retains the exact original source.
 //! Bounded Darwin child-group ownership. Never signals a reaped/reused leader.
+//! The exclusive foreground signal lease also supports the finite Linux sampler;
+//! this does not enable Linux child-group execution or CheckScope.
 //! Memory-safety contract: the synchronous owner retains child, pipes and
 //! callback contexts until terminal disposition; no borrowed pointer escapes.
 //! Capture reserves bounded buffers before spawn and checks lengths before copy.
@@ -28,6 +30,9 @@ const c = if (builtin.os.tag == .macos) @cImport({
     @cInclude("unistd.h");
     @cInclude("fcntl.h");
     @cInclude("poll.h");
+    @cInclude("signal.h");
+}) else if (builtin.os.tag == .linux) @cImport({
+    @cDefine("_POSIX_C_SOURCE", "200809L");
     @cInclude("signal.h");
 }) else struct {};
 // The strict POSIX spawn header keeps its SDK-owned opaque handle types while
@@ -274,7 +279,11 @@ const SignalBridge = struct {
         errdefer if (release_owner) signal_owner.store(0, .release);
         pending_signal.store(0, .monotonic);
         var action = std.mem.zeroes(c.struct_sigaction);
-        action.__sigaction_u.__sa_handler = cancellationSignal;
+        if (builtin.os.tag == .macos) {
+            action.__sigaction_u.__sa_handler = cancellationSignal;
+        } else {
+            action.__sa_handler.sa_handler = cancellationSignal;
+        }
         if (c.sigemptyset(&action.sa_mask) != 0 or c.sigaddset(&action.sa_mask, c.SIGINT) != 0 or c.sigaddset(&action.sa_mask, c.SIGTERM) != 0) return error.SignalInstallationFailed;
         var previous_int: c.struct_sigaction = undefined;
         var previous_term: c.struct_sigaction = undefined;

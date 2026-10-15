@@ -2,6 +2,7 @@
 //! The maintained Python reader/report remains authority; gates are unchanged.
 //! This bounded ASCII/finite-integer adapter deliberately refuses unsafe input,
 //! cancellation and deadlines. It neither detaches nor starts/signals a child.
+//! Linux foreground support is separate from child/backend and cgroup qualification.
 const std = @import("std");
 const builtin = @import("builtin");
 const owner = @import("validation_process_darwin.zig");
@@ -16,16 +17,65 @@ const max_bytes = 65536;
 const Request = struct { schema_version: u8, destination: []const u8, proc_root: []const u8, interval_ms: u32, max_samples: u32, wall_ms: u32 };
 const State = struct { baseline_bytes: i128 = 0, elapsed_seconds: f64 = 0, peak_bytes: i128 = 0, pid: i32, samples: u32 = 0, source: enum { unavailable, meminfo } = .unavailable };
 const Usage = struct { total: i128, available: i128 };
+// This is a sampler value projection, never an ABI record passed to C.
+// Zig 0.16's C translator cannot represent musl timespec's zero-width bitfields;
+// its own Linux I/O uses the target-owned Statx layout instead of struct stat.
+const LinuxStatx = std.os.linux.Statx;
+const Stat = if (builtin.os.tag == .linux) struct {
+    st_dev: struct {
+        major: @FieldType(LinuxStatx, "dev_major"),
+        minor: @FieldType(LinuxStatx, "dev_minor"),
+    },
+    st_ino: @FieldType(LinuxStatx, "ino"),
+    st_mode: @FieldType(LinuxStatx, "mode"),
+    st_nlink: @FieldType(LinuxStatx, "nlink"),
+    st_uid: @FieldType(LinuxStatx, "uid"),
+    st_size: @FieldType(LinuxStatx, "size"),
+    st_mtime: @FieldType(LinuxStatx, "mtime"),
+    st_ctime: @FieldType(LinuxStatx, "ctime"),
+} else c.struct_stat;
+fn linuxStat(fd: c_int, name: [*:0]const u8, flags: u32, output: *Stat) !c_int {
+    const wanted: std.os.linux.STATX = .{ .TYPE = true, .MODE = true, .NLINK = true, .UID = true, .INO = true, .SIZE = true, .MTIME = true, .CTIME = true };
+    var observed = std.mem.zeroes(LinuxStatx);
+    const result = std.c.statx(fd, name, flags, wanted, &observed);
+    if (result != 0) return result; // Preserve libc's return and errno unchanged.
+    const bits: u32 = @bitCast(wanted);
+    if (@as(u32, @bitCast(observed.mask)) & bits != bits) return error.SamplerPathObservationFailed;
+    output.* = .{
+        .st_dev = .{ .major = observed.dev_major, .minor = observed.dev_minor },
+        .st_ino = observed.ino,
+        .st_mode = observed.mode,
+        .st_nlink = observed.nlink,
+        .st_uid = observed.uid,
+        .st_size = observed.size,
+        .st_mtime = observed.mtime,
+        .st_ctime = observed.ctime,
+    };
+    return 0;
+}
+fn descriptorStat(fd: c_int, output: *Stat) !c_int {
+    if (builtin.os.tag == .linux) return linuxStat(fd, "", std.os.linux.AT.EMPTY_PATH, output);
+    return c.fstat(fd, output);
+}
+fn relativeStat(fd: c_int, name: [*:0]const u8, output: *Stat, flags: c_int) !c_int {
+    if (builtin.os.tag == .linux) return linuxStat(fd, name, @intCast(flags), output);
+    return c.fstatat(fd, name, output, flags);
+}
+fn pathnameStat(name: [*:0]const u8, output: *Stat) !c_int {
+    if (builtin.os.tag == .linux) return linuxStat(c.AT_FDCWD, name, std.os.linux.AT.SYMLINK_NOFOLLOW, output);
+    return c.lstat(name, output);
+}
 fn now(io: std.Io) i96 {
     return std.Io.Clock.awake.now(io).nanoseconds;
 }
 fn before(io: std.Io, deadline: i96) !void {
     if (now(io) >= deadline) return error.OperationDeadlineExceeded;
 }
-fn same(a: c.struct_stat, b: c.struct_stat) bool {
+fn same(a: Stat, b: Stat) bool {
+    if (builtin.os.tag == .linux) return a.st_dev.major == b.st_dev.major and a.st_dev.minor == b.st_dev.minor and a.st_ino == b.st_ino;
     return a.st_dev == b.st_dev and a.st_ino == b.st_ino;
 }
-fn regular(value: c.struct_stat) bool {
+fn regular(value: Stat) bool {
     return value.st_mode & c.S_IFMT == c.S_IFREG;
 }
 fn pathText(path: []const u8, allow_root: bool) !void {
@@ -40,9 +90,9 @@ fn canonical(io: std.Io, path: []const u8) !void {
     defer std.heap.page_allocator.free(resolved);
     if (!std.mem.eql(u8, path, resolved)) return error.UnsafeSamplerPath;
 }
-fn statAt(fd: c_int, name: [*:0]const u8) !?c.struct_stat {
-    var value: c.struct_stat = undefined;
-    if (c.fstatat(fd, name, &value, c.AT_SYMLINK_NOFOLLOW) == 0) return value;
+fn statAt(fd: c_int, name: [*:0]const u8) !?Stat {
+    var value: Stat = undefined;
+    if (try relativeStat(fd, name, &value, c.AT_SYMLINK_NOFOLLOW) == 0) return value;
     if (std.c.errno(@as(c_int, -1)) == .NOENT) return null;
     return error.SamplerPathObservationFailed;
 }
@@ -50,7 +100,7 @@ const Directory = struct {
     fd: c_int,
     path: []const u8,
     path_z: [:0]const u8,
-    identity: c.struct_stat,
+    identity: Stat,
     private: bool,
     fn open(a: Allocator, io: std.Io, path: []const u8, private: bool) !Directory {
         try canonical(io, path);
@@ -58,16 +108,16 @@ const Directory = struct {
         const fd = c.open(path_z, c.O_RDONLY | c.O_DIRECTORY | c.O_NOFOLLOW | c.O_CLOEXEC);
         if (fd < 0) return error.UnsafeSamplerDirectory;
         errdefer _ = c.close(fd);
-        var identity: c.struct_stat = undefined;
-        if (c.fstat(fd, &identity) != 0 or identity.st_mode & c.S_IFMT != c.S_IFDIR) return error.UnsafeSamplerDirectory;
+        var identity: Stat = undefined;
+        if (try descriptorStat(fd, &identity) != 0 or identity.st_mode & c.S_IFMT != c.S_IFDIR) return error.UnsafeSamplerDirectory;
         if (private and (identity.st_uid != c.geteuid() or identity.st_mode & 0o7777 != 0o700)) return error.UnsafeSamplerDirectory;
         return .{ .fd = fd, .path = path, .path_z = path_z, .identity = identity, .private = private };
     }
     fn verify(self: Directory, io: std.Io) !void {
         try canonical(io, self.path);
-        var path_stat: c.struct_stat = undefined;
-        var held: c.struct_stat = undefined;
-        if (c.lstat(self.path_z, &path_stat) != 0 or c.fstat(self.fd, &held) != 0 or !same(path_stat, self.identity) or !same(held, self.identity) or path_stat.st_mode & c.S_IFMT != c.S_IFDIR) return error.SamplerDirectoryDrift;
+        var path_stat: Stat = undefined;
+        var held: Stat = undefined;
+        if (try pathnameStat(self.path_z, &path_stat) != 0 or try descriptorStat(self.fd, &held) != 0 or !same(path_stat, self.identity) or !same(held, self.identity) or path_stat.st_mode & c.S_IFMT != c.S_IFDIR) return error.SamplerDirectoryDrift;
         if (self.private and (path_stat.st_uid != c.geteuid() or path_stat.st_mode & 0o7777 != 0o700)) return error.SamplerDirectoryDrift;
     }
     fn close(self: Directory) void {
@@ -90,8 +140,8 @@ fn readAt(fd: c_int, name: [*:0]const u8, buffer: []u8, unavailable: bool, io: s
         return error.SamplerInputUnreadable;
     }
     defer _ = c.close(file);
-    var held: c.struct_stat = undefined;
-    if (c.fstat(file, &held) != 0 or !same(observed, held) or !regular(held)) return error.SamplerInputDrift;
+    var held: Stat = undefined;
+    if (try descriptorStat(file, &held) != 0 or !same(observed, held) or !regular(held)) return error.SamplerInputDrift;
     var length: usize = 0;
     while (true) {
         if (deadline) |limit| try before(io, limit);
@@ -106,7 +156,7 @@ fn readAt(fd: c_int, name: [*:0]const u8, buffer: []u8, unavailable: bool, io: s
         if (length > max_bytes) return error.SamplerInputLimit;
     }
     if (deadline) |limit| try before(io, limit);
-    if (c.fstat(file, &held) != 0 or !regular(held) or !same(observed, held)) return error.SamplerInputDrift;
+    if (try descriptorStat(file, &held) != 0 or !regular(held) or !same(observed, held)) return error.SamplerInputDrift;
     return buffer[0..length];
 }
 fn parseRequest(init: std.process.Init, path: []const u8) !Request {
@@ -177,7 +227,7 @@ fn parseUsage(bytes: []const u8) !?Usage {
 const Output = struct {
     parent: Directory,
     directory: Directory,
-    previous: ?c.struct_stat = null,
+    previous: ?Stat = null,
     previous_bytes: ?[]u8 = null,
     fn create(a: Allocator, io: std.Io, destination: []const u8) !Output {
         const parent_path = std.fs.path.dirname(destination) orelse return error.InvalidSamplerPath;
@@ -208,12 +258,12 @@ const Output = struct {
         } else if (value != null) return error.SamplerOutputDrift;
         if (try statAt(self.directory.fd, "state.tmp") != null) return error.SamplerOutputDrift;
     }
-    fn removeTemp(self: Output, identity: c.struct_stat) !void {
+    fn removeTemp(self: Output, identity: Stat) !void {
         const value = (try statAt(self.directory.fd, "state.tmp")) orelse return error.SamplerOutputCustodyUnknown;
         if (!same(value, identity) or !regular(value) or value.st_nlink != 1 or value.st_uid != c.geteuid()) return error.SamplerOutputCustodyUnknown;
         if (c.unlinkat(self.directory.fd, "state.tmp", 0) != 0) return error.SamplerOutputCustodyUnknown;
     }
-    fn replace(self: Output, file: c_int, identity: c.struct_stat, bytes: []const u8, io: std.Io, deadline: i96, committed: *bool) !c.struct_stat {
+    fn replace(self: Output, file: c_int, identity: Stat, bytes: []const u8, io: std.Io, deadline: i96, committed: *bool) !Stat {
         var position: usize = 0;
         while (position < bytes.len) {
             try before(io, deadline);
@@ -244,8 +294,8 @@ const Output = struct {
         const file = c.openat(self.directory.fd, "state.tmp", c.O_WRONLY | c.O_CREAT | c.O_EXCL | c.O_NOFOLLOW | c.O_CLOEXEC, @as(c_uint, 0o600));
         if (file < 0) return error.SamplerTemporaryExists;
         defer _ = c.close(file);
-        var identity: c.struct_stat = undefined;
-        if (c.fstat(file, &identity) != 0) return error.SamplerOutputCustodyUnknown;
+        var identity: Stat = undefined;
+        if (try descriptorStat(file, &identity) != 0) return error.SamplerOutputCustodyUnknown;
         var committed = false;
         const final = self.replace(file, identity, bytes, io, deadline, &committed) catch |failure| {
             if (committed) return error.SamplerOutputCustodyUnknown;
@@ -318,7 +368,7 @@ fn sample(init: std.process.Init, request: Request) !i96 {
     return deadline;
 }
 pub fn command(init: std.process.Init, path: []const u8) !u8 {
-    if (builtin.os.tag != .macos) return error.PlatformUnsupported;
+    if (builtin.os.tag != .macos and builtin.os.tag != .linux) return error.PlatformUnsupported;
     const request = try parseRequest(init, path);
     var lease = try owner.beginSamplingSignals();
     var failure: ?anyerror = null;
