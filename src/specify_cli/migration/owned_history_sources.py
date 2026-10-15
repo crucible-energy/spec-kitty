@@ -7,6 +7,9 @@ import json
 import os
 import re
 import subprocess
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, localcontext
 from pathlib import Path
@@ -26,12 +29,37 @@ _SHA = re.compile(r"^[0-9a-f]{40}$")
 _IDENTITY_KEYS = ("mission_id", "mission_slug", "mission_type", "topology", "target_branch", "coordination_branch")
 
 
+_BlobReads = dict[tuple[Path, str, str], tuple[bytes, dict[str, str]]]
+_BLOB_READS: ContextVar[_BlobReads | None] = ContextVar("owned_immutable_blob_reads", default=None)
+_OBJECT_READS: ContextVar[dict[tuple[Path, str, str], bytes] | None] = ContextVar("owned_immutable_objects", default=None)
+
+
+@contextmanager
+def immutable_blob_reads() -> Iterator[None]:
+    """Reuse up to 256 immutable object reads within one proof, never mutable refs.
+
+    Metadata is copied at the boundary; context reset also runs on refusal. All
+    checkout, index, working-file and activity checks remain uncached.
+    """
+    token = _BLOB_READS.set({})
+    objects = _OBJECT_READS.set({})
+    try:
+        yield
+    finally:
+        _OBJECT_READS.reset(objects)
+        _BLOB_READS.reset(token)
+
+
 class HistoryRestoreError(ValueError):
     """A recovery cannot preserve verified identity or historical values."""
 
 
 def git_bytes(root: Path, *args: str) -> bytes:
     """Read Git without optional index writes, environment redirects or replacements."""
+    objects = _OBJECT_READS.get() if len(args) == 3 and args[0] == "cat-file" and args[1] in {"-t", "blob"} and _SHA.fullmatch(args[2]) else None
+    key = (root.resolve(), args[1], args[2]) if objects is not None else None
+    if objects is not None and key is not None and key in objects:
+        return objects[key]
     env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     env["GIT_NO_REPLACE_OBJECTS"] = "1"
     try:
@@ -40,6 +68,8 @@ def git_bytes(root: Path, *args: str) -> bytes:
         raise HistoryRestoreError(f"Git read failed: {exc}") from exc
     if result.returncode:
         raise HistoryRestoreError(f"Git {' '.join(args)} refused: {result.stderr.decode('utf-8', errors='replace').strip()}")
+    if objects is not None and key is not None and len(objects) < 256:
+        objects[key] = result.stdout
     return result.stdout
 
 
@@ -234,6 +264,11 @@ def _verify_snapshot(old: dict[str, Any], current: dict[str, Any]) -> dict[str, 
 
 
 def _blob(root: Path, commit: str, path: str) -> tuple[bytes, dict[str, str]]:
+    cache = _BLOB_READS.get() if _SHA.fullmatch(commit) else None
+    key = (root.resolve(), commit, path)
+    if cache is not None and key in cache:
+        raw, metadata = cache[key]
+        return raw, dict(metadata)
     entry = git_bytes(root, "ls-tree", "-z", commit, "--", path).decode("utf-8")
     if not entry:
         raise HistoryRestoreError(f"Pinned dossier artifact missing: {commit}:{path}")
@@ -242,7 +277,10 @@ def _blob(root: Path, commit: str, path: str) -> tuple[bytes, dict[str, str]]:
     if name != path or mode not in ("100644", "100755") or kind != "blob":
         raise HistoryRestoreError(f"Pinned artifact is not a regular file: {path}")
     raw = git_bytes(root, "cat-file", "blob", oid)
-    return raw, {"blob": oid, "sha256": sha256(raw)}
+    metadata = {"blob": oid, "sha256": sha256(raw)}
+    if cache is not None and len(cache) < 256:
+        cache[key] = raw, metadata
+    return raw, dict(metadata)
 
 
 def load_source(root: Path, directory: Path, commit: str, meta: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:

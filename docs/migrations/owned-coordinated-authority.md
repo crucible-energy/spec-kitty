@@ -163,6 +163,12 @@ reassignment, runtime issuance or dependent-lane allocation. Missing actual mode
 or profile bindings are never filled from authored recommendations. An exact
 committed request retry is idempotent.
 
+## Existing implementation slot preview
+
+The [read-only implementation preview](owned-implementation-preview.md) checks
+an existing declared code slot and actual dependency review bindings without
+granting admission, allocating a lane or advancing runtime.
+
 ## Remaining scope
 
 Owned submission/claim now provide the narrow status handoff above. Advancing
