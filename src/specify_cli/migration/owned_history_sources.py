@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 from datetime import datetime
+from decimal import Decimal, InvalidOperation, localcontext
 from pathlib import Path
 from typing import Any
 
@@ -60,10 +61,25 @@ def _nonfinite(value: str) -> Any:
     raise HistoryRestoreError(f"Non-finite JSON number: {value}")
 
 
+def _lossless_float(value: str) -> float:
+    """Accept only numbers the existing JSON renderer can preserve exactly."""
+    number = float(value)
+    # Compare decimal JSON values, not binary floating-point approximations.
+    # Isolate Decimal's flags even for exponents outside its supported range.
+    with localcontext():
+        try:
+            preserved = Decimal(value) == Decimal(repr(number))
+        except InvalidOperation:
+            preserved = False
+    if not preserved:
+        raise HistoryRestoreError("JSON number cannot be preserved without changing its value")
+    return number
+
+
 def json_object(raw: bytes | str) -> dict[str, Any]:
     """Decode strict UTF-8 JSON objects without duplicate-key loss."""
     try:
-        value = json.loads(raw.decode("utf-8") if isinstance(raw, bytes) else raw, object_pairs_hook=_pairs, parse_constant=_nonfinite)
+        value = json.loads(raw.decode("utf-8") if isinstance(raw, bytes) else raw, object_pairs_hook=_pairs, parse_constant=_nonfinite, parse_float=_lossless_float)
     except (UnicodeError, json.JSONDecodeError) as exc:
         raise HistoryRestoreError(f"Invalid JSON: {exc}") from exc
     if not isinstance(value, dict):

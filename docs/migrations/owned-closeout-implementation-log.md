@@ -17,6 +17,11 @@ command: changing only a claimed event's offset to an equivalent instant
 sorted it before planning. Text sorting is not chronological ordering across
 valid offsets. The causal acceptance test fails before the correction.
 
+A second actual-command probe demonstrates numeric data loss in opaque history
+extensions: valid JSON `1e400` becomes infinity, `1e-400` becomes zero, and a longer
+decimal rounds. The old command reports successful apply in all three synthetic
+cases. No real user data was involved; protected fixture roots remain unchanged.
+
 ## Engineering Decisions
 
 2026-10-15: Reconcile current main and retain the original red-first/review
@@ -93,6 +98,28 @@ the real pinned Ruff 0.15.16 from an isolated overlay; shared dependencies are
 unchanged. Final frozen-source outcomes, coverage and built-package acceptance
 are recorded externally; these iteration results are not a final gate pass.
 
+### Numeric preservation correction
+
+Stop and join only the owned R4 process group before source changes. Its
+interrupted 1,382 passed / 1 skipped result and coverage are partial evidence, not a
+final gate. Preserve the built-wheel/type/lint successes against that OLD source.
+
+Commit the causal negative contract at `3ad49f5f4` before implementation. It fails
+six preview/apply cases while seven supported-number cases pass. An added
+out-of-range Decimal exponent independently fails both modes too. One bounded
+stdlib decimal comparison now admits only float tokens whose existing JSON
+rendering retains their decimal value. Keep integer parsing and the serializer
+unchanged. Isolate Decimal context flags, refuse loss before locks/writes, and
+retain original sources rather than inventing rounded replacements. This adds
+no serialization framework or package dependency.
+
+All 15 actual-CLI number cases pass in 43.60 seconds after repair, including
+ordinary decimals, exponent spellings, exact large integers and signed zero.
+Byte equality protects primary, owned and sibling roots on every refusal;
+positive cases compare all retained records against an independent Decimal
+parse of the immutable source. Freeze the corrected docs/code before repeating
+the final required gates and built-package acceptance; use fresh R5 receipts.
+
 ## Known Limitations
 
 2026-10-15: The same four default-coordination failures in
@@ -115,3 +142,10 @@ The separate active issue 91 owner retains the local staged-candidate QA
 migration. No hosted runner or external review service substitutes for this
 lane's self-review, actual command outcomes, changed-code coverage and exact
 built-package acceptance.
+
+
+Numbers outside the supported JSON renderer's exact round-trip capability are
+explicitly unsupported by this recovery door and refuse before any write.
+Their original commit/blob bytes stay recoverable. This contract does not
+promise lexical JSON formatting preservation or add a general arbitrary-
+precision serializer.

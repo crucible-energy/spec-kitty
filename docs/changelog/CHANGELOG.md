@@ -18,7 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Owned-history recovery compares timezone-aware instants while preserving every
-  original timestamp. Owned coordination uses canonical dossier, mission identity,
+  original timestamp. It refuses JSON numbers that would silently overflow,
+  underflow or round during recovery, before any write. Owned coordination uses
+  canonical dossier, mission identity,
   status facade and atomic Git ref transaction boundaries. Generic lifecycle
   persistence helpers remain directly importable; typed lifecycle emitters are the
   public API. Retained Python safety repair; no runtime cutover or release claim.

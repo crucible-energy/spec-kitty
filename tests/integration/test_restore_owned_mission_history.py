@@ -226,7 +226,7 @@ def _source_with_json_number(checkouts: Checkouts, literal: str) -> str:
     return checkouts.amend_source(change)
 
 
-@pytest.mark.parametrize("literal", ["1e400", "1e-400", "1.234567890123456789"])
+@pytest.mark.parametrize("literal", ["1e400", "1e-400", "1.234567890123456789", "1e-99999999999999999999999"])
 @pytest.mark.parametrize("apply", [False, True])
 def test_lossy_json_numbers_refuse_before_any_write(checkouts: Checkouts, literal: str, apply: bool):
     """A valid JSON number must never silently become infinity, zero or rounded."""

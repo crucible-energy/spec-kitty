@@ -62,7 +62,11 @@ All sources must contain regular-file `meta.json`, `status.events.jsonl`, and
 `status.json` blobs at the selected relative dossier path. Identity, mission
 type, topology, target branch, and coordination branch must match. Source logs
 are strict UTF-8 JSON: duplicate keys, non-finite numbers, invalid records, and
-conflicting lane chains fail closed.
+conflicting lane chains fail closed. A JSON number that would overflow,
+underflow, or round during the supported serializer's rendering is refused
+before preview or apply can accept it. Ordinary decimal values, exact large
+integers, and signed zero retain their values. Recovery does not round an
+unsupported value; the original pinned source remains untouched.
 
 Each pinned snapshot must match its supported replay by counts, lane values,
 runtime values, and recorded review values. The only compatibility allowances
