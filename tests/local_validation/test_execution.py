@@ -1208,3 +1208,514 @@ def test_binding_cannot_omit_the_actual_process_implementation(
     """
     names = {source["name"] for source in bound_inputs["binding"]["native_sources"]}
     assert "validation_process_darwin.zig" in names, names
+
+
+EXECUTION_SOURCE = ROOT / "tools/zig/validation_execution.zig"
+
+# This private fixture has no process-creation, network, dynamic-loading, or
+# arbitrary-evaluation surface. Its only first-party import is copied from exact
+# bytes subsequently verified against the staged Git candidate. It writes only its declared external
+# marker and reads candidate app.py plus the declared dependency/release files.
+SERIAL_FIXTURE = r"""const std = @import("std");
+const module = @import("fixture_module.zig");
+pub fn main(init: std.process.Init) !void {
+    const a = init.arena.allocator();
+    const args = try init.minimal.args.toSlice(a);
+    if (args.len != 6) return error.InvalidArguments;
+    if (init.environ_map.count() != 1 or !std.mem.eql(u8, init.environ_map.get("WP03_FLAG") orelse "", "declared value")) return error.InvalidEnvironment;
+    const app = try std.Io.Dir.cwd().readFileAlloc(init.io, "app.py", a, .limited(1024));
+    try std.Io.File.stdout().writeStreamingAll(init.io, module.value ++ "\n");
+    if (!std.mem.eql(u8, module.value, "STAGED") or !std.mem.eql(u8, app, "PASS\n")) std.process.exit(7);
+    const dependency = try std.Io.Dir.cwd().readFileAlloc(init.io, args[3], a, .limited(1024));
+    if (!std.mem.eql(u8, dependency, "GOOD\n")) std.process.exit(9);
+    if (std.mem.eql(u8, args[1], "consumer")) {
+        const marker = try std.Io.Dir.cwd().readFileAlloc(init.io, args[2], a, .limited(1024));
+        if (!std.mem.eql(u8, marker, "producer\n")) return error.RequiredProducerMissing;
+    }
+    const marker = try std.Io.Dir.cwd().createFile(init.io, args[2], .{});
+    try marker.writeStreamingAll(init.io, if (std.mem.eql(u8, args[1], "producer")) "producer\n" else "consumer\n");
+    marker.close(init.io);
+    if (std.mem.eql(u8, args[4], "wait")) {
+        var count: usize = 0;
+        while (count < 300) : (count += 1) {
+            const release = std.Io.Dir.cwd().openFile(init.io, args[5], .{}) catch {
+                std.Io.sleep(init.io, .fromMilliseconds(10), .awake) catch {};
+                continue;
+            };
+            release.close(init.io);
+            break;
+        }
+        if (count == 300) return error.ReleaseTimeout;
+    }
+    const output: [20000]u8 = @splat('O');
+    const diagnostic: [9000]u8 = @splat('E');
+    try std.Io.File.stdout().writeStreamingAll(init.io, &output);
+    try std.Io.File.stderr().writeStreamingAll(init.io, &diagnostic);
+}
+"""
+
+
+@pytest.fixture(scope="session")
+def executor_binary(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    from tests.local_validation.test_receipt import NATIVE_SOURCES, retain_native_build_metadata
+
+    assert EXECUTION_SOURCE.is_file(), "Missing executor is setup failure, never a behavioral RED"
+    supplied = os.environ.get("SPEC_KITTY_NATIVE_EXECUTION_BINDING")
+    if supplied:
+        binding = json.loads(Path(supplied).read_bytes())
+        for name, expected in binding["sources"].items():
+            assert digest((ROOT / name).read_bytes()) == expected
+        image = Path(binding["image"])
+        assert digest(image.read_bytes()) == binding["image_sha256"]
+        return image
+    image = tmp_path_factory.mktemp("serial-executor") / "executor"
+    argv = [shutil.which("zig") or "zig", "build-exe", "-j1", "-OReleaseSafe", "-lc", str(EXECUTION_SOURCE), "-femit-bin=" + str(image)]
+    compiled = subprocess.run(argv, check=True, capture_output=True, timeout=120)
+    retain_native_build_metadata(image, NATIVE_SOURCES, argv, compiled)
+    return image
+
+
+@pytest.fixture(scope="session")
+def serial_program(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
+    from tests.local_validation.test_receipt import file_pin, retain_native_build_metadata
+
+    build = tmp_path_factory.mktemp("source-closed-serial-program")
+    (build / "fixture.zig").write_text(SERIAL_FIXTURE)
+    (build / "fixture_module.zig").write_text('pub const value = "STAGED";\n')
+    image = build / "program"
+    argv = [shutil.which("zig") or "zig", "build-exe", "-j1", "-OReleaseSafe", "-lc", str(build / "fixture.zig"), "-femit-bin=" + str(image)]
+    compiled = subprocess.run(argv, check=True, capture_output=True, timeout=120)
+    retain_native_build_metadata(image, [build / "fixture.zig", build / "fixture_module.zig"], argv, compiled)
+    runtime = build / "runtime.json"
+    runtime.write_bytes(
+        canonical({"schema_version": 1, "scope": "private-native-fixture-import-closure", "files": [file_pin(image), file_pin(build / "fixture_module.zig")]})
+    )
+    return {"image": image, "build": build, "runtime": runtime}
+
+
+def execution_budget_fault(checks: dict[str, Any], qualifications: list[dict[str, Any]], fault: str | None) -> None:
+    if fault == "stdout-quota":
+        for check in checks.values():
+            check["budgets"]["stdout_bytes"] = 4096
+        for qualification in qualifications:
+            qualification["limits"]["stdout_bytes"] = 4096
+    if fault == "oversized-budget":
+        for check in checks.values():
+            check["budgets"]["stdout_bytes"] = 32 * 1024 * 1024
+        for qualification in qualifications:
+            qualification["limits"]["stdout_bytes"] = 32 * 1024 * 1024
+
+
+def execution_policy_fault(
+    checks: dict[str, Any],
+    qualifications: list[dict[str, Any]],
+    commands: dict[str, list[str]],
+    executor_binary: Path,
+    tmp_path: Path,
+    fault: str | None,
+) -> None:
+    from tests.local_validation.test_receipt import file_pin
+
+    if fault == "environment":
+        checks["z-producer"]["environment"]["WP03_FLAG"] = "different value"
+    if fault == "budget":
+        checks["z-producer"]["budgets"]["wall_ms"] = 4000
+    execution_budget_fault(checks, qualifications, fault)
+    if fault == "platform":
+        checks["z-producer"]["platforms"] = ["linux"]
+    if fault == "multiple-commands":
+        for name in commands:
+            checks[name]["argv"] = [commands[name], commands[name]]
+    if fault == "producer":
+        other = tmp_path / "different-producer"
+        shutil.copyfile(executor_binary, other)
+        other.chmod(executor_binary.stat().st_mode)
+        for qualification in qualifications:
+            qualification["producer"] = {key: value for key, value in file_pin(other).items() if key in {"path", "sha256", "mode"}}
+    if fault == "incomplete-source":
+        for qualification in qualifications:
+            qualification["producer_sources"] = [row for row in qualification["producer_sources"] if Path(row["path"]).name != "validation_selection.zig"]
+            qualification["producer_source_tool_sha256"] = digest(b"".join(Path(row["path"]).read_bytes() for row in qualification["producer_sources"]))
+    if fault == "omitted-command":
+        for qualification in qualifications:
+            qualification["runtime_files"] = [row for row in qualification["runtime_files"] if row["path"] != qualification["argv"][0]]
+    if fault == "no-qualification":
+        qualifications.clear()
+
+
+def execution_recipe_fault(authority: Path, source: dict[str, str], fault: str | None) -> None:
+    if fault in {"recipe-always", "recipe-producer-roster"}:
+        document = json.loads(authority.read_bytes())
+        document.update(schema_version=2, migration=[source])
+        for name, check in document["checks"].items():
+            check["recipe"] = {
+                "source": source,
+                "python_version": "3.12",
+                "advisory": False,
+                "required_inputs": ["candidate"],
+                "conditions": ["always" if fault == "recipe-always" else "success"],
+                "instances": ["native"],
+                "applicability": "routing",
+                "packages": {},
+                "instance_environment": {},
+                "observed_dependencies": ["z-producer"] if name == "a-consumer" else ["changes"],
+            }
+        authority.write_bytes(canonical(document))
+
+
+def execution_binding_fault(bind_request: Path, fault: str | None) -> None:
+    if fault in {"missing-selected", "argv", "multiple-commands", "omitted-command"}:
+        value = json.loads(bind_request.read_bytes())
+        if fault == "omitted-command":
+            image = value["checks"][0]["argv"][0][0]
+            value["files"] = [row for row in value["files"] if row["path"] != image]
+            value["files"].append({"role": "toolchain", "path": str(Path(shutil.which("zig") or "zig").resolve()), "candidate_path_hex": None})
+        elif fault == "missing-selected":
+            value["checks"] = value["checks"][:1]
+        elif fault == "argv":
+            value["checks"][0]["argv"][0].append("unexpected argument")
+        else:
+            for check in value["checks"]:
+                check["argv"] *= 2
+        bind_request.write_bytes(canonical(value))
+
+
+def execution_request_fault(request: dict[str, str], logs: Path, qualification_file: Path, manifest_path: Path, fault: str | None) -> None:
+    if fault == "mode":
+        request["mode"] = "commit"
+    if fault == "specification":
+        request["specification"] = str(qualification_file)
+    if fault == "public-diagnostics":
+        logs.chmod(0o755)
+    if fault == "candidate-diagnostics":
+        request["diagnostics"] = json.loads(manifest_path.read_bytes())["root"]
+
+
+def execution_inputs(
+    candidate_binary: Path,
+    executor_binary: Path,
+    repository: Path,
+    tmp_path: Path,
+    serial_program: dict[str, Any],
+    *,
+    invalid_image: bool = False,
+    waiting: bool = False,
+    staged: bytes = b"PASS\n",
+    fault: str | None = None,
+) -> dict[str, Any]:
+    from tests.local_validation.test_candidate import capture, git
+    from tests.local_validation.test_receipt import NATIVE_SOURCES, file_pin, receipt_call
+
+    tools = repository / "tools/zig"
+    tools.mkdir(parents=True)
+    for source in NATIVE_SOURCES:
+        shutil.copyfile(source, tools / source.name)
+    (repository / "fixture.zig").write_text(SERIAL_FIXTURE)
+    module = repository / "fixture_module.zig"
+    module.write_text('pub const value = "STAGED";\n')
+    # Exact source bytes used by the compiled first-party import match staging.
+    assert module.read_bytes() == (serial_program["build"] / module.name).read_bytes()
+    (repository / "app.py").write_bytes(staged)
+    launcher = repository / "launcher.sh"
+    launcher.write_text('#!/bin/sh\nexec "$WP03_NATIVE" execute "$WP03_REQUEST"\n')
+    lock = repository / "dependencies.lock"
+    lock.write_bytes(b"fixture=1\n")
+    observed = tmp_path / "observed-dependency"
+    observed.write_bytes(b"GOOD\n")
+    marker = tmp_path / "producer-marker"
+    release = tmp_path / "release"
+    image = tmp_path / "fixture-image"
+    shutil.copyfile(serial_program["image"], image)
+    image.chmod(0o700)
+    if invalid_image:
+        image = tmp_path / "invalid-image"
+        image.write_bytes(b"unexecutable-format\n")
+        image.chmod(0o700)
+    q_sources = [*NATIVE_SOURCES, serial_program["build"] / "fixture.zig", serial_program["runtime"]]
+    runtime_files = [file_pin(path) for path in [image, observed, serial_program["build"] / "fixture_module.zig"]]
+    policy_source = {"path": "fixture.zig", "sha256": digest(SERIAL_FIXTURE.encode()), "role": "private-fixture"}
+    limits = {"wall_ms": 5000, "cleanup_ms": 1000, "stdout_bytes": 65536, "stderr_bytes": 65536, "processes": 4, "resident_bytes": 268435456}
+    commands = {
+        "a-consumer": [str(image), "consumer", str(marker), str(observed), "ordinary", str(release)],
+        "z-producer": [str(image), "producer", str(marker), str(observed), "wait" if waiting else "ordinary", str(release)],
+    }
+    if fault == "command-alias":
+        alias = tmp_path / "command-alias"
+        alias.symlink_to(image)
+        for argv in commands.values():
+            argv[0] = str(alias)
+    import platform
+
+    architecture = {"arm64": "aarch64", "x86_64": "x86_64"}[platform.machine()]
+    qualifications = [
+        {
+            "schema_version": 1,
+            "scope": "exact-isolated-source-no-process-creation",
+            "platform": architecture + "-macos",
+            "argv": argv,
+            "environment_names": ["WP03_FLAG"],
+            "limits": limits,
+            "program_path_hex": b"fixture.zig".hex(),
+            "program_sha256": digest(SERIAL_FIXTURE.encode()),
+            "producer": {key: value for key, value in file_pin(executor_binary).items() if key in {"path", "sha256", "mode"}},
+            "producer_sources": [file_pin(path) for path in q_sources],
+            "producer_source_tool_sha256": digest(b"".join(path.read_bytes() for path in q_sources)),
+            "process_source_sha256": digest(SOURCE.read_bytes()),
+            "compiler_version": "0.16.0",
+            "runtime_manifest_sha256": digest(serial_program["runtime"].read_bytes()),
+            "runtime_files": runtime_files,
+        }
+        for argv in commands.values()
+    ]
+    authority = repository / "gates.json"
+    checks = {
+        name: {
+            "argv": [argv],
+            "modes": ["full", "commit"],
+            "platforms": ["macos"],
+            "dependencies": ["z-producer"] if name == "a-consumer" else [],
+            "environment": {"WP03_FLAG": "declared value"},
+            "budgets": {
+                "sampled_processes" if key == "processes" else "sampled_resident_bytes" if key == "resident_bytes" else key: value for key, value in limits.items()
+            },
+        }
+        for name, argv in commands.items()
+    }
+    execution_policy_fault(checks, qualifications, commands, executor_binary, tmp_path, fault)
+    authority.write_bytes(
+        canonical(
+            {
+                "schema_version": 1,
+                "source": policy_source,
+                "routing": {"filters": {"core": ["src/**"]}, "job_gates": {name: [] for name in commands}},
+                "checks": checks,
+            }
+        )
+    )
+    execution_recipe_fault(authority, policy_source, fault)
+    qualification_file = repository / "qualifications.json"
+    qualification_file.write_bytes(canonical({"receipt_qualifications": qualifications}))
+    git(repository, "add", "--all")
+    captured, capture_request = capture(candidate_binary, repository, tmp_path)
+    assert captured.returncode == 0, captured.stderr
+    manifest_path = Path(capture_request["destination"]) / "candidate.json"
+    # Deliberately conflicting live import and input remain outside the candidate.
+    module.write_text('pub const value = "LIVE-TRAP";\n')
+    (repository / "app.py").write_bytes(b"LIVE-TRAP\n")
+    files: list[dict[str, Any]] = [
+        {"role": role, "path": str(path), "candidate_path_hex": os.fsencode(path.relative_to(repository)).hex()}
+        for role, path in [
+            ("launcher", launcher),
+            ("specification", authority),
+            ("specification", qualification_file),
+            ("dependency_lock", lock),
+            *(("native_source", tools / source.name) for source in NATIVE_SOURCES),
+        ]
+    ]
+    files.append({"role": "toolchain", "path": str(image), "candidate_path_hex": None})
+    external = [*q_sources, *[Path(row["path"]) for row in runtime_files]]
+    known = {row["path"] for row in files}
+    for path in external:
+        resolved = str(path.resolve())
+        if resolved not in known:
+            files.append({"role": "observed_dependency", "path": str(path), "candidate_path_hex": None})
+            known.add(resolved)
+    bind_request = tmp_path / "binding-request.json"
+    bind_request.write_bytes(
+        canonical(
+            {
+                "schema_version": 1,
+                "candidate_manifest": str(manifest_path),
+                "files": files,
+                "environment_names": ["WP03_FLAG"],
+                "checks": [{"id": name, "argv": [argv], "closure_proof": None} for name, argv in commands.items()],
+            }
+        )
+    )
+    execution_binding_fault(bind_request, fault)
+    environment = os.environ.copy()
+    environment["WP03_FLAG"] = "declared value"
+    result = receipt_call(executor_binary, "bind", bind_request, environment)
+    assert result.returncode == 0, result.stderr
+    binding_path = tmp_path / "binding.json"
+    binding_path.write_bytes(result.stdout)
+    logs = tmp_path / "logs"
+    logs.mkdir(mode=0o700)
+    request_path = tmp_path / "execution.json"
+    request = {"binding": str(binding_path), "specification": str(authority), "mode": "full", "diagnostics": str(logs)}
+    execution_request_fault(request, logs, qualification_file, manifest_path, fault)
+    request_path.write_bytes(canonical(request))
+    return {
+        "request": request,
+        "request_path": request_path,
+        "bind_request": bind_request,
+        "binding_path": binding_path,
+        "environment": environment,
+        "marker": marker,
+        "observed": observed,
+        "release": release,
+        "logs": logs,
+        "manifest_path": manifest_path,
+        "repository": repository,
+        "checks": checks,
+        "authority": authority,
+        "qualifications": qualifications,
+        "qualification_file": qualification_file,
+    }
+
+
+def run_execution(image: Path, inputs: dict[str, Any]) -> tuple[subprocess.CompletedProcess[bytes], dict[str, Any]]:
+    result = subprocess.run([str(image), "execute", str(inputs["request_path"])], env=inputs["environment"], capture_output=True, timeout=30)
+    report = json.loads((inputs["logs"] / "run.json").read_bytes()) if (inputs["logs"] / "run.json").exists() else {}
+    return result, report
+
+
+def test_native_execution_observes_dependency_order_staged_imports_and_exact_raw_logs(
+    candidate_binary: Path, executor_binary: Path, repository: Path, tmp_path: Path, serial_program: dict[str, Any]
+) -> None:
+    inputs = execution_inputs(candidate_binary, executor_binary, repository, tmp_path, serial_program)
+    before = snapshot(repository)
+    result, report = run_execution(executor_binary, inputs)
+    assert snapshot(repository) == before
+    assert result.returncode == 0, result.stderr
+    assert report["accepted"] is True and report["qualified_scope_joined"] is True
+    assert report["selected_checks"] == ["z-producer", "a-consumer"]
+    assert [row["status"] for row in report["results"]] == ["passed", "passed"]
+    assert inputs["marker"].read_bytes() == b"consumer\n"
+    for row in report["results"]:
+        raw = Path(row["stdout_log"]["path"]).read_bytes()
+        assert raw == b"STAGED\n" + b"O" * 20000
+        assert digest(raw) == row["stdout_log"]["sha256"]
+        assert len(row["result"]["stdout"]) == 8192
+        assert row["result"]["stdout_retained_bytes"] == len(raw)
+        assert Path(row["stderr_log"]["path"]).read_bytes() == b"E" * 9000
+        assert row["result"]["all_owned_children_terminal"] is False
+    assert report["general_validator_qualification"] is False and report["hook_installed"] is False
+
+
+@pytest.mark.parametrize("failure", ["nonzero", "spawn"])
+def test_native_required_producer_failure_blocks_consumer(
+    candidate_binary: Path, executor_binary: Path, repository: Path, tmp_path: Path, serial_program: dict[str, Any], failure: str
+) -> None:
+    inputs = execution_inputs(
+        candidate_binary,
+        executor_binary,
+        repository,
+        tmp_path,
+        serial_program,
+        invalid_image=failure == "spawn",
+        staged=b"FAIL\n" if failure == "nonzero" else b"PASS\n",
+    )
+    before = snapshot(repository)
+    result, report = run_execution(executor_binary, inputs)
+    assert snapshot(repository) == before
+    assert result.returncode != 0, result.stdout
+    assert report["accepted"] is False
+    assert [row["status"] for row in report["results"]] == ["refused", "blocked"]
+    assert not inputs["marker"].exists()
+    if failure == "nonzero":
+        assert report["results"][0]["result"]["exit_code"] == 7
+        assert report["qualified_scope_joined"] is True
+    else:
+        assert report["results"][0]["reason"] and report["qualified_scope_joined"] is False
+
+
+@pytest.mark.parametrize("drift", ["candidate", "tool", "dependency"])
+def test_native_final_recheck_refuses_actual_input_drift_after_successful_producer(
+    candidate_binary: Path, executor_binary: Path, repository: Path, tmp_path: Path, serial_program: dict[str, Any], drift: str
+) -> None:
+    inputs = execution_inputs(candidate_binary, executor_binary, repository, tmp_path, serial_program, waiting=True)
+    before = snapshot(repository)
+    stdout = tmp_path / "invocation.stdout.log"
+    stderr = tmp_path / "invocation.stderr.log"
+    with stdout.open("wb") as out, stderr.open("wb") as err:
+        child = subprocess.Popen([str(executor_binary), "execute", str(inputs["request_path"])], env=inputs["environment"], stdout=out, stderr=err)
+        try:
+            deadline = time.monotonic() + 10
+            while not inputs["marker"].exists() and child.poll() is None and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert inputs["marker"].read_bytes() == b"producer\n", stderr.read_bytes()
+            if drift == "candidate":
+                root = Path(json.loads(inputs["manifest_path"].read_bytes())["root"])
+                (root / "app.py").write_bytes(b"DRIFT\n")
+            elif drift == "tool":
+                # Change the actual private command tool's executable mode after
+                # its native producer has started; never alter a shared compiler.
+                bind_request = json.loads(inputs["bind_request"].read_bytes())
+                tool = next(row for row in bind_request["files"] if row["role"] == "toolchain")
+                Path(tool["path"]).chmod(0o600)
+            else:
+                inputs["observed"].write_bytes(b"DRIFT\n")
+            inputs["release"].write_bytes(b"release\n")
+            assert child.wait(timeout=20) != 0
+        finally:
+            inputs["release"].write_bytes(b"release\n")
+            if child.poll() is None:
+                child.terminate()
+                child.wait(timeout=10)
+    assert snapshot(repository) == before
+    report = json.loads((inputs["logs"] / "run.json").read_bytes())
+    assert report["accepted"] is False and report["refusal"] == "InputDrift"
+    assert report["results"][0]["status"] == "passed"
+    assert inputs["marker"].read_bytes() == b"producer\n"
+
+
+@pytest.mark.parametrize(
+    ("fault", "reason"),
+    [
+        ("mode", "UnsupportedChangedPathBinding"),
+        ("missing-selected", "IncompleteSelection"),
+        ("argv", "CommandBindingMismatch"),
+        ("environment", "EnvironmentBindingMismatch"),
+        ("budget", "BudgetBindingMismatch"),
+        ("oversized-budget", "UnsupportedBudget"),
+        ("producer", "UnqualifiedProducer"),
+        ("incomplete-source", "IncompleteProducerClosure"),
+        ("no-qualification", "UnqualifiedClosure"),
+        ("multiple-commands", "UnsupportedCheckLifecycle"),
+        ("platform", "UnavailableRequiredCheck"),
+        ("recipe-always", "UnsupportedRecipeBinding"),
+        ("recipe-producer-roster", "UnsupportedRecipeBinding"),
+        ("specification", "UnknownField"),
+        ("public-diagnostics", "PrivateEvidenceRequired"),
+        ("candidate-diagnostics", "PrivateEvidenceRequired"),
+    ],
+)
+def test_native_execution_refuses_unbound_context_before_any_child_effect(
+    candidate_binary: Path, executor_binary: Path, repository: Path, tmp_path: Path, serial_program: dict[str, Any], fault: str, reason: str
+) -> None:
+    inputs = execution_inputs(candidate_binary, executor_binary, repository, tmp_path, serial_program, fault=fault)
+    before = snapshot(repository)
+    result, report = run_execution(executor_binary, inputs)
+    assert snapshot(repository) == before
+    assert result.returncode != 0 and reason.encode() in result.stderr, result.stderr
+    assert not report and not inputs["marker"].exists()
+    assert not list(inputs["logs"].iterdir())
+
+
+def test_native_execution_quota_refuses_and_keeps_the_actual_raw_prefix(
+    candidate_binary: Path, executor_binary: Path, repository: Path, tmp_path: Path, serial_program: dict[str, Any]
+) -> None:
+    inputs = execution_inputs(candidate_binary, executor_binary, repository, tmp_path, serial_program, fault="stdout-quota")
+    before = snapshot(repository)
+    result, report = run_execution(executor_binary, inputs)
+    assert snapshot(repository) == before
+    assert result.returncode != 0 and report["accepted"] is False
+    assert [row["status"] for row in report["results"]] == ["refused", "blocked"]
+    producer = report["results"][0]
+    assert producer["reason"] == "stdout_limit" and producer["result"]["leader_reaped"] and producer["result"]["group_disposed"]
+    assert Path(producer["stdout_log"]["path"]).read_bytes() == b"STAGED\n" + b"O" * (4096 - 7)
+    assert producer["result"]["stdout_observed_bytes"] > producer["result"]["stdout_retained_bytes"] == 4096
+    assert report["qualified_scope_joined"] is True
+
+
+@pytest.mark.parametrize("fault", ["omitted-command", "command-alias"])
+def test_native_execution_cannot_qualify_an_omitted_actual_command_image(
+    candidate_binary: Path, executor_binary: Path, repository: Path, tmp_path: Path, serial_program: dict[str, Any], fault: str
+) -> None:
+    inputs = execution_inputs(candidate_binary, executor_binary, repository, tmp_path, serial_program, fault=fault)
+    before = snapshot(repository)
+    result, report = run_execution(executor_binary, inputs)
+    assert snapshot(repository) == before
+    assert result.returncode != 0, report
+    assert b"UnboundExecutable" in result.stderr and not inputs["marker"].exists()

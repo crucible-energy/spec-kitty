@@ -1332,3 +1332,60 @@ validators, hooks, Linux, session containment, or hard process/RSS peaks. Five
 required Linux-only checks still prevent macOS commit selection. The immutable
 private proof root is `native-wp03-execution-evidence-20261015/implementation-r1`;
 all failed attempts, full diagnostics, and frozen final receipts remain there.
+
+The useful slice implements actual serial execution in
+[validation_execution.zig](../../../tools/zig/validation_execution.zig). It uses
+`selectForTarget` over a bound specification and compares the complete selected
+roster and exact argv, environment, and budgets with existing input bindings.
+Lexical tie-breaking applies only among dependency-ready checks. An actual
+required failure leaves its consumer blocking, with the full result roster.
+A thrown backend error has no returned terminal disposition and therefore
+retains unknown custody and blocks subsequent work; empty logs cannot supply
+missing cleanup proof.
+
+Private schema-1 fixtures deliberately have no workflow recipes. Their two
+native checks use a separately compiled exact first-party import whose source
+bytes match the staged candidate, despite conflicting live source. They read
+staged candidate data at the candidate cwd, enforce exact argv and environment,
+and produce raw stdout and stderr larger than the display limit. This native
+compiled-import proof does not qualify arbitrary Python import contexts; the
+existing receipt import-isolation controls continue to govern those contexts.
+Nonzero exit, actual invalid-image startup, output quota, and actual candidate,
+private command-tool mode, and observed-dependency drift discriminate refusal.
+The shared compiler is never modified by drift controls.
+
+This entry admits only complete `full` roster execution. Commit mode refuses
+until its changed-path observations are independently bound. Every recipe and
+multi-command lifecycle refuses before launch, preserving producer rosters,
+conditions, and check-scoped detached lifetimes rather than executing an
+incorrect subset. The staged qualification policy still requires the exact
+no-process-creation scope and complete current producer, source, program, runtime,
+and tool identities. No production qualification policy ships. The Darwin
+backend continues reporting original-group disposal and sampled usage; positive
+private closure evidence does not change its general all-descendant result.
+A reserved exclusive receipt and exclusive private logs prevent a second run
+from replacing the first run's resources. Terminal validation refusal and
+unknown physical custody remain distinct. Unexpected evidence I/O failure can
+leave an incomplete retained receipt, which cannot supply acceptance.
+
+The binding RED is retained separately at `31c8bd9ec`. Initial fixture setup
+mistakenly selected schema 2 without its mandatory recipe declarations and was
+correctly refused; its full failed run is preserved. That setup failure does
+not count as product RED or execution proof. Source, tests, and this log are
+frozen before final gates; native inventories, statement observations, raw
+streams, source/toolchain pins, missed statements, and final results stay in
+external receipts, without modifying this candidate to record a pass.
+
+Independent fixed-r3 review reproduced two actual command-identity acceptance
+holes: a qualification and binding could omit the executed image, and an argv
+symlink could be retargeted after the producer started while its previously
+resolved input remained bound. Both actual runs returned acceptance and reached
+the consumer. The private reviewer retained both RED controls, exact source/image
+pins, marker effects, joins, and raw logs under
+`implementation-r1/root-review-r3`. These are product RED observations, distinct
+from earlier setup failures. The new public execution regressions require
+preflight refusal for omitted command images and alias argv, before any marker.
+Their tests are committed separately before the repair. The repair will require
+the exact canonical command image in the qualified runtime and current binding,
+and repeat complete qualification-pin checks before each launch and at final
+acceptance. A resolved path alone cannot authorize an alias that is executed.
