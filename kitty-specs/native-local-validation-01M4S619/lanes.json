@@ -50,6 +50,7 @@
         "tests/architectural/test_no_duplicate_suite_execution.py",
         "tests/architectural/test_same_tier_uniqueness.py",
         "tests/ci/**",
+        "tests/local_validation/fixtures/owned_process_group.zig",
         "tests/local_validation/test_candidate.py",
         "tests/local_validation/test_commit_entry.py",
         "tests/local_validation/test_execution.py",
@@ -68,15 +69,16 @@
         "tools/zig/validation_process_linux.zig",
         "tools/zig/validation_process_windows.zig",
         "tools/zig/validation_receipt.zig",
-        "tools/zig/validation_selection.zig"
+        "tools/zig/validation_selection.zig",
+        "tools/zig/validation_statement_inventory.zig"
       ],
       "predicted_surfaces": [],
       "depends_on_lanes": [],
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-12T23:33:47.813188+00:00",
+  "computed_at": "2026-10-15T03:15:48.729623+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [],
-  "planning_commit_sha": "9d1bce6f87fd8d638263ba44fdc1d45b6f370caf"
+  "planning_commit_sha": "ad94629bbd1fea48c197cdc073cfa0bb3b7d4a08"
 }

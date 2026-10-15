@@ -30,12 +30,14 @@ create_intent:
 - tools/zig/validation_receipt.zig
 - tests/local_validation/test_candidate.py
 - tests/local_validation/test_receipt.py
+- tests/local_validation/fixtures/owned_process_group.zig
 execution_mode: code_change
 owned_files:
 - tools/zig/validation_candidate.zig
 - tools/zig/validation_receipt.zig
 - tests/local_validation/test_candidate.py
 - tests/local_validation/test_receipt.py
+- tests/local_validation/fixtures/owned_process_group.zig
 role: implementer
 tags: []
 task_type: implement
@@ -89,6 +91,12 @@ Retain failed and passing evidence separately. Record completion through the own
 ### T008 — Prove positive reuse and paired invalidation
 
 Declare each check’s relevant transitive input closure. A matching, policy-permitted closure may reuse actual check evidence; prove suppression versus fresh execution on a shared fixture. Pair with candidate/dependency/tool/specification/environment invalidation. Unproved closure executes fresh. Recheck full current-candidate bindings immediately before acceptance; old global receipts never qualify a new tree. Test the real Git acceptance boundary and document any unproved external race honestly.
+
+Use the exact pinned test fixture described in the plan’s **WP02 self-contained
+ownership fixture** section for bounded producer/cleanup controls. Verify its
+source digest before compilation and import it only from temporary test
+harnesses. The receipt product remains an evidence consumer; this adds no WP03
+executor, production reuse authority, or containment/resource qualification.
 
 Retain failed and passing evidence separately. Record completion through the owning event-sourced workflow only when the actual requirements hold.
 
