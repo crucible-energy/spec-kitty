@@ -764,3 +764,169 @@ Strict type checking initially finds five fixture annotation errors. Correct het
 This increment delivers candidate capture and current-identity verification. Receipt/import work remains an independently retained WP02 continuation until its own complete proof and normal delivery. Early binder/import controls have actual matching and drift results, including both opposite live-edit traps, but those results do not complete result/log/cleanup binding, positive per-check reuse, or the real fixture Git acceptance boundary. Do not mark T005–T008 complete or request WP02 approval from candidate capture alone.
 
 The candidate CLI reports `capture_only: true` and `acceptance_performed: false`. Closed Git subprocesses have bounded stream collection and actual direct-child waits; final commands also run under the retained bounded original-session wrapper. This does not qualify a general validator supervisor, every descendant, session escapes, hard resource limits, or an intrinsic deadline after an arbitrary child closes its pipes. The later WP03 backend owns those requirements. Current-identity verification samples before returning; it cannot reserve the index, parent, object store, or files against a subsequent external writer. The historical Python coverage concurrency limit and unacknowledged original 84965 remain unchanged. No installed hook, platform/publication retirement, model, Source/Store effect, or savings is claimed.
+
+### Receipt And Positive Reuse Increment
+
+Observed: the supported ownership amendment is finalized and delivered at
+`1eb423e3ed2dae81c68986321a3ea1a42af3394e`, following independent review. It admits
+only the exact test fixture
+[`owned_process_group.zig`](../../../tests/local_validation/fixtures/owned_process_group.zig)
+from `temet-nosce@7d99ede611abbbfbda4503471fa71b417a6ef177`, source SHA-256
+`16dbf37d5d9199e61523e731cf931404e695d7a37fec463519951ba0a26fff8b`.
+Tests verify that digest before compiling temporary harnesses. This is unchanged
+fixture input, with no production process backend or new dependency. Continue
+this independently owned log under the previously recorded narrow rationale.
+
+The finalizer normally refreshes the lane planning pin from
+`9d1bce6f87fd8d638263ba44fdc1d45b6f370caf` to the already delivered candidate
+increment `ad94629bbd1fea48c197cdc073cfa0bb3b7d4a08`. This does not narrow WP02
+review: T005–T008 review must include the candidate source, tests, original RED,
+and pre-amendment delivery as well as the receipt increment. Preserve the
+original claim, approval, and planning provenance.
+
+The actual isolated import plan initially changes logical `argv[0]` and retains
+a duplicate script argument. Original 43167 joins with one genuine regression
+failure. Removing the bootstrap argument before invoking the relative staged
+script preserves ordinary empty, spaced, and newline arguments; all fourteen
+then-current binder/import controls pass. Unknown scripts, unsafe paths,
+unbound interpreters, unsupported command chains, incomplete identities, and
+malformed environment or command data refuse through the native boundary.
+
+The [receipt consumer](../../../tools/zig/validation_receipt.zig) binds the complete
+candidate, parent/base, executable and modes, embedded native sources, staged
+launcher/specification/lock, actual compiler/interpreter and observed files,
+selected argv, and named environment presence/digests. The import plan isolates
+candidate roots with `-I -S -B`; it does not claim a filesystem sandbox or a
+qualified arbitrary dependency environment. Checksums detect alteration, and
+regeneration verifies their actual bindings; a checksum is not an attestation.
+
+Qualification documents are anchored in the bound staged specification and
+identify an exact source-closed program, native producer image/source/build
+identity, runtime file pins, environment, platform, and finite budgets. They
+contain no routing rules. Source closure is an audited policy claim, not a
+consequence of a Boolean, check name, matching tree, or group-disposal flag.
+The committed tests construct and inspect the tiny closed fixture and its
+actual producer; the production catalog receives no qualification document.
+Its existing unqualified workflow contexts gain no execution or reuse claim.
+Unknown or unmatched closure selects fresh work, and invalid evidence cannot
+supply acceptance. A check without a reuse proof still needs real qualified
+fresh terminal evidence before local acceptance.
+
+Each qualified check conservatively uses the entire current binding as its
+input closure, including all staged files and modes. This sacrifices reuse
+across unrelated candidate changes rather than guessing transitive relevance.
+Real native producer witnesses bind that closure, exact argv/environment,
+complete retained streams, actual outcome, and original-group cleanup. The
+consumer verifies producer/source/runtime pins, result, byte budgets, stream
+hashes, and cleanup, then repeats current-candidate binding checks. It accepts
+only one complete, current result for every selected check. A valid result for
+another check, an old global receipt, missing evidence, tampered logs, failed
+cleanup, or a recomputed checksum cannot substitute for the required result.
+
+The historical always-fresh oracle actually runs four producers where the
+matching per-check contract requires three; original 33542 joins with that
+specific failure. The strengthened shared fixture now retains seven actual
+witnesses under identical inputs: three with one check reused and the other
+fresh, and four forced-fresh controls. Their outcomes and retained streams
+agree. This proves suppression of one actual producer call; it is not a token,
+latency, cost, or mission-completion claim. The fixture also reads a declared
+external data dependency, so observed-dependency drift has a real semantic
+consumer. Its isolated runtime inventory includes imported module/cache files
+and readable loaded interpreter images. Shared-cache OS images are not a
+whole-OS byte attestation; this remains a finite local fixture context, not
+WP05 platform qualification.
+
+Two further actual RED controls first accept complete evidence, then expose
+acceptance after changing native or producer executable permissions. Original
+4735 joins with those two failures. Both executable modes are now bound.
+Original 95418 similarly demonstrates acceptance of public-parent, escaping
+symlink, and multiply linked diagnostics after a valid private baseline. The
+consumer now requires private parent permissions and canonical, distinct,
+unaliased regular evidence files with one link. These checks do not claim
+filesystem ACL attestation or general sandbox ownership. All raw failures and
+the corrected cohorts remain separate in `native-wp02-candidate-evidence-20261014`.
+
+The real disposable Git hook has both opposite partial-staging controls. The
+historical direct-live hook commits staged failure/live success and refuses
+staged success/live failure; original 52858 joins with both wrong outcomes.
+The corrected fixture captures and binds inside the real hook, uses actual
+native completed evidence, and returns the actual local acceptance decision.
+Both directions preserve live and untracked work, hook bytes, and worktree
+topology. Another control changes the real index after successful checks and
+observes Git refuse through the final binding recheck. This is test-only hook
+integration; no operational hook is installed or replaced.
+
+### Receipt Proof And Remaining Qualification
+
+The unchanged qualified collector and independent installed-compiler grammar
+witness agree exactly on all 362 current receipt runtime entries, including
+controlled bodies and embedded transfers. Every declaration, structural node,
+and runtime expression remains classified. Collection is not coverage. Reuse
+the reviewed origin-based transform and sealed actual entry traces; preserve
+ordinary and instrumented contract outcomes with their own real image and
+producer bindings. Never rewrite a producer witness hash to fabricate identity
+with another image. Native observation acceptance, final source/dependency
+pins, misses, and frozen gate results belong to external receipts.
+
+Existing supported pytest controls retain caller-owned, previously absent
+`--basetemp` roots with `tmp_path_retention_policy=all`. Actual build argv,
+source/image pins, and raw compiler logs stay adjacent to those ordinary
+artifacts. No optional archiver, global pytest policy change, or replacement
+retention framework is introduced. The original 53-pass receipt cohort has its
+actual joined terminal receipt and raw log, but its successful temporary image
+was already reaped before a later attempted copy; that missing image is not
+reconstructed or credited as pinned coverage evidence. Later retained cohorts
+keep their actual images and synthetic witnesses. Preserve original 84965's
+historic missing acknowledgment and the earlier Python coverage concurrency
+failure; current suites use distinct run-owned coverage paths.
+
+The candidate and receipt modules remain WP02 work until all current required
+checks, genuine complete native observation, normal delivery, and independent
+review finish. The exact fixture dependency remains visible separately from
+maintained production code; unchanged dependency provenance is not newly
+observed receipt code. Darwin original-group disposal and sampled usage do not
+qualify changed-group/session escapes, hard resource peaks, arbitrary programs,
+Linux/Windows, publication, or an installed commit entry. Those requirements
+remain with WP03–WP05. A final local binding check is an observation, not a
+reservation against an external writer after it returns or an atomic guarantee
+over Git's subsequent acceptance window. No canonical Source/Store, model,
+credential, hosted retirement, or deployment effect is claimed.
+
+### Receipt Observed Closure Correction
+
+A final closure audit found a real gap before delivery. The producer enforced
+its complete embedded runtime manifest, but its result omitted that manifest's
+file table. A staged policy could declare a strict subset and the consumer
+could not compare it with the producer's actual observation. Original 3619
+first records and reuses a genuine successful complete baseline, then omits a
+real external dependency from both policy and input bindings. Cached reuse
+incorrectly survives a change to that dependency, while actual fresh execution
+refuses with `RuntimeDrift`. This is a dependency-closure defect, not a missing
+command or an arbitrary-caller authentication claim.
+
+The paired omitted/duplicated declaration controls in original 21160 reproduce
+two accepted invalid records after actual successful native baselines. The
+receipt now compares the producer's emitted complete runtime file table with
+the declared table, alongside program and runtime-manifest hashes. The
+self-contained test producer emits the same table it enforces. This is a
+minimal extension of the existing receipt witness, with no new executor,
+production qualification, policy table, dependency, or module.
+
+Preserve the first test adapter's original 23090 two-pass output separately:
+it retained the old private candidate cwd after recapture, so it tested a cwd
+mismatch rather than the intended closure boundary. The corrected control uses
+the new manifest's actual cwd. The initial external probe's import setup
+failure is also retained without counting it as RED proof. Neither result is
+retagged as a product pass or a failed-first regression.
+
+Before this correction, originals 63914 and 3713 genuinely joined with 94
+instrumented passes and 632 ordinary owning passes plus two skips. All 94
+ordinary/instrumented receipt contract outcomes agree, with real image-specific
+bindings and witnesses. The historical observation is 344 of 362 native
+statement entries, with all 18 misses retained. These results remain evidence
+for their exact earlier source; they do not validate the repaired source.
+The successor source needs its own complete grammar denominator, genuine
+observations, ordinary outcome comparison, owning checks, and required delivery
+gate. Final results stay external so recording them cannot change the frozen
+candidate. Checksums and caller-private evidence remain local integrity
+controls, not authenticated execution attestation.
