@@ -66,6 +66,9 @@
       "last_event_id": "01M4YHNXZDC0QZNF54ZZ6XNMHZ",
       "last_transition_at": "2026-10-15T01:09:00.013885+00:00",
       "model": "__resolved_model_absent__",
+      "notes": [
+        "Begin sequential WP02 exact staged candidate and reusable check identity after actual WP01 canonical approval"
+      ],
       "provider": "__resolved_provider_absent__",
       "role": "implementer"
     },
