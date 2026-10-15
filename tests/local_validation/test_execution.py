@@ -8,18 +8,21 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import shutil
 import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from tests.local_validation.test_candidate import ROOT, digest, snapshot
+from tests.local_validation.test_candidate import candidate_binary as candidate_binary
 from tests.local_validation.test_candidate import repository as repository
+from tests.local_validation.test_receipt import bound_inputs as bound_inputs
+from tests.local_validation.test_receipt import receipt_binary as receipt_binary
 
 SOURCE = ROOT / "tools/zig/validation_process_darwin.zig"
 FOUNDATION = ROOT / "tests/local_validation/fixtures/owned_process_group.zig"
@@ -1193,3 +1196,15 @@ def test_probe_and_native_boundaries_refuse_invalid_inputs_before_effect(process
     assert observed["error_name"] == ("InvalidEnvironment" if invalid.startswith("environment") else "InvalidArguments")
     assert observed["started"] is None and not observed["cleanup_complete"]
     assert not marker.exists()
+
+
+def test_binding_cannot_omit_the_actual_process_implementation(
+    receipt_binary: Path, bound_inputs: dict[str, Any]
+) -> None:
+    """The public binding must carry the implementation that will own execution.
+
+    This exercises the existing binding entry, rather than treating an absent
+    executor or a compiler error as a behavioral RED.
+    """
+    names = {source["name"] for source in bound_inputs["binding"]["native_sources"]}
+    assert "validation_process_darwin.zig" in names, names

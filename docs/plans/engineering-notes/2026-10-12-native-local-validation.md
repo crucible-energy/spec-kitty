@@ -1296,3 +1296,39 @@ reuse, or install a hook. Linux execution remains explicitly unqualified by
 this module and Windows remains deferred. Unobserved native statements and
 historical failed/setup attempts remain recorded. No model, GPU, serving,
 Source, Store, credential, corpus admission, or production effect is selected.
+
+
+## October 15, 2026 — T011 Execution Closure And Serial Candidate Checks
+
+### User Experience Findings
+
+The current public receipt binding records only candidate and receipt source,
+although actual execution must also bind the selected-command and process
+implementation. A direct public-binding control asserts the real Darwin process
+source is present. This is a product RED over an existing entry, distinct from
+the separately missing executor surface or missing-tool/setup failures.
+
+### Engineering Decisions
+
+Root coordinates the narrow WP02-owner exception for public current-binding,
+qualification, and complete native-source-closure APIs in
+`tools/zig/validation_receipt.zig`, plus the existing receipt fixture adjustments.
+WP02 has no active competing editor. The T011 executor will call these existing
+authorities and `selectForTarget`, compare the complete selected roster, and
+execute checks in stable dependency order. It will retain raw logs independently
+from bounded excerpts and recheck complete current inputs after cleanup.
+
+Only already qualified exact single-command source closures may execute.
+Unsupported recipe conditions, observed producer rosters, and detached
+check-lifetime custody refuse before launch; the actual architectural sampler
+requires check-scoped ownership and cannot inherit per-argv fixture proof.
+No production qualification document, alternate selection map, weakened budget,
+workflow transition, or Windows/Parallels operation is authorized here.
+
+### Known Limitations
+
+The first useful execution slice does not complete T011 or qualify arbitrary
+validators, hooks, Linux, session containment, or hard process/RSS peaks. Five
+required Linux-only checks still prevent macOS commit selection. The immutable
+private proof root is `native-wp03-execution-evidence-20261015/implementation-r1`;
+all failed attempts, full diagnostics, and frozen final receipts remain there.
