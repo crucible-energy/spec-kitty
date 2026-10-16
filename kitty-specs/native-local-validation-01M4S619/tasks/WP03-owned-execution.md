@@ -95,7 +95,7 @@ Retain failed and passing evidence separately. Record completion through the own
 
 ### T012 — Qualify real platform backends
 
-Use identity-safe Linux ownership and Windows job ownership, reusing verified ecosystem foundations where applicable. Qualify actual commands and platform control boundaries, not inferred portability. Coordinate existing strict GX10 access for Linux proof; do not touch canonical model/corpus resources. Unavailable Windows execution is a named missing qualification, never a Darwin substitute or completed retirement. No unrelated VM/service or unowned process signaling.
+Prioritize actual macOS and Linux control-boundary evidence. Use identity-safe Linux ownership and the reviewed Darwin foundation, reusing verified ecosystem foundations where applicable. Qualify actual commands, not inferred portability; coordinate existing strict GX10 access for Linux proof. Do not touch canonical model/corpus resources. Windows job ownership remains a later qualification after macOS and Linux, using actual Windows execution only. Unavailable Windows remains explicitly unqualified and is never substituted by Darwin. Do not use Parallels on this Mac, an unrelated VM or service, or unowned process signaling.
 
 Retain failed and passing evidence separately. Record completion through the owning event-sourced workflow only when the actual requirements hold.
 
