@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: native-local-validation-01M4S619
 mission_id: 01M4S61935GJQVDGMGV37HF1BB
-generated_at: '2026-10-14T04:47:21.680387+00:00'
+generated_at: '2026-10-16T17:31:38.114505+00:00'
 analyzer_agent: codex
 input_artifacts:
   spec.md:
@@ -12,7 +12,7 @@ input_artifacts:
     sha256: c33f7c2b032a3d24c5904f07819492884aee99d43d657635a2db61452d248805
   plan.md:
     path: kitty-specs/native-local-validation-01M4S619/plan.md
-    sha256: 32acd4875e124f36032a43acf263f17bef1e4bbeb217f7e4df1cde29058f5f6c
+    sha256: 5e57ea0d365e892e67b2d72049b45350a088efe0974ef9670b5e606ec7786e3f
   tasks.md:
     path: kitty-specs/native-local-validation-01M4S619/tasks.md
     sha256: 7c6ad9f4e360fa32244aab87463f17fb1e82eceb9d62e1ec7728848b1d750ec3
@@ -1611,7 +1611,7 @@ input_artifacts:
     sha256: 926954817e1580add22122975fd309c74ea5183fc12075a8e2406d0689c79a3f
   material:kitty-specs/native-local-validation-01M4S619/plan.md:
     path: kitty-specs/native-local-validation-01M4S619/plan.md
-    sha256: 32acd4875e124f36032a43acf263f17bef1e4bbeb217f7e4df1cde29058f5f6c
+    sha256: 5e57ea0d365e892e67b2d72049b45350a088efe0974ef9670b5e606ec7786e3f
   material:kitty-specs/native-local-validation-01M4S619/spec.md:
     path: kitty-specs/native-local-validation-01M4S619/spec.md
     sha256: c33f7c2b032a3d24c5904f07819492884aee99d43d657635a2db61452d248805
@@ -1627,12 +1627,33 @@ input_artifacts:
   material:kitty-specs/native-local-validation-01M4S619/tasks/README.md:
     path: kitty-specs/native-local-validation-01M4S619/tasks/README.md
     sha256: 9aa56dbf7099c0112c83262625562310bc2f5b8fc6d9c68a4bf3270756d1f65c
+  material:kitty-specs/native-local-validation-01M4S619/tasks/WP01-canonical-selection:
+    path: kitty-specs/native-local-validation-01M4S619/tasks/WP01-canonical-selection
+    sha256: directory
+  material:kitty-specs/native-local-validation-01M4S619/tasks/WP01-canonical-selection/.gitignore:
+    path: kitty-specs/native-local-validation-01M4S619/tasks/WP01-canonical-selection/.gitignore
+    sha256:
+  material:kitty-specs/native-local-validation-01M4S619/tasks/WP01-canonical-selection/review-cycle-1.md:
+    path: kitty-specs/native-local-validation-01M4S619/tasks/WP01-canonical-selection/review-cycle-1.md
+    sha256: 57e35c31f3f10c59e387e393324e795b5da4bcae895bda2015ddd25fbef53510
+  material:kitty-specs/native-local-validation-01M4S619/tasks/WP01-canonical-selection/review-cycle-2.md:
+    path: kitty-specs/native-local-validation-01M4S619/tasks/WP01-canonical-selection/review-cycle-2.md
+    sha256: 77e5e6abda28387bfd2060b17b9baaa7f823b0f893575c105684627a06354233
   material:kitty-specs/native-local-validation-01M4S619/tasks/WP01-canonical-selection.md:
     path: kitty-specs/native-local-validation-01M4S619/tasks/WP01-canonical-selection.md
-    sha256: 1d9d2dc23d04839a826703245cc68a09042a45f7549f4875389b74e8f8f23801
+    sha256: 120864c6677aa3d8db98bf2b44f48a1d25c287092b3cecb12cddad0407077262
+  material:kitty-specs/native-local-validation-01M4S619/tasks/WP02-candidate-evidence:
+    path: kitty-specs/native-local-validation-01M4S619/tasks/WP02-candidate-evidence
+    sha256: directory
+  material:kitty-specs/native-local-validation-01M4S619/tasks/WP02-candidate-evidence/.gitignore:
+    path: kitty-specs/native-local-validation-01M4S619/tasks/WP02-candidate-evidence/.gitignore
+    sha256:
+  material:kitty-specs/native-local-validation-01M4S619/tasks/WP02-candidate-evidence/review-cycle-1.md:
+    path: kitty-specs/native-local-validation-01M4S619/tasks/WP02-candidate-evidence/review-cycle-1.md
+    sha256: 43cb9fdeb8b1bacb85e2039b524727023e1fba2b0e594d5b234f02dad5537207
   material:kitty-specs/native-local-validation-01M4S619/tasks/WP02-candidate-evidence.md:
     path: kitty-specs/native-local-validation-01M4S619/tasks/WP02-candidate-evidence.md
-    sha256: bb2c0c46679427d17cacde194fd8958867f4457a76f2493d17e7bf9e85333ee9
+    sha256: 91adcb9950df13153bc06900af9b6f1f7eba9793298cb006518ec4992a108ebe
   material:kitty-specs/native-local-validation-01M4S619/tasks/WP03-owned-execution.md:
     path: kitty-specs/native-local-validation-01M4S619/tasks/WP03-owned-execution.md
     sha256: 541fb9c8557cb25a1f629e259eefc532d4ffff6c578ac679aa624a74f3b9e0c0
@@ -1911,51 +1932,66 @@ input_artifacts:
     sha256: c50b36df106c7e7eff3e43521ba8d7ef17b4469c81bbe311c1cb2c3ed696dc47
   template-selection:spec:
     path:
-    sha256: 7cd56ce1c09b6f5e8944c8447544294d6969be132c0345049ff97bef010384fe
+    sha256: 73165c94b4a946eb1b4e9a287b7caa0a20c4f6d8d0b47f38f2aafa869cb1f7ac
   template-selection:plan:
     path:
-    sha256: 425017af0f77e2492f4a0e0e664d1f9e733a3c6fe82e8030b42f8a330680b5a5
+    sha256: 2f6578d2f7c723bdbfdcf623bc43eed5b21797a50a08f4f98e64dac9e3cf1fa1
   git:source-membership:
     path:
-    sha256: cf9399c2ceb1ae84842f48221acd5b2fb439e5dbd68c8ca38f736e6e4d04827d
+    sha256: 703bca8e95b17730cc29e377538d25a30d61145b33ca7f664eb2c9ebced0fbd6
 verdict: ready
 issue_counts:
-  critical: 0
   high: 0
-  low: 0
+  critical: 0
   medium: 0
+  low: 0
   info: 0
 findings: []
-report_transaction: 7fb0eb61c34f451cbfd0720b91785ea3
+report_transaction: afac922c75f8411fb48bbfbc4d3bb6e9
 material_manifest_version: 1
 ---
 
-# Specification Analysis Report
+## Specification Analysis Report
 
-Observed October 14, 2026 against preserved source `70f471607d291f0d78e87f5360b3f5df64ec645f` in the explicitly owned checkout. The historical creator released the inactive lane to the Temet root chat after actual session evidence resolved its origin. Supported resume refused stale template-selection bindings; this recorder refresh changes analysis evidence only. The earlier analysis and transaction remain in Git history.
+Observed October 16, 2026, against the existing `codex/native-local-validation` lane at `6372f53c17d4b495ee868a67899dfcfaa4c91527`. The October 14 plan addition makes the WP02 ownership fixture a self-contained, hash-pinned test input. It preserves the distinction between that fixture and the WP03 production supervisor. The report was refreshed under a checkout-isolated Spec Kitty runtime home with only exact bundled software-dev templates; shared `~/.kittify` was left untouched.
 
-## Findings
+| ID | Category | Severity | Location(s) | Summary | Recommendation |
+|----|----------|----------|-------------|---------|----------------|
+| — | — | — | — | No specification, plan, task, or charter inconsistency found. | No remediation required. |
 
-No blocking artifact inconsistency was identified. This is planning consistency analysis, not approval of existing WP01 code, native coverage, command extraction, installed hooks, or workflow retirement. Current implementation openly retains unresolved workflow mappings. These are implementation requirements with assigned tasks, not grounds to label WP01 complete.
+**Coverage Summary Table:**
 
-## Coverage Summary
+| Requirement Key | Has Task? | Task IDs | Notes |
+|-----------------|-----------|----------|-------|
+| FR-001 | Yes | T013–T016 | Shared local entry, hook composition, and accepted/rejected commit controls |
+| FR-002 | Yes | T005–T008 | Exact staged proposal and partial-stage controls |
+| FR-003 | Yes | T001–T004 | Single selection authority and parity |
+| FR-004 | Yes | T001–T004, T009–T012 | Selection refusal, execution failure, and retained diagnostics |
+| FR-005 | Yes | T005–T008 | Candidate and execution evidence binding |
+| FR-006 | Yes | T005–T008, T013–T016 | Input drift invalidation and commit-path recheck |
+| FR-007 | Yes | T009–T012 | Owned child lifecycle and terminal cleanup |
+| FR-008 | Yes | T005–T008, T013–T016 | Staged, unstaged, untracked, and hook preservation |
+| FR-009 | Yes | T017–T018 | Explicit qualification and publication modes |
+| FR-010 | Yes | T017–T020 | Equivalence, remote requirements, and qualified hosted retirement |
+| NFR-001 | Yes | T005–T008 | Complete receipt bindings or refusal |
+| NFR-002 | Yes | T009–T012 | Bounded execution and joined cleanup |
+| NFR-003 | Yes | T001–T004 | Deterministic check identity and order |
+| NFR-004 | Yes | T009–T012, T017–T019 | Platform/release evidence and honest qualification |
+| NFR-005 | Yes | T009–T012 | Bounded diagnostics with visible quota failure |
 
-| Requirements | Tasks | Assessment |
-| --- | --- | --- |
-| FR-003, FR-004, NFR-003, C-002, C-003 | T001–T004 / WP01 | Extraction, native selection, refusal, and migration parity |
-| FR-002, FR-005, FR-006, FR-008, NFR-001, C-004 | T005–T008 / WP02 | Exact candidate, import/binding identity, positive reuse and drift refusal |
-| FR-004, FR-007, NFR-002, NFR-005, NFR-004, C-001 | T009–T012 / WP03 | Actual bounded execution, diagnostic retention, cleanup and platform qualification |
-| FR-001, FR-006, FR-008, SC-001, SC-002, SC-003, SC-005, C-001, C-004 | T013–T016 / WP04 | Installed hook positive/negative controls, guards, work preservation |
-| FR-009, FR-010, NFR-004, SC-004, C-002, C-003, C-005, C-006 | T017–T020 / WP05 | Qualified release/publication, equivalence, remote requirements, retirement |
+**Charter Alignment Issues:** None. The plan retains ATDD, one routing authority, independent review, source-work preservation, and truthful platform qualification. Its full/release modes are product entry points; the charter's prohibition on running whole-repository heavy test sweeps during mission work remains applicable to implementation validation.
 
-## Charter Alignment
+**Unmapped Tasks:** None. WP01–WP05 map to the stated requirements, constraints, and success criteria; C-001–C-006 and SC-001–SC-005 have explicit task coverage.
 
-ATDD-first, one canonical authority, strict validation, public review disposition, user-asset preservation, independent review, and owned single-branch work remain binding. Sam explicitly directs Zig local execution in place of hosted execution; inherited Python-only and CI-only assignments do not override that direction. Existing validators and their thresholds remain behavioral authorities; only the qualified retirement increment reconciles guidance. No additional worktree or parallel mission execution is requested.
+**Metrics:**
 
-## Ordering And Boundaries
+- Total Requirements: 15 (10 functional, 5 non-functional)
+- Total Tasks: 20
+- Coverage: 100% of requirements have at least one task
+- Ambiguity Count: 0
+- Duplication Count: 0
+- Critical Issues Count: 0
 
-Selection precedes candidate and execution; real hook controls precede qualification; equivalence and publication precede removal of hosted execution. Matching per-check reuse is paired with input invalidation. Original process-group disposal and sampled resource observations do not prove detached-child containment or hard resource limits. Native coverage requires actual instrumentation and denominator evidence; Python coverage alone cannot qualify Zig. Missing platform qualification refuses readiness.
+### Next Actions
 
-## Remaining Work And Next Action
-
-All 20 tasks map to explicit requirements, constraints, or success criteria; none is unmapped. The 10 functional requirements, five nonfunctional requirements, six constraints, and five success criteria have assigned tasks. These are artifact inventories, not delivery or model-quality metrics. Supported implementation re-entry must succeed before further source edits. Complete the real executable command specification, remaining native checks, and independent review through the existing lane. Existing routing parity does not establish a working pre-commit gate. Savings and production readiness remain unknown.
+No artifact remediation is required. Resume the already claimed WP03 lane through its governed implementation action. Windows qualification remains an explicit planned requirement; no Windows or Parallels execution is claimed here.
