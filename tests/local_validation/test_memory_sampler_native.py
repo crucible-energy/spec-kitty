@@ -1035,6 +1035,209 @@ sys.exit(code)
 """
 
 
+LINUX_REPORT_READER = r"""import os, sys, stat, json, hashlib, subprocess
+from pathlib import Path
+
+assert os.getpid() == 1 and os.getuid() != 0
+runtime = {"python_version": sys.version.split()[0], "integer_token_limit": sys.get_int_max_str_digits()}
+metadata_fd = os.open("/output/fixture/report-runtime.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+try:
+    runtime_raw = json.dumps(runtime).encode()
+    assert os.write(metadata_fd, runtime_raw) == len(runtime_raw)
+finally:
+    os.close(metadata_fd)
+assert sys.version_info[:2] == (3, 14) and sys.get_int_max_str_digits() == 4300
+root = Path("/owned")
+transport = Path("/output/fixture")
+base = root.lstat()
+assert stat.S_ISDIR(base.st_mode) and base.st_uid == os.getuid() and base.st_gid == os.getgid() and stat.S_IMODE(base.st_mode) == 0o700
+
+
+def metadata(value):
+    return {
+        "device": value.st_dev,
+        "inode": value.st_ino,
+        "mode": value.st_mode,
+        "uid": value.st_uid,
+        "gid": value.st_gid,
+        "nlink": value.st_nlink,
+        "size": value.st_size,
+        "mtime_ns": value.st_mtime_ns,
+        "ctime_ns": value.st_ctime_ns,
+    }
+
+
+def read(path):
+    initial = path.lstat()
+    assert stat.S_ISREG(initial.st_mode) and initial.st_nlink == 1 and initial.st_size <= 65536
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        assert metadata(os.fstat(fd)) == metadata(initial)
+        raw = bytearray()
+        while len(raw) <= 65536:
+            part = os.read(fd, 65537 - len(raw))
+            if not part:
+                break
+            raw.extend(part)
+        assert len(raw) <= 65536 and metadata(os.fstat(fd)) == metadata(initial) and metadata(path.lstat()) == metadata(initial)
+    finally:
+        os.close(fd)
+    return metadata(initial) | {"path": str(path), "sha256": hashlib.sha256(raw).hexdigest(), "body_hex": raw.hex()}
+
+
+def private(path):
+    value = read(path)
+    assert value["uid"] == os.getuid() and value["gid"] == os.getgid() and stat.S_IMODE(value["mode"]) == 0o600
+    return value
+
+
+def directory(path):
+    value = path.lstat()
+    assert stat.S_ISDIR(value.st_mode) and value.st_uid == os.getuid() and value.st_gid == os.getgid() and stat.S_IMODE(value.st_mode) == 0o700
+    return metadata(value) | {"path": str(path), "state": "directory"}
+
+
+def write(path, raw):
+    assert len(raw) <= 65536
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        offset = 0
+        while offset < len(raw):
+            count = os.write(fd, raw[offset:])
+            assert count > 0
+            offset += count
+    finally:
+        os.close(fd)
+    if str(path).startswith("/owned/"):
+        assert private(path)["body_hex"] == raw.hex()
+
+
+def closed(pairs):
+    assert len(pairs) == len({key for key, value in pairs})
+    return dict(pairs)
+
+
+source_request = read(Path("/input/request.json"))
+request = json.loads(bytes.fromhex(source_request["body_hex"]), object_pairs_hook=closed)
+assert all(type(request.get(key)) is int for key in ["schema_version", "warn_bytes", "error_bytes", "wall_ms"])
+assert request == {
+    "schema_version": 1,
+    "state_path": "/owned/fixture/new-state/state.json",
+    "cgroup_path": "/owned/fixture/cgroup-result.json",
+    "warn_bytes": 10737418240,
+    "error_bytes": 12884901888,
+    "wall_ms": 5000,
+}
+source_oracle = read(Path("/input/scripts/ci/memory_sampler.py"))
+sys.dont_write_bytecode = True
+sys.path.insert(0, "/input/scripts/ci")
+import memory_sampler as oracle
+
+fixture = root / "fixture"
+fixture.mkdir(mode=0o700)
+sample_request = fixture / "sample-request.json"
+write(
+    sample_request,
+    json.dumps(
+        {"schema_version": 1, "destination": str(fixture / "new-state"), "proc_root": "/proc", "interval_ms": 0, "max_samples": 1, "wall_ms": 5000}
+    ).encode(),
+)
+group_request = fixture / "cgroup-request.json"
+write(group_request, json.dumps({"schema_version": 1, "proc_root": "/proc", "sys_root": "/", "wall_ms": 5000}).encode())
+report_request = fixture / "report-request.json"
+write(report_request, json.dumps(request).encode())
+calls = []
+
+
+def native(operation, path, label):
+    argv = ["/input/executor", operation, str(path)]
+    out_path = transport / (label + ".stdout.log")
+    err_path = transport / (label + ".stderr.log")
+    with out_path.open("xb") as out, err_path.open("xb") as err:
+        child = subprocess.Popen(argv, env={"PATH": "/usr/bin:/bin"}, stdout=out, stderr=err)
+        try:
+            code = child.wait(timeout=7)
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.wait(timeout=2)
+    assert out_path.stat().st_size <= 65536 and err_path.stat().st_size <= 1048576
+    calls.append(
+        {
+            "argv": argv,
+            "actual_native_pid": child.pid,
+            "joined": True,
+            "exact_exit_code": code,
+            "stdout": str(out_path),
+            "stderr": str(err_path),
+            "stdout_sha256": hashlib.sha256(out_path.read_bytes()).hexdigest(),
+            "stderr_sha256": hashlib.sha256(err_path.read_bytes()).hexdigest(),
+        }
+    )
+    assert code == 0 and err_path.read_bytes() == b""
+    return out_path.read_bytes()
+
+
+assert native("memory-sample", sample_request, "report-sample") == b""
+state_path = Path(request["state_path"])
+state_raw = bytes.fromhex(private(state_path)["body_hex"])
+state = oracle.from_json(state_raw.decode("utf-8"))
+assert state is not None and state.samples == 1 and state.pid == calls[-1]["actual_native_pid"] and state.source == "meminfo"
+group_raw = native("memory-cgroup", group_request, "report-cgroup")
+group = json.loads(group_raw, object_pairs_hook=closed)
+assert set(group) == {"schema_version", "source", "peak_bytes"} and group["schema_version"] == 1
+assert group["source"] == "cgroup-v2-memory-peak" and type(group["peak_bytes"]) is int and group["peak_bytes"] >= 0
+write(Path(request["cgroup_path"]), group_raw)
+paths = [sample_request, group_request, report_request, state_path, Path(request["cgroup_path"])]
+before = [private(path) for path in paths]
+parents_before = [directory(path) for path in [root, fixture, state_path.parent]]
+result_raw = native("memory-report", report_request, "report-native")
+after = [private(path) for path in paths]
+parents_after = [directory(path) for path in [root, fixture, state_path.parent]]
+assert before == after and parents_before == parents_after
+assert read(Path("/input/request.json")) == source_request and read(Path("/input/scripts/ci/memory_sampler.py")) == source_oracle
+expected = {
+    "schema_version": 1,
+    "report_lines": oracle.render_report(state, group["peak_bytes"], warn_bytes=request["warn_bytes"], error_bytes=request["error_bytes"]),
+    "summary_line": oracle.summary_line(state, group["peak_bytes"]),
+}
+assert json.loads(result_raw) == expected
+exports = []
+for name, raw in [
+    ("report-state.json", state_raw),
+    ("report-cgroup.json", group_raw),
+    ("report-request.json", json.dumps(request).encode()),
+    ("report-result.json", result_raw),
+]:
+    write(transport / name, raw)
+    exports.append({"name": name, "sha256": hashlib.sha256(raw).hexdigest(), "size": len(raw)})
+receipt = {
+    "scope": (
+        "Actual finite report on finalized native artifacts in this one owned Linux tmpfs. "
+        "No detached lifecycle, producer adoption, backend or recipe qualification."
+    ),
+    "python_version": sys.version.split()[0],
+    "actual_native_pid": calls[-1]["actual_native_pid"],
+    "joined": True,
+    "exact_native_exit_code": calls[-1]["exact_exit_code"],
+    "native_calls": calls,
+    "input_request": source_request,
+    "oracle_source": {key: value for key, value in source_oracle.items() if key != "body_hex"},
+    "before": before,
+    "after": after,
+    "parents_before": parents_before,
+    "parents_after": parents_after,
+    "expected": expected,
+    "sample_pid": state.pid,
+    "actual_cgroup_result": group,
+    "exports": exports,
+}
+write(transport / "report-context.json", json.dumps(receipt, separators=(",", ":")).encode())
+sys.stdout.buffer.write(result_raw)
+sys.exit(calls[-1]["exact_exit_code"])
+"""
+
+
 LINUX_CGROUP_READER = r"""import os, sys, json, stat, hashlib, subprocess
 from pathlib import Path
 root = Path("/output/fixture")
@@ -1119,6 +1322,12 @@ def linux_probe_operation(inputs: Path, fixture: Path, mode: str | None, expecte
         counter.parent.mkdir(parents=True)
         counter.write_bytes(b"123\n")
         return "/input/executor", ["memory-cgroup", "/input/request.json"]
+    if mode == "report":
+        (inputs / "report-reader.py").write_text(LINUX_REPORT_READER)
+        (inputs / "scripts").mkdir(mode=0o700)
+        (inputs / "scripts/ci").mkdir(mode=0o700)
+        shutil.copyfile(ROOT / "scripts/ci/memory_sampler.py", inputs / "scripts/ci/memory_sampler.py")
+        return "/usr/local/bin/python3", ["/input/report-reader.py"]
     if mode == "cgroup-live":
         (inputs / "cgroup-reader.py").write_text(LINUX_CGROUP_READER)
         return "/usr/local/bin/python3", ["/input/cgroup-reader.py"]
@@ -1158,6 +1367,9 @@ def linux_input_fixture(proc: Path, body: bytes | None, control: str) -> None:
 def linux_fixture_mode(owned: bool, mode: str | None, control: str, changes: dict[str, Any] | None) -> str | None:
     if not owned:
         return mode
+    if mode == "report":
+        assert control == "normal" and changes is None
+        return mode
     assert mode is None and (control == "directory" or (control == "normal" and changes == {"interval_ms": 2000, "max_samples": 3, "wall_ms": 500}))
     return "owned-fixture"
 
@@ -1170,6 +1382,14 @@ def linux_fixture_metadata(initial: dict[str, Any], owned: bool) -> None:
 
 
 def linux_actual_pid(fixture: Path, terminal: dict[str, Any], owned: bool, mode: str | None) -> int:
+    if mode == "report":
+        retained_report = json.loads((fixture / "report-context.json").read_bytes())
+        assert retained_report["joined"] and retained_report["exact_native_exit_code"] == terminal["state"]["ExitCode"] == 0
+        calls = retained_report["native_calls"]
+        assert len(calls) == 3 and all(row["joined"] and row["exact_exit_code"] == 0 and row["actual_native_pid"] > 1 for row in calls)
+        pid = retained_report["actual_native_pid"]
+        assert type(pid) is int and pid == calls[-1]["actual_native_pid"]
+        return pid
     if mode == "cgroup-live":
         retained_live = json.loads((fixture / "cgroup-context.json").read_bytes())
         assert retained_live["joined"] and retained_live["exact_native_exit_code"] == terminal["state"]["ExitCode"]
@@ -1184,6 +1404,15 @@ def linux_actual_pid(fixture: Path, terminal: dict[str, Any], owned: bool, mode:
 
 
 def linux_public_request(mode: str | None, changes: dict[str, Any] | None) -> dict[str, Any]:
+    if mode == "report":
+        return {
+            "schema_version": 1,
+            "state_path": "/owned/fixture/new-state/state.json",
+            "cgroup_path": "/owned/fixture/cgroup-result.json",
+            "warn_bytes": 10 * oracle.GIB,
+            "error_bytes": 12 * oracle.GIB,
+            "wall_ms": 5000,
+        }
     if mode == "cgroup-live":
         return {"schema_version": 1, "proc_root": "/proc", "sys_root": "/", "wall_ms": 5000}
     if mode in {"cgroup", "cgroup-busy", "cgroup-busy-drift", "cgroup-self-absent", "cgroup-self-replaced"}:
@@ -1197,6 +1426,13 @@ def linux_public_request(mode: str | None, changes: dict[str, Any] | None) -> di
         "wall_ms": 5000,
         **(changes or {}),
     }
+
+
+def linux_store_request(inputs: Path, request_bytes: bytes, mode: str | None) -> None:
+    path = inputs / "request.json"
+    path.write_bytes(request_bytes)
+    if mode == "report":
+        path.chmod(0o600)
 
 
 def linux_public_call(
@@ -1295,7 +1531,7 @@ def linux_public_call(
     linux_input_fixture(proc, body, control)
     entrypoint, operation = linux_probe_operation(inputs, fixture, linux_fixture_mode(owned_fixture, probe_mode, control, changes), probe_expectation)
     request_bytes = json.dumps(value).encode()
-    (inputs / "request.json").write_bytes(request_bytes)
+    linux_store_request(inputs, request_bytes, probe_mode)
     owner = os.urandom(12).hex()
     for path in [inputs, output]:
         assert "," not in str(path), "The finite Docker bind fixture excludes commas"
@@ -2444,3 +2680,144 @@ def test_native_report_integer_negative_zero_fields(sampler_binary: Path, tmp_pa
     result = invoke(sampler_binary, "memory-report", path, tmp_path)
     assert result.returncode == 0 and result.stderr == b"", result.stderr
     assert json.loads(result.stdout) == expected_report(raw, value["state_path"], peak, value["warn_bytes"], value["error_bytes"])
+
+
+def report_state_domain_control(control: str, raw: bytes, state: dict[str, Any]) -> tuple[bytes, str | None]:
+    reason = None
+    if control.startswith("state-missing-"):
+        state.pop("elapsed_seconds" if control == "state-missing-elapsed" else "source")
+        raw = json.dumps(state).encode()
+    elif control == "state-elapsed-boolean":
+        raw = json.dumps(report_state(elapsed_seconds=True)).encode()
+    elif control == "state-elapsed-overflow":
+        raw = raw.replace(b'"elapsed_seconds": 12.34', b'"elapsed_seconds": 1e309')
+        reason = "UnsupportedReportValue"
+    else:
+        escape = {
+            "state-invalid-hex": r"\uXXXX",
+            "state-low-surrogate": r"\udc00",
+            "state-invalid-low-hex": r"\ud800\uXXXX",
+            "state-invalid-low-range": r"\ud800\u0000",
+            "state-ascii-escape": r"\u0061",
+        }[control]
+        raw = raw[:-1] + b',"extra":"' + escape.encode() + b'"}'
+        if control in {"state-low-surrogate", "state-invalid-low-hex", "state-invalid-low-range"}:
+            reason = "UnsupportedSamplerEncoding"
+    return raw, reason
+
+
+@pytest.mark.parametrize(
+    "control",
+    [
+        "request-missing-key",
+        "request-version-float",
+        "request-wall-float",
+        "request-warn-float",
+        "request-limit-float",
+        "request-syntax",
+        "request-array",
+        "request-nan",
+        "request-encoding",
+        "state-missing-elapsed",
+        "state-missing-source",
+        "state-elapsed-boolean",
+        "state-elapsed-overflow",
+        "state-invalid-hex",
+        "state-low-surrogate",
+        "state-invalid-low-hex",
+        "state-invalid-low-range",
+        "state-ascii-escape",
+        "group-missing-schema",
+        "group-missing-source",
+        "group-missing-peak",
+        "group-schema-float",
+        "group-source-boolean",
+        "group-peak-float",
+        "group-nan",
+        "group-encoding",
+    ],
+)
+def test_native_report_wire_and_domain_contract(sampler_binary: Path, tmp_path: Path, control: str) -> None:
+    state = report_state()
+    raw = json.dumps(state).encode()
+    path, value = report_request(tmp_path, raw)
+    reason: str | None = "InvalidReportRequest" if control.startswith("request-") else "InvalidCgroupResult"
+    if control.startswith("request-"):
+        if control == "request-missing-key":
+            value["undeclared"] = value.pop("warn_bytes")
+        elif control.endswith("-float"):
+            key = {
+                "request-version-float": "schema_version",
+                "request-wall-float": "wall_ms",
+                "request-warn-float": "warn_bytes",
+                "request-limit-float": "error_bytes",
+            }[control]
+            value[key] = float(value[key])
+        elif control == "request-nan":
+            value["warn_bytes"] = float("nan")
+        request_bytes = {"request-syntax": b"{invalid", "request-array": b"[]", "request-encoding": b"\xff"}.get(control, json.dumps(value).encode())
+        path.write_bytes(request_bytes)
+        if control == "request-encoding":
+            reason = "UnsupportedSamplerEncoding"
+    elif control.startswith("state-"):
+        raw, reason = report_state_domain_control(control, raw, state)
+        (tmp_path / "state.json").write_bytes(raw)
+    else:
+        group: dict[str, Any] = {"schema_version": 1, "source": "cgroup-v2-memory-peak", "peak_bytes": 777}
+        if control.startswith("group-missing-"):
+            key = {"group-missing-schema": "schema_version", "group-missing-source": "source", "group-missing-peak": "peak_bytes"}[control]
+            group["undeclared"] = group.pop(key)
+        elif control == "group-schema-float":
+            group["schema_version"] = 1.0
+        elif control == "group-source-boolean":
+            group["source"] = True
+        elif control == "group-peak-float":
+            group["peak_bytes"] = 777.0
+        elif control == "group-nan":
+            group["peak_bytes"] = float("nan")
+        group_bytes = b"\xff" if control == "group-encoding" else json.dumps(group).encode()
+        (tmp_path / "cgroup-result.json").write_bytes(group_bytes)
+        if control == "group-encoding":
+            reason = "UnsupportedSamplerEncoding"
+    result = invoke(sampler_binary, "memory-report", path, tmp_path)
+    if reason is None:
+        assert result.returncode == 0 and result.stderr == b"", result.stderr
+        assert json.loads(result.stdout) == expected_report(raw, value["state_path"], 777, value["warn_bytes"], value["error_bytes"])
+    else:
+        assert result.returncode == 1 and result.stdout == b"" and result.stderr == f"error: execution refused: {reason}\n".encode()
+
+
+@pytest.mark.parametrize(
+    "threshold",
+    [oracle.GIB + oracle.GIB // 4, 999999 * oracle.GIB + oracle.GIB // 2 - 1, 999999 * oracle.GIB + oracle.GIB // 2, 999999 * oracle.GIB + oracle.GIB // 2 + 1],
+)
+@pytest.mark.parametrize("annotation", ["warning", "error"])
+def test_native_report_fractional_and_carry_threshold_rounding(sampler_binary: Path, tmp_path: Path, threshold: int, annotation: str) -> None:
+    raw = json.dumps(report_state(peak_bytes=threshold)).encode()
+    limit = threshold if annotation == "error" else threshold + oracle.GIB
+    path, value = report_request(tmp_path, raw, None, warn_bytes=threshold, error_bytes=limit)
+    result = invoke(sampler_binary, "memory-report", path, tmp_path)
+    assert result.returncode == 0 and result.stderr == b"", result.stderr
+    expected = expected_report(raw, value["state_path"], None, threshold, limit)
+    assert json.loads(result.stdout) == expected and expected["report_lines"][-1].startswith(f"::{annotation} ")
+
+
+@pytest.mark.integration
+def test_actual_linux_report_uses_finalized_native_artifacts(sampler_binary: Path, tmp_path: Path) -> None:
+    if sampler_binary.read_bytes()[:4] != b"\x7fELF":
+        pytest.skip("Requires the explicitly bound actual Linux report image")
+    result = linux_public_call(sampler_binary, tmp_path, probe_mode="report", owned_fixture=True)
+    assert result["joined"] and result["cleanup_complete"] and result["native_exit_code"] == result["docker_attach_exit_code"] == 0
+    assert result["stderr"] == ""
+    fixture = tmp_path / "output/fixture"
+    context = json.loads((fixture / "report-context.json").read_bytes())
+    assert context["python_version"].startswith("3.14.") and context["before"] == context["after"] and context["parents_before"] == context["parents_after"]
+    assert json.loads(result["stdout"]) == context["expected"]
+    assert context["actual_native_pid"] == result["actual_native_pid"] > 1
+    assert [row["argv"][1] for row in context["native_calls"]] == ["memory-sample", "memory-cgroup", "memory-report"]
+    state = oracle.from_json((fixture / "report-state.json").read_text())
+    assert state is not None and state.samples == 1 and state.pid == context["sample_pid"] == context["native_calls"][0]["actual_native_pid"]
+    assert digest((fixture / "report-state.json").read_bytes()) == context["before"][3]["sha256"]
+    for exported in context["exports"]:
+        raw = (fixture / exported["name"]).read_bytes()
+        assert len(raw) == exported["size"] and digest(raw) == exported["sha256"]

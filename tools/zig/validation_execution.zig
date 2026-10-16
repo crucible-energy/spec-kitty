@@ -417,6 +417,7 @@ fn run(init: std.process.Init) !u8 {
     if (args.len != 3) return error.InvalidArguments;
     if (std.mem.eql(u8, args[1], "changelog-style")) return changelog.command(init, args[2]);
     if (std.mem.eql(u8, args[1], "memory-cgroup")) return memory_sampler.cgroupCommand(init, args[2]);
+    if (std.mem.eql(u8, args[1], "memory-report")) return memory_sampler.reportCommand(init, args[2]);
     if (std.mem.eql(u8, args[1], "memory-sample")) return memory_sampler.command(init, args[2]);
     if (!std.mem.eql(u8, args[1], "execute")) {
         try receipt.run(init);

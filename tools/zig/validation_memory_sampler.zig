@@ -639,3 +639,397 @@ pub fn cgroupCommand(init: std.process.Init, path: []const u8) !u8 {
     try before(init.io, deadline);
     return 0;
 }
+
+// The renderer reads finalized artifacts. It neither finalizes a running
+// sampler nor treats a persisted PID or cgroup JSON as process authority.
+const ReportState = struct { baseline: i128 = 0, peak: i128 = 0, samples: i128 = 0, pid: i128 = 0, elapsed: f64 = 0, source: []const u8 = "unavailable" };
+const ReportRequest = struct { state_path: []const u8, cgroup_path: ?[]const u8, warn_bytes: u64, error_bytes: u64, wall_ms: u32 };
+const ReportInput = struct {
+    parent: ?Directory = null,
+    parent_observed: bool = false,
+    leaf: [:0]const u8,
+    initial: ?Stat = null,
+    observed: bool = false,
+    read_attempted: bool = false,
+    raw: ?[]const u8 = null,
+    close_failed: bool = false,
+};
+const ReportScope = struct {
+    init: std.process.Init,
+    started: i96,
+    deadline: i96,
+    inputs: [3]ReportInput = undefined,
+    count: usize = 0,
+    fn check(self: *ReportScope) !void {
+        try before(self.init.io, self.deadline);
+        if (owner.samplingSignal() != 0) return error.Cancelled;
+    }
+    fn metadata(a: Stat, b: Stat) bool {
+        const times = if (builtin.os.tag == .linux) std.meta.eql(a.st_mtime, b.st_mtime) and std.meta.eql(a.st_ctime, b.st_ctime) else std.meta.eql(a.st_mtimespec, b.st_mtimespec) and std.meta.eql(a.st_ctimespec, b.st_ctimespec);
+        return same(a, b) and a.st_mode == b.st_mode and a.st_uid == b.st_uid and a.st_nlink == b.st_nlink and a.st_size == b.st_size and times;
+    }
+    fn safe(value: Stat) !void {
+        if (!regular(value) or value.st_uid != c.geteuid() or value.st_nlink != 1 or value.st_mode & 0o7777 != 0o600) return error.UnsafeSamplerInput;
+        if (value.st_size > max_bytes) return error.SamplerInputLimit;
+    }
+    fn read(self: *ReportScope, path: []const u8, optional: bool, private: bool) !?[]const u8 {
+        const a = self.init.arena.allocator();
+        try self.check();
+        try pathText(path, false);
+        const leaf = try a.dupeZ(u8, std.fs.path.basename(path));
+        const parent_path = std.fs.path.dirname(path) orelse return error.InvalidSamplerPath;
+        if (self.count == self.inputs.len) return error.InvalidReportRequest;
+        const item = &self.inputs[self.count];
+        self.count += 1;
+        item.* = .{ .leaf = leaf };
+        try canonical(self.init.io, parent_path);
+        const parent_z = try a.dupeZ(u8, parent_path);
+        const fd = c.open(parent_z, c.O_RDONLY | c.O_DIRECTORY | c.O_NOFOLLOW | c.O_CLOEXEC);
+        if (fd < 0) return error.UnsafeSamplerDirectory;
+        // Register the descriptor before any identity or ownership check can
+        // fail, so even partial acquisition reaches the shared disposition.
+        item.parent = .{ .fd = fd, .path = parent_path, .path_z = parent_z, .identity = undefined, .private = false };
+        var identity: Stat = undefined;
+        if (try descriptorStat(fd, &identity) != 0 or identity.st_mode & c.S_IFMT != c.S_IFDIR) return error.UnsafeSamplerDirectory;
+        item.parent.?.identity = identity;
+        item.parent_observed = true;
+        if (private and (identity.st_uid != c.geteuid() or identity.st_mode & 0o7777 != 0o700)) return error.UnsafeSamplerDirectory;
+        item.parent.?.private = private;
+        item.initial = try statAt(item.parent.?.fd, item.leaf);
+        item.observed = true;
+        if (item.initial) |initial| try safe(initial) else {
+            if (optional) return null;
+            return error.SamplerInputUnreadable;
+        }
+        var observation: InputObservation = .{ .fd = item.parent.?.fd, .name = item.leaf, .initial = null, .observed = false };
+        const buffer = try a.alloc(u8, max_bytes + 1);
+        item.read_attempted = true;
+        item.raw = readAt(item.parent.?.fd, item.leaf, buffer, optional, self.init.io, self.deadline, &observation) catch |problem| {
+            item.close_failed = observation.close_failed;
+            return problem;
+        };
+        item.close_failed = observation.close_failed;
+        if (!observation.observed or observation.initial == null or !metadata(item.initial.?, observation.initial.?)) return error.SamplerInputDrift;
+        return item.raw;
+    }
+    fn verify(self: *ReportScope, item: ReportInput) !void {
+        const parent = item.parent orelse return;
+        if (!item.parent_observed) return error.SamplerPathObservationFailed;
+        if (!item.observed) return;
+        const current = try statAt(parent.fd, item.leaf);
+        if (item.initial) |initial| {
+            if (current == null or !metadata(initial, current.?)) return error.SamplerInputDrift;
+        } else {
+            if (current != null) return error.SamplerInputDrift;
+            return;
+        }
+        if (!item.read_attempted) return;
+        var observation: InputObservation = .{ .fd = parent.fd, .name = item.leaf, .initial = null, .observed = false };
+        const buffer = try self.init.arena.allocator().alloc(u8, max_bytes + 1);
+        const bytes = readAt(parent.fd, item.leaf, buffer, true, self.init.io, self.deadline, &observation) catch |problem| {
+            if (observation.close_failed) return error.CgroupCloseFailed;
+            return problem;
+        };
+        if (observation.close_failed) return error.CgroupCloseFailed;
+        if (!observation.observed or observation.initial == null or !metadata(item.initial.?, observation.initial.?)) return error.SamplerInputDrift;
+        if (item.raw) |raw| {
+            if (bytes == null or !std.mem.eql(u8, raw, bytes.?)) return error.SamplerInputDrift;
+        } else if (bytes != null) return error.SamplerInputDrift;
+    }
+    fn finish(self: *ReportScope) !void {
+        var failure: ?anyerror = null;
+        // Inspect parent custody and every retained input separately: one lost
+        // name must not prevent checks through other still-owned descriptors.
+        for (self.inputs[0..self.count]) |item| if (item.parent) |parent| {
+            if (!item.parent_observed) {
+                if (failure == null) failure = error.SamplerPathObservationFailed;
+            } else parent.verify(self.init.io) catch |problem| {
+                if (failure == null) failure = problem;
+            };
+        };
+        for (self.inputs[0..self.count]) |item| {
+            self.verify(item) catch |problem| {
+                if (failure == null) failure = problem;
+            };
+            if (item.close_failed and failure == null) failure = error.CgroupCloseFailed;
+        }
+        for (self.inputs[0..self.count]) |item| if (item.parent) |parent| {
+            if (c.close(parent.fd) != 0 and failure == null) failure = error.CgroupCloseFailed;
+        };
+        if (failure) |problem| return problem;
+        try before(self.init.io, self.deadline);
+    }
+};
+
+// Bound structure and reject Python's non-JSON numeric extensions explicitly.
+// This scan only guards this artifact parser; JSON grammar remains std.json's.
+fn reportDomain(bytes: []const u8) !void {
+    if (!std.unicode.utf8ValidateSlice(bytes)) return error.UnsupportedSamplerEncoding;
+    var string = false;
+    var escape = false;
+    var depth: usize = 0;
+    var index: usize = 0;
+    while (index < bytes.len) : (index += 1) {
+        const byte = bytes[index];
+        if (string) {
+            if (escape) {
+                escape = false;
+                if (byte == 'u' and index + 4 < bytes.len) {
+                    const unit = std.fmt.parseInt(u16, bytes[index + 1 .. index + 5], 16) catch continue;
+                    if (unit >= 0xd800 and unit <= 0xdbff) {
+                        if (index + 10 >= bytes.len or bytes[index + 5] != '\\' or bytes[index + 6] != 'u') return error.UnsupportedSamplerEncoding;
+                        const low = std.fmt.parseInt(u16, bytes[index + 7 .. index + 11], 16) catch return error.UnsupportedSamplerEncoding;
+                        if (low < 0xdc00 or low > 0xdfff) return error.UnsupportedSamplerEncoding;
+                        index += 10;
+                    } else if (unit >= 0xdc00 and unit <= 0xdfff) return error.UnsupportedSamplerEncoding else index += 4;
+                }
+            } else if (byte == '\\') {
+                escape = true;
+            } else if (byte == '"') string = false;
+            continue;
+        }
+        if (byte == '"') {
+            string = true;
+        } else if (byte == '{' or byte == '[') {
+            depth += 1;
+            if (depth > 64) return error.UnsupportedReportValue;
+        } else if (byte == '}' or byte == ']') {
+            if (depth != 0) depth -= 1;
+        } else {
+            for ([_][]const u8{ "NaN", "Infinity", "-Infinity" }) |token| {
+                if (!std.mem.startsWith(u8, bytes[index..], token)) continue;
+                const end = index + token.len;
+                const prior = index == 0 or std.mem.indexOfScalar(u8, " \t\r\n[:,", bytes[index - 1]) != null;
+                const next = end == bytes.len or std.mem.indexOfScalar(u8, " \t\r\n]},", bytes[end]) != null;
+                if (prior and next) return error.UnsupportedReportValue;
+            }
+        }
+    }
+}
+fn reportIntegerToken(number: []const u8) bool {
+    // For validated JSON, Python creates integers for every token without a
+    // fraction/exponent, including -0. Zig's conversion predicate excludes -0.
+    return std.mem.findAny(u8, number, ".eE") == null;
+}
+fn reportJson(a: Allocator, bytes: []const u8, duplicates: bool) !?std.json.Value {
+    try reportDomain(bytes);
+    // CPython's pinned parser applies its integer limit before duplicate-field
+    // replacement or state-field selection. Inspect every original token.
+    var scanner = std.json.Scanner.initCompleteInput(a, bytes);
+    defer scanner.deinit();
+    while (true) {
+        const token = scanner.next() catch |problem| switch (problem) {
+            error.OutOfMemory => return problem,
+            else => return null,
+        };
+        switch (token) {
+            .number => |number| {
+                const digits = number.len - @intFromBool(number[0] == '-');
+                if (reportIntegerToken(number) and digits > 4300) return null;
+            },
+            .end_of_document => break,
+            else => {},
+        }
+    }
+    const parsed = std.json.parseFromSlice(std.json.Value, a, bytes, .{ .parse_numbers = false, .duplicate_field_behavior = if (duplicates) .use_last else .@"error" }) catch |problem| switch (problem) {
+        error.OutOfMemory => return problem,
+        else => return null,
+    };
+    return parsed.value;
+}
+fn reportInteger(comptime T: type, value: std.json.Value) !?T {
+    if (value != .number_string or !reportIntegerToken(value.number_string)) return null;
+    return std.fmt.parseInt(T, value.number_string, 10) catch return error.UnsupportedReportValue;
+}
+fn reportRequest(scope: *ReportScope, path: []const u8) !ReportRequest {
+    const a = scope.init.arena.allocator();
+    const bytes = (try scope.read(path, false, false)).?;
+    const value = (reportJson(a, bytes, false) catch |problem| switch (problem) {
+        error.OutOfMemory, error.UnsupportedSamplerEncoding => return problem,
+        else => return error.InvalidReportRequest,
+    }) orelse return error.InvalidReportRequest;
+    if (value != .object or value.object.count() != 6) return error.InvalidReportRequest;
+    for ([_][]const u8{ "schema_version", "state_path", "cgroup_path", "warn_bytes", "error_bytes", "wall_ms" }) |key| if (!value.object.contains(key)) return error.InvalidReportRequest;
+    const version = (reportInteger(u8, value.object.get("schema_version").?) catch return error.InvalidReportRequest) orelse return error.InvalidReportRequest;
+    const wall = (reportInteger(u32, value.object.get("wall_ms").?) catch return error.InvalidReportRequest) orelse return error.InvalidReportRequest;
+    const warn = (reportInteger(u64, value.object.get("warn_bytes").?) catch return error.InvalidReportRequest) orelse return error.InvalidReportRequest;
+    const limit = (reportInteger(u64, value.object.get("error_bytes").?) catch return error.InvalidReportRequest) orelse return error.InvalidReportRequest;
+    const state = value.object.get("state_path").?;
+    const group = value.object.get("cgroup_path").?;
+    if (version != 1 or wall == 0 or wall > 3_600_000 or state != .string or (group != .string and group != .null)) return error.InvalidReportRequest;
+    scope.deadline = scope.started + @as(i96, wall) * std.time.ns_per_ms;
+    try scope.check();
+    try pathText(state.string, false);
+    if (group == .string) try pathText(group.string, false);
+    return .{ .state_path = state.string, .cgroup_path = if (group == .null) null else group.string, .warn_bytes = warn, .error_bytes = limit, .wall_ms = wall };
+}
+fn reportState(a: Allocator, bytes: ?[]const u8) !?ReportState {
+    const value = (try reportJson(a, bytes orelse return null, true)) orelse return null;
+    if (value != .object) return null;
+    var fields: [4]std.json.Value = undefined;
+    for ([_][]const u8{ "baseline_bytes", "peak_bytes", "samples", "pid" }, 0..) |key, index| {
+        fields[index] = value.object.get(key) orelse return null;
+        if (fields[index] != .number_string or !reportIntegerToken(fields[index].number_string)) return null;
+    }
+    const elapsed = value.object.get("elapsed_seconds") orelse return null;
+    const source = value.object.get("source") orelse return null;
+    if (elapsed != .number_string or source != .string or (!std.mem.eql(u8, source.string, "meminfo") and !std.mem.eql(u8, source.string, "unavailable"))) return null;
+    var integers: [4]i128 = undefined;
+    for (fields, 0..) |field, index| integers[index] = (try reportInteger(i128, field)).?;
+    var seconds = std.fmt.parseFloat(f64, elapsed.number_string) catch return error.UnsupportedReportValue;
+    if (!std.math.isFinite(seconds)) return error.UnsupportedReportValue;
+    // json.loads creates an integer for -0; float(integer_zero) is positive.
+    // Float spellings such as -0.0 and -0e0 retain their original sign.
+    if (seconds == 0 and reportIntegerToken(elapsed.number_string)) seconds = 0;
+    return .{ .baseline = integers[0], .peak = integers[1], .samples = integers[2], .pid = integers[3], .elapsed = seconds, .source = source.string };
+}
+fn reportCgroup(a: Allocator, bytes: []const u8) !?u64 {
+    const value = (reportJson(a, bytes, false) catch |problem| switch (problem) {
+        error.OutOfMemory, error.UnsupportedSamplerEncoding => return problem,
+        else => return error.InvalidCgroupResult,
+    }) orelse return error.InvalidCgroupResult;
+    if (value != .object or value.object.count() != 3) return error.InvalidCgroupResult;
+    const schema = value.object.get("schema_version") orelse return error.InvalidCgroupResult;
+    const source = value.object.get("source") orelse return error.InvalidCgroupResult;
+    const peak = value.object.get("peak_bytes") orelse return error.InvalidCgroupResult;
+    if (((reportInteger(u8, schema) catch return error.InvalidCgroupResult) orelse return error.InvalidCgroupResult) != 1 or source != .string) return error.InvalidCgroupResult;
+    if (std.mem.eql(u8, source.string, "unavailable") and peak == .null) return null;
+    if (!std.mem.eql(u8, source.string, "cgroup-v2-memory-peak")) return error.InvalidCgroupResult;
+    return (reportInteger(u64, peak) catch return error.InvalidCgroupResult) orelse return error.InvalidCgroupResult;
+}
+
+// Scale the exact binary64 rational before rounding once to nearest/ties-even.
+// u2048 holds every finite binary64 numerator at all selected decimal places.
+fn reportFixed(a: Allocator, value: f64, places: u8) ![]const u8 {
+    if (!std.math.isFinite(value) or places > 40) return error.UnsupportedReportValue;
+    const bits: u64 = @bitCast(value);
+    const exponent = (bits >> 52) & 0x7ff;
+    const mantissa: u2048 = (bits & 0xfffffffffffff) | @as(u64, if (exponent == 0) 0 else 0x10000000000000);
+    const power: i32 = if (exponent == 0) -1074 else @as(i32, @intCast(exponent)) - 1075;
+    var scaled = mantissa;
+    for (0..places) |_| scaled *= 10;
+    var rounded: u2048 = undefined;
+    if (power >= 0) {
+        rounded = scaled << @as(u11, @intCast(power));
+    } else {
+        const shift: u11 = @intCast(-power);
+        rounded = scaled >> shift;
+        const remainder = scaled - (rounded << shift);
+        const half = @as(u2048, 1) << (shift - 1);
+        if (remainder > half or (remainder == half and rounded & 1 != 0)) rounded += 1;
+    }
+    const digits = try std.fmt.allocPrint(a, "{d}", .{rounded});
+    const sign: []const u8 = if (bits >> 63 != 0) "-" else "";
+    if (places == 0) return std.fmt.allocPrint(a, "{s}{s}", .{ sign, digits });
+    if (digits.len <= places) {
+        const padding = try a.alloc(u8, places - digits.len);
+        @memset(padding, '0');
+        return std.fmt.allocPrint(a, "{s}0.{s}{s}", .{ sign, padding, digits });
+    }
+    return std.fmt.allocPrint(a, "{s}{s}.{s}", .{ sign, digits[0 .. digits.len - places], digits[digits.len - places ..] });
+}
+// Python's default :g is six significant digits, with zero trimming and the
+// exponent decision made after rounding. This call is only for u64/GiB limits.
+fn reportThreshold(a: Allocator, bytes: u64) ![]const u8 {
+    const value = @as(f64, @floatFromInt(bytes)) / 1073741824;
+    const fixed = try reportFixed(a, value, 40);
+    const point = std.mem.indexOfScalar(u8, fixed, '.').?;
+    var digits: [64]u8 = undefined;
+    var length: usize = 0;
+    for (fixed) |byte| if (byte != '.') {
+        digits[length] = byte;
+        length += 1;
+    };
+    var first: usize = 0;
+    while (first < length and digits[first] == '0') : (first += 1) {}
+    if (first == length) return "0";
+    var exponent: i32 = @as(i32, @intCast(point)) - @as(i32, @intCast(first)) - 1;
+    var significant = try std.fmt.parseInt(u32, digits[first .. first + 6], 10);
+    const next = digits[first + 6];
+    var sticky = false;
+    for (digits[first + 7 .. length]) |byte| sticky = sticky or byte != '0';
+    if (next > '5' or (next == '5' and (sticky or significant & 1 != 0))) significant += 1;
+    if (significant == 1_000_000) {
+        significant = 100_000;
+        exponent += 1;
+    }
+    const significant_text = try std.fmt.allocPrint(a, "{d}", .{significant});
+    var end = significant_text.len;
+    while (end > 1 and significant_text[end - 1] == '0') : (end -= 1) {}
+    const text = significant_text[0..end];
+    if (exponent < -4 or exponent >= 6) {
+        const absolute = @abs(exponent);
+        const exp = if (absolute < 10) try std.fmt.allocPrint(a, "0{d}", .{absolute}) else try std.fmt.allocPrint(a, "{d}", .{absolute});
+        const coefficient = if (text.len == 1) text else try std.fmt.allocPrint(a, "{s}.{s}", .{ text[0..1], text[1..] });
+        return std.fmt.allocPrint(a, "{s}e{s}{s}", .{ coefficient, if (exponent < 0) "-" else "+", exp });
+    }
+    if (exponent < 0) {
+        const padding = try a.alloc(u8, @intCast(-exponent - 1));
+        @memset(padding, '0');
+        return std.fmt.allocPrint(a, "0.{s}{s}", .{ padding, text });
+    }
+    const position: usize = @intCast(exponent + 1);
+    if (position >= text.len) {
+        const padding = try a.alloc(u8, position - text.len);
+        @memset(padding, '0');
+        return std.fmt.allocPrint(a, "{s}{s}", .{ text, padding });
+    }
+    return std.fmt.allocPrint(a, "{s}.{s}", .{ text[0..position], text[position..] });
+}
+fn reportBuild(scope: *ReportScope, path: []const u8) ![]const u8 {
+    const a = scope.init.arena.allocator();
+    const request = try reportRequest(scope, path);
+    const parsed = try reportState(a, try scope.read(request.state_path, true, true));
+    const state = parsed orelse ReportState{};
+    const peak = if (request.cgroup_path) |group| try reportCgroup(a, (try scope.read(group, false, true)).?) else null;
+    try scope.check();
+    var lines: std.ArrayList([]const u8) = .empty;
+    if (parsed == null) {
+        try lines.append(a, try std.fmt.allocPrint(a, "::warning title=memory sampler::no usable sampler state at {s}; was `start` run?", .{request.state_path}));
+    } else if (std.mem.eql(u8, state.source, "unavailable")) try lines.append(a, "::warning title=memory sampler::no /proc/meminfo sample was recorded; peak memory is unavailable");
+    const delta = std.math.sub(i128, state.peak, state.baseline) catch return error.UnsupportedReportValue;
+    const elapsed = try reportFixed(a, state.elapsed, 1);
+    const group_bytes = if (peak) |number| try std.fmt.allocPrint(a, "{d}", .{number}) else "na";
+    try lines.append(a, try std.fmt.allocPrint(a, "peak_rss_bytes={d} source={s} baseline_bytes={d} delta_bytes={d} samples={d} elapsed_s={s} cgroup_peak_bytes={s}", .{ state.peak, state.source, state.baseline, delta, state.samples, elapsed, group_bytes }));
+    const gib = try reportFixed(a, @as(f64, @floatFromInt(state.peak)) / 1073741824, 2);
+    const warn = try reportThreshold(a, request.warn_bytes);
+    const limit = try reportThreshold(a, request.error_bytes);
+    if (state.peak >= request.error_bytes) {
+        try lines.append(a, try std.fmt.allocPrint(a, "::error title=memory sampler::peak memory {s} GiB reached the {s} GiB NFR-005 limit", .{ gib, limit }));
+    } else if (state.peak >= request.warn_bytes) try lines.append(a, try std.fmt.allocPrint(a, "::warning title=memory sampler::peak memory {s} GiB is above {s} GiB (NFR-005 limit {s} GiB)", .{ gib, warn, limit }));
+    const baseline = try reportFixed(a, @as(f64, @floatFromInt(state.baseline)) / 1073741824, 2);
+    const group_gib = if (peak) |number| try std.fmt.allocPrint(a, "{s} GiB", .{try reportFixed(a, @as(f64, @floatFromInt(number)) / 1073741824, 2)}) else "n/a";
+    const summary = try std.fmt.allocPrint(a, "Memory sampler (NFR-005): peak {s} GiB (MemTotal - MemAvailable), baseline {s} GiB, {d} samples over {s}s, cgroup peak {s}", .{ gib, baseline, state.samples, elapsed, group_gib });
+    const result = try std.json.Stringify.valueAlloc(a, .{ .schema_version = 1, .report_lines = lines.items, .summary_line = summary }, .{});
+    if (result.len + 1 > 16384) return error.SamplerInputLimit;
+    try scope.check();
+    return std.fmt.allocPrint(a, "{s}\n", .{result});
+}
+pub fn reportCommand(init: std.process.Init, path: []const u8) !u8 {
+    if (builtin.os.tag != .macos and builtin.os.tag != .linux) return error.PlatformUnsupported;
+    const started = now(init.io);
+    var scope: ReportScope = .{ .init = init, .started = started, .deadline = started + 3_600_000 * std.time.ns_per_ms };
+    var lease = owner.beginSamplingSignals() catch |problem| {
+        const finished = scope.finish();
+        if (problem == error.SignalRestorationFailed) return problem;
+        try finished;
+        return problem;
+    };
+    var primary: ?anyerror = null;
+    const result = reportBuild(&scope, path) catch |problem| blk: {
+        primary = problem;
+        break :blk @as(?[]const u8, null);
+    };
+    var final_failure: ?anyerror = null;
+    scope.finish() catch |problem| {
+        final_failure = problem;
+    };
+    const received = try owner.restoreSamplingSignals(&lease);
+    if (final_failure) |problem| return problem;
+    try before(init.io, scope.deadline);
+    if (primary) |problem| return problem;
+    if (received != 0) return error.Cancelled;
+    try std.Io.File.stdout().writeStreamingAll(init.io, result.?);
+    try before(init.io, scope.deadline);
+    return 0;
+}

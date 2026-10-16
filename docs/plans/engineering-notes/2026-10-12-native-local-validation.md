@@ -2068,3 +2068,81 @@ needs Python's lexical JSON integer distinction instead, including state integer
 fields, threshold values, and measured cgroup zero. New field-specific controls
 preserve that complete class before repair. The failed corrective image and
 outputs remain external; no product measurement or broad gate used that image.
+
+The corrected report parser now classifies validated JSON integer tokens locally,
+including -0, without changing the existing sampler/cgroup parsers. A bounded
+std.json token pass checks every original integer before duplicate replacement or
+field selection, using the pinned Python 4,300-digit parser limit. This preserves
+unusable-state fallback for parser failures and explicit range refusal for valid
+required integers. The original parser RED commits and failed first repair remain
+retained; native statement and lifecycle qualification remain separate.
+
+### Finite Report Evidence Boundary
+
+The corrected source passed independent review. The source-bound measurement
+method also passed its finite independent review, preserving complete compiler
+positions, all transfer units and original refusals. Its private probes grant
+no product statement coverage. The current complete changed denominators are
+415 sampler statements and two execution-dispatch statements; actual product
+observations and their misses remain pending.
+
+The Linux test fixture uses the existing pinned image, resource limits, caller
+UID/GID, owned tmpfs and joined container disposal. It takes one real foreground
+sample, captures the native cgroup response, then renders their finalized
+artifacts. The fixture records actual child PIDs, bytes and metadata before and
+after rendering. Those inputs are not host bind-file ownership assumptions.
+No detached process, final stop/sample, summary append or recipe is activated.
+
+The image helper actually uses Python 3.14.8. Its consumer comparison is
+supplementary; pinned host CPython 3.14.7 remains the primary parity oracle and
+matches the exported actual native report exactly. No version-independent
+Python parity is claimed. The first helper version guard and a later oracle
+import-location assumption failed before any native child launched; both
+containers were joined and removed. The unchanged oracle is now copied in its
+original scripts/ci path shape. An earlier fixture lint failure is also retained.
+These setup failures are distinct from product REDs. The successful finite
+fixture still needs independent machinery/recorder review before product credit.
+
+### Report Observation And Custody Qualification
+
+The finite Linux fixture and report recorder passed independent review. The
+recorder preserves actual ordinary and measured exits, raw streams, complete
+trace seals and input snapshots. Each Darwin pair uses the same physical
+finalized artifacts; each Linux pair uses one container and the same native
+sample/cgroup artifacts. The selected recorder, decoder, inventory, images and
+source files are pinned before and after the enclosing observation run. Dynamic
+Linux identities and clocks remain their own observations, not cross-container
+byte-equality claims. Qualification probes receive zero product coverage credit.
+
+Observed product checks cover ordinary report rendering and explicit refusals,
+including integer-only request fields, exact missing-key shapes, malformed wire
+data, Unicode escape boundaries, parser-wide integer limits, binary64 rounding,
+and fractional or carry-changing threshold text. The pinned CPython 3.14.7 pure
+consumer separately matches retained successful outputs. The first native union
+and every later miss set remain external; no denominator is narrowed to discard
+unexecuted error, allocation, close, restoration or platform paths.
+
+Private custody controls exercise real state-name and parent-name replacement,
+combined data/custody precedence, SIGTERM, an original work deadline and a busy
+signal owner. Their target-owned statx interposer preserves actual kernel results
+and errno. They retain the first observed identity, owned FD tables, original and
+foreign bytes, namespace recovery, prior signal delivery, mask and lease recovery.
+Unknown ownership or incomplete cleanup refuses evidence. These controls do not
+mutate real proc/cgroup inputs or add a production fault switch.
+
+An exact inherited-default-action check initially refused because the target
+signal wrapper adds SA_RESTORER. That private machinery failure is preserved.
+Its separately reviewed amendment restores only this private Linux aarch64
+process's two originally queried kernel actions with target-owned ABI types,
+then requires actual requery equality. The report signal implementation is
+unchanged. Source fixtures are explicit bounded read-only inputs, copied into
+private tmpfs artifacts; bind-filesystem UID observations are not ownership
+proof for those native artifacts. Helper qualification and product observations
+remain distinct, with independent final evidence review still required.
+
+Known limitations: this renderer consumes finalized state and returns report and
+summary strings. Detached ownership, final sample/stop, summary append, complete
+architectural-fast lifecycle, Linux child execution and gate adoption remain
+unsupported. The maintained Python validator and gates remain authoritative.
+The report slice and its evidence do not approve WP03 or the full T011 recipe.
+Final publication checks are recorded externally after this candidate freezes.
