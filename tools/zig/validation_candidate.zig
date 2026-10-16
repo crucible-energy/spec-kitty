@@ -3,6 +3,12 @@
 //! plumbing is distinct from the later general validator execution backend.
 const std = @import("std");
 const builtin = @import("builtin");
+const file_io_c = if (builtin.os.tag == .macos or builtin.os.tag == .linux) @cImport({
+    @cInclude("errno.h");
+    @cInclude("fcntl.h");
+    @cInclude("sys/stat.h");
+    @cInclude("unistd.h");
+}) else struct {};
 // The installed Zig 0.16 Threaded pre-exec error path can lose its forked
 // child and parent pipes before returning an error. Use the same SDK launch
 // boundary qualified by validation_process_darwin, without changing Git stdin
@@ -52,7 +58,123 @@ pub fn hash(allocator: Allocator, bytes: []const u8) ![]const u8 {
 }
 
 pub fn read(allocator: Allocator, io: std.Io, path: []const u8) ![]const u8 {
+    if (builtin.os.tag == .macos or builtin.os.tag == .linux) return readRegular(allocator, path);
     return std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .limited(limit));
+}
+
+const FileVersion = struct {
+    device: u64,
+    inode: u64,
+    mode: u32,
+    uid: u32,
+    links: u64,
+    size: i128,
+    mtime_seconds: i64,
+    mtime_nanoseconds: i64,
+    ctime_seconds: i64,
+    ctime_nanoseconds: i64,
+};
+
+fn sameFileVersion(left: FileVersion, right: FileVersion) bool {
+    return std.meta.eql(left, right);
+}
+
+fn macFileVersion(stat: file_io_c.struct_stat) FileVersion {
+    return .{
+        .device = @intCast(stat.st_dev),
+        .inode = @intCast(stat.st_ino),
+        .mode = @intCast(stat.st_mode),
+        .uid = @intCast(stat.st_uid),
+        .links = @intCast(stat.st_nlink),
+        .size = @intCast(stat.st_size),
+        .mtime_seconds = @intCast(stat.st_mtimespec.tv_sec),
+        .mtime_nanoseconds = @intCast(stat.st_mtimespec.tv_nsec),
+        .ctime_seconds = @intCast(stat.st_ctimespec.tv_sec),
+        .ctime_nanoseconds = @intCast(stat.st_ctimespec.tv_nsec),
+    };
+}
+
+fn linuxFileVersion(stat: std.os.linux.Statx) FileVersion {
+    return .{
+        .device = (@as(u64, stat.dev_major) << 32) | stat.dev_minor,
+        .inode = stat.ino,
+        .mode = stat.mode,
+        .uid = stat.uid,
+        .links = stat.nlink,
+        .size = stat.size,
+        .mtime_seconds = stat.mtime.sec,
+        .mtime_nanoseconds = stat.mtime.nsec,
+        .ctime_seconds = stat.ctime.sec,
+        .ctime_nanoseconds = stat.ctime.nsec,
+    };
+}
+
+fn linuxStatx(fd: c_int, path: [*:0]const u8, flags: u32) ?FileVersion {
+    const wanted: std.os.linux.STATX = .{ .TYPE = true, .MODE = true, .NLINK = true, .UID = true, .INO = true, .SIZE = true, .MTIME = true, .CTIME = true };
+    var observed = std.mem.zeroes(std.os.linux.Statx);
+    if (std.c.statx(fd, path, flags, wanted, &observed) != 0) return null;
+    const requested: u32 = @bitCast(wanted);
+    const provided: u32 = @bitCast(observed.mask);
+    if (provided & requested != requested) return null;
+    return linuxFileVersion(observed);
+}
+
+fn descriptorVersion(fd: c_int) ?FileVersion {
+    if (builtin.os.tag == .linux) return linuxStatx(fd, "", std.os.linux.AT.EMPTY_PATH);
+    var observed: file_io_c.struct_stat = undefined;
+    if (file_io_c.fstat(fd, &observed) != 0) return null;
+    return macFileVersion(observed);
+}
+
+fn pathnameVersion(path: [*:0]const u8) ?FileVersion {
+    if (builtin.os.tag == .linux) return linuxStatx(std.os.linux.AT.FDCWD, path, 0);
+    var observed: file_io_c.struct_stat = undefined;
+    if (file_io_c.stat(path, &observed) != 0) return null;
+    return macFileVersion(observed);
+}
+
+/// Read a bounded regular file without allowing a replaced FIFO to block the
+/// final input-currentness check. The opened object and its current pathname
+/// must still identify the same unchanged file after the read.
+fn readRegular(allocator: Allocator, path: []const u8) ![]const u8 {
+    if (path.len == 0 or std.mem.indexOfScalar(u8, path, 0) != null) return error.InvalidPath;
+    const path_z = try allocator.dupeZ(u8, path);
+    const fd = file_io_c.open(path_z, file_io_c.O_RDONLY | file_io_c.O_NONBLOCK | file_io_c.O_CLOEXEC);
+    if (fd < 0) return error.InputOpenFailed;
+    var close_needed = true;
+    defer {
+        if (close_needed) _ = file_io_c.close(fd);
+    }
+
+    const initial = descriptorVersion(fd) orelse return error.NonRegularInput;
+    if (initial.mode & file_io_c.S_IFMT != file_io_c.S_IFREG) return error.NonRegularInput;
+    if (initial.size < 0 or initial.size > limit) return error.FileTooLarge;
+
+    var contents: std.ArrayList(u8) = .empty;
+    defer contents.deinit(allocator);
+    try contents.ensureTotalCapacity(allocator, @intCast(initial.size));
+    var buffer: [8192]u8 = undefined;
+    while (true) {
+        const count = file_io_c.read(fd, &buffer, buffer.len);
+        if (count < 0) {
+            if (std.c.errno(@as(c_int, -1)) == .INTR) continue;
+            return error.InputReadFailed;
+        }
+        if (count == 0) break;
+        const amount: usize = @intCast(count);
+        if (contents.items.len > limit - amount) return error.FileTooLarge;
+        try contents.appendSlice(allocator, buffer[0..amount]);
+    }
+
+    const final = descriptorVersion(fd) orelse return error.InputDrift;
+    const named = pathnameVersion(path_z) orelse return error.InputDrift;
+    if (!sameFileVersion(initial, final) or !sameFileVersion(final, named)) return error.InputDrift;
+    if (file_io_c.close(fd) != 0) {
+        close_needed = false;
+        return error.InputCloseFailed;
+    }
+    close_needed = false;
+    return allocator.dupe(u8, contents.items);
 }
 
 pub fn write(io: std.Io, path: []const u8, bytes: []const u8, mode: u16) !void {
