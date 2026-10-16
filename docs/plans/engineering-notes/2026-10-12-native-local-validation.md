@@ -2146,3 +2146,34 @@ architectural-fast lifecycle, Linux child execution and gate adoption remain
 unsupported. The maintained Python validator and gates remain authoritative.
 The report slice and its evidence do not approve WP03 or the full T011 recipe.
 Final publication checks are recorded externally after this candidate freezes.
+
+### Check-Owned Sampler Lifetime RED
+
+Current limitation: the native recipe owner joins each command before starting
+the next. It cannot yet retain a sampler across the start/checks/always-stop
+lifecycle. The canonical architectural-fast recipe also requires a qualified
+Linux child backend and descendant-capable dependency/test commands; finite
+sampler and report evidence does not supply those qualifications.
+
+Decision: add a focused validation_sampler_lifetime module for bounded IPC,
+retained direct-child identity, final sampling, owned stop/reap, and summary
+append. Integrate with the existing check scope, binding, conditions, logs, and
+dependency order. Keep spawn and mutable summary custody out of pure report
+rendering. The independent design review accepted this bounded component, with
+one original work clock and cleanup allowance and no persisted-PID signal
+authority. Existing gates, selection, Python, and production refusals remain.
+
+The first actual public controls require the retained sampler to publish before
+real middle-command effects, then take a changed final sample, join, and append
+one exact summary line. A second case requires ordinary command failure still to
+run owned always-stop while blocking its dependent consumer. The delivered
+executor refuses both as UnsupportedRecipeBinding before those effects. Existing
+native recipe and delivered sample/cgroup/report positives establish setup;
+these are genuine missing-lifetime controls, not missing-tool or fabricated
+scheduler failures. Raw results and original joined calls remain external.
+
+The first test formatting refusal is retained separately from product RED.
+Mechanical formatting preserves the complete test AST. Implementation, actual
+worker/IPC custody qualification, native observations, focused regressions,
+independent source/evidence review, and final publication gates remain required.
+The protected platform test and all prior failures/misses remain unchanged.
