@@ -29,6 +29,7 @@ NATIVE_SOURCES = [
         "validation_changelog.zig",
         "validation_unicode14.zig",
         "validation_memory_sampler.zig",
+        "validation_sampler_lifetime.zig",
     ]
 ]
 

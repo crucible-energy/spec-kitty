@@ -9,9 +9,9 @@
 //! custody in Zig 0.16 Threaded. Cwd file actions require macOS 26 or later;
 //! actual platform qualification remains tied to its observed host and SDK.
 //! The unchanged test fixture retains the exact original source.
-//! Bounded Darwin child-group ownership. Never signals a reaped/reused leader.
-//! The exclusive foreground signal lease also supports the finite Linux sampler;
-//! this does not enable Linux child-group execution or CheckScope.
+//! Bounded native child-group ownership. Darwin uses the reviewed libproc
+//! foundation; Linux uses waitid, an owned POSIX process group, and procfs
+//! inspection. Neither backend claims session-escape containment.
 //! Memory-safety contract: the synchronous owner retains child, pipes and
 //! callback contexts until terminal disposition; no borrowed pointer escapes.
 //! Capture reserves bounded buffers before spawn and checks lengths before copy.
@@ -32,13 +32,24 @@ const c = if (builtin.os.tag == .macos) @cImport({
     @cInclude("poll.h");
     @cInclude("signal.h");
 }) else if (builtin.os.tag == .linux) @cImport({
-    @cDefine("_POSIX_C_SOURCE", "200809L");
+    @cDefine("_GNU_SOURCE", "1");
+    @cInclude("sys/wait.h");
+    @cInclude("sys/types.h");
+    @cInclude("sys/stat.h");
+    @cInclude("errno.h");
+    @cInclude("unistd.h");
+    @cInclude("fcntl.h");
+    @cInclude("poll.h");
     @cInclude("signal.h");
+    @cInclude("dirent.h");
 }) else struct {};
 // The strict POSIX spawn header keeps its SDK-owned opaque handle types while
 // excluding unrelated Mach packed-layout extensions that Zig cannot translate.
 const spawn = if (builtin.os.tag == .macos) @cImport({
     @cDefine("_POSIX_C_SOURCE", "200809L");
+    @cInclude("spawn.h");
+}) else if (builtin.os.tag == .linux) @cImport({
+    @cDefine("_GNU_SOURCE", "1");
     @cInclude("spawn.h");
 }) else struct {};
 // SDK types/constants above; libproc.h itself brings Mach packed-descriptor
@@ -56,6 +67,18 @@ pub const Limits = struct {
     resident_bytes: u64 = 512 * 1024 * 1024,
 };
 pub const Failure = enum { wall_timeout, stdout_limit, stderr_limit, process_limit, resident_limit, cancelled, external_budget, inspection_failed, ownership_lost, cleanup_failed, log_failed };
+pub const ChildUsage = struct { processes: usize, resident_bytes: u64 };
+pub const InFlight = struct {
+    stdout_retained: usize = 0,
+    stderr_retained: usize = 0,
+    stdout_preview: usize = 0,
+    stderr_preview: usize = 0,
+    sampled_processes: usize = 0,
+    sampled_resident_bytes: u64 = 0,
+};
+/// A synchronous borrowed monitor for the check's retained, source-closed worker.
+/// Its context remains owned by the caller until this run and cleanup return.
+pub const RetainedMonitor = struct { context: *anyopaque, poll: *const fn (*anyopaque, InFlight) ?Failure };
 pub const Options = struct {
     argv: []const []const u8,
     cwd: std.process.Child.Cwd = .inherit,
@@ -69,6 +92,7 @@ pub const Options = struct {
     stdout_sink: ?std.Io.File = null,
     stderr_sink: ?std.Io.File = null,
     display_bytes: usize = 8192,
+    retained_monitor: ?RetainedMonitor = null,
 };
 pub const Result = struct {
     stdout: []u8,
@@ -102,17 +126,29 @@ fn validateOptions(io: std.Io, options: Options) !void {
     if (options.argv.len == 0 or !std.fs.path.isAbsolute(options.argv[0]) or !validBudget(options.limits)) return error.InvalidProcessBudget;
     if ((options.stdout_sink == null) != (options.stderr_sink == null)) return error.InvalidLogSink;
     if (options.stdout_sink != null and (options.display_bytes == 0 or options.display_bytes > 65536)) return error.InvalidLogSink;
-    var identities: [2]c.struct_stat = undefined;
+    const Identity = struct { device: u64, inode: u64 };
+    var identities: [2]Identity = undefined;
     for ([_]?std.Io.File{ options.stdout_sink, options.stderr_sink }, 0..) |sink, index| if (sink) |file| {
         const stat = try file.stat(io);
         if (stat.kind != .file or stat.size != 0 or stat.nlink != 1) return error.InvalidLogSink;
-        if (c.fstat(file.handle, &identities[index]) != 0) return error.InvalidLogSink;
+        if (builtin.os.tag == .linux) {
+            const wanted: std.os.linux.STATX = .{ .TYPE = true, .NLINK = true, .INO = true };
+            var observed = std.mem.zeroes(std.os.linux.Statx);
+            if (std.c.statx(file.handle, "", std.os.linux.AT.EMPTY_PATH, wanted, &observed) != 0) return error.InvalidLogSink;
+            const bits: u32 = @bitCast(wanted);
+            if (@as(u32, @bitCast(observed.mask)) & bits != bits or observed.mode & c.S_IFMT != c.S_IFREG or observed.nlink != 1) return error.InvalidLogSink;
+            identities[index] = .{ .device = (@as(u64, observed.dev_major) << 32) | observed.dev_minor, .inode = observed.ino };
+        } else {
+            var observed: c.struct_stat = undefined;
+            if (c.fstat(file.handle, &observed) != 0) return error.InvalidLogSink;
+            identities[index] = .{ .device = @intCast(observed.st_dev), .inode = @intCast(observed.st_ino) };
+        }
     };
-    if (options.stdout_sink != null and identities[0].st_dev == identities[1].st_dev and identities[0].st_ino == identities[1].st_ino) return error.InvalidLogSink;
+    if (options.stdout_sink != null and identities[0].device == identities[1].device and identities[0].inode == identities[1].inode) return error.InvalidLogSink;
 }
 
 pub fn run(allocator: std.mem.Allocator, io: std.Io, options: Options) !Result {
-    if (builtin.os.tag != .macos) return error.PlatformUnsupported;
+    if (builtin.os.tag != .macos and builtin.os.tag != .linux) return error.PlatformUnsupported;
     try validateOptions(io, options);
     const started = now(io);
     var signals = try SignalBridge.install();
@@ -166,7 +202,7 @@ pub const CheckScope = struct {
     failed_exit_seen: bool = false,
 
     pub fn begin(allocator: std.mem.Allocator, io: std.Io, limits: Limits, display_bytes: usize) !CheckScope {
-        if (builtin.os.tag != .macos) return error.PlatformUnsupported;
+        if (builtin.os.tag != .macos and builtin.os.tag != .linux) return error.PlatformUnsupported;
         if (!validBudget(limits) or display_bytes == 0 or display_bytes > 65536) return error.InvalidProcessBudget;
         var output: std.ArrayList(u8) = .empty;
         errdefer output.deinit(allocator);
@@ -190,7 +226,7 @@ pub const CheckScope = struct {
 
     /// The initial limits, clock and signal owner cannot be reset by a step.
     pub fn runLogged(self: *CheckScope, allocator: std.mem.Allocator, io: std.Io, options: Options, sinks: LogSinks) !Result {
-        if (builtin.os.tag != .macos) return error.PlatformUnsupported;
+        if (builtin.os.tag != .macos and builtin.os.tag != .linux) return error.PlatformUnsupported;
         try self.ready(io);
         var current = options;
         current.limits = self.limits;
@@ -348,6 +384,7 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
     var max_processes: usize = 0;
     var max_resident: u64 = 0;
     while (true) {
+        var usage: Usage = .{};
         if (pending_signal.load(.monotonic) != 0) {
             failure = .cancelled;
             break;
@@ -374,7 +411,7 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
                 if (owner.valid) failure = .inspection_failed;
                 break;
             };
-            const usage = groupUsage(owner.pid, terminal) catch {
+            usage = groupUsage(owner.pid, terminal) catch {
                 failure = .inspection_failed;
                 break;
             };
@@ -395,6 +432,32 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
                     failure = .cleanup_failed;
                     if (!owner.valid and !owner.reaped) failure = .ownership_lost;
                 }
+            }
+        }
+        if (options.retained_monitor) |monitor| {
+            if (monitor.poll(monitor.context, .{ .stdout_retained = out.retained, .stderr_retained = err.retained, .stdout_preview = out.list.items.len, .stderr_preview = err.list.items.len, .sampled_processes = usage.processes, .sampled_resident_bytes = usage.resident_bytes })) |problem| {
+                failure = problem;
+                break;
+            }
+            // The retained worker and current command share the original raw
+            // and display budgets. A monitor cannot grant a command fresh quota.
+            if (scope) |check| {
+                if (check.stdout_retained > check.limits.stdout_bytes or out.retained > check.limits.stdout_bytes - check.stdout_retained) {
+                    failure = .stdout_limit;
+                    break;
+                }
+                if (check.stderr_retained > check.limits.stderr_bytes or err.retained > check.limits.stderr_bytes - check.stderr_retained) {
+                    failure = .stderr_limit;
+                    break;
+                }
+                if (check.stdout.items.len + out.list.items.len > check.display_bytes or check.stderr.items.len + err.list.items.len > check.display_bytes) {
+                    failure = .inspection_failed;
+                    break;
+                }
+                out.quota = check.limits.stdout_bytes - check.stdout_retained;
+                err.quota = check.limits.stderr_bytes - check.stderr_retained;
+                out.preview = @min(out.quota, check.display_bytes - check.stdout.items.len);
+                err.preview = @min(err.quota, check.display_bytes - check.stderr.items.len);
             }
         }
         if (out.open) out.read(io, child.stdout.?.handle) catch |e| {
@@ -444,6 +507,7 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
 // identity inside std.Io.Threaded. All allocation and file-action setup precedes
 // the syscall; every unsuccessful attempt closes its exact parent descriptors.
 fn spawnOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, deadline: i96, scope: ?*CheckScope) !std.process.Child {
+    if (comptime builtin.os.tag == .linux) return spawnOwnedLinux(allocator, io, options, deadline, scope);
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const temporary = arena.allocator();
@@ -513,6 +577,159 @@ fn spawnOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, deadli
     return .{ .id = pid, .thread_handle = {}, .stdin = null, .stdout = .{ .handle = out[0], .flags = .{ .nonblocking = false } }, .stderr = .{ .handle = err[0], .flags = .{ .nonblocking = false } }, .request_resource_usage_statistics = false };
 }
 
+fn spawnOwnedLinux(allocator: std.mem.Allocator, io: std.Io, options: Options, deadline: i96, scope: ?*CheckScope) !std.process.Child {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const temporary = arena.allocator();
+    const argv = try temporary.allocSentinel(?[*:0]u8, options.argv.len, null);
+    for (options.argv, 0..) |argument, index| {
+        if (std.mem.indexOfScalar(u8, argument, 0) != null) return error.InvalidArguments;
+        argv[index] = (try temporary.dupeZ(u8, argument)).ptr;
+    }
+    var environment: [*c]const [*c]u8 = @ptrCast(std.c.environ);
+    if (options.environment) |map| {
+        for (map.keys(), map.values()) |key, value| {
+            if (key.len == 0 or std.mem.indexOfScalar(u8, key, '=') != null or std.mem.indexOfScalar(u8, key, 0) != null or std.mem.indexOfScalar(u8, value, 0) != null) return error.InvalidEnvironment;
+        }
+        const block = try map.createPosixBlock(temporary, .{});
+        environment = @ptrCast(block.slice.ptr);
+    }
+
+    var actions: spawn.posix_spawn_file_actions_t = undefined;
+    if (spawn.posix_spawn_file_actions_init(&actions) != 0) return error.SpawnSetupFailed;
+    var actions_active = true;
+    defer if (actions_active) {
+        _ = spawn.posix_spawn_file_actions_destroy(&actions);
+    };
+    var attributes: spawn.posix_spawnattr_t = undefined;
+    if (spawn.posix_spawnattr_init(&attributes) != 0) return error.SpawnSetupFailed;
+    var attributes_active = true;
+    defer if (attributes_active) {
+        _ = spawn.posix_spawnattr_destroy(&attributes);
+    };
+    if (spawn.posix_spawnattr_setpgroup(&attributes, 0) != 0 or spawn.posix_spawnattr_setflags(&attributes, spawn.POSIX_SPAWN_SETPGROUP) != 0) return error.SpawnSetupFailed;
+    if (spawn.posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", c.O_RDONLY, 0) != 0) return error.SpawnSetupFailed;
+    if (options.cwd == .path) {
+        const path = options.cwd.path;
+        if (std.mem.indexOfScalar(u8, path, 0) != null) return error.InvalidArguments;
+        const terminated = try temporary.dupeZ(u8, path);
+        if (spawn.posix_spawn_file_actions_addchdir_np(&actions, terminated.ptr) != 0) return error.SpawnSetupFailed;
+    } else if (options.cwd == .dir) {
+        if (spawn.posix_spawn_file_actions_addfchdir_np(&actions, options.cwd.dir.handle) != 0) return error.SpawnSetupFailed;
+    }
+
+    const out = try ownedPipe();
+    defer _ = c.close(out[1]);
+    errdefer _ = c.close(out[0]);
+    const err = try ownedPipe();
+    defer _ = c.close(err[1]);
+    errdefer _ = c.close(err[0]);
+    if (spawn.posix_spawn_file_actions_adddup2(&actions, out[1], 1) != 0 or spawn.posix_spawn_file_actions_adddup2(&actions, err[1], 2) != 0) return error.SpawnSetupFailed;
+
+    // /proc is required by the Linux group-inspection backend. Keep its stream
+    // open through spawn while arranging close actions for every observed fd
+    // above stderr, including these pipe originals and caller-owned log files.
+    const inherited_directory = c.opendir("/proc/self/fd") orelse return error.DescriptorInspectionFailed;
+    defer _ = c.closedir(inherited_directory);
+    try addCloseActionsForInheritedDescriptors(&actions, inherited_directory);
+
+    if (now(io) >= deadline) return error.OperationDeadlineExceeded;
+    if (pending_signal.load(.monotonic) != 0) return error.OperationCancelled;
+    try io.checkCancel();
+    if (options.cancel_probe) |probe| if (probe(options.cancel_context)) return error.OperationCancelled;
+    if (options.budget_probe) |probe| if (probe(options.budget_context)) return error.OperationBudgetExceeded;
+    var pid: c.pid_t = 0;
+    const spawn_error = spawn.posix_spawn(&pid, argv[0].?, &actions, &attributes, @ptrCast(argv.ptr), environment);
+    const actions_error = spawn.posix_spawn_file_actions_destroy(&actions);
+    actions_active = false;
+    const attributes_error = spawn.posix_spawnattr_destroy(&attributes);
+    attributes_active = false;
+    if (spawn_error != 0) {
+        if (spawn_error == c.ENOENT) return error.FileNotFound;
+        if (spawn_error == c.EACCES) return error.AccessDenied;
+        return error.SpawnFailed;
+    }
+    var owner = Ownership{ .pid = pid };
+    errdefer _ = disposeOwned(&owner, io, options.limits.cleanup_ms, scope);
+    if (actions_error != 0 or attributes_error != 0) return error.SpawnMetadataCleanupFailed;
+    return .{ .id = pid, .thread_handle = {}, .stdin = null, .stdout = .{ .handle = out[0], .flags = .{ .nonblocking = false } }, .stderr = .{ .handle = err[0], .flags = .{ .nonblocking = false } }, .request_resource_usage_statistics = false };
+}
+
+/// Spawn the lifetime-bound sampler worker with only its private socket on
+/// stdin/stdout. The worker creates its own session after exec, so this child
+/// must not join the ordinary command's process group.
+pub fn spawnSamplerWorkerLinux(allocator: std.mem.Allocator, io: std.Io, argv_values: []const []const u8, cwd: []const u8, environment_map: *const std.process.Environ.Map, socket_fd: c_int, deadline: i96, cleanup_ms: u32) !std.process.Child {
+    if (comptime builtin.os.tag != .linux) return error.PlatformUnsupported;
+    if (cleanup_ms == 0 or cleanup_ms > 5000) return error.InvalidProcessBudget;
+    if (now(io) >= deadline) return error.OperationDeadlineExceeded;
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const temporary = arena.allocator();
+    const argv = try temporary.allocSentinel(?[*:0]u8, argv_values.len, null);
+    for (argv_values, 0..) |argument, index| {
+        if (std.mem.indexOfScalar(u8, argument, 0) != null) return error.InvalidArguments;
+        argv[index] = (try temporary.dupeZ(u8, argument)).ptr;
+    }
+    for (environment_map.keys(), environment_map.values()) |key, value| {
+        if (key.len == 0 or std.mem.indexOfScalar(u8, key, '=') != null or std.mem.indexOfScalar(u8, key, 0) != null or std.mem.indexOfScalar(u8, value, 0) != null) return error.InvalidEnvironment;
+    }
+    const environment = try environment_map.createPosixBlock(temporary, .{});
+    const cwd_z = try temporary.dupeZ(u8, cwd);
+    var actions: spawn.posix_spawn_file_actions_t = undefined;
+    if (spawn.posix_spawn_file_actions_init(&actions) != 0) return error.SpawnSetupFailed;
+    var actions_active = true;
+    defer if (actions_active) {
+        _ = spawn.posix_spawn_file_actions_destroy(&actions);
+    };
+    if (spawn.posix_spawn_file_actions_adddup2(&actions, socket_fd, 0) != 0 or spawn.posix_spawn_file_actions_adddup2(&actions, socket_fd, 1) != 0) return error.SpawnSetupFailed;
+    if (spawn.posix_spawn_file_actions_addchdir_np(&actions, cwd_z.ptr) != 0) return error.SpawnSetupFailed;
+    const inherited_directory = c.opendir("/proc/self/fd") orelse return error.DescriptorInspectionFailed;
+    defer _ = c.closedir(inherited_directory);
+    try addCloseActionsForInheritedDescriptors(&actions, inherited_directory);
+    if (now(io) >= deadline) return error.OperationDeadlineExceeded;
+    if (pending_signal.load(.monotonic) != 0) return error.OperationCancelled;
+    try io.checkCancel();
+    var pid: c.pid_t = 0;
+    const spawn_error = spawn.posix_spawn(&pid, argv[0].?, &actions, null, @ptrCast(argv.ptr), @ptrCast(environment.slice.ptr));
+    const actions_error = spawn.posix_spawn_file_actions_destroy(&actions);
+    actions_active = false;
+    if (spawn_error != 0) {
+        if (spawn_error == c.ENOENT) return error.FileNotFound;
+        if (spawn_error == c.EACCES) return error.AccessDenied;
+        return error.SpawnFailed;
+    }
+    if (actions_error != 0) {
+        // The exact child remains observable until it is reaped. Attempt a
+        // bounded direct-child cleanup before returning the metadata failure.
+        _ = c.kill(pid, c.SIGKILL);
+        const cleanup_deadline = now(io) + @as(i96, cleanup_ms) * std.time.ns_per_ms;
+        while (now(io) < cleanup_deadline) {
+            var status: c_int = 0;
+            const joined = c.waitpid(pid, &status, c.WNOHANG);
+            if (joined == pid or (joined < 0 and std.c.errno(joined) == .CHILD)) break;
+            _ = c.poll(null, 0, 1);
+        }
+        return error.SpawnMetadataCleanupFailed;
+    }
+    return .{ .id = pid, .thread_handle = {}, .stdin = null, .stdout = null, .stderr = null, .request_resource_usage_statistics = false };
+}
+
+fn addCloseActionsForInheritedDescriptors(actions: *spawn.posix_spawn_file_actions_t, directory: anytype) !void {
+    // The caller keeps /proc/self/fd open through spawn so every descriptor
+    // observed here remains stable while its child-side close action is used.
+    while (true) {
+        std.c._errno().* = 0;
+        const entry = c.readdir(directory) orelse {
+            if (std.c.errno(@as(c_int, -1)) != .SUCCESS) return error.DescriptorInspectionFailed;
+            break;
+        };
+        const name = std.mem.sliceTo(@as([*:0]const u8, @ptrCast(&entry.*.d_name)), 0);
+        const fd = std.fmt.parseInt(c_int, name, 10) catch continue;
+        if (fd <= 2) continue;
+        if (spawn.posix_spawn_file_actions_addclose(actions, fd) != 0) return error.SpawnSetupFailed;
+    }
+}
+
 fn ownedPipe() ![2]c_int {
     var descriptors: [2]c_int = undefined;
     if (c.pipe(&descriptors) != 0) return error.PipeCreationFailed;
@@ -542,24 +759,46 @@ const Ownership = struct {
     fn observe(self: *Ownership) !bool {
         if (!self.valid) return error.OwnershipLost;
         if (self.reaped) return true;
-        var info: c.siginfo_t = std.mem.zeroes(c.siginfo_t);
-        const rc = c.waitid(c.P_PID, @intCast(self.pid), &info, c.WEXITED | c.WNOHANG | c.WNOWAIT);
-        if (rc != 0) {
-            if (std.c.errno(rc) == .CHILD) self.valid = false;
-            if (std.c.errno(rc) == .INTR) return false;
-            return error.ExitObservationFailed;
+        if (builtin.os.tag == .linux) {
+            const linux = std.os.linux;
+            var info: linux.siginfo_t = std.mem.zeroes(linux.siginfo_t);
+            switch (linux.errno(linux.waitid(.PID, self.pid, &info, linux.W.EXITED | linux.W.NOHANG | linux.W.NOWAIT, null))) {
+                .SUCCESS => {},
+                .CHILD => {
+                    self.valid = false;
+                    return error.OwnershipLost;
+                },
+                .INTR => return false,
+                else => return error.ExitObservationFailed,
+            }
+            if (@intFromEnum(info.signo) == 0) return false;
+            if (info.signo != .CHLD or info.fields.common.first.piduid.pid != self.pid) {
+                self.valid = false;
+                return error.OwnershipLost;
+            }
+            if (!try terminalEvent(info.code)) return false;
+            if (info.code == c.CLD_EXITED) self.exit_code = @intCast(info.fields.common.second.sigchld.status);
+            return true;
+        } else {
+            var info: c.siginfo_t = std.mem.zeroes(c.siginfo_t);
+            const rc = c.waitid(c.P_PID, @intCast(self.pid), &info, c.WEXITED | c.WNOHANG | c.WNOWAIT);
+            if (rc != 0) {
+                if (std.c.errno(rc) == .CHILD) self.valid = false;
+                if (std.c.errno(rc) == .INTR) return false;
+                return error.ExitObservationFailed;
+            }
+            if (info.si_pid == 0) return false;
+            if (info.si_pid != self.pid) {
+                self.valid = false;
+                return error.OwnershipLost;
+            }
+            // Darwin can report a stopped child even with WEXITED. Its matching
+            // identity is still owned, but skipping it as a terminal leader would
+            // falsely empty the group and attempt a premature nonblocking reap.
+            if (!try terminalEvent(info.si_code)) return false;
+            if (info.si_code == c.CLD_EXITED) self.exit_code = @intCast(info.si_status);
+            return true;
         }
-        if (info.si_pid == 0) return false;
-        if (info.si_pid != self.pid) {
-            self.valid = false;
-            return error.OwnershipLost;
-        }
-        // Darwin can report a stopped child even with WEXITED. Its matching
-        // identity is still owned, but skipping it as a terminal leader would
-        // falsely empty the group and attempt a premature nonblocking reap.
-        if (!try terminalEvent(info.si_code)) return false;
-        if (info.si_code == c.CLD_EXITED) self.exit_code = @intCast(info.si_status);
-        return true;
     }
 
     fn dispose(self: *Ownership, io: std.Io, cleanup_ms: u32) bool {
@@ -614,6 +853,86 @@ const Ownership = struct {
     }
 };
 
+/// A direct native sampler child, retained unreaped across ordinary argv groups.
+/// This proves only this source-closed child, never arbitrary descendants.
+pub const DirectChild = struct {
+    identity: Ownership,
+    wait_status: ?c_int = null,
+
+    pub fn init(child_pid: i32) !DirectChild {
+        if (builtin.os.tag != .macos and builtin.os.tag != .linux) return error.PlatformUnsupported;
+        if (child_pid <= 1) return error.SamplerIdentityUnknown;
+        return .{ .identity = .{ .pid = child_pid } };
+    }
+
+    pub fn observe(self: *DirectChild) !bool {
+        if (builtin.os.tag != .macos and builtin.os.tag != .linux) return error.PlatformUnsupported;
+        return self.identity.observe();
+    }
+
+    pub fn signal(self: *DirectChild, force: bool) !void {
+        if (builtin.os.tag != .macos and builtin.os.tag != .linux) return error.PlatformUnsupported;
+        if (!self.identity.valid or self.identity.reaped) return error.SamplerIdentityUnknown;
+        if (try self.identity.observe()) return;
+        const rc = c.kill(self.identity.pid, if (force) c.SIGKILL else c.SIGTERM);
+        const problem = std.c.errno(rc);
+        if (rc == 0) return;
+        // A concurrent natural exit is accepted only through the retained
+        // direct-child kernel observation, never kill(pid, 0) or PID text.
+        if (problem == .SRCH and try self.identity.observe()) return;
+        return error.SamplerSignalFailed;
+    }
+
+    pub fn reap(self: *DirectChild) !bool {
+        if (builtin.os.tag != .macos and builtin.os.tag != .linux) return error.PlatformUnsupported;
+        if (self.identity.reaped) return true;
+        if (!try self.identity.observe()) return false;
+        var status: c_int = 0;
+        const joined_pid = c.waitpid(self.identity.pid, &status, c.WNOHANG);
+        if (joined_pid != self.identity.pid) {
+            if (joined_pid < 0 and std.c.errno(joined_pid) == .CHILD) self.identity.valid = false;
+            return error.SamplerIdentityUnknown;
+        }
+        self.wait_status = status;
+        self.identity.reaped = true;
+        self.identity.valid = false;
+        return true;
+    }
+
+    pub fn pid(self: *const DirectChild) i32 {
+        return self.identity.pid;
+    }
+    pub fn reaped(self: *const DirectChild) bool {
+        return self.identity.reaped;
+    }
+    pub fn valid(self: *const DirectChild) bool {
+        return self.identity.valid;
+    }
+    pub fn exitCode(self: *const DirectChild) ?u8 {
+        return self.identity.exit_code;
+    }
+
+    pub fn usage(self: *const DirectChild) !ChildUsage {
+        if (builtin.os.tag == .linux) {
+            if (!self.identity.valid or self.identity.reaped) return error.SamplerIdentityUnknown;
+            const directory = c.opendir("/proc") orelse return error.SamplerIdentityUnknown;
+            defer _ = c.closedir(directory);
+            const status = (try linuxProcStat(c.dirfd(directory), self.identity.pid)) orelse return error.SamplerIdentityUnknown;
+            if (status.state == 'Z' or status.state == 'X' or status.state == 'x') return error.SamplerIdentityUnknown;
+            const page_size = c.sysconf(c._SC_PAGESIZE);
+            if (page_size <= 0) return error.SamplerIdentityUnknown;
+            return .{ .processes = 1, .resident_bytes = try std.math.mul(u64, status.resident_pages, @intCast(page_size)) };
+        }
+        if (builtin.os.tag != .macos) return error.PlatformUnsupported;
+        if (!self.identity.valid or self.identity.reaped) return error.SamplerIdentityUnknown;
+        var bsd: c.struct_proc_bsdinfo = std.mem.zeroes(c.struct_proc_bsdinfo);
+        if (proc_pidinfo(self.identity.pid, c.PROC_PIDTBSDINFO, 0, &bsd, @sizeOf(c.struct_proc_bsdinfo)) != @sizeOf(c.struct_proc_bsdinfo) or bsd.pbi_pid != self.identity.pid) return error.SamplerIdentityUnknown;
+        var task: c.struct_proc_taskinfo = std.mem.zeroes(c.struct_proc_taskinfo);
+        if (proc_pidinfo(self.identity.pid, c.PROC_PIDTASKINFO, 0, &task, @sizeOf(c.struct_proc_taskinfo)) != @sizeOf(c.struct_proc_taskinfo)) return error.SamplerIdentityUnknown;
+        return .{ .processes = 1, .resident_bytes = task.pti_resident_size };
+    }
+};
+
 fn terminalEvent(code: c_int) !bool {
     if (code == c.CLD_EXITED or code == c.CLD_KILLED or code == c.CLD_DUMPED) return true;
     if (code == c.CLD_STOPPED or code == c.CLD_CONTINUED or code == c.CLD_TRAPPED) return false;
@@ -626,8 +945,97 @@ fn now(io: std.Io) i96 {
 const Usage = struct { processes: usize = 0, resident_bytes: u64 = 0 };
 const ListProcesses = *const fn (u32, u32, ?*anyopaque, c_int) callconv(.c) c_int;
 fn groupUsage(pgid: i32, terminal_leader: bool) !Usage {
+    if (builtin.os.tag == .linux) return linuxGroupUsage(pgid, terminal_leader);
     return groupUsageUsing(pgid, terminal_leader, proc_listpids);
 }
+
+const LinuxProcStat = struct { state: u8, process_group: i32, resident_pages: u64 };
+
+fn parseLinuxProcStat(bytes: []const u8, expected_pid: i32) !LinuxProcStat {
+    const open = std.mem.indexOfScalar(u8, bytes, '(') orelse return error.GroupInspectionFailed;
+    const close = std.mem.lastIndexOfScalar(u8, bytes, ')') orelse return error.GroupInspectionFailed;
+    if (close <= open or close + 2 >= bytes.len or bytes[close + 1] != ' ') return error.GroupInspectionFailed;
+    const observed_pid = std.fmt.parseInt(i32, std.mem.trim(u8, bytes[0..open], " "), 10) catch return error.GroupInspectionFailed;
+    if (observed_pid != expected_pid) return error.GroupInspectionFailed;
+    var fields = std.mem.tokenizeScalar(u8, bytes[close + 2 ..], ' ');
+    const state = fields.next() orelse return error.GroupInspectionFailed;
+    if (state.len != 1) return error.GroupInspectionFailed;
+    var process_group: ?i32 = null;
+    var resident_pages: ?u64 = null;
+    var index: usize = 0;
+    while (fields.next()) |field| : (index += 1) {
+        if (index == 1) process_group = std.fmt.parseInt(i32, field, 10) catch return error.GroupInspectionFailed;
+        if (index == 20) {
+            const value = std.fmt.parseInt(i64, field, 10) catch return error.GroupInspectionFailed;
+            if (value < 0) return error.GroupInspectionFailed;
+            resident_pages = @intCast(value);
+            break;
+        }
+    }
+    return .{ .state = state[0], .process_group = process_group orelse return error.GroupInspectionFailed, .resident_pages = resident_pages orelse return error.GroupInspectionFailed };
+}
+
+fn linuxProcStat(proc_fd: c_int, pid: i32) !?LinuxProcStat {
+    var path_buffer: [32]u8 = undefined;
+    const path = try std.fmt.bufPrintZ(&path_buffer, "{d}/stat", .{pid});
+    const fd = c.openat(proc_fd, path.ptr, c.O_RDONLY | c.O_CLOEXEC);
+    if (fd < 0) {
+        const problem = std.c.errno(@as(c_int, -1));
+        if (problem == .NOENT or problem == .SRCH) return null;
+        return error.GroupInspectionFailed;
+    }
+    defer _ = c.close(fd);
+    var bytes: [4096]u8 = undefined;
+    var length: usize = 0;
+    while (length < bytes.len) {
+        const count = c.read(fd, @ptrCast(bytes[length..].ptr), bytes.len - length);
+        if (count == 0) break;
+        if (count < 0) {
+            if (std.c.errno(@as(c_int, -1)) == .INTR) continue;
+            if (std.c.errno(@as(c_int, -1)) == .NOENT or std.c.errno(@as(c_int, -1)) == .SRCH) return null;
+            return error.GroupInspectionFailed;
+        }
+        length += @intCast(count);
+    }
+    if (length == bytes.len) return error.GroupInspectionFailed;
+    return try parseLinuxProcStat(bytes[0..length], pid);
+}
+
+fn linuxGroupUsage(pgid: i32, terminal_leader: bool) !Usage {
+    const directory = c.opendir("/proc") orelse return error.GroupInspectionFailed;
+    defer _ = c.closedir(directory);
+    const proc_fd = c.dirfd(directory);
+    const page_size = c.sysconf(c._SC_PAGESIZE);
+    if (page_size <= 0) return error.GroupInspectionFailed;
+    var usage: Usage = .{};
+    var leader_present = false;
+    while (true) {
+        std.c._errno().* = 0;
+        const entry = c.readdir(directory) orelse {
+            if (std.c.errno(@as(c_int, -1)) != .SUCCESS) return error.GroupInspectionFailed;
+            break;
+        };
+        const name = std.mem.sliceTo(@as([*:0]const u8, @ptrCast(&entry.*.d_name)), 0);
+        const pid = std.fmt.parseInt(i32, name, 10) catch continue;
+        if (pid <= 0) continue;
+        const status = try linuxProcStat(proc_fd, pid) orelse continue;
+        if (status.process_group != pgid) continue;
+        if (pid == pgid) leader_present = true;
+        if (pid == pgid and terminal_leader) continue;
+        if (status.state == 'Z' or status.state == 'X' or status.state == 'x') {
+            // waitid and procfs are separate observations. A leader can become
+            // a zombie just after waitid reports no exit; it remains unreaped
+            // and identity-pinned, so exclude it from live usage and let the
+            // next waitid pass establish terminal ownership before cleanup.
+            continue;
+        }
+        usage.processes += 1;
+        usage.resident_bytes = try std.math.add(u64, usage.resident_bytes, try std.math.mul(u64, status.resident_pages, @intCast(page_size)));
+    }
+    if (!leader_present) return error.GroupInspectionFailed;
+    return usage;
+}
+
 fn groupUsageUsing(pgid: i32, terminal_leader: bool, list: ListProcesses) !Usage {
     var pids: [129]c_int = @splat(0);
     std.c._errno().* = 0;
@@ -660,6 +1068,14 @@ fn groupUsageUsing(pgid: i32, terminal_leader: bool, list: ListProcesses) !Usage
     }
     if (!leader_present) return error.GroupInspectionFailed;
     return usage;
+}
+
+test "Linux proc stat projection handles parentheses and stable field positions" {
+    const parsed = try parseLinuxProcStat("420 (worker ) demo) S 1 420 420 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 77 8192 5 0\n", 420);
+    try std.testing.expectEqual(@as(u8, 'S'), parsed.state);
+    try std.testing.expectEqual(@as(i32, 420), parsed.process_group);
+    try std.testing.expectEqual(@as(u64, 5), parsed.resident_pages);
+    try std.testing.expectError(error.GroupInspectionFailed, parseLinuxProcStat("421 (worker) R 1 420", 420));
 }
 
 const Capture = struct {

@@ -10,7 +10,9 @@ import json
 import os
 import shutil
 import signal
+import stat
 import sys
+import tempfile
 import time
 import subprocess
 from pathlib import Path
@@ -78,6 +80,332 @@ def test_existing_native_entry_and_bound_image_are_usable(sampler_binary: Path, 
     path.write_text(json.dumps({"repository_root": str(ROOT), "argv": ["--help"]}))
     result = invoke(sampler_binary, "changelog-style", path, tmp_path)
     assert result.returncode == 0 and b"usage:" in result.stdout and result.stderr == b""
+
+
+def receive_worker_frame(channel: Any, raw_path: Path) -> dict[str, Any] | None:
+    raw = b""
+    with raw_path.open("xb") as retained:
+        while b"\n" not in raw:
+            block = channel.recv(4097 - len(raw))
+            if not block:
+                return None
+            retained.write(block)
+            raw += block
+            assert len(raw) <= 4096, "Owned worker protocol crossed its bounded frame"
+    assert raw.endswith(b"\n") and raw.count(b"\n") == 1
+    result: dict[str, Any] = json.loads(raw)
+    return result
+
+
+def worker_commitment(path: Path) -> dict[str, str]:
+    def metadata(value: Path, file: bool) -> str:
+        observed = value.stat(follow_symlinks=False)
+        fields = [
+            1,
+            "macos" if sys.platform == "darwin" else "linux",
+            observed.st_dev if sys.platform == "darwin" else os.major(observed.st_dev),
+            0 if sys.platform == "darwin" else os.minor(observed.st_dev),
+            observed.st_ino,
+            observed.st_mode,
+            observed.st_uid,
+        ]
+        if file:
+            fields.extend(
+                [
+                    observed.st_nlink,
+                    observed.st_size,
+                    observed.st_mtime_ns // 1_000_000_000,
+                    observed.st_mtime_ns % 1_000_000_000,
+                    observed.st_ctime_ns // 1_000_000_000,
+                    observed.st_ctime_ns % 1_000_000_000,
+                ]
+            )
+        return digest(json.dumps(fields, separators=(",", ":")).encode())
+
+    return {
+        "state_sha256": digest(path.read_bytes()),
+        "state_metadata_sha256": metadata(path, True),
+        "directory_identity_sha256": metadata(path.parent, False),
+        "parent_identity_sha256": metadata(path.parent.parent, False),
+    }
+
+
+@pytest.mark.parametrize("final", ["measured", "missing", "unsupported"])
+def test_native_owned_worker_final_attempt_uses_real_parent_channel(sampler_binary: Path, tmp_path: Path, final: str) -> None:
+    import socket
+
+    path, value = request(tmp_path, interval_ms=60000, max_samples=2)
+    path.chmod(0o600)
+    clock = getattr(time, "CLOCK_MONOTONIC_RAW" if sys.platform == "darwin" else "CLOCK_BOOTTIME")
+    channel, child_channel = socket.socketpair()
+    channel.settimeout(7)
+    diagnostic = tmp_path / "worker.stderr.log"
+    ready = None
+    stopped = None
+    initial = None
+    first_commitment = None
+    with diagnostic.open("xb") as stderr:
+        diagnostic.chmod(0o600)
+        child = subprocess.Popen(
+            [str(sampler_binary), "memory-owned-sample", str(path)],
+            env={"PATH": "/usr/bin:/bin"},
+            stdin=child_channel.fileno(),
+            stdout=child_channel.fileno(),
+            stderr=stderr,
+        )
+        child_channel.close()
+        try:
+            # Exact target-owned mapping is pinned in Zig Threaded.clockToPosix:
+            # Darwin boot is MONOTONIC_RAW; Linux boot is BOOTTIME.
+            start = {"schema_version": 1, "command": "start", "owner_pid": os.getpid(), "deadline_boot_ns": str(time.clock_gettime_ns(clock) + 5_000_000_000)}
+            (tmp_path / "worker.start.json").write_text(json.dumps(start))
+            channel.sendall((json.dumps(start) + "\n").encode())
+            ready = receive_worker_frame(channel, tmp_path / "worker.ready.log")
+            if ready is not None:
+                output = Path(value["destination"]) / "state.json"
+                initial = json.loads(output.read_bytes())
+                first_commitment = worker_commitment(output)
+                source = Path(value["proc_root"]) / "meminfo"
+                if final == "missing":
+                    source.unlink()
+                else:
+                    source.write_bytes(b"MemTotal: 16384 kB\nMemAvailable: 1024 kB\n" if final == "measured" else b"MemTotal: \xff\n")
+                channel.sendall(b'{"schema_version":1,"command":"stop"}\n')
+                stopped = receive_worker_frame(channel, tmp_path / "worker.stopped.log")
+        finally:
+            channel.close()
+            try:
+                code = child.wait(timeout=8)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                child.wait(timeout=5)
+                raise
+    (tmp_path / "worker.invocation.json").write_text(json.dumps({"pid": child.pid, "joined": True, "exact_exit_code": code, "ready": ready, "stopped": stopped}))
+    assert ready is not None, (code, diagnostic.read_bytes())
+    assert first_commitment is not None
+    assert ready == {"schema_version": 1, "event": "ready", "pid": child.pid, "parent_pid": os.getpid(), "attempts": 1, "samples": 1, **first_commitment}
+    assert initial is not None and initial["pid"] == child.pid and initial["samples"] == 1
+    final_state = json.loads((Path(value["destination"]) / "state.json").read_bytes())
+    if final == "unsupported":
+        assert code == 1 and b"UnsupportedSamplerEncoding" in diagnostic.read_bytes()
+        assert stopped is None and final_state == initial
+    else:
+        assert code == 0 and diagnostic.read_bytes() == b""
+        assert stopped == {
+            "schema_version": 1,
+            "event": "stopped",
+            "pid": child.pid,
+            "parent_pid": os.getpid(),
+            "attempts": 2,
+            "samples": 2 if final == "measured" else 1,
+            **worker_commitment(Path(value["destination"]) / "state.json"),
+        }
+        assert stopped["state_metadata_sha256"] != ready["state_metadata_sha256"]
+        assert final_state["pid"] == child.pid and final_state["baseline_bytes"] == 8192 * 1024
+        if final == "missing":
+            assert final_state == initial
+        else:
+            assert final_state["samples"] == 2 and final_state["peak_bytes"] == 15360 * 1024
+
+
+@pytest.mark.parametrize("operation", ["memory-owned-sample", "memory-owned-stop"])
+def test_native_owned_worker_refuses_missing_owner_before_output(sampler_binary: Path, tmp_path: Path, operation: str) -> None:
+    path, value = request(tmp_path)
+    result = invoke(sampler_binary, operation, path, tmp_path)
+    assert result.returncode == 1 and b"SamplerOwnerRequired" in result.stderr
+    assert not Path(value["destination"]).exists()
+
+
+@pytest.mark.parametrize(
+    ("case", "reason"),
+    [
+        ("malformed", "SamplerProtocolRefused"),
+        ("deep-frame", "SamplerProtocolRefused"),
+        ("duplicate-field", "SamplerProtocolRefused"),
+        ("wrong-owner", "SamplerOwnerRequired"),
+        ("wrong-command", "SamplerOwnerRequired"),
+        ("wrong-schema", "SamplerOwnerRequired"),
+        ("missing-deadline", "SamplerProtocolRefused"),
+        ("extra-field", "SamplerProtocolRefused"),
+        ("integer-deadline", "SamplerProtocolRefused"),
+        ("empty-deadline", "SamplerProtocolRefused"),
+        ("nonnumeric-deadline", "SamplerProtocolRefused"),
+        ("zero-deadline", "SamplerProtocolRefused"),
+        ("too-long-deadline", "SamplerProtocolRefused"),
+        ("expired-deadline", "OperationDeadlineExceeded"),
+        ("future-deadline", "SamplerProtocolRefused"),
+        ("empty-frame", "SamplerProtocolRefused"),
+        ("multiple-frames", "SamplerProtocolRefused"),
+        ("oversized-frame", "SamplerProtocolRefused"),
+        ("eof-before-start", "SamplerOwnerLost"),
+    ],
+)
+def test_native_owned_worker_rejects_invalid_start_before_output(sampler_binary: Path, tmp_path: Path, case: str, reason: str) -> None:
+    import socket
+
+    path, value = request(tmp_path)
+    path.chmod(0o600)
+    start = malformed_start_request(case)
+    raw = invalid_start_frame(case, start)
+
+    channel, child_channel = socket.socketpair()
+    channel.settimeout(5)
+    diagnostic = tmp_path / "worker.stderr.log"
+    child = None
+    with diagnostic.open("xb") as stderr:
+        diagnostic.chmod(0o600)
+        child = subprocess.Popen(
+            [str(sampler_binary), "memory-owned-sample", str(path)],
+            env={"PATH": "/usr/bin:/bin"},
+            stdin=child_channel.fileno(),
+            stdout=child_channel.fileno(),
+            stderr=stderr,
+        )
+        child_channel.close()
+        try:
+            if raw is None:
+                channel.shutdown(socket.SHUT_WR)
+            else:
+                channel.sendall(raw)
+            code = child.wait(timeout=8)
+        except subprocess.TimeoutExpired:
+            child.terminate()
+            child.wait(timeout=5)
+            raise
+        finally:
+            channel.close()
+    (tmp_path / "worker.invocation.json").write_text(json.dumps({"case": case, "pid": child.pid, "joined": True, "exact_exit_code": code}))
+    assert child is not None and code == 1
+    assert diagnostic.read_bytes() == f"error: execution refused: {reason}\n".encode()
+    assert not Path(value["destination"]).exists()
+
+
+def malformed_start_request(case: str) -> dict[str, Any]:
+    clock = getattr(time, "CLOCK_MONOTONIC_RAW" if sys.platform == "darwin" else "CLOCK_BOOTTIME")
+    start: dict[str, Any] = {
+        "schema_version": 1,
+        "command": "start",
+        "owner_pid": os.getpid(),
+        "deadline_boot_ns": str(time.clock_gettime_ns(clock) + 5_000_000_000),
+    }
+    updates: dict[str, tuple[str, Any]] = {
+        "wrong-owner": ("owner_pid", 1),
+        "wrong-command": ("command", "resume"),
+        "wrong-schema": ("schema_version", 2),
+        "integer-deadline": ("deadline_boot_ns", 7),
+        "empty-deadline": ("deadline_boot_ns", ""),
+        "nonnumeric-deadline": ("deadline_boot_ns", "soon"),
+        "zero-deadline": ("deadline_boot_ns", "0"),
+        "too-long-deadline": ("deadline_boot_ns", "1" * 30),
+        "expired-deadline": ("deadline_boot_ns", "1"),
+        "future-deadline": ("deadline_boot_ns", "9" * 28),
+    }
+    if case in updates:
+        key, value = updates[case]
+        start[key] = value
+    if case == "extra-field":
+        start["unexpected"] = "not part of the closed start protocol"
+    return start
+
+
+def invalid_start_frame(case: str, start: dict[str, Any]) -> bytes | None:
+    fixed: dict[str, bytes | None] = {
+        "malformed": b"{\n",
+        "deep-frame": b"[" * 17 + b"0" + b"]" * 17 + b"\n",
+        "empty-frame": b"\n",
+        "oversized-frame": b"x" * 4097 + b"\n",
+        "eof-before-start": None,
+    }
+    if case in fixed:
+        return fixed[case]
+    if case == "duplicate-field":
+        return (
+            b'{"schema_version":1,"schema_version":1,"command":"start",'
+            + f'"owner_pid":{os.getpid()},"deadline_boot_ns":"{start["deadline_boot_ns"]}"'.encode()
+            + b"}\n"
+        )
+    if case == "missing-deadline":
+        start.pop("deadline_boot_ns")
+    compact = json.dumps(start, separators=(",", ":")).encode() + b"\n"
+    return compact + b"{}\n" if case == "multiple-frames" else compact
+
+
+@pytest.mark.parametrize(
+    "stop_frame",
+    [
+        b"\n",
+        b"{}\n",
+        b'{"schema_version":1,"command":"resume"}\n',
+        b'{"schema_version":"1","command":"stop"}\n',
+        b'{"schema_version":1,"command":"stop","extra":true}\n',
+        b'{"schema_version":1,"command":"stop"}\n{}\n',
+    ],
+    ids=["empty", "missing-fields", "wrong-command", "wrong-type", "extra-field", "multiple-frames"],
+)
+def test_native_owned_worker_rejects_invalid_stop_without_final_sample(sampler_binary: Path, tmp_path: Path, stop_frame: bytes) -> None:
+    import socket
+
+    path, value = request(tmp_path, interval_ms=60000, max_samples=2)
+    path.chmod(0o600)
+    clock = getattr(time, "CLOCK_MONOTONIC_RAW" if sys.platform == "darwin" else "CLOCK_BOOTTIME")
+    start = {
+        "schema_version": 1,
+        "command": "start",
+        "owner_pid": os.getpid(),
+        "deadline_boot_ns": str(time.clock_gettime_ns(clock) + 5_000_000_000),
+    }
+    channel, child_channel = socket.socketpair()
+    channel.settimeout(5)
+    diagnostic = tmp_path / "worker.stderr.log"
+    ready = None
+    with diagnostic.open("xb") as stderr:
+        diagnostic.chmod(0o600)
+        child = subprocess.Popen(
+            [str(sampler_binary), "memory-owned-sample", str(path)],
+            env={"PATH": "/usr/bin:/bin"},
+            stdin=child_channel.fileno(),
+            stdout=child_channel.fileno(),
+            stderr=stderr,
+        )
+        child_channel.close()
+        try:
+            channel.sendall((json.dumps(start, separators=(",", ":")) + "\n").encode())
+            ready = receive_worker_frame(channel, tmp_path / "worker.ready.log")
+            assert ready is not None and ready["event"] == "ready"
+            state_path = Path(value["destination"]) / "state.json"
+            before = state_path.read_bytes()
+            channel.sendall(stop_frame)
+            code = child.wait(timeout=8)
+        except subprocess.TimeoutExpired:
+            child.terminate()
+            child.wait(timeout=5)
+            raise
+        finally:
+            channel.close()
+    (tmp_path / "worker.invocation.json").write_text(json.dumps({"pid": child.pid, "joined": True, "exact_exit_code": code, "ready": ready}))
+    assert code == 1
+    assert diagnostic.read_bytes() == b"error: execution refused: SamplerProtocolRefused\n"
+    assert Path(value["destination"], "state.json").read_bytes() == before
+
+
+def test_native_owned_worker_rejects_pipe_instead_of_private_unix_channel(sampler_binary: Path, tmp_path: Path) -> None:
+    path, value = request(tmp_path)
+    path.chmod(0o600)
+    with (tmp_path / "worker.stderr.log").open("xb") as stderr:
+        child = subprocess.Popen(
+            [str(sampler_binary), "memory-owned-sample", str(path)],
+            env={"PATH": "/usr/bin:/bin"},
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=stderr,
+        )
+        assert child.stdin is not None
+        child.stdin.close()
+        code = child.wait(timeout=8)
+    (tmp_path / "worker.invocation.json").write_text(json.dumps({"pid": child.pid, "joined": True, "exact_exit_code": code}))
+    assert code == 1
+    assert (tmp_path / "worker.stderr.log").read_bytes() == b"error: execution refused: SamplerOwnerRequired\n"
+    assert not Path(value["destination"]).exists()
 
 
 def test_native_memory_sample_produces_state_for_existing_python_consumer(sampler_binary: Path, tmp_path: Path) -> None:
@@ -1313,6 +1641,8 @@ def linux_cgroup_lifecycle_fixture(fixture: Path, mode: str) -> tuple[str, list[
 def linux_probe_operation(inputs: Path, fixture: Path, mode: str | None, expected: str) -> tuple[str, list[str]]:
     if mode is None:
         return "/input/executor", ["memory-sample", "/input/request.json"]
+    if mode == "process-backend":
+        return "/input/executor", ["process-backend"]
     if mode in {"cgroup-busy", "cgroup-busy-drift", "cgroup-self-absent", "cgroup-self-replaced"}:
         return linux_cgroup_lifecycle_fixture(fixture, mode)
     if mode == "cgroup":
@@ -1381,9 +1711,19 @@ def linux_fixture_metadata(initial: dict[str, Any], owned: bool) -> None:
         assert initial["tmpfs"] in [None, {}]
 
 
-def linux_actual_pid(fixture: Path, terminal: dict[str, Any], owned: bool, mode: str | None) -> int:
+def linux_actual_pid(fixture: Path, terminal: dict[str, Any], owned: bool, mode: str | None) -> int | None:
+    if mode == "process-backend":
+        path = fixture / "process-backend.json"
+        if not path.is_file():
+            return None
+        retained_process = json.loads(path.read_bytes())
+        assert retained_process["group_child_terminal"] and retained_process["group_disposed"] and retained_process["worker_reaped"]
+        return int(retained_process["group_child_pid"])
     if mode == "report":
-        retained_report = json.loads((fixture / "report-context.json").read_bytes())
+        path = fixture / "report-context.json"
+        if not path.is_file():
+            return None
+        retained_report = json.loads(path.read_bytes())
         assert retained_report["joined"] and retained_report["exact_native_exit_code"] == terminal["state"]["ExitCode"] == 0
         calls = retained_report["native_calls"]
         assert len(calls) == 3 and all(row["joined"] and row["exact_exit_code"] == 0 and row["actual_native_pid"] > 1 for row in calls)
@@ -1391,12 +1731,18 @@ def linux_actual_pid(fixture: Path, terminal: dict[str, Any], owned: bool, mode:
         assert type(pid) is int and pid == calls[-1]["actual_native_pid"]
         return pid
     if mode == "cgroup-live":
-        retained_live = json.loads((fixture / "cgroup-context.json").read_bytes())
+        path = fixture / "cgroup-context.json"
+        if not path.is_file():
+            return None
+        retained_live = json.loads(path.read_bytes())
         assert retained_live["joined"] and retained_live["exact_native_exit_code"] == terminal["state"]["ExitCode"]
         return int(retained_live["actual_native_pid"])
     if not owned:
         return 1
-    retained = json.loads((fixture / "owned-fixture-result.json").read_bytes())
+    path = fixture / "owned-fixture-result.json"
+    if not path.is_file():
+        return None
+    retained = json.loads(path.read_bytes())
     assert retained["joined"] and retained["exact_native_exit_code"] == terminal["state"]["ExitCode"]
     pid = retained["actual_native_pid"]
     assert type(pid) is int and pid > 1
@@ -1433,6 +1779,35 @@ def linux_store_request(inputs: Path, request_bytes: bytes, mode: str | None) ->
     path.write_bytes(request_bytes)
     if mode == "report":
         path.chmod(0o600)
+
+
+def retain_linux_fixture_artifacts(inputs: Path, output: Path, directory: Path) -> None:
+    reported_inputs = directory / "input"
+    reported_inputs.mkdir(mode=0o700)
+    for path in inputs.iterdir():
+        destination = reported_inputs / path.name
+        if path.is_dir():
+            shutil.copytree(path, destination)
+        elif path.name != "executor":
+            shutil.copy2(path, destination)
+
+    def copy_fixture_entry(source: str, destination: str) -> str:
+        mode = os.stat(source, follow_symlinks=False).st_mode
+        if stat.S_ISFIFO(mode):
+            os.mkfifo(destination, stat.S_IMODE(mode))
+            return destination
+        if stat.S_ISREG(mode) and not mode & 0o400:
+            original_mode = stat.S_IMODE(mode)
+            os.chmod(source, original_mode | 0o600)
+            try:
+                shutil.copy2(source, destination, follow_symlinks=False)
+            finally:
+                os.chmod(source, original_mode)
+            os.chmod(destination, original_mode)
+            return destination
+        return shutil.copy2(source, destination, follow_symlinks=False)
+
+    shutil.copytree(output, directory / "output", symlinks=True, copy_function=copy_fixture_entry)
 
 
 def linux_public_call(
@@ -1515,7 +1890,8 @@ def linux_public_call(
     )
     inspected = call(["image", "inspect", LINUX_IMAGE, "--format", "{{.Id}}"], "image")
     assert inspected.returncode == 0 and inspected.stdout.decode().strip() == LINUX_IMAGE, "Pinned image must already exist; no pull"
-    inputs, output = directory / "input", directory / "output"
+    bind_stage = Path(tempfile.mkdtemp(prefix="spec-kitty-linux-input-", dir=str(Path("/tmp").resolve())))
+    inputs, output = bind_stage / "input", bind_stage / "output"
     inputs.mkdir(mode=0o700)
     output.mkdir(mode=0o700)
     fixture = output / "fixture"
@@ -1535,6 +1911,29 @@ def linux_public_call(
     owner = os.urandom(12).hex()
     for path in [inputs, output]:
         assert "," not in str(path), "The finite Docker bind fixture excludes commas"
+    entrypoint_guard = """\\
+set -eu
+program=$1
+shift
+attempt=0
+while [ "$attempt" -lt 100 ]; do
+    ready=1
+    [ -x "$program" ] || ready=0
+    [ -f /input/request.json ] || ready=0
+    for input do
+        case "$input" in
+            /input/*) [ -f "$input" ] || ready=0 ;;
+        esac
+    done
+    if [ "$ready" -eq 1 ]; then
+        exec "$program" "$@"
+    fi
+    attempt=$((attempt + 1))
+    sleep 0.01
+done
+printf '%s\\n' 'fixture input mount did not expose command and pinned inputs' >&2
+exit 125
+"""
     created = call(
         [
             "create",
@@ -1569,8 +1968,12 @@ def linux_public_call(
             f"type=bind,src={output},dst=/output",
             *(["--tmpfs", f"/owned:rw,noexec,nosuid,nodev,size=1048576,uid={os.getuid()},gid={os.getgid()},mode=0700"] if owned_fixture else []),
             "--entrypoint",
-            entrypoint,
+            "/bin/sh",
             LINUX_IMAGE,
+            "-c",
+            entrypoint_guard,
+            "linux-test-entrypoint",
+            entrypoint,
             *operation,
         ],
         "create",
@@ -1639,11 +2042,126 @@ def linux_public_call(
         "stdout": started.stdout.decode(),
         "stderr": started.stderr.decode(),
         "cleanup_complete": cleanup_complete,
+        "input_image_sha256": digest(image.read_bytes()),
         "state_path": str(fixture / "new-state/state.json"),
-        "actual_native_pid": linux_actual_pid(fixture, terminal, owned_fixture, probe_mode),
     }
+    retain_linux_fixture_artifacts(inputs, output, directory)
+    shutil.rmtree(bind_stage)
+    fixture = directory / "output/fixture"
+    result["state_path"] = str(fixture / "new-state/state.json")
+    result["actual_native_pid"] = linux_actual_pid(fixture, terminal, owned_fixture, probe_mode)
     (directory / "linux-public-result.json").write_text(json.dumps(result))
     return result
+
+
+@pytest.fixture(scope="session")
+def linux_process_backend_probe(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    source = ROOT / "tests/local_validation/fixtures/linux_process_backend.zig"
+    process_source = ROOT / "tools/zig/validation_process_darwin.zig"
+    binding_name = os.environ.get("SPEC_KITTY_LINUX_PROCESS_BACKEND_BINDING")
+    if binding_name:
+        expected_sources = {
+            "tests/local_validation/fixtures/linux_process_backend.zig": source,
+            "tools/zig/validation_process_darwin.zig": process_source,
+        }
+        return bound_linux_process_backend(Path(binding_name), expected_sources)
+
+    build = tmp_path_factory.mktemp("native-linux-process-backend")
+    image = build / "probe"
+    argv = [
+        shutil.which("zig") or "zig",
+        "build-exe",
+        "-j1",
+        "-OReleaseSafe",
+        "-target",
+        "aarch64-linux-musl",
+        "-static",
+        "-lc",
+        "--dep",
+        "process",
+        f"-Mroot={source}",
+        f"-Mprocess={process_source}",
+        "-femit-bin=" + str(image),
+    ]
+    compiled = subprocess.run(argv, capture_output=True, timeout=120)
+    (build / "build.stdout.log").write_bytes(compiled.stdout)
+    (build / "build.stderr.log").write_bytes(compiled.stderr)
+    assert compiled.returncode == 0, compiled.stderr
+    retain_native_build_metadata(image, [source, process_source], argv, compiled)
+    return image
+
+
+def bound_linux_process_backend(binding_path: Path, sources: dict[str, Path]) -> Path:
+    binding = json.loads(binding_path.read_bytes())
+    if not isinstance(binding, dict) or set(binding) != {"schema_version", "target", "optimization", "image", "image_sha256", "sources"}:
+        raise ValueError("Linux process probe binding has an unknown shape")
+    if (
+        type(binding["schema_version"]) is not int
+        or binding["schema_version"] != 1
+        or binding["target"] != "aarch64-linux-musl"
+        or binding["optimization"] != "ReleaseSafe"
+    ):
+        raise ValueError("Linux process probe binding has a different target")
+    if not isinstance(binding["sources"], dict) or set(binding["sources"]) != set(sources):
+        raise ValueError("Linux process probe binding has a different source set")
+    for name, source in sources.items():
+        if digest(source.read_bytes()) != binding["sources"][name]:
+            raise ValueError(f"Linux process probe source changed: {name}")
+    image = Path(binding["image"])
+    if (
+        not image.is_absolute()
+        or image.is_symlink()
+        or not image.is_file()
+        or not os.access(image, os.X_OK)
+        or digest(image.read_bytes()) != binding["image_sha256"]
+    ):
+        raise ValueError("Linux process probe binary changed or is not pinned by absolute path")
+    return image
+
+
+@pytest.mark.parametrize("drift", ["target", "source", "binary", "source-set"])
+def test_linux_process_probe_binding_refuses_drift(tmp_path: Path, drift: str) -> None:
+    source = tmp_path / "fixture.zig"
+    process_source = tmp_path / "process.zig"
+    image = tmp_path / "probe"
+    source.write_bytes(b"fixture source\n")
+    process_source.write_bytes(b"process source\n")
+    image.write_bytes(b"static probe\n")
+    image.chmod(0o700)
+    sources = {"fixture.zig": source, "process.zig": process_source}
+    binding: dict[str, Any] = {
+        "schema_version": 1,
+        "target": "aarch64-linux-musl",
+        "optimization": "ReleaseSafe",
+        "image": str(image),
+        "image_sha256": digest(image.read_bytes()),
+        "sources": {name: digest(path.read_bytes()) for name, path in sources.items()},
+    }
+    if drift == "target":
+        binding["target"] = "x86_64-linux-musl"
+    elif drift == "source":
+        binding["sources"]["fixture.zig"] = "0" * 64
+    elif drift == "binary":
+        binding["image_sha256"] = "0" * 64
+    else:
+        binding["sources"]["unexpected.zig"] = "0" * 64
+    binding_path = tmp_path / "binding.json"
+    binding_path.write_text(json.dumps(binding))
+    with pytest.raises(ValueError, match="Linux process probe"):
+        bound_linux_process_backend(binding_path, sources)
+
+
+@pytest.mark.integration
+def test_actual_linux_process_group_and_sampler_worker_ownership(linux_process_backend_probe: Path, tmp_path: Path) -> None:
+    result = linux_public_call(linux_process_backend_probe, tmp_path, probe_mode="process-backend", body=None)
+    assert result["native_exit_code"] == 0 and result["stderr"] == "", result
+    assert result["stdout"] == "linux-native-process-backend-pass\n"
+    witness = json.loads((tmp_path / "output/fixture/process-backend.json").read_bytes())
+    assert witness["group_failure"] == "none" and witness["group_exit_code"] == 0
+    assert witness["group_leader_reaped"] and witness["group_disposed"] and not witness["all_owned_children_terminal"]
+    assert witness["group_stdout"] == "linux-process-backend" and witness["group_child_terminal"]
+    assert witness["worker_pid"] > 1 and witness["worker_exit_code"] == 0 and witness["worker_reaped"]
+    assert witness["worker_output"] == "worker-backend"
 
 
 @pytest.mark.integration
@@ -1724,7 +2242,7 @@ def test_actual_linux_input_refusal(sampler_binary: Path, tmp_path: Path, contro
 def test_actual_linux_signal_deadline_and_custody(sampler_binary: Path, tmp_path: Path, control: str) -> None:
     if sampler_binary.read_bytes()[:4] != b"\x7fELF":
         pytest.skip("Requires explicitly bound actual Linux image")
-    changes = {"interval_ms": 2000, "max_samples": 3, "wall_ms": 500 if control == "deadline" else 10000}
+    changes = {"interval_ms": 5000 if control in {"sigint", "sigterm"} else 2000, "max_samples": 3, "wall_ms": 500 if control == "deadline" else 10000}
     result = linux_public_call(
         sampler_binary, tmp_path, changes=changes, control="normal" if control == "deadline" else control, owned_fixture=control == "deadline"
     )
@@ -2156,7 +2674,7 @@ def cgroup_lifecycle_probe(tmp_path_factory: pytest.TempPathFactory) -> Path:
         str(source),
         "-femit-bin=" + str(image),
     ]
-    compiled = subprocess.run(argv, capture_output=True, timeout=120)
+    compiled = subprocess.run(argv, capture_output=True, timeout=180)
     (build / "build.stdout.log").write_bytes(compiled.stdout)
     (build / "build.stderr.log").write_bytes(compiled.stderr)
     assert compiled.returncode == 0, compiled.stderr

@@ -3,7 +3,7 @@ title: Native Local Validation
 description: Implementation decisions, usability findings, and qualification limits for the native local gate.
 doc_status: active
 audience: ../../context/audience/internal/ai-collaboration-agent.md
-updated: '2026-10-15'
+updated: '2026-10-16'
 ---
 
 # Native Local Validation
@@ -12,7 +12,7 @@ updated: '2026-10-15'
 
 Deliver unattended local validation of the exact staged candidate, with Zig 0.16 execution, preserved validators, and qualified hosted retirement. Owner: Samuel Goff. Mission: `native-local-validation-01M4S619`. Branch: `codex/native-local-validation`. Review base: `fix/owned-analysis-implementation`. Tracker: [issue 91](https://github.com/crucible-energy/spec-kitty/issues/91).
 
-Current: WP01 and WP02 are canonically approved. WP03 is claimed and in progress; its first Darwin execution increment is described below. General execution, real platform qualification, installed hook behavior, publication migration, and hosted retirement remain incomplete. Earlier sections retain their historical state and evidence.
+Current: WP01 and WP02 are canonically approved. WP03 is claimed and in progress; its three changed Python test modules pass, and current macOS/Linux behavioral evidence is retained. Its required 90% native changed-statement threshold is not established: the approved collector refuses all six changed Zig sources, and a relaxed experimental transform is not valid denominator evidence. General execution, real platform qualification, installed hook behavior, publication migration, and hosted retirement remain incomplete. Earlier sections retain their historical state and evidence.
 
 ## User Experience Findings
 
@@ -2177,3 +2177,74 @@ Mechanical formatting preserves the complete test AST. Implementation, actual
 worker/IPC custody qualification, native observations, focused regressions,
 independent source/evidence review, and final publication gates remain required.
 The protected platform test and all prior failures/misses remain unchanged.
+
+### WP03 Sampler-Lifetime Scope Coordination
+
+Sam committed the exact check-owned sampler-lifetime acceptance controls in
+`6372f53c1` after WP03's initial owned-file map was finalized. The committed
+contract requires one retained sampler process across the check's four declared
+commands, a final sample and joined stop even when a middle command fails,
+source-bound request inputs, bounded diagnostics, and no persisted-PID signal
+authority. This is a concrete WP03/T011 requirement, not a general relaxation
+of recipe binding.
+
+WP02 is canonically approved and closed, and no candidate editor is active.
+Root coordinates this narrow T011 extension with the completed WP02 surface:
+`validation_memory_sampler.zig` owns borrowed sampler/report inputs;
+`validation_sampler_lifetime.zig` owns the child protocol; `validation_receipt.zig`
+and `test_receipt.py` pin that protocol module in the source closure. The
+existing WP03 execution and test paths remain the only work lane. Changes must
+keep the existing recipe input gate closed by default and accept `memory_output`
+only when the exact lifetime declaration, command indices, bound request pins,
+and worker qualifications agree. No generic process supervisor, receipt-policy
+expansion, new dependency, Windows/Parallels action, or model/Source/Store effect
+is included.
+
+The first isolated ordinary-middle control reproduced the intended pre-effect
+refusal at `UnsupportedRecipeBinding` (one test; 57.89 seconds setup, 1.08
+seconds call). Implementation and regression evidence remain open; this record
+does not count that control as passed.
+
+Follow-on evidence supersedes the pre-effect diagnosis for the current candidate:
+after strict specification parsing and scoped command qualifications were
+added, the ordinary lifecycle did start, retain, sample, stop, and reap the
+worker. Its persisted report showed `z-producer` passed with a two-sample report,
+but the fixture's second recipe command rewrote the marker later required by the
+dependent `a-consumer`, so the overall executor correctly refused. The fixture
+now gives that middle command its own marker, preserving the producer-to-consumer
+contract. The nonzero case exposed an assertion/schema mismatch: tests expected
+separate ready and stopped attempt counts, while the report only carried the
+final aggregate. The worker now reports those counters from the actual ready and
+stopped acknowledgements and requires the initial ready event to contain exactly
+one attempt and one sample. At that stage, focused controls remained to be rerun;
+Linux child execution remained unimplemented and a material qualification gap.
+
+The corrected focused Mac lifecycle controls now pass together (2 passed, 94
+deselected; 130.72 seconds total, with 74.78 seconds setup). The test verifies
+the actual ready/stopped counters, worker terminal join, final state hash and
+metadata binding, exact report/summary output, preservation of a failed
+middle-command disposition, and the dependent consumer outcome. On macOS, the
+fixture's Linux-only cgroup peak input is genuinely unavailable, so the expected
+report remains `cgroup_peak_bytes=na`; no zero value is inferred. This is focused
+Mac evidence only, not Linux child qualification or final publication evidence.
+
+### Sampler Output Custody And Final Preflight
+
+The parent now verifies the final worker commitment against an independent read
+of `state.json`, including the exact bytes, file metadata, output-directory and
+parent-directory identities, PID, and sample count. It repeats that check after
+report rendering and before appending the summary. The single cgroup-result
+artifact is created exclusively with no-follow flags under the private
+diagnostics directory, flushed, and read back byte-for-byte. Sampler state,
+cgroup output, and summary paths must be clean descendants of that same
+diagnostics root; the state request and report request must agree on the exact
+`state.json` path. These path conditions are checked during preparation before
+the run receipt or sampler child is created.
+
+A focused run initially exposed that the fixture put sampler state beside the
+diagnostics root. The executor refused it before the worker started; the fixture
+now places all outputs under the root. After that correction and the final
+preflight, the ordinary-middle case passed on macOS (1 passed, 95 deselected;
+81.68 seconds total, 75.43 seconds setup). The nonzero-middle case still needs a
+focused rerun against this final preflight revision. Linux child supervision
+remains a separate unsupported capability.

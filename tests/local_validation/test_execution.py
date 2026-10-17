@@ -678,7 +678,8 @@ def test_retained_native_ownership_and_refusal_controls(tmp_path: Path) -> None:
     (tmp_path / "native.stdout.log").write_bytes(result.stdout)
     (tmp_path / "native.stderr.log").write_bytes(result.stderr)
     assert result.returncode == 0, result.stderr
-    assert ("All " + str(foundation_controls().count('\ntest "')) + " tests passed.").encode() in result.stderr
+    expected_tests = (SOURCE.read_text() + foundation_controls()).count('\ntest "')
+    assert f"All {expected_tests} tests passed.".encode() in result.stderr
 
 
 @pytest.fixture(scope="session")
@@ -1487,6 +1488,7 @@ def prepare_lifetime_control(
     qualifications: list[dict[str, Any]],
     *,
     failed_middle: bool,
+    lifetime_fault: str | None = None,
 ) -> dict[str, Any]:
     """Add explicit source-bound roles to an otherwise real native fixture."""
     import copy
@@ -1501,9 +1503,10 @@ def prepare_lifetime_control(
     sys_root = tmp_path / "sampler-sys"
     (sys_root / "fs/cgroup").mkdir(mode=0o700, parents=True)
     (sys_root / "fs/cgroup/memory.peak").write_bytes(b"0\n")
-    destination = tmp_path / "sampler-output"
-    paths = {name: tmp_path / ("lifetime-" + name + ".json") for name in ("sampler", "cgroup", "report")}
     logs = tmp_path / "logs"
+    logs.mkdir(mode=0o700)
+    destination = logs / "sampler-output"
+    paths = {name: tmp_path / ("lifetime-" + name + ".json") for name in ("sampler", "cgroup", "report")}
     documents = {
         "sampler": {"schema_version": 1, "destination": str(destination), "proc_root": str(proc), "interval_ms": 60000, "max_samples": 2, "wall_ms": 30000},
         "cgroup": {"schema_version": 1, "proc_root": str(proc), "sys_root": str(sys_root), "wall_ms": 30000},
@@ -1525,7 +1528,7 @@ def prepare_lifetime_control(
     middle = copy.deepcopy(seed["argv"])
     middle[4] = "wait"
     check = copy.deepcopy(middle)
-    check[1] = "consumer"
+    check[2] = str(tmp_path / "lifetime-middle-marker")
     check[4] = "nonzero" if failed_middle else "ordinary"
     start = [str(executor), "memory-owned-sample", str(paths["sampler"])]
     stop = [str(executor), "memory-owned-stop", str(paths["sampler"])]
@@ -1546,10 +1549,14 @@ def prepare_lifetime_control(
         "report_request": file_pin(paths["report"]),
         "summary_path": str(logs / "summary.md"),
     }
+    lifetime_rows: Any = [document]
+    lifetime_rows = apply_lifetime_record_fault(lifetime_rows, document, lifetime_fault, tmp_path)
+    apply_lifetime_recipe_fault(producer, lifetime_fault)
     new_inputs = [executor, *paths.values()]
     qualifications.clear()
+    qualified_documents: list[dict[str, Any]] = []
     for name, selected in checks.items():
-        for argv in selected["argv"]:
+        for command_index, argv in enumerate(selected["argv"]):
             row = copy.deepcopy(seed if name == "z-producer" else next(q for q in original if q["argv"] == argv))
             row["argv"] = argv
             if name == "z-producer":
@@ -1561,8 +1568,11 @@ def prepare_lifetime_control(
                 known = {file["path"] for file in row["runtime_files"]}
                 row["runtime_files"].extend(file_pin(p) for p in new_inputs if str(p) not in known)
             qualifications.append(row)
+            qualified_documents.append({"check_id": name, "command_index": command_index, "qualification": row})
     return {
         "document": document,
+        "rows": lifetime_rows,
+        "qualified_documents": qualified_documents,
         "additional_bound_inputs": new_inputs,
         "summary": logs / "summary.md",
         "summary_prefix": b"# Prior native summaries\n",
@@ -1573,6 +1583,44 @@ def prepare_lifetime_control(
         "expected_peak_bytes": 3072 * 1024,
         "failed_middle": failed_middle,
     }
+
+
+def apply_lifetime_record_fault(rows: Any, document: dict[str, Any], fault: str | None, tmp_path: Path) -> Any:
+    updates: dict[str, tuple[str, Any]] = {
+        "bad-schema": ("schema_version", 2),
+        "unsafe-summary": ("summary_path", str(tmp_path / "outside-summary.md")),
+        "wrong-start-index": ("start_index", 1),
+        "wrong-stop-index": ("stop_index", 2),
+        "wrong-check": ("check_id", "unknown-check"),
+    }
+    if fault in updates:
+        key, value = updates[fault]
+        document[key] = value
+    if fault == "stale-request-pin":
+        document["sampler_request"]["sha256"] = "0" * 64
+    if fault == "rows-not-array":
+        return "a list of complete, closed lifetime records is required"
+    if fault == "too-many-rows":
+        return [document] * 65
+    if fault == "duplicate-check":
+        return [document, document]
+    return rows
+
+
+def apply_lifetime_recipe_fault(producer: dict[str, Any], fault: str | None) -> None:
+    recipe = producer["recipe"]
+    if fault == "wrong-instance":
+        recipe["instances"] = ["linux"] * 4
+    elif fault == "wrong-condition":
+        recipe["conditions"][0] = "always"
+    elif fault == "short-argv":
+        producer["argv"].pop()
+    elif fault == "short-conditions":
+        recipe["conditions"].pop()
+    elif fault == "short-instances":
+        recipe["instances"].pop()
+    elif fault == "wrong-start-command":
+        producer["argv"][0][1] = "memory-owned-stop"
 
 
 def adjust_recipe_budget(budget: dict[str, Any], case: str) -> None:
@@ -1616,6 +1664,7 @@ def execution_inputs(
     fault: str | None = None,
     recipe_case: str | None = None,
     sampler_lifetime: str | None = None,
+    sampler_lifetime_fault: str | None = None,
 ) -> dict[str, Any]:
     from tests.local_validation.test_candidate import capture, git
     from tests.local_validation.test_receipt import NATIVE_SOURCES, file_pin, receipt_call
@@ -1699,7 +1748,17 @@ def execution_inputs(
     if recipe_case:
         configure_recipe_control(checks, qualifications, commands, policy_source, tmp_path, recipe_case)
     lifetime = (
-        prepare_lifetime_control(ROOT, tmp_path, executor_binary, checks, qualifications, failed_middle=sampler_lifetime == "nonzero") if sampler_lifetime else None
+        prepare_lifetime_control(
+            ROOT,
+            tmp_path,
+            executor_binary,
+            checks,
+            qualifications,
+            failed_middle=sampler_lifetime == "nonzero",
+            lifetime_fault=sampler_lifetime_fault,
+        )
+        if sampler_lifetime
+        else None
     )
     authority.write_bytes(
         canonical(
@@ -1717,8 +1776,8 @@ def execution_inputs(
     qualification_file.write_bytes(
         canonical(
             {
-                "receipt_qualifications": qualifications,
-                **({"receipt_sampler_lifetimes": [lifetime["document"]]} if lifetime else {}),
+                "receipt_qualifications": lifetime["qualified_documents"] if lifetime else qualifications,
+                **({"receipt_sampler_lifetimes": lifetime["rows"]} if lifetime else {}),
             }
         )
     )
@@ -1772,7 +1831,7 @@ def execution_inputs(
     binding_path = tmp_path / "binding.json"
     binding_path.write_bytes(result.stdout)
     logs = tmp_path / "logs"
-    logs.mkdir(mode=0o700)
+    logs.mkdir(mode=0o700, exist_ok=True)
     if lifetime:
         lifetime["summary"].write_bytes(lifetime["summary_prefix"])
         lifetime["summary"].chmod(0o600)
@@ -1866,6 +1925,8 @@ def test_native_check_owned_sampler_finalizes_after_actual_middle_argv(
     process_probe: Path,
     middle: str,
 ) -> None:
+    import sys
+
     from scripts.ci import memory_sampler
 
     inputs = execution_inputs(
@@ -1899,13 +1960,61 @@ def test_native_check_owned_sampler_finalizes_after_actual_middle_argv(
     assert producer["steps"][-1]["status"] == "passed"
     parsed = memory_sampler.from_json(lifetime["state"].read_text())
     assert parsed is not None
-    expected_summary = memory_sampler.summary_line(parsed, 0)
-    assert owned["report"]["report_lines"] == memory_sampler.render_report(parsed, 0, warn_bytes=10 * 2**30, error_bytes=12 * 2**30)
+    cgroup_peak = 0 if sys.platform.startswith("linux") else None
+    expected_summary = memory_sampler.summary_line(parsed, cgroup_peak)
+    assert owned["report"]["report_lines"] == memory_sampler.render_report(parsed, cgroup_peak, warn_bytes=10 * 2**30, error_bytes=12 * 2**30)
     assert owned["report"]["summary_line"] == expected_summary
     assert lifetime["summary"].read_bytes() == lifetime["summary_prefix"] + (expected_summary + "\n").encode()
     assert report["accepted"] == (middle == "ordinary")
     assert producer["status"] == ("passed" if middle == "ordinary" else "refused")
     assert report["results"][1]["status"] == ("passed" if middle == "ordinary" else "blocked")
+
+
+@pytest.mark.parametrize(
+    ("fault", "reason"),
+    [
+        ("rows-not-array", "UnqualifiedSamplerLifetime"),
+        ("too-many-rows", "UnqualifiedSamplerLifetime"),
+        ("duplicate-check", "UnqualifiedSamplerLifetime"),
+        ("bad-schema", "PrivateEvidenceRequired"),
+        ("unsafe-summary", "PrivateEvidenceRequired"),
+        ("wrong-start-index", "PrivateEvidenceRequired"),
+        ("wrong-stop-index", "PrivateEvidenceRequired"),
+        ("stale-request-pin", "UnqualifiedSamplerLifetime"),
+        ("wrong-check", "UnknownCheck"),
+        ("wrong-instance", "UnqualifiedSamplerLifetime"),
+        ("wrong-condition", "UnqualifiedSamplerLifetime"),
+        ("short-argv", "InvalidChecks"),
+        ("short-conditions", "InvalidRecipe"),
+        ("short-instances", "InvalidRecipe"),
+        ("wrong-start-command", "UnqualifiedSamplerLifetime"),
+    ],
+)
+def test_native_recipe_refuses_unqualified_sampler_lifetime_before_child_effect(
+    candidate_binary: Path,
+    executor_binary: Path,
+    repository: Path,
+    tmp_path: Path,
+    serial_program: dict[str, Any],
+    fault: str,
+    reason: str,
+) -> None:
+    inputs = execution_inputs(
+        candidate_binary,
+        executor_binary,
+        repository,
+        tmp_path,
+        serial_program,
+        recipe_case="ordinary",
+        sampler_lifetime="ordinary",
+        sampler_lifetime_fault=fault,
+    )
+    result, report = run_execution(executor_binary, inputs)
+    assert result.returncode != 0 and f"{reason}".encode() in result.stderr, result.stderr
+    assert report == {}
+    assert not inputs["marker"].exists()
+    assert not (tmp_path / "lifetime-middle-marker").exists()
+    assert not (tmp_path / "logs" / "sampler-output").exists()
 
 
 def test_native_recipe_preserves_declared_order_and_complete_check_logs(
@@ -2090,6 +2199,40 @@ def replace_binding_with_extra_input(image: Path, inputs: dict[str, Any], extra:
     assert replacement != original and replacement["checks"] == original["checks"]
     (extra.parent / "original-binding.json").write_bytes(canonical(original))
     inputs["binding_path"].write_bytes(rebound.stdout)
+
+
+def test_native_recipe_bound_fifo_refuses_without_blocking_final_disposition(
+    candidate_binary: Path, executor_binary: Path, repository: Path, tmp_path: Path, serial_program: dict[str, Any]
+) -> None:
+    inputs = execution_inputs(candidate_binary, executor_binary, repository, tmp_path, serial_program, recipe_case="drift")
+    stdout, stderr = tmp_path / "fifo.stdout.log", tmp_path / "fifo.stderr.log"
+    expired = False
+    with stdout.open("xb") as out, stderr.open("xb") as err:
+        child = subprocess.Popen([str(executor_binary), "execute", str(inputs["request_path"])], env=inputs["environment"], stdout=out, stderr=err)
+        try:
+            cutoff = time.monotonic() + 10
+            while not inputs["marker"].exists() and child.poll() is None and time.monotonic() < cutoff:
+                time.sleep(0.01)
+            assert inputs["marker"].read_bytes() == b"producer\n", stderr.read_bytes()
+            inputs["observed"].unlink()
+            os.mkfifo(inputs["observed"], 0o600)
+            inputs["release"].write_bytes(b"release\n")
+            try:
+                exact_exit = child.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                expired = True
+                child.kill()
+                exact_exit = child.wait(timeout=5)
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.wait(timeout=5)
+    (tmp_path / "fifo.joined.json").write_bytes(canonical({"pid": child.pid, "joined": True, "timed_out": expired, "exact_exit_code": exact_exit}))
+    assert not expired, "Bound dependency FIFO blocked final binding validation; owned runner killed and joined executor"
+    assert exact_exit != 0
+    report = json.loads((inputs["logs"] / "run.json").read_bytes())
+    assert report["accepted"] is False and report["results"][1]["status"] == "blocked"
+    assert not (tmp_path / "recipe-cleanup-marker").exists()
 
 
 @pytest.mark.parametrize("mode", ["silent", "one-stdout", "one-stderr"])

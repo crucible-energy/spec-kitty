@@ -5,6 +5,18 @@ const Allocator = std.mem.Allocator;
 const Value = std.json.Value;
 const FileRequest = struct { role: []const u8, path: []const u8, candidate_path_hex: ?[]const u8 };
 pub const Check = struct { id: []const u8, argv: []const []const []const u8, closure_proof: ?Value };
+const WorkerLifetime = struct {
+    schema_version: u8,
+    scope: []const u8,
+    check_id: []const u8,
+    start_index: usize,
+    stop_index: usize,
+    sampler_request: Pin,
+    cgroup_request: Pin,
+    report_request: Pin,
+    summary_path: []const u8,
+};
+const ScopedQualification = struct { check_id: []const u8, command_index: usize, qualification: Value };
 const Request = struct { schema_version: u8, candidate_manifest: []const u8, files: []const FileRequest, environment_names: []const []const u8, checks: []const Check };
 const File = struct { role: []const u8, path: []const u8, candidate_path_hex: ?[]const u8, sha256: []const u8, mode: u32 };
 const Environment = struct { name: []const u8, present: bool, sha256: ?[]const u8 };
@@ -65,6 +77,7 @@ fn bind(init: std.process.Init, request: Request) !Binding {
         .{ .name = "validation_changelog.zig", .sha256 = try candidate.hash(allocator, @embedFile("validation_changelog.zig")) },
         .{ .name = "validation_unicode14.zig", .sha256 = try candidate.hash(allocator, @embedFile("validation_unicode14.zig")) },
         .{ .name = "validation_memory_sampler.zig", .sha256 = try candidate.hash(allocator, @embedFile("validation_memory_sampler.zig")) },
+        .{ .name = "validation_sampler_lifetime.zig", .sha256 = try candidate.hash(allocator, @embedFile("validation_sampler_lifetime.zig")) },
     });
     const found_sources = try allocator.alloc(bool, sources.len);
     for (found_sources) |*found| found.* = false;
@@ -281,7 +294,7 @@ pub fn loadBinding(init: std.process.Init, path: []const u8) !Binding {
 
 pub fn qualification(init: std.process.Init, binding: Binding, check: Check) !Qualification {
     if (@import("builtin").os.tag != .macos or check.argv.len != 1) return error.UnqualifiedClosure;
-    return qualificationArgv(init, binding, check.argv[0]);
+    return qualificationArgv(init, binding, check.argv[0], false, check.id, 0);
 }
 
 /// Resolve only an actual command in this complete, current bound check.
@@ -289,10 +302,32 @@ pub fn qualification(init: std.process.Init, binding: Binding, check: Check) !Qu
 pub fn qualificationAt(init: std.process.Init, binding: Binding, id: []const u8, index: usize) !Qualification {
     const check = try checkById(binding, id);
     if (index >= check.argv.len) return error.UnqualifiedClosure;
-    return qualificationArgv(init, binding, check.argv[index]);
+    return qualificationArgv(init, binding, check.argv[index], try workerLifetimeAt(init, binding, id, index, check.argv[index]), id, index);
 }
 
-fn qualificationArgv(init: std.process.Init, binding: Binding, argv: []const []const u8) !Qualification {
+fn workerLifetimeAt(init: std.process.Init, binding: Binding, id: []const u8, index: usize, argv: []const []const u8) !bool {
+    const allocator = init.arena.allocator();
+    for (binding.files) |file| {
+        if (!std.mem.eql(u8, file.role, "specification")) continue;
+        const parsed = try candidate.parse(allocator, try candidate.read(allocator, init.io, file.path));
+        const rows = parsed.value.object.get("receipt_sampler_lifetimes") orelse continue;
+        if (rows != .array or rows.array.items.len > 64) return error.UnqualifiedClosure;
+        for (rows.array.items) |row| {
+            const lifetime = try exact(WorkerLifetime, allocator, row);
+            if (lifetime.schema_version != 1 or !std.mem.eql(u8, lifetime.scope, "exact-check-owned-native-memory-sampler") or !std.mem.eql(u8, lifetime.check_id, id)) continue;
+            if (index != lifetime.start_index and index != lifetime.stop_index) continue;
+            const selected = try checkById(binding, id);
+            const proof = selected.closure_proof orelse return error.UnqualifiedClosure;
+            if (!try equal(allocator, proof, row)) return error.UnqualifiedClosure;
+            const command = if (index == lifetime.start_index) "memory-owned-sample" else "memory-owned-stop";
+            if (argv.len != 3 or !std.mem.eql(u8, argv[0], binding.native_executable.path) or !std.mem.eql(u8, argv[1], command) or !std.mem.eql(u8, argv[2], lifetime.sampler_request.path)) return error.UnqualifiedClosure;
+            return true;
+        }
+    }
+    return false;
+}
+
+fn qualificationArgv(init: std.process.Init, binding: Binding, argv: []const []const u8, worker_authorized: bool, check_id: []const u8, command_index: usize) !Qualification {
     const allocator = init.arena.allocator();
     if (@import("builtin").os.tag != .macos) return error.UnqualifiedClosure;
     var selected: ?Qualification = null;
@@ -303,14 +338,22 @@ fn qualificationArgv(init: std.process.Init, binding: Binding, argv: []const []c
         const documents = fields.get("receipt_qualifications") orelse continue;
         if (documents != .array or documents.array.items.len > 4096) return error.UnqualifiedClosure;
         for (documents.array.items) |document| {
-            const q = try exact(Qualification, allocator, document);
+            var source = document;
+            if (document == .object and document.object.contains("qualification")) {
+                const scoped = try exact(ScopedQualification, allocator, document);
+                if (!std.mem.eql(u8, scoped.check_id, check_id) or scoped.command_index != command_index) continue;
+                source = scoped.qualification;
+            }
+            const q = try exact(Qualification, allocator, source);
             if (!try equal(allocator, q.argv, argv)) continue;
             if (selected != null) return error.DuplicateBinding;
             selected = q;
         }
     }
     const q = selected orelse return error.UnqualifiedClosure;
-    if (q.schema_version != 1 or !std.mem.eql(u8, q.scope, "exact-isolated-source-no-process-creation") or !std.mem.eql(u8, q.platform, @tagName(@import("builtin").cpu.arch) ++ "-macos") or !std.mem.eql(u8, q.compiler_version, @import("builtin").zig_version_string)) return error.UnqualifiedClosure;
+    const ordinary_scope = std.mem.eql(u8, q.scope, "exact-isolated-source-no-process-creation");
+    const worker_scope = worker_authorized and std.mem.eql(u8, q.scope, "exact-check-owned-native-memory-worker");
+    if (q.schema_version != 1 or (!ordinary_scope and !worker_scope) or !std.mem.eql(u8, q.platform, @tagName(@import("builtin").cpu.arch) ++ "-macos") or !std.mem.eql(u8, q.compiler_version, @import("builtin").zig_version_string)) return error.UnqualifiedClosure;
     if (q.producer_sources.len == 0 or q.runtime_files.len == 0 or q.limits.wall_ms == 0 or q.limits.cleanup_ms == 0 or q.limits.stdout_bytes == 0 or q.limits.stderr_bytes == 0 or q.limits.processes == 0 or q.limits.resident_bytes == 0) return error.UnqualifiedClosure;
     if (!try equal(allocator, q.environment_names, binding.request.environment_names)) return error.UnqualifiedClosure;
     const producer = try pin(init, q.producer.path);

@@ -176,6 +176,9 @@ fn parseRequest(init: std.process.Init, path: []const u8) !Request {
     const path_z = try a.dupeZ(u8, path);
     const buffer = try a.alloc(u8, max_bytes + 1);
     const bytes = (try readAt(c.AT_FDCWD, path_z, buffer, false, init.io, null, null)).?;
+    return requestBytes(a, bytes);
+}
+fn requestBytes(a: Allocator, bytes: []const u8) !Request {
     const value = (std.json.parseFromSlice(std.json.Value, a, bytes, .{ .duplicate_field_behavior = .@"error" }) catch return error.InvalidSamplerRequest).value;
     if (value != .object or value.object.count() != 6) return error.InvalidSamplerRequest;
     const keys = [_][]const u8{ "schema_version", "destination", "proc_root", "interval_ms", "max_samples", "wall_ms" };
@@ -317,6 +320,11 @@ const Output = struct {
         self.previous = final;
     }
 };
+fn sampledState(state: State, usage: Usage, elapsed: f64) State {
+    const used = usage.total - usage.available;
+    const first = state.samples == 0;
+    return .{ .baseline_bytes = if (first) used else state.baseline_bytes, .peak_bytes = if (first) used else @max(state.peak_bytes, used), .samples = state.samples + 1, .elapsed_seconds = elapsed, .source = .meminfo, .pid = state.pid };
+}
 fn collect(init: std.process.Init, request: Request, proc: Directory, output: *Output, started: i96, cutoff: i96, deadline: i96) !void {
     const buffer = try init.arena.allocator().alloc(u8, max_bytes + 1);
     var state: State = .{ .pid = c.getpid() };
@@ -327,9 +335,7 @@ fn collect(init: std.process.Init, request: Request, proc: Directory, output: *O
         try before(init.io, cutoff);
         if (try readAt(proc.fd, "meminfo", buffer, true, init.io, cutoff, null)) |bytes| {
             if (try parseUsage(bytes)) |usage| {
-                const used = usage.total - usage.available;
-                const first = state.samples == 0;
-                state = .{ .baseline_bytes = if (first) used else state.baseline_bytes, .peak_bytes = if (first) used else @max(state.peak_bytes, used), .samples = state.samples + 1, .elapsed_seconds = @as(f64, @floatFromInt(now(init.io) - started)) / std.time.ns_per_s, .source = .meminfo, .pid = state.pid };
+                state = sampledState(state, usage, @as(f64, @floatFromInt(now(init.io) - started)) / std.time.ns_per_s);
             }
         }
         try before(init.io, cutoff);
@@ -391,6 +397,248 @@ pub fn command(init: std.process.Init, path: []const u8) !u8 {
     if (received != 0) return error.Cancelled;
     try before(init.io, deadline.?);
     return 0;
+}
+
+/// Sampling resources borrowed by the source-closed worker. The worker's parent
+/// owns its process, channel, original work deadline, and normal/forced stop.
+/// This value never creates or signals a child and never trusts a stored PID.
+pub const OwnedSampling = struct {
+    init: std.process.Init,
+    inputs: ReportScope,
+    request: ?Request = null,
+    directories: [3]?Directory = .{ null, null, null },
+    observed: [3]bool = .{ false, false, false },
+    output: ?Output = null,
+    state: State,
+    attempts: u32 = 0,
+    active: bool = true,
+
+    pub fn begin(init: std.process.Init, path: []const u8, original_deadline: i96) !OwnedSampling {
+        if (builtin.os.tag != .macos and builtin.os.tag != .linux) return error.PlatformUnsupported;
+        const started = now(init.io);
+        var result: OwnedSampling = .{ .init = init, .inputs = .{ .init = init, .started = started, .deadline = original_deadline }, .state = .{ .pid = c.getpid() } };
+        result.acquire(path) catch |problem| {
+            try result.finish();
+            return problem;
+        };
+        return result;
+    }
+
+    fn directory(self: *OwnedSampling, index: usize, path: []const u8, private: bool) !Directory {
+        const a = self.init.arena.allocator();
+        try self.inputs.check();
+        try canonical(self.init.io, path);
+        const path_z = try a.dupeZ(u8, path);
+        const fd = c.open(path_z, c.O_RDONLY | c.O_DIRECTORY | c.O_NOFOLLOW | c.O_CLOEXEC);
+        if (fd < 0) return error.UnsafeSamplerDirectory;
+        self.directories[index] = .{ .fd = fd, .path = path, .path_z = path_z, .identity = undefined, .private = private };
+        var identity: Stat = undefined;
+        if (try descriptorStat(fd, &identity) != 0 or identity.st_mode & c.S_IFMT != c.S_IFDIR) return error.UnsafeSamplerDirectory;
+        self.directories[index].?.identity = identity;
+        self.observed[index] = true;
+        if (private and (identity.st_uid != c.geteuid() or identity.st_mode & 0o7777 != 0o700)) return error.UnsafeSamplerDirectory;
+        return self.directories[index].?;
+    }
+
+    fn acquire(self: *OwnedSampling, path: []const u8) !void {
+        const raw = (try self.inputs.read(path, false, false)).?;
+        const request = try requestBytes(self.init.arena.allocator(), raw);
+        if (request.max_samples < 2) return error.InvalidSamplerLifetime;
+        self.request = request;
+        self.inputs.deadline = @min(self.inputs.deadline, self.inputs.started + @as(i96, request.wall_ms) * std.time.ns_per_ms);
+        _ = try self.directory(0, request.proc_root, false);
+        const parent_path = std.fs.path.dirname(request.destination) orelse return error.InvalidSamplerPath;
+        const parent = try self.directory(1, parent_path, true);
+        const leaf = try self.init.arena.allocator().dupeZ(u8, std.fs.path.basename(request.destination));
+        if (try statAt(parent.fd, leaf) != null) return error.SamplerDestinationExists;
+        try parent.verify(self.init.io);
+        if (c.mkdirat(parent.fd, leaf, 0o700) != 0) return error.SamplerOutputCreateFailed;
+        const destination = try self.directory(2, request.destination, true);
+        self.output = .{ .parent = parent, .directory = destination };
+        try parent.verify(self.init.io);
+        try self.inputs.check();
+    }
+
+    pub const Observation = struct { pid: i32, attempts: u32, samples: u32 };
+
+    pub const Commitment = struct {
+        state_sha256: []const u8,
+        state_metadata_sha256: []const u8,
+        directory_identity_sha256: []const u8,
+        parent_identity_sha256: []const u8,
+    };
+
+    // Publication metadata is producer authority. Atomic replacement by the
+    // next successful take installs a new authority; an acknowledgement never
+    // substitutes a fresh observation for that retained publication.
+    fn publication(self: *OwnedSampling) !void {
+        const output = self.output orelse return error.SamplerOwnerRequired;
+        for ([_]Directory{ output.parent, output.directory }) |directory_entry| {
+            try directory_entry.verify(self.init.io);
+            const held = try lifetimeDescriptor(directory_entry.fd);
+            var named: Stat = undefined;
+            if (try pathnameStat(directory_entry.path_z, &named) != 0 or !same(named, directory_entry.identity) or !same(held, directory_entry.identity) or named.st_mode != directory_entry.identity.st_mode or held.st_mode != directory_entry.identity.st_mode or named.st_uid != directory_entry.identity.st_uid or held.st_uid != directory_entry.identity.st_uid) return error.SamplerDirectoryDrift;
+        }
+        const expected = output.previous orelse return error.SamplerOutputDrift;
+        const named = (try statAt(output.directory.fd, "state.json")) orelse return error.SamplerOutputDrift;
+        if (!ReportScope.metadata(named, expected)) return error.SamplerOutputDrift;
+        const fd = c.openat(output.directory.fd, "state.json", c.O_RDONLY | c.O_NONBLOCK | c.O_NOFOLLOW | c.O_CLOEXEC);
+        if (fd < 0) return error.SamplerOutputDrift;
+        var primary: ?anyerror = null;
+        self.publicationBytes(fd, expected, output.previous_bytes.?) catch |problem| {
+            primary = problem;
+        };
+        // Closing an acquired descriptor is required even when bytes or
+        // identity failed; a failed close outranks the primary read failure.
+        if (c.close(fd) != 0) return error.SamplerCloseFailed;
+        if (primary) |problem| return problem;
+        const final = (try statAt(output.directory.fd, "state.json")) orelse return error.SamplerOutputDrift;
+        if (!ReportScope.metadata(final, expected) or try statAt(output.directory.fd, "state.tmp") != null) return error.SamplerOutputDrift;
+        try output.parent.verify(self.init.io);
+        try output.directory.verify(self.init.io);
+    }
+
+    fn publicationBytes(self: *OwnedSampling, fd: c_int, expected: Stat, bytes: []const u8) !void {
+        if (!ReportScope.metadata(try lifetimeDescriptor(fd), expected)) return error.SamplerOutputDrift;
+        var buffer: [max_bytes + 1]u8 = undefined;
+        var length: usize = 0;
+        while (true) {
+            try self.inputs.check();
+            const count = c.read(fd, @ptrCast(buffer[length..].ptr), buffer.len - length);
+            if (count < 0 and std.c.errno(@as(c_int, -1)) == .INTR) continue;
+            if (count < 0) return error.SamplerInputUnreadable;
+            if (count == 0) break;
+            length += @intCast(count);
+            if (length > max_bytes) return error.SamplerInputLimit;
+        }
+        if (!ReportScope.metadata(try lifetimeDescriptor(fd), expected) or !std.mem.eql(u8, bytes, buffer[0..length])) return error.SamplerOutputDrift;
+    }
+
+    pub fn commitment(self: *OwnedSampling) !Commitment {
+        if (!self.active) return error.SamplerOwnerRequired;
+        try self.publication();
+        const output = self.output.?;
+        const a = self.init.arena.allocator();
+        return .{
+            .state_sha256 = try lifetimeDigest(a, output.previous_bytes.?),
+            .state_metadata_sha256 = try lifetimeMetadataDigest(a, output.previous.?, true),
+            .directory_identity_sha256 = try lifetimeMetadataDigest(a, output.directory.identity, false),
+            .parent_identity_sha256 = try lifetimeMetadataDigest(a, output.parent.identity, false),
+        };
+    }
+
+    pub fn take(self: *OwnedSampling) !Observation {
+        if (!self.active or self.request == null or self.output == null) return error.SamplerOwnerRequired;
+        try self.inputs.check();
+        if (self.attempts >= self.request.?.max_samples) return error.SamplerAttemptLimit;
+        self.attempts += 1;
+        const proc = self.directories[0].?;
+        try proc.verify(self.init.io);
+        var buffer: [max_bytes + 1]u8 = undefined;
+        if (try readAt(proc.fd, "meminfo", &buffer, true, self.init.io, self.inputs.deadline, null)) |bytes| {
+            if (try parseUsage(bytes)) |usage| {
+                self.state = sampledState(self.state, usage, @as(f64, @floatFromInt(now(self.init.io) - self.inputs.started)) / std.time.ns_per_s);
+            }
+        }
+        try self.inputs.check();
+        try self.output.?.write(self.state, self.init.io, self.inputs.deadline);
+        try self.inputs.check();
+        return .{ .pid = self.state.pid, .attempts = self.attempts, .samples = self.state.samples };
+    }
+
+    pub fn intervalMilliseconds(self: *const OwnedSampling) u32 {
+        return self.request.?.interval_ms;
+    }
+
+    pub fn deadline(self: *const OwnedSampling) i96 {
+        return self.inputs.deadline;
+    }
+
+    pub fn finish(self: *OwnedSampling) !void {
+        if (!self.active) return error.SamplerOwnerRequired;
+        self.active = false;
+        var failure: ?anyerror = null;
+        for (self.directories, self.observed) |entry, observed| if (entry) |directory_entry| {
+            if (!observed) {
+                if (failure == null) failure = error.SamplerPathObservationFailed;
+            } else directory_entry.verify(self.init.io) catch |problem| {
+                if (failure == null) failure = problem;
+            };
+        };
+        if (self.output) |output| {
+            if (output.previous != null) self.publication() catch |problem| {
+                if (failure == null) failure = problem;
+            };
+            output.verify(self.init.io, self.inputs.deadline) catch |problem| {
+                if (failure == null) failure = problem;
+            };
+            if (output.previous_bytes) |bytes| std.heap.page_allocator.free(bytes);
+        }
+        self.inputs.finish() catch |problem| {
+            if (failure == null) failure = problem;
+        };
+        for (self.directories) |entry| if (entry) |directory_entry| {
+            if (c.close(directory_entry.fd) != 0 and failure == null) failure = error.SamplerCloseFailed;
+        };
+        if (failure) |problem| return problem;
+        try before(self.init.io, self.inputs.deadline);
+    }
+};
+
+/// The worker accepts only two aliases of the same owned Unix socket endpoint.
+/// Target-owned metadata observation stays shared with the sampler/cgroup code.
+pub fn verifyWorkerChannel() !void {
+    if (builtin.os.tag != .macos and builtin.os.tag != .linux) return error.PlatformUnsupported;
+    var input: Stat = undefined;
+    var output: Stat = undefined;
+    if (try descriptorStat(0, &input) != 0 or try descriptorStat(1, &output) != 0) return error.SamplerOwnerRequired;
+    if (!same(input, output) or input.st_mode & c.S_IFMT != c.S_IFSOCK or output.st_mode & c.S_IFMT != c.S_IFSOCK or input.st_uid != c.geteuid() or output.st_uid != c.geteuid()) return error.SamplerOwnerRequired;
+}
+
+// The lifetime owner shares this target-owned metadata projection for its fixed
+// logs/summary custody. It owns all opening, mutation, closing, and disposition.
+pub const LifetimeMetadata = Stat;
+pub fn lifetimeDigest(a: Allocator, bytes: []const u8) ![]const u8 {
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+    return a.dupe(u8, &std.fmt.bytesToHex(digest, .lower));
+}
+pub fn lifetimeMetadataDigest(a: Allocator, value: LifetimeMetadata, file: bool) ![]const u8 {
+    const platform = @tagName(builtin.os.tag);
+    const first: i128 = if (builtin.os.tag == .linux) value.st_dev.major else value.st_dev;
+    const second: i128 = if (builtin.os.tag == .linux) value.st_dev.minor else 0;
+    const identity = .{ @as(i128, 1), platform, first, second, @as(i128, value.st_ino), @as(i128, value.st_mode), @as(i128, value.st_uid) };
+    const raw = if (file) blk: {
+        const modified = if (builtin.os.tag == .linux) value.st_mtime else value.st_mtimespec;
+        const changed = if (builtin.os.tag == .linux) value.st_ctime else value.st_ctimespec;
+        const modified_seconds = if (builtin.os.tag == .linux) modified.sec else modified.tv_sec;
+        const modified_nanoseconds = if (builtin.os.tag == .linux) modified.nsec else modified.tv_nsec;
+        const changed_seconds = if (builtin.os.tag == .linux) changed.sec else changed.tv_sec;
+        const changed_nanoseconds = if (builtin.os.tag == .linux) changed.nsec else changed.tv_nsec;
+        const fields = identity ++ .{ @as(i128, value.st_nlink), @as(i128, value.st_size), @as(i128, modified_seconds), @as(i128, modified_nanoseconds), @as(i128, changed_seconds), @as(i128, changed_nanoseconds) };
+        break :blk try std.json.Stringify.valueAlloc(a, fields, .{});
+    } else try std.json.Stringify.valueAlloc(a, identity, .{});
+    return lifetimeDigest(a, raw);
+}
+pub fn lifetimeDescriptor(fd: c_int) !LifetimeMetadata {
+    var observed: Stat = undefined;
+    if (try descriptorStat(fd, &observed) != 0) return error.SamplerPathObservationFailed;
+    return observed;
+}
+pub fn lifetimeEntry(fd: c_int, name: [:0]const u8) !?LifetimeMetadata {
+    return statAt(fd, name);
+}
+pub fn lifetimeSame(left: LifetimeMetadata, right: LifetimeMetadata) bool {
+    return same(left, right);
+}
+pub fn lifetimeEqual(left: LifetimeMetadata, right: LifetimeMetadata) bool {
+    return ReportScope.metadata(left, right);
+}
+pub fn lifetimePath(path: []const u8, allow_root: bool) !void {
+    try pathText(path, allow_root);
+}
+pub fn lifetimeCanonical(io: std.Io, path: []const u8) !void {
+    try canonical(io, path);
 }
 
 // Cgroup reads observe names as well as held descriptors. Contents of a live
@@ -528,6 +776,9 @@ fn cgroupRequest(init: std.process.Init, path: []const u8, record: *InputObserva
     try pathText(path, false);
     try canonical(init.io, path);
     const bytes = (try readAt(c.AT_FDCWD, try a.dupeZ(u8, path), try a.alloc(u8, max_bytes + 1), false, init.io, null, record)).?;
+    return cgroupRequestBytes(a, bytes);
+}
+fn cgroupRequestBytes(a: Allocator, bytes: []const u8) !CgroupRequest {
     const value = (std.json.parseFromSlice(std.json.Value, a, bytes, .{ .duplicate_field_behavior = .@"error" }) catch return error.InvalidCgroupRequest).value;
     if (value != .object or value.object.count() != 4) return error.InvalidCgroupRequest;
     for ([_][]const u8{ "schema_version", "proc_root", "sys_root", "wall_ms" }, 0..) |key, index| {
@@ -633,11 +884,15 @@ pub fn cgroupCommand(init: std.process.Init, path: []const u8) !u8 {
     try before(init.io, deadline);
     if (failure) |problem| return problem;
     if (received != 0) return error.Cancelled;
-    const bytes = try std.fmt.allocPrint(init.arena.allocator(), "{{\"schema_version\":1,\"source\":\"{s}\",\"peak_bytes\":{?d}}}\n", .{ if (peak != null) "cgroup-v2-memory-peak" else "unavailable", peak });
+    const bytes = try cgroupResultBytes(init.arena.allocator(), peak);
     // Zig's optional formatter spells null as null, preserving unmeasured input.
     try std.Io.File.stdout().writeStreamingAll(init.io, bytes);
     try before(init.io, deadline);
     return 0;
+}
+
+fn cgroupResultBytes(a: Allocator, peak: ?u64) ![]const u8 {
+    return std.fmt.allocPrint(a, "{{\"schema_version\":1,\"source\":\"{s}\",\"peak_bytes\":{?d}}}\n", .{ if (peak != null) "cgroup-v2-memory-peak" else "unavailable", peak });
 }
 
 // The renderer reads finalized artifacts. It neither finalizes a running
@@ -844,6 +1099,14 @@ fn reportInteger(comptime T: type, value: std.json.Value) !?T {
 fn reportRequest(scope: *ReportScope, path: []const u8) !ReportRequest {
     const a = scope.init.arena.allocator();
     const bytes = (try scope.read(path, false, false)).?;
+    const request = try reportRequestBytes(a, bytes);
+    scope.deadline = @min(scope.deadline, scope.started + @as(i96, request.wall_ms) * std.time.ns_per_ms);
+    try scope.check();
+    try pathText(request.state_path, false);
+    if (request.cgroup_path) |path_value| try pathText(path_value, false);
+    return request;
+}
+fn reportRequestBytes(a: Allocator, bytes: []const u8) !ReportRequest {
     const value = (reportJson(a, bytes, false) catch |problem| switch (problem) {
         error.OutOfMemory, error.UnsupportedSamplerEncoding => return problem,
         else => return error.InvalidReportRequest,
@@ -857,10 +1120,6 @@ fn reportRequest(scope: *ReportScope, path: []const u8) !ReportRequest {
     const state = value.object.get("state_path").?;
     const group = value.object.get("cgroup_path").?;
     if (version != 1 or wall == 0 or wall > 3_600_000 or state != .string or (group != .string and group != .null)) return error.InvalidReportRequest;
-    scope.deadline = scope.started + @as(i96, wall) * std.time.ns_per_ms;
-    try scope.check();
-    try pathText(state.string, false);
-    if (group == .string) try pathText(group.string, false);
     return .{ .state_path = state.string, .cgroup_path = if (group == .null) null else group.string, .warn_bytes = warn, .error_bytes = limit, .wall_ms = wall };
 }
 fn reportState(a: Allocator, bytes: ?[]const u8) !?ReportState {
@@ -1032,4 +1291,248 @@ pub fn reportCommand(init: std.process.Init, path: []const u8) !u8 {
     try std.Io.File.stdout().writeStreamingAll(init.io, result.?);
     try before(init.io, scope.deadline);
     return 0;
+}
+
+/// The exact three existing requests held by one lifetime owner. This fixed
+/// bundle does not admit other input classes or create a replacement schema.
+pub const LifetimeRequests = struct {
+    scope: ReportScope,
+    report_path: []const u8,
+    sample: Request = undefined,
+    group: CgroupRequest = undefined,
+    report: ReportRequest = undefined,
+    active: bool = true,
+
+    pub fn capture(init: std.process.Init, sample_path: []const u8, group_path: []const u8, report_path: []const u8, check: *owner.CheckScope) !LifetimeRequests {
+        const deadline = try borrowedDeadline(init.io, check);
+        var result: LifetimeRequests = .{ .scope = .{ .init = init, .started = now(init.io), .deadline = deadline }, .report_path = report_path };
+        result.acquire(sample_path, group_path, report_path) catch |problem| {
+            try result.finish();
+            return problem;
+        };
+        return result;
+    }
+
+    fn acquire(self: *LifetimeRequests, sample_path: []const u8, group_path: []const u8, report_path: []const u8) !void {
+        const a = self.scope.init.arena.allocator();
+        self.sample = try requestBytes(a, (try self.scope.read(sample_path, false, false)).?);
+        if (self.sample.max_samples < 2) return error.InvalidSamplerLifetime;
+        self.group = try cgroupRequestBytes(a, (try self.scope.read(group_path, false, false)).?);
+        self.report = try reportRequestBytes(a, (try self.scope.read(report_path, false, false)).?);
+        try pathText(self.report.state_path, false);
+        const expected_state = try std.fmt.allocPrint(a, "{s}/state.json", .{self.sample.destination});
+        if (!std.mem.eql(u8, expected_state, self.report.state_path)) return error.InvalidSamplerLifetime;
+        const cgroup_path = self.report.cgroup_path orelse return error.InvalidSamplerLifetime;
+        try pathText(cgroup_path, false);
+        try self.scope.check();
+    }
+
+    pub fn finish(self: *LifetimeRequests) !void {
+        if (!self.active) return error.SamplerOwnerRequired;
+        self.active = false;
+        try self.scope.finish();
+    }
+
+    pub fn statePath(self: *const LifetimeRequests) []const u8 {
+        return self.report.state_path;
+    }
+
+    pub fn cgroupResultPath(self: *const LifetimeRequests) ?[]const u8 {
+        return self.report.cgroup_path;
+    }
+
+    /// Independently bind the stopped worker's acknowledgement to the
+    /// published state bytes and their retained filesystem identities.
+    pub fn verifyCommitment(self: *LifetimeRequests, expected: OwnedSampling.Commitment, pid: i32, samples: u32) !void {
+        if (!self.active) return error.SamplerOwnerRequired;
+        try self.scope.check();
+        const a = self.scope.init.arena.allocator();
+        const state_path = self.report.state_path;
+        try pathText(state_path, false);
+        try canonical(self.scope.init.io, state_path);
+        const directory_path = std.fs.path.dirname(state_path) orelse return error.InvalidSamplerPath;
+        const parent_path = std.fs.path.dirname(directory_path) orelse return error.InvalidSamplerPath;
+        const parent = try Directory.open(a, self.scope.init.io, parent_path, true);
+        defer parent.close();
+        const directory = try Directory.open(a, self.scope.init.io, directory_path, true);
+        defer directory.close();
+        if (!std.mem.eql(u8, expected.parent_identity_sha256, try lifetimeMetadataDigest(a, parent.identity, false)) or
+            !std.mem.eql(u8, expected.directory_identity_sha256, try lifetimeMetadataDigest(a, directory.identity, false))) return error.SamplerOutputDrift;
+
+        const leaf = try a.dupeZ(u8, std.fs.path.basename(state_path));
+        const initial = (try statAt(directory.fd, leaf)) orelse return error.SamplerOutputDrift;
+        try ReportScope.safe(initial);
+        if (!std.mem.eql(u8, expected.state_metadata_sha256, try lifetimeMetadataDigest(a, initial, true))) return error.SamplerOutputDrift;
+        var observation: InputObservation = .{ .fd = directory.fd, .name = leaf, .initial = null, .observed = false };
+        const buffer = try a.alloc(u8, max_bytes + 1);
+        const bytes = readAt(directory.fd, leaf, buffer, false, self.scope.init.io, self.scope.deadline, &observation) catch |problem| {
+            if (observation.close_failed) return error.SamplerCloseFailed;
+            return problem;
+        };
+        const state_bytes = bytes orelse return error.SamplerOutputDrift;
+        if (observation.close_failed) return error.SamplerCloseFailed;
+        if (!observation.observed or observation.initial == null or !ReportScope.metadata(initial, observation.initial.?)) return error.SamplerOutputDrift;
+        if (!std.mem.eql(u8, expected.state_sha256, try lifetimeDigest(a, state_bytes))) return error.SamplerOutputDrift;
+        const final = (try statAt(directory.fd, leaf)) orelse return error.SamplerOutputDrift;
+        if (!ReportScope.metadata(initial, final) or try statAt(directory.fd, "state.tmp") != null) return error.SamplerOutputDrift;
+        const parsed = (try reportState(a, state_bytes)) orelse return error.SamplerOutputDrift;
+        if (parsed.pid != pid or parsed.samples != samples) return error.SamplerOutputDrift;
+        try parent.verify(self.scope.init.io);
+        try directory.verify(self.scope.init.io);
+        try self.scope.check();
+    }
+
+    /// Create the one declared cgroup result without following a replacement
+    /// directory or overwriting an existing artifact.
+    pub fn writeCgroupResult(self: *LifetimeRequests, diagnostics_path: []const u8, bytes: []const u8) !void {
+        if (!self.active or bytes.len == 0 or bytes.len > max_bytes) return error.InvalidCgroupResult;
+        try self.scope.check();
+        const path = self.report.cgroup_path orelse return error.InvalidCgroupResult;
+        const prefix = try std.fmt.allocPrint(self.scope.init.arena.allocator(), "{s}/", .{diagnostics_path});
+        if (!std.mem.startsWith(u8, path, prefix)) return error.PrivateEvidenceRequired;
+        try pathText(path, false);
+        const parent_path = std.fs.path.dirname(path) orelse return error.InvalidSamplerPath;
+        const parent = try Directory.open(self.scope.init.arena.allocator(), self.scope.init.io, parent_path, true);
+        defer parent.close();
+        const leaf = try self.scope.init.arena.allocator().dupeZ(u8, std.fs.path.basename(path));
+        if (try statAt(parent.fd, leaf) != null) return error.SamplerOutputDrift;
+        const fd = c.openat(parent.fd, leaf, c.O_WRONLY | c.O_CREAT | c.O_EXCL | c.O_NOFOLLOW | c.O_CLOEXEC, @as(c_uint, 0o600));
+        if (fd < 0) return error.SamplerOutputCreateFailed;
+        var close_needed = true;
+        defer {
+            if (close_needed) _ = c.close(fd);
+        }
+        var initial: Stat = undefined;
+        if (try descriptorStat(fd, &initial) != 0 or !regular(initial) or initial.st_uid != c.geteuid() or initial.st_nlink != 1 or initial.st_mode & 0o7777 != 0o600 or initial.st_size != 0) return error.UnsafeSamplerOutput;
+        var offset: usize = 0;
+        while (offset < bytes.len) {
+            try self.scope.check();
+            const count = c.write(fd, @ptrCast(bytes[offset..].ptr), bytes.len - offset);
+            if (count < 0 and std.c.errno(@as(c_int, -1)) == .INTR) continue;
+            if (count <= 0) return error.SamplerOutputWriteFailed;
+            offset += @intCast(count);
+        }
+        if (c.fsync(fd) != 0) return error.SamplerOutputWriteFailed;
+        var final: Stat = undefined;
+        if (try descriptorStat(fd, &final) != 0 or !regular(final) or final.st_uid != c.geteuid() or final.st_nlink != 1 or final.st_mode & 0o7777 != 0o600 or final.st_size != bytes.len) return error.SamplerOutputDrift;
+        const named = (try statAt(parent.fd, leaf)) orelse return error.SamplerOutputDrift;
+        if (!ReportScope.metadata(final, named)) return error.SamplerOutputDrift;
+        if (c.close(fd) != 0) {
+            close_needed = false;
+            return error.SamplerCloseFailed;
+        }
+        close_needed = false;
+        var observation: InputObservation = .{ .fd = parent.fd, .name = leaf, .initial = null, .observed = false };
+        const buffer = try self.scope.init.arena.allocator().alloc(u8, max_bytes + 1);
+        const readback = readAt(parent.fd, leaf, buffer, false, self.scope.init.io, self.scope.deadline, &observation) catch |problem| {
+            if (observation.close_failed) return error.SamplerCloseFailed;
+            return problem;
+        };
+        if (observation.close_failed) return error.SamplerCloseFailed;
+        if (!observation.observed or observation.initial == null or !ReportScope.metadata(final, observation.initial.?) or readback == null or !std.mem.eql(u8, bytes, readback.?)) return error.SamplerOutputDrift;
+        try parent.verify(self.scope.init.io);
+        try self.scope.check();
+    }
+};
+
+fn borrowedDeadline(io: std.Io, check: *owner.CheckScope) !i96 {
+    try check.ready(io);
+    // Read awake first, then boot, so conversion cannot extend the original
+    // work deadline. The check keeps its original clock and signal owner.
+    const awake = now(io);
+    const remaining = check.deadline - std.Io.Clock.boot.now(io).nanoseconds;
+    if (remaining <= 0) return error.OperationDeadlineExceeded;
+    return awake + remaining;
+}
+
+pub fn cgroupForLifetime(init: std.process.Init, inputs: *LifetimeRequests, check: *owner.CheckScope) ![]const u8 {
+    if (!inputs.active) return error.SamplerOwnerRequired;
+    try inputs.scope.check();
+    const started = now(init.io);
+    const deadline = @min(try borrowedDeadline(init.io, check), started + @as(i96, inputs.group.wall_ms) * std.time.ns_per_ms);
+    var directories: [70]Directory = undefined;
+    var descriptors: [70]c_int = undefined;
+    var observations: [74]InputObservation = undefined;
+    var scope: CgroupScope = .{ .init = init, .deadline = deadline, .directories = .initBuffer(&directories), .descriptors = .initBuffer(&descriptors), .inputs = .initBuffer(&observations) };
+    var primary: ?anyerror = null;
+    const peak = cgroupCollect(&scope, inputs.group) catch |problem| blk: {
+        primary = problem;
+        break :blk @as(?u64, null);
+    };
+    try scope.finish();
+    try check.ready(init.io);
+    try before(init.io, deadline);
+    if (primary) |problem| return problem;
+    return cgroupResultBytes(init.arena.allocator(), peak);
+}
+
+pub fn reportForLifetime(init: std.process.Init, path: []const u8, check: *owner.CheckScope) ![]const u8 {
+    const deadline = try borrowedDeadline(init.io, check);
+    var scope: ReportScope = .{ .init = init, .started = now(init.io), .deadline = deadline };
+    var primary: ?anyerror = null;
+    const result: ?[]const u8 = reportBuild(&scope, path) catch |problem| blk: {
+        primary = problem;
+        break :blk null;
+    };
+    try scope.finish();
+    try check.ready(init.io);
+    try before(init.io, scope.deadline);
+    if (primary) |problem| return problem;
+    return result.?;
+}
+
+/// Append one rendered summary to an existing private log. A swapped name,
+/// alias, non-regular target, or partial write cannot produce success.
+pub fn appendSummary(init: std.process.Init, path: []const u8, line: []const u8, deadline: i96) !void {
+    if (line.len == 0 or line.len > 8192 or std.mem.indexOfAny(u8, line, "\r\n\x00") != null) return error.InvalidSummary;
+    try pathText(path, false);
+    try canonical(init.io, path);
+    const a = init.arena.allocator();
+    const parent_path = std.fs.path.dirname(path) orelse return error.InvalidSamplerPath;
+    const leaf = try a.dupeZ(u8, std.fs.path.basename(path));
+    const parent_z = try a.dupeZ(u8, parent_path);
+    const dir = c.open(parent_z, c.O_RDONLY | c.O_DIRECTORY | c.O_NOFOLLOW | c.O_CLOEXEC);
+    if (dir < 0) return error.UnsafeSamplerDirectory;
+    defer _ = c.close(dir);
+    var directory_stat: Stat = undefined;
+    if (try descriptorStat(dir, &directory_stat) != 0 or directory_stat.st_mode & c.S_IFMT != c.S_IFDIR or directory_stat.st_uid != c.geteuid() or directory_stat.st_mode & 0o7777 != 0o700) return error.UnsafeSamplerDirectory;
+    const before_stat = (try statAt(dir, leaf)) orelse return error.SamplerInputUnreadable;
+    try ReportScope.safe(before_stat);
+    var before_observation: InputObservation = .{ .fd = dir, .name = leaf, .initial = null, .observed = false };
+    const before_buffer = try a.alloc(u8, @as(usize, @intCast(before_stat.st_size)) + 1);
+    const previous = (try readAt(dir, leaf, before_buffer, false, init.io, deadline, &before_observation)).?;
+    if (!before_observation.observed or before_observation.initial == null or !ReportScope.metadata(before_stat, before_observation.initial.?)) return error.SamplerInputDrift;
+    const fd = c.openat(dir, leaf, c.O_WRONLY | c.O_APPEND | c.O_NONBLOCK | c.O_NOFOLLOW | c.O_CLOEXEC);
+    if (fd < 0) return error.SamplerOutputDrift;
+    var close_needed = true;
+    defer {
+        if (close_needed) _ = c.close(fd);
+    }
+    var opened: Stat = undefined;
+    if (try descriptorStat(fd, &opened) != 0 or !ReportScope.metadata(before_stat, opened)) return error.SamplerOutputDrift;
+    const appended = try std.fmt.allocPrint(a, "{s}\n", .{line});
+    if (before_stat.st_size < 0 or @as(u128, @intCast(before_stat.st_size)) + appended.len > max_bytes) return error.SamplerInputLimit;
+    var offset: usize = 0;
+    while (offset < appended.len) {
+        try before(init.io, deadline);
+        const count = c.write(fd, @ptrCast(appended[offset..].ptr), appended.len - offset);
+        if (count < 0 and std.c.errno(@as(c_int, -1)) == .INTR) continue;
+        if (count <= 0) return error.SamplerOutputWriteFailed;
+        offset += @intCast(count);
+    }
+    var after: Stat = undefined;
+    if (try descriptorStat(fd, &after) != 0 or !same(before_stat, after) or after.st_mode != before_stat.st_mode or after.st_uid != before_stat.st_uid or after.st_nlink != 1 or after.st_size != before_stat.st_size + @as(@TypeOf(after.st_size), @intCast(appended.len))) return error.SamplerOutputDrift;
+    const named = (try statAt(dir, leaf)) orelse return error.SamplerOutputDrift;
+    if (!same(after, named) or named.st_mode != after.st_mode or named.st_uid != after.st_uid or named.st_size != after.st_size) return error.SamplerOutputDrift;
+    const after_buffer = try a.alloc(u8, @as(usize, @intCast(after.st_size)) + 1);
+    var after_observation: InputObservation = .{ .fd = dir, .name = leaf, .initial = null, .observed = false };
+    const final_bytes = (try readAt(dir, leaf, after_buffer, false, init.io, deadline, &after_observation)).?;
+    if (!after_observation.observed or after_observation.initial == null or !ReportScope.metadata(after, after_observation.initial.?) or final_bytes.len != previous.len + appended.len or !std.mem.eql(u8, final_bytes[0..previous.len], previous) or !std.mem.eql(u8, final_bytes[previous.len..], appended)) return error.SamplerOutputDrift;
+    if (c.close(fd) != 0) {
+        close_needed = false;
+        return error.SamplerCloseFailed;
+    }
+    close_needed = false;
+    const final_named = (try statAt(dir, leaf)) orelse return error.SamplerOutputDrift;
+    if (!same(after, final_named) or final_named.st_size != after.st_size) return error.SamplerOutputDrift;
 }
