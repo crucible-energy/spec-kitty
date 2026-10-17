@@ -1,7 +1,7 @@
 //! Source-bound statement inventory for the qualified local-validation grammar.
 //! Every AST node keeps a role; collection alone never accepts coverage. Runtime
-//! statements include controlled bodies, deferred/catch bodies, and embedded
-//! return/break/continue. Unsupported instrumentation semantics refuse visibly.
+//! statements include controlled bodies, switch arms, deferred/catch bodies, and
+//! embedded return/break/continue. Unsupported instrumentation semantics refuse.
 const std = @import("std");
 const Ast = std.zig.Ast;
 const Span = struct { start: u32, end: u32 };
@@ -31,7 +31,50 @@ fn add(nodes: *std.AutoHashMap(u32, u8), tree: Ast, node: Ast.Node.Index, origin
 fn supported(tag: Ast.Node.Tag) bool {
     // This is a transform boundary, not a filter: an unqualified runtime unit
     // fails the whole inventory instead of disappearing from the denominator.
-    const tags = [_]Ast.Node.Tag{ .simple_var_decl, .assign, .assign_add, .assign_bit_or, .if_simple, .@"if", .while_simple, .for_simple, .@"for", .@"return", .@"defer", .@"errdefer", .@"try", .call, .call_one, .@"catch", .@"continue", .@"break" };
+    const tags = [_]Ast.Node.Tag{
+        .simple_var_decl,
+        .assign,
+        .assign_destructure,
+        .assign_add,
+        .assign_add_sat,
+        .assign_add_wrap,
+        .assign_bit_and,
+        .assign_bit_or,
+        .assign_bit_xor,
+        .assign_div,
+        .assign_mod,
+        .assign_mul,
+        .assign_mul_sat,
+        .assign_mul_wrap,
+        .assign_shl,
+        .assign_shl_sat,
+        .assign_shr,
+        .assign_sub,
+        .assign_sub_sat,
+        .assign_sub_wrap,
+        .if_simple,
+        .@"if",
+        .while_simple,
+        .while_cont,
+        .@"while",
+        .for_simple,
+        .@"for",
+        .@"switch",
+        .switch_comma,
+        .@"return",
+        .@"defer",
+        .@"errdefer",
+        .@"try",
+        .call,
+        .call_one,
+        .builtin_call_two,
+        .builtin_call_two_comma,
+        .builtin_call,
+        .builtin_call_comma,
+        .@"catch",
+        .@"continue",
+        .@"break",
+    };
     for (tags) |candidate| {
         if (tag == candidate) return true;
     }
@@ -78,6 +121,15 @@ fn inventory(allocator: std.mem.Allocator, source: [:0]const u8) ![]const u8 {
             if (info.ast.cont_expr.unwrap()) |child| try add(&nodes, tree, child, 4);
             if (info.ast.else_expr.unwrap()) |child| try add(&nodes, tree, child, 4);
         }
+        if (tree.fullSwitch(node)) |info| {
+            for (info.ast.cases) |case_node| {
+                const case = tree.fullSwitchCase(case_node) orelse return error.UnsupportedStatement;
+                // Inline prongs have compile-time execution rules of their own.
+                // Keep them refused until a paired transform proves that seam.
+                if (case.inline_token != null) return error.UnsupportedStatement;
+                try add(&nodes, tree, case.ast.target_expr, 64);
+            }
+        }
         // Transfers are expressions too: an orelse/catch initializer can hide
         // one from all direct block/control statement lists.
         if (tag == .@"return" or tag == .@"break" or tag == .@"continue") try add(&nodes, tree, node, 8);
@@ -104,37 +156,21 @@ fn inventory(allocator: std.mem.Allocator, source: [:0]const u8) ![]const u8 {
             }
         }
         const origins = nodes.get(@intCast(number)) orelse 0;
+        var inline_for = false;
+        if (tree.fullFor(node)) |info| inline_for = info.inline_token != null;
         var role: []const u8 = "declaration";
         if (structural(tree, node)) role = "structural";
         if (function and !structural(tree, node)) role = "runtime-expression";
         if (function and origins != 0) role = "runtime-statement";
+        if (inline_for) role = "compile-time-control";
         if (explicit_comptime) role = "explicit-comptime";
         if (test_only) role = "test-only";
-        if (function and !test_only and !explicit_comptime) {
-            // Value-producing controls need value-preserving wrapping, rather
-            // than statement-entry blocks. Refuse them instead of dropping arms.
-            if (tree.fullIf(node) != null and origins == 0) return error.UnsupportedStatement;
-            // Switch prongs and inline loops need their own entry semantics.
-            if (tag == .@"switch" or tag == .switch_comma) return error.UnsupportedStatement;
-            if (tree.fullFor(node)) |info| {
-                if (origins == 0 or info.inline_token != null) return error.UnsupportedStatement;
-            }
-            if (tree.fullWhile(node)) |info| {
-                if (origins == 0 or info.inline_token != null) return error.UnsupportedStatement;
-            }
-            if (tag == .@"catch") {
-                const child = tree.nodeData(node).node_and_node[1];
-                const child_tag = tree.nodeTag(child);
-                const child_span = span(tree, child);
-                var terminal = structural(tree, child);
-                terminal = terminal or child_tag == .@"return" or child_tag == .@"break" or child_tag == .@"continue";
-                // The pinned compiler defines this standard-library terminal
-                // as noreturn; paired compiled images prove the current seam.
-                terminal = terminal or std.mem.startsWith(u8, source[child_span.start..child_span.end], "std.process.fatal(");
-                if (!terminal) return error.UnsupportedStatement;
-            }
+        if (function and !test_only and !explicit_comptime and !inline_for) {
             if (origins != 0) {
-                if (!supported(tag)) return error.UnsupportedStatement;
+                const direct_statement = origins & (1 | 8) != 0;
+                const controlled_body = origins & (2 | 4 | 16 | 32 | 64) != 0;
+                if (direct_statement and !supported(tag)) return error.UnsupportedStatement;
+                if (!direct_statement and !controlled_body) return error.UnsupportedStatement;
                 var line: usize = 1;
                 var column: usize = 1;
                 for (source[0..location.start]) |byte| {

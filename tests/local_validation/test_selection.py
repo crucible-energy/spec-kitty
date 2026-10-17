@@ -2495,31 +2495,78 @@ def test_native_statement_inventory_verifies_exact_source_bound_denominator(tmp_
     assert refused.returncode != 0 and refused.stdout == "" and "InventoryMismatch" in refused.stderr
 
 
-@pytest.mark.parametrize(
-    ("source", "reason"),
-    [
-        ("fn broken( {", "ParseRefused"),
-        ("fn f(flag: bool) u8 { return if (flag) 1 else 2; }", "UnsupportedStatement"),
-        ("fn yes() u8 { return 1; } fn f(flag: bool) u8 { return if (flag) yes() else yes(); }", "UnsupportedStatement"),
-        ("fn recover() u8 { return 1; } fn f(value: anyerror!u8) u8 { return value catch recover(); }", "UnsupportedStatement"),
-        ("fn f(value: u8) u8 { return switch (value) { 1 => 2, else => 3 }; }", "UnsupportedStatement"),
-    ],
-)
-def test_native_statement_inventory_refuses_unqualified_syntax(tmp_path: Path, native_statement_inventory: Path, source: str, reason: str) -> None:
+def test_native_statement_inventory_refuses_unqualified_source(tmp_path: Path, native_statement_inventory: Path) -> None:
+    source = "fn broken( {"
     path = tmp_path / "unsupported.zig"
     path.write_text(source)
     refused = subprocess.run([str(native_statement_inventory), str(path)], capture_output=True, text=True, timeout=20)
-    assert refused.returncode != 0 and refused.stdout == "" and reason in refused.stderr
+    assert refused.returncode != 0 and refused.stdout == "" and "ParseRefused" in refused.stderr
+
+
+_VALUE_CONTROL_SENTINEL = """
+const std = @import("std");
+
+fn choose_if() u8 { return 10; }
+fn choose_switch() u8 { return 20; }
+fn recover_value() u8 { return 30; }
+fn early(value: u8) u8 {
+    const result = switch (value) { 0 => return 41, else => 42 };
+    return result;
+}
+
+fn evaluate(flag: bool, input: anyerror!u8, selection: u8, count: *u8) anyerror!u8 {
+    defer if (flag) { count.* += 3; };
+    const selected = if (flag) choose_if() else @as(u8, 11);
+    const recovered = input catch recover_value();
+    const switched = switch (selection) { 0 => choose_switch(), else => @as(u8, 21) };
+    var cursor: u8 = 0;
+    while (cursor < 2) : (cursor += 1) {
+        if (cursor == 0) continue;
+        count.* += 1;
+    }
+    inline for ([_]u8{ 1, 2 }) |increment| {
+        count.* += increment;
+    }
+    switch (selection) {
+        0 => count.* += 1,
+        else => count.* += 2,
+    }
+    var adjusted: u8 = 3;
+    adjusted -= 1;
+    adjusted *= 2;
+    return selected + recovered + switched + cursor + adjusted;
+}
+
+pub fn main(init: std.process.Init) void {
+    _ = init;
+    var count: u8 = 0;
+    const first = evaluate(true, error.Synthetic, 0, &count) catch 0;
+    const second = evaluate(false, 9, 1, &count) catch 0;
+    const early_result = early(0);
+    std.debug.print("{d}:{d}:{d}:{d}\\n", .{ first, second, count, early_result });
+}
+"""
 
 
 def instrument_statement_sentinel(source: str, inventory: dict[str, Any]) -> str:
-    """Apply the retained entry transform to an explicit semantics witness."""
+    """Apply the statement-entry transform to a compiled semantics witness."""
     raw = source.encode()
     assert inventory["source_sha256"] == fixture_digest(raw)
     units = inventory["units"]
     assert len({unit["node"] for unit in units}) == len(units)
     insertions: dict[int, list[tuple[int, bytes]]] = {}
-    deleted = set()
+    deleted: set[int] = set()
+    accounting = inventory["all_ast_node_accounting"]
+
+    def parents_of(unit: dict[str, Any]) -> list[dict[str, Any]]:
+        return [
+            row
+            for row in accounting
+            if row["node"] != unit["node"]
+            and row["start"] <= unit["start"]
+            and unit["end"] <= row["end"]
+            and (row["start"] < unit["start"] or unit["end"] < row["end"])
+        ]
 
     def put(offset: int, order: int, value: bytes) -> None:
         insertions.setdefault(offset, []).append((order, value))
@@ -2528,14 +2575,30 @@ def instrument_statement_sentinel(source: str, inventory: dict[str, Any]) -> str
         start, end = unit["start"], unit["end"]
         assert 0 <= start < end <= len(raw)
         hit = f"__statement_hit({unit['node']}); ".encode()
-        if unit["origins"] & 1:
-            put(start, start - end, hit)
-        else:
+        control_tags = {"if", "if_simple", "for", "for_simple", "while", "while_simple", "while_cont", "switch", "switch_comma"}
+        if unit["origins"] & 16 and unit["tag"] in control_tags:
             put(start, start - end, b"{ " + hit)
-            control = unit["tag"] in {"if_simple", "if", "while_simple", "for_simple", "for"}
-            put(end, end - start, b" }" if control else b"; }")
-            if unit["origins"] & 22 and raw[end : end + 1] == b";":
+            put(end, end - start, b" }")
+        elif unit["origins"] & 1:
+            put(start, start - end, hit)
+        elif unit["origins"] & 8 or unit["origins"] & 16 or unit["tag"].startswith("assign") or unit["tag"] == "unreachable_literal":
+            put(start, start - end, b"{ " + hit)
+            put(end, end - start, b"; }")
+        else:
+            label = f"coverage_stmt_{unit['node']}".encode()
+            put(start, start - end, label + b": { " + hit + b"break :" + label + b" ")
+            put(end, end - start, b"; }")
+        parents = parents_of(unit)
+        if unit["origins"] & 2:
+            controls = [row for row in parents if row["tag"] in {"if", "if_simple"}]
+            if controls and min(controls, key=lambda row: row["end"] - row["start"])["origins"] & 1 and raw[end : end + 1] == b";":
                 deleted.add(end)
+        if unit["origins"] & 4:
+            controls = [row for row in parents if row["tag"] in {"for", "for_simple", "while", "while_simple", "while_cont"}]
+            if controls and min(controls, key=lambda row: row["end"] - row["start"])["origins"] & 1 and raw[end : end + 1] == b";":
+                deleted.add(end)
+        if unit["origins"] & 16 and raw[end : end + 1] == b";":
+            deleted.add(end)
     result = bytearray(b'fn __statement_hit(id: u32) void { std.debug.print("STMT {d}\\n", .{id}); }\n')
     for offset in range(len(raw) + 1):
         for _, value in sorted(insertions.get(offset, [])):
@@ -2543,6 +2606,82 @@ def instrument_statement_sentinel(source: str, inventory: dict[str, Any]) -> str
         if offset < len(raw) and offset not in deleted:
             result.append(raw[offset])
     return result.decode()
+
+
+def test_native_statement_inventory_preserves_value_controls_and_compile_time_loops(tmp_path: Path, native_statement_inventory: Path) -> None:
+    source = tmp_path / "value_controls.zig"
+    source.write_text(_VALUE_CONTROL_SENTINEL)
+    inventory, _ = statement_collection(native_statement_inventory, source)
+    raw = source.read_bytes()
+    units = inventory["units"]
+    by_start = {unit["start"]: unit for unit in units}
+
+    def unit_for(marker: bytes, *, after: int = 0) -> dict[str, Any]:
+        offset = raw.index(marker, after)
+        assert offset in by_start, marker
+        return by_start[offset]
+
+    selected_offset = raw.index(b"const selected")
+    selected_if = raw.index(b"if (flag)", selected_offset)
+    assert selected_if not in by_start  # The value-producing control is not a statement.
+    if_true = unit_for(b"choose_if()", after=selected_if)
+    if_false = unit_for(b"@as(u8, 11)", after=selected_if)
+    catch_start = raw.index(b"input catch")
+    catch_body = unit_for(b"recover_value()", after=catch_start)
+    value_switch = raw.index(b"const switched = switch")
+    switch_true = unit_for(b"choose_switch()", after=value_switch)
+    switch_false = unit_for(b"@as(u8, 21)", after=value_switch)
+    early_return = unit_for(b"return 41")
+    deferred_control = unit_for(b"if (flag)", after=raw.index(b"defer"))
+    deferred_body = unit_for(b"count.* += 3")
+    continuation = unit_for(b"cursor += 1")
+    unrolled_body = unit_for(b"count.* += increment")
+    direct_switch_offset = raw.index(b"switch (selection) {", raw.index(b"inline for"))
+    direct_switch = by_start[direct_switch_offset]
+    decrement = unit_for(b"adjusted -= 1")
+    multiply = unit_for(b"adjusted *= 2")
+    inline_offset = raw.index(b"inline for")
+    inline_row = next(row for row in inventory["all_ast_node_accounting"] if row["start"] == inline_offset)
+    assert inline_row["role"] == "compile-time-control"
+    assert inline_row["node"] not in {unit["node"] for unit in units}
+
+    measured = tmp_path / "value_controls_measured.zig"
+    measured.write_text(instrument_statement_sentinel(_VALUE_CONTROL_SENTINEL, inventory))
+    images = []
+    for path in [source, measured]:
+        image = path.with_suffix("")
+        subprocess.run(
+            ["zig", "build-exe", str(path), "-j1", "-lc", "-O", "ReleaseSafe", f"-femit-bin={image}"],
+            check=True,
+            capture_output=True,
+            timeout=60,
+        )
+        images.append(image)
+    plain, observed = [subprocess.run([str(image)], check=True, capture_output=True, text=True, timeout=5) for image in images]
+    hits = [int(line.removeprefix("STMT ")) for line in observed.stderr.splitlines() if line.startswith("STMT ")]
+    ordinary = "\n".join(line for line in observed.stderr.splitlines() if not line.startswith("STMT "))
+    assert (observed.stdout, ordinary) == (plain.stdout, plain.stderr.removesuffix("\n"))
+    assert plain.stderr.endswith("66:47:14:41\n")
+    assert hits.count(if_true["node"]) == 1
+    assert hits.count(if_false["node"]) == 1
+    assert hits.count(catch_body["node"]) == 1
+    assert hits.count(switch_true["node"]) == 1
+    assert hits.count(switch_false["node"]) == 1
+    assert hits.count(early_return["node"]) == 1
+    assert hits.count(deferred_control["node"]) == 2
+    assert hits.count(deferred_body["node"]) == 1
+    assert hits.count(continuation["node"]) == 4
+    assert hits.count(unrolled_body["node"]) == 4
+    assert hits.count(direct_switch["node"]) == 2
+    assert hits.count(decrement["node"]) == hits.count(multiply["node"]) == 2
+    assert set(hits) <= {unit["node"] for unit in units}
+
+
+def test_native_statement_inventory_refuses_inline_switch_prongs(tmp_path: Path, native_statement_inventory: Path) -> None:
+    source = tmp_path / "inline_switch.zig"
+    source.write_text("fn f(value: u8) u8 { return switch (value) { inline 1 => 2, else => 3 }; }\n")
+    refused = subprocess.run([str(native_statement_inventory), str(source)], capture_output=True, text=True, timeout=20)
+    assert refused.returncode != 0 and refused.stdout == "" and "UnsupportedStatement" in refused.stderr
 
 
 def test_native_statement_sentinel_observes_transfers_and_deferred_execution(tmp_path: Path, native_statement_inventory: Path) -> None:

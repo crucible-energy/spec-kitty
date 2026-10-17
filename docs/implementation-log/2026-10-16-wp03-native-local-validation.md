@@ -101,6 +101,11 @@ second Store was selected by this lane.
   diagnosis only: its experimental transform failed Zig compilation on shared
   statement terminators, confirming that it cannot supply a trustworthy
   denominator or coverage percentage.
+- 2026-10-16 update: the inventory refusal blocked qualification of valid
+  switch-arm and inline-loop statement bodies as well as value-producing
+  expressions. The collector now separates executable statement bodies from
+  value expressions and compile-time controls; a paired compiled sentinel
+  checks output and hit multiplicity before relying on those categories.
 
 ## Engineering Decisions
 
@@ -156,6 +161,13 @@ second Store was selected by this lane.
   transient macOS `/private/var/folders` bind-mount visibility from being
   mistaken for program behavior while retaining exact test evidence after
   container cleanup.
+- 2026-10-16 — Extend the native statement collector only with paired
+  compilation and execution controls. Add explicit switch-arm bodies and
+  compile-time loop classification, and preserve statements embedded in
+  value-producing `if`, `catch`, `switch`, and `defer` expressions without
+  treating those expressions as statements. Keep the instrumentation harness
+  outside the product tree; it is measurement support, not a new runtime
+  capability.
 
 ## Known Limitations
 
@@ -182,6 +194,13 @@ second Store was selected by this lane.
   sources, and the exploratory relaxed transform is not valid denominator
   evidence. Until that grammar boundary is qualified, WP03 is not ready for
   independent review or completion.
+- Superseding the collector-refusal diagnosis above: the source-bound Zig
+  inventory now generated and verified inventories for the seven changed
+  Zig files in the measured WP03 set. The external isolated native trace
+  measured 1,082 of 1,562 changed statements (69.27%), below the 90% gate by
+  324 statements. The current harness and its source maps/traces are retained
+  under `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r9/` for
+  continued investigation; this partial measurement is not WP03 acceptance.
 - The branch has not yet completed independent Spec Kitty review, commit, push,
   PR, or GitHub review checks. No default-main integration, deployment, model,
   Source, Store, or production-hook qualification is established.
@@ -218,6 +237,20 @@ second Store was selected by this lane.
   `/private/tmp/spec-kitty-native-validation-20261016/`, including
   `linux-execution-binding.json` and
   `linux-process-backend-integration/focused-integration-result.json`.
+- The current Zig inventory changes passed the focused collector/sentinel suite
+  (9 passed in 32.34 seconds after the final transform simplification), Zig
+  formatting, Ruff lint/format, and `git diff --check`. The full instrumented
+  macOS execution suite passed 111 tests in 223.18 seconds. Its trace joins
+  prior source-bound memory, collector, and Linux-container traces at
+  1,082/1,562 statements (69.27%). The optimized trace helper used one
+  process-local descriptor; a prior run took 235.24 seconds, so these two
+  observations do not establish a repeatable time saving. The structured
+  measurement receipt is
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r9/coverage-summary.json`
+  (SHA-256 `6ecbe5b0ad1ef3672055555a7c8355c0e8ba217479e354f300773a124ae2ff03`).
+  The optimized execution rerun's full raw output was not retained; the earlier
+  complete 111-test output remains at `execution-clean.log` in that artifact
+  directory.
 - The required `make test-fast` baseline passed (2,451 passed, 5 skipped, 4
   warnings; 169.65 seconds). A focused changed-file run completed with 104
   passed and one setup error after 597.88 seconds, isolated to the cold Linux
