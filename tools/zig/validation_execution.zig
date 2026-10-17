@@ -670,3 +670,12 @@ pub fn main(init: std.process.Init) void {
     const status = run(init) catch |failure| std.process.fatal("execution refused: {s}", .{@errorName(failure)});
     if (status != 0) std.process.exit(status);
 }
+
+test "safe output paths remain strictly beneath the diagnostics root" {
+    try std.testing.expect(safeOutputPath("/tmp/diagnostics", "/tmp/diagnostics/summary.md"));
+    try std.testing.expect(!safeOutputPath("/tmp/diagnostics", "/tmp/diagnostics-old/summary.md"));
+    try std.testing.expect(!safeOutputPath("/tmp/diagnostics", "/tmp/diagnostics/../summary.md"));
+    try std.testing.expect(!safeOutputPath("/tmp/diagnostics", "/tmp/diagnostics//summary.md"));
+    try std.testing.expect(!safeOutputPath("/tmp/diagnostics", "/tmp/diagnostics/summary\x1f.md"));
+    try std.testing.expect(!safeOutputPath("/tmp/diagnostics", "/tmp/diagnostics/summary\xff.md"));
+}

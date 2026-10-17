@@ -137,6 +137,13 @@ second Store was selected by this lane.
   `NativeSourceMismatch`, and `InputDrift` errors obscure that difference and
   cost repeated setup; future harnesses should separate the binder and runner
   while pinning both closures explicitly.
+- 2026-10-16 — Rebuilding the isolated coverage mirror initially omitted four
+  unchanged imported Zig modules, so its first instrumented compile failed
+  before tests ran. Copying those exact unchanged dependencies fixed the setup;
+  the helper should make this dependency closure explicit for future runs.
+- The system Python on this Mac has no pytest installation. The repository's
+  locked `uv run --frozen` environment is the supported route and passed the
+  focused source-bound integration test.
 
 ## Engineering Decisions
 
@@ -218,6 +225,11 @@ second Store was selected by this lane.
   producer closure must still describe the same bytes. The r13 execution
   attempts exposed mismatched source closures, so their traces are excluded
   from the acceptance aggregate.
+- Added direct contract tests for strict diagnostics-root containment and
+  summary append rejection of line injection and unsafe paths. Keep these as
+  focused API-boundary tests; their only new measured hits are the two
+  diagnostics-path rejection statements, while the summary-input rejection
+  statements were already covered by prior traces.
 
 ## Known Limitations
 
@@ -286,6 +298,10 @@ second Store was selected by this lane.
   Failed-run traces are excluded from the coverage total. The instrumented
   sampler rerun reproduced its previous trace and added no changed-statement
   hits, so it is not a useful repeat.
+- 2026-10-16 — The refreshed source-bound aggregate is 1,221/1,623 (75.2311%),
+  with 240 more selected statements required to reach 1,461/1,623 (90%). The
+  two new diagnostics-path hits are real but do not materially close the gate;
+  WP03 remains incomplete and the result is not acceptance evidence.
 
 ## Validation And Delivery
 
@@ -467,3 +483,16 @@ second Store was selected by this lane.
   node ID was present in current native inventory output. The 1,219/1,623 result
   remains partial; WP03 still needs valid additional coverage, independent
   review, and the remaining platform and entry qualification gates.
+- 2026-10-16 — Added and ran the diagnostics-path and summary-input contract
+  tests on macOS and the pinned Linux/arm64 Zig 0.16.0 image. The focused
+  repository test passed 1/1. Instrumented current-source runs produced four
+  per-platform traces; after validating candidate identities against the prior
+  map, the aggregate is 1,221/1,623 (75.2311%). Full observed outputs and the
+  partial measurement receipt are retained at
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r14/focused-validation.log`
+  (SHA-256 `85a0db3c0db6dbb70c543fbfc4ab60f632a20c675d8e39c26fca84bef529041c`)
+  and `coverage-summary-r14-partial.json` (SHA-256
+  `c1b6b14b49e26159ffb9c5af80763c3d5d1e8af44a4ec909865e30eab24e92f0`).
+  `make docs-lint` passed with zero errors and 19 existing changelog-length
+  warnings; formatting and `git diff --check` passed. This remains partial
+  WP03 evidence; independent review and the 90% gate are still outstanding.

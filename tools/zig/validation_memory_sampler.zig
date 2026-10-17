@@ -1617,3 +1617,24 @@ test "report formatting rounds deterministically at fixed and threshold boundari
     try std.testing.expectEqualStrings("1", try reportThreshold(a, 1073741824));
     try std.testing.expectEqualStrings("1e+06", try reportThreshold(a, 1073741824 * 1_000_000));
 }
+
+test "summary append rejects malformed lines and unsafe paths before filesystem access" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var environment = std.process.Environ.Map.init(arena.allocator());
+    const init: std.process.Init = .{
+        .minimal = undefined,
+        .arena = &arena,
+        .gpa = arena.child_allocator,
+        .io = std.testing.io,
+        .environ_map = &environment,
+        .preopens = undefined,
+    };
+
+    try std.testing.expectError(error.InvalidSummary, appendSummary(init, "unused", "", 0));
+    try std.testing.expectError(error.InvalidSummary, appendSummary(init, "unused", "first\nsecond", 0));
+    try std.testing.expectError(error.InvalidSamplerPath, appendSummary(init, "relative/summary.md", "valid summary", 0));
+    try std.testing.expectError(error.InvalidSamplerPath, appendSummary(init, "/tmp/../summary.md", "valid summary", 0));
+    try std.testing.expectError(error.InvalidSamplerPath, appendSummary(init, "/tmp/summary\x01.md", "valid summary", 0));
+    try std.testing.expectError(error.InvalidSamplerPath, appendSummary(init, "/tmp/summary\xff.md", "valid summary", 0));
+}
