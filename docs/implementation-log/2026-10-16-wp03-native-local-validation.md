@@ -14,8 +14,8 @@ and request binding, a retained direct-child owner across declared commands,
 final sampling and joined stop on success or middle-command failure, and private
 machine-readable evidence. The active lane is `codex/native-local-validation`
 in the existing managed worktree; its prior delivered checkpoint is
-`ace117a48`, followed by the current Linux process-backend refusal and
-termination controls. WP03 acceptance remains gated by qualified native
+`f1cc13e52`; the current increment strengthens Linux `/proc/<pid>/stat`
+malformed-input controls. WP03 acceptance remains gated by qualified native
 statement coverage and independent review.
 This log continues the history in
 [`2026-10-12-native-local-validation.md`](../plans/engineering-notes/2026-10-12-native-local-validation.md),
@@ -113,6 +113,16 @@ second Store was selected by this lane.
   The fixture now constructs a valid key with an embedded NUL in its value, so
   both command and worker paths exercise their intended `InvalidEnvironment`
   refusal. The corrected source-bound integration and instrumented probe pass.
+- The Linux `/proc/<pid>/stat` parser's malformed-input tests exposed how easy it
+  is to miscount positional fields in a synthetic row. The first malformed-RSS
+  fixture placed its bad value in the preceding `vsize` field, so the parser
+  correctly consumed the following zero as resident pages. The cases now share
+  the known-good prefix and vary only the intended field.
+- `spec-kitty next --json` reports `dependencies_not_satisfied` while WP03 is
+  active because it previews a *new* claim and the remaining planned packages
+  depend on WP03. The separate status view confirms WP01/WP02 approved and WP03
+  in progress; no status repair or forced transition is needed. This expected
+  selector result is easy to mistake for a blocked active package.
 
 ## Engineering Decisions
 
@@ -180,6 +190,11 @@ second Store was selected by this lane.
   Keep the invalid-input cases paired across Linux command spawning and retained
   worker spawning, and verify missing-image, denied-image, process-group, signal,
   usage, and reap behavior in the actual pinned Linux container.
+- Exercise the proc-stat parser's malformed identity, delimiter, state, process
+  group, and resident-page cases from one known-good field prefix. Run the same
+  Zig unit test on macOS and as an AArch64 Linux binary in the already pinned
+  container, keeping Linux parser evidence distinct from the broader process
+  group integration result.
 
 ## Known Limitations
 
@@ -221,6 +236,11 @@ second Store was selected by this lane.
   trace are retained under
   `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r9/`; coverage is
   still incomplete and WP03 is not ready for acceptance.
+- The parser-control test changed `validation_process_darwin.zig` after that
+  aggregate was measured. Its prior 1,162/1,622 result remains valid only for
+  the earlier process-source hash and is not a current aggregate. Rebuild the
+  source map and regenerate the affected Mac/Linux native traces before making
+  another total-coverage claim; the 90% gate remains open.
 - WP03 has not yet completed independent Spec Kitty review, PR review checks, or
   default-main integration. No deployment, model, Source, Store, or
   production-hook qualification is established.
@@ -367,3 +387,16 @@ second Store was selected by this lane.
   The updated measurement receipt is
   `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r9/coverage-summary.json`
   (SHA-256 `85d0754433cb6719a197dc8169516ea47428d187e712d36b54183c141499045a`).
+- The expanded proc-stat parser unit passed on macOS (1/1) and as an
+  `aarch64-linux-musl` test binary in the existing pinned Linux image (1/1).
+  Both complete outputs are retained under
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r9/parser-malformed-controls/`;
+  their SHA-256 is `51367bcf958aaea9dd676c4309e2e342d24bb099f031d03dfcbe2abda24367d0`.
+  The tested source SHA-256 is
+  `4ebb916c0abfebdb7f5fd40685b8564305c9ccdeb16549ac6878844421bf55d4`, and the
+  Linux test executable SHA-256 is
+  `8f9f52abbee41fde877696562cc596f935dcc981d09240a56a98e9da31e53efc`.
+- After the parser test and implementation-log updates, `git diff --check`,
+  `zig fmt --check tools/zig/validation_process_darwin.zig`, and `make docs-lint`
+  passed. Documentation lint reported zero errors and 19 existing changelog
+  length warnings.

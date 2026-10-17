@@ -1071,11 +1071,31 @@ fn groupUsageUsing(pgid: i32, terminal_leader: bool, list: ListProcesses) !Usage
 }
 
 test "Linux proc stat projection handles parentheses and stable field positions" {
-    const parsed = try parseLinuxProcStat("420 (worker ) demo) S 1 420 420 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 77 8192 5 0\n", 420);
+    const resident_prefix = "420 (worker ) demo) S 1 420 420 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 77 8192 ";
+    const parsed = try parseLinuxProcStat(resident_prefix ++ "5 0\n", 420);
     try std.testing.expectEqual(@as(u8, 'S'), parsed.state);
     try std.testing.expectEqual(@as(i32, 420), parsed.process_group);
     try std.testing.expectEqual(@as(u64, 5), parsed.resident_pages);
-    try std.testing.expectError(error.GroupInspectionFailed, parseLinuxProcStat("421 (worker) R 1 420", 420));
+
+    const malformed_rows = [_][]const u8{
+        "420 worker) S 1 420 420 0 -1 0 0 0 0 0 0 0 0 20 0 1 0 77 8192 5 0", // missing command opener
+        "420 (worker S 1 420 420 0 -1 0 0 0 0 0 0 0 0 20 0 1 0 77 8192 5 0", // missing command closer
+        "420 )(worker S 1 420 420 0 -1 0 0 0 0 0 0 0 0 20 0 1 0 77 8192 5 0", // closer precedes opener
+        "420 (worker)", // no state separator or fields
+        "420 (worker)X S 1 420 420 0 -1 0 0 0 0 0 0 0 0 20 0 1 0 77 8192 5 0", // invalid separator
+        "not-a-pid (worker) S 1 420 420 0 -1 0 0 0 0 0 0 0 0 20 0 1 0 77 8192 5 0",
+        "421 (worker) S 1 420 420 0 -1 0 0 0 0 0 0 0 0 20 0 1 0 77 8192 5 0", // wrong PID
+        "420 (worker)  ", // missing state
+        "420 (worker) RUN 1 420 420 0 -1 0 0 0 0 0 0 0 0 20 0 1 0 77 8192 5 0", // multi-byte state
+        "420 (worker) S 1 not-a-pgid 420 0 -1 0 0 0 0 0 0 0 0 20 0 1 0 77 8192 5 0",
+        "420 (worker) S 1", // missing process group
+        resident_prefix ++ "not-pages 0",
+        resident_prefix ++ "-1 0", // negative resident pages
+        resident_prefix, // missing resident pages
+    };
+    for (malformed_rows) |row| {
+        try std.testing.expectError(error.GroupInspectionFailed, parseLinuxProcStat(row, 420));
+    }
 }
 
 const Capture = struct {
