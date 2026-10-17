@@ -2162,6 +2162,11 @@ def test_actual_linux_process_group_and_sampler_worker_ownership(linux_process_b
     assert witness["group_stdout"] == "linux-process-backend" and witness["group_child_terminal"]
     assert witness["worker_pid"] > 1 and witness["worker_exit_code"] == 0 and witness["worker_reaped"]
     assert witness["worker_output"] == "worker-backend"
+    assert witness["invalid_argument_refused"] and witness["invalid_cwd_refused"]
+    assert witness["invalid_environment_refused"] and witness["missing_image_refused"] and witness["denied_image_refused"]
+    assert witness["worker_invalid_argument_refused"] and witness["worker_invalid_environment_refused"]
+    assert witness["worker_missing_image_refused"] and witness["worker_denied_image_refused"]
+    assert witness["worker_signal_reaped"] and witness["worker_usage_processes"] == 1
 
 
 @pytest.mark.integration

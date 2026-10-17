@@ -32,6 +32,24 @@ fn processState(pid: i32) !?u8 {
     return row[close + 2];
 }
 
+fn refusesRun(init: std.process.Init, options: process.Options, expected: anyerror) !bool {
+    const result = process.run(init.arena.allocator(), init.io, options) catch |failure| return failure == expected;
+    defer result.deinit(init.arena.allocator());
+    return false;
+}
+
+fn refusesWorker(
+    init: std.process.Init,
+    argv: []const []const u8,
+    environment: *const std.process.Environ.Map,
+    socket_fd: c_int,
+    expected: anyerror,
+) !bool {
+    var child = process.spawnSamplerWorkerLinux(init.arena.allocator(), init.io, argv, "/", environment, socket_fd, now(init.io) + 3000 * std.time.ns_per_ms, 1000) catch |failure| return failure == expected;
+    defer _ = child.wait(init.io) catch {};
+    return false;
+}
+
 fn writeJson(init: std.process.Init, path: []const u8, value: anytype) !void {
     const bytes = try std.json.Stringify.valueAlloc(init.arena.allocator(), value, .{});
     var file = try std.Io.Dir.cwd().createFile(init.io, path, .{ .exclusive = true, .permissions = .fromMode(0o600) });
@@ -54,6 +72,20 @@ fn exercise(init: std.process.Init) !void {
     const group_child_state = try processState(group_child_pid);
     const group_child_terminal = group_child_state == null or group_child_state.? == 'Z' or group_child_state.? == 'X' or group_child_state.? == 'x';
     if (result.failure != null or result.exit_code != 0 or !result.leader_reaped or !result.group_disposed or result.all_owned_children_terminal or !group_child_terminal or !std.mem.eql(u8, result.stdout, "linux-process-backend")) return error.LinuxProcessGroupControlFailed;
+    const absent_process = try processState(-1);
+    if (absent_process != null) return error.LinuxProcessGroupControlFailed;
+
+    const denied_path = "/output/fixture/denied-image";
+    const denied_image = try std.Io.Dir.cwd().createFile(init.io, denied_path, .{ .exclusive = true, .permissions = .fromMode(0o600) });
+    defer denied_image.close(init.io);
+    try denied_image.writeStreamingAll(init.io, "not an executable image\n");
+    var invalid_environment = std.process.Environ.Map.init(init.arena.allocator());
+    try invalid_environment.put("BAD", "bad\x00value");
+    const invalid_argument_refused = try refusesRun(init, .{ .argv = &.{ "/bin/true", "bad\x00argument" } }, error.InvalidArguments);
+    const invalid_cwd_refused = try refusesRun(init, .{ .argv = &.{"/bin/true"}, .cwd = .{ .path = "/\x00" } }, error.InvalidArguments);
+    const invalid_environment_refused = try refusesRun(init, .{ .argv = &.{"/bin/true"}, .environment = &invalid_environment }, error.InvalidEnvironment);
+    const missing_image_refused = try refusesRun(init, .{ .argv = &.{"/output/fixture/absent-image"} }, error.FileNotFound);
+    const denied_image_refused = try refusesRun(init, .{ .argv = &.{denied_path} }, error.AccessDenied);
 
     var pair: [2]c_int = undefined;
     if (c.socketpair(c.AF_UNIX, c.SOCK_STREAM | c.SOCK_CLOEXEC, 0, &pair) != 0) return error.WorkerSocketFailed;
@@ -63,6 +95,10 @@ fn exercise(init: std.process.Init) !void {
         if (parent_open) _ = c.close(pair[0]);
         if (child_open) _ = c.close(pair[1]);
     }
+    const worker_invalid_argument_refused = try refusesWorker(init, &.{ "/bin/true", "bad\x00argument" }, &environment, pair[1], error.InvalidArguments);
+    const worker_invalid_environment_refused = try refusesWorker(init, &.{"/bin/true"}, &invalid_environment, pair[1], error.InvalidEnvironment);
+    const worker_missing_image_refused = try refusesWorker(init, &.{"/output/fixture/absent-worker"}, &environment, pair[1], error.FileNotFound);
+    const worker_denied_image_refused = try refusesWorker(init, &.{denied_path}, &environment, pair[1], error.AccessDenied);
     const spawned = try process.spawnSamplerWorkerLinux(
         init.arena.allocator(),
         init.io,
@@ -111,6 +147,45 @@ fn exercise(init: std.process.Init) !void {
         }
     };
     if (!worker_eof or !try identity.observe() or !try identity.reap() or identity.exitCode() != 0 or !std.mem.eql(u8, worker_output[0..worker_length], "worker-backend")) return error.LinuxWorkerControlFailed;
+
+    var termination_pair: [2]c_int = undefined;
+    if (c.socketpair(c.AF_UNIX, c.SOCK_STREAM | c.SOCK_CLOEXEC, 0, &termination_pair) != 0) return error.WorkerSocketFailed;
+    defer {
+        _ = c.close(termination_pair[0]);
+        _ = c.close(termination_pair[1]);
+    }
+    const termination_child = try process.spawnSamplerWorkerLinux(
+        init.arena.allocator(),
+        init.io,
+        &.{ "/bin/sleep", "5" },
+        "/",
+        &environment,
+        termination_pair[1],
+        now(init.io) + 3000 * std.time.ns_per_ms,
+        1000,
+    );
+    var terminated = try process.DirectChild.init(@intCast(termination_child.id.?));
+    defer if (terminated.valid()) {
+        terminated.signal(true) catch {};
+        var attempts: usize = 0;
+        while (terminated.valid() and attempts < 1000) : (attempts += 1) {
+            if (terminated.observe() catch false) {
+                _ = terminated.reap() catch false;
+                break;
+            }
+            _ = c.poll(null, 0, 1);
+        }
+    };
+    const terminated_usage = try terminated.usage();
+    try terminated.signal(true);
+    var termination_reaped = false;
+    var termination_attempts: usize = 0;
+    while (!termination_reaped and termination_attempts < 1000) : (termination_attempts += 1) {
+        termination_reaped = try terminated.reap();
+        if (!termination_reaped) _ = c.poll(null, 0, 1);
+    }
+    if (!termination_reaped or !terminated.reaped() or terminated_usage.processes != 1) return error.LinuxWorkerControlFailed;
+
     try writeJson(init, "/output/fixture/process-backend.json", .{
         .executor_pid = c.getpid(),
         .group_child_pid = group_child_pid,
@@ -126,6 +201,17 @@ fn exercise(init: std.process.Init) !void {
         .worker_exit_code = identity.exitCode(),
         .worker_reaped = identity.reaped(),
         .worker_output = worker_output[0..worker_length],
+        .invalid_argument_refused = invalid_argument_refused,
+        .invalid_cwd_refused = invalid_cwd_refused,
+        .invalid_environment_refused = invalid_environment_refused,
+        .missing_image_refused = missing_image_refused,
+        .denied_image_refused = denied_image_refused,
+        .worker_invalid_argument_refused = worker_invalid_argument_refused,
+        .worker_invalid_environment_refused = worker_invalid_environment_refused,
+        .worker_missing_image_refused = worker_missing_image_refused,
+        .worker_denied_image_refused = worker_denied_image_refused,
+        .worker_signal_reaped = terminated.reaped(),
+        .worker_usage_processes = terminated_usage.processes,
     });
 }
 

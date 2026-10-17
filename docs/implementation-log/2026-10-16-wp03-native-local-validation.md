@@ -13,9 +13,10 @@ Implement the owned native sampler lifecycle for WP03/T011, with exact source
 and request binding, a retained direct-child owner across declared commands,
 final sampling and joined stop on success or middle-command failure, and private
 machine-readable evidence. The active lane is `codex/native-local-validation`
-in the existing managed worktree, based on the already-pushed commit
-`eee3b2192`. This functional increment remains unmerged; WP03 acceptance is
-still gated by qualified native statement coverage and independent review.
+in the existing managed worktree; its prior delivered checkpoint is
+`ace117a48`, followed by the current Linux process-backend refusal and
+termination controls. WP03 acceptance remains gated by qualified native
+statement coverage and independent review.
 This log continues the history in
 [`2026-10-12-native-local-validation.md`](../plans/engineering-notes/2026-10-12-native-local-validation.md),
 including its WP03 sampler-lifetime scope coordination.
@@ -106,6 +107,12 @@ second Store was selected by this lane.
   expressions. The collector now separates executable statement bodies from
   value expressions and compile-time controls; a paired compiled sentinel
   checks output and hit multiplicity before relying on those categories.
+- 2026-10-16 — The expanded Linux process probe first exited 139 because its
+  test fixture attempted to insert an invalid environment key, which Zig 0.16
+  asserts against inside `Environ.Map.put` before the process boundary runs.
+  The fixture now constructs a valid key with an embedded NUL in its value, so
+  both command and worker paths exercise their intended `InvalidEnvironment`
+  refusal. The corrected source-bound integration and instrumented probe pass.
 
 ## Engineering Decisions
 
@@ -168,6 +175,11 @@ second Store was selected by this lane.
   treating those expressions as statements. Keep the instrumentation harness
   outside the product tree; it is measurement support, not a new runtime
   capability.
+- 2026-10-16 — Exercise malformed environment values through Zig's supported
+  `Environ.Map.put` API rather than constructing an impossible invalid key.
+  Keep the invalid-input cases paired across Linux command spawning and retained
+  worker spawning, and verify missing-image, denied-image, process-group, signal,
+  usage, and reap behavior in the actual pinned Linux container.
 
 ## Known Limitations
 
@@ -201,9 +213,17 @@ second Store was selected by this lane.
   324 statements. The current harness and its source maps/traces are retained
   under `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r9/` for
   continued investigation; this partial measurement is not WP03 acceptance.
-- The branch has not yet completed independent Spec Kitty review, commit, push,
-  PR, or GitHub review checks. No default-main integration, deployment, model,
-  Source, Store, or production-hook qualification is established.
+- 2026-10-16 — Superseding the 1,082/1,562 partial measurement: after checking
+  that its trace rows reproduce that count, 66 Linux fixture hits tied to the
+  previous fixture source hash were excluded. A fresh instrumented Linux run
+  against the current source map yields 1,162/1,622 statements (71.64%), still
+  298 hits below the required 1,460. The exact current summary and deduplicated
+  trace are retained under
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r9/`; coverage is
+  still incomplete and WP03 is not ready for acceptance.
+- WP03 has not yet completed independent Spec Kitty review, PR review checks, or
+  default-main integration. No deployment, model, Source, Store, or
+  production-hook qualification is established.
 
 ## Validation And Delivery
 
@@ -328,3 +348,22 @@ second Store was selected by this lane.
   independent review before treating WP03 as review-ready. The functional
   modules pass, but the 90% gate remains open; no default-main integration,
   trained adapter, deployment, or production-hook qualification is established.
+
+- Current expanded Linux process-backend controls passed the source-bound
+  `test_actual_linux_process_group_and_sampler_worker_ownership` test (1 passed
+  in 1.50 seconds using a ReleaseSafe `aarch64-linux-musl` binary built from the
+  exact current fixture and process source hashes). Full output is retained at
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r9/linux-process-regular-pass.log`
+  (SHA-256 `1dd964c8df5c6037c0411f6c9e9e4fe0835174af1d26e7bc6476ab6683fe5961`);
+  the source and executable binding is
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r9/linux-process-backend-binding-current.json`.
+- The instrumented copy of that probe also exited zero in the pinned Linux
+  container with joined cleanup. Its current-source witness is
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r9/linux-instrumented/retained-run-r1/output/fixture/process-backend.json`
+  (SHA-256 `6375bcc942a1873606252f6c0e7924b1adc55fa5ad8ea2ce155462117fefc794`)
+  and its trace is
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r9/linux-instrumented/retained-run-r1/output/statement-trace.log`
+  (SHA-256 `d324559ecb24600464b285f511e34d1911ed807c0c37b2bea044c2cd6a641775`).
+  The updated measurement receipt is
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r9/coverage-summary.json`
+  (SHA-256 `85d0754433cb6719a197dc8169516ea47428d187e712d36b54183c141499045a`).
