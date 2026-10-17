@@ -13,9 +13,9 @@ Implement the owned native sampler lifecycle for WP03/T011, with exact source
 and request binding, a retained direct-child owner across declared commands,
 final sampling and joined stop on success or middle-command failure, and private
 machine-readable evidence. The active lane is `codex/native-local-validation`
-in the existing managed worktree; its prior delivered checkpoint is
-`f1cc13e52`; the current increment strengthens Linux `/proc/<pid>/stat`
-malformed-input controls. WP03 acceptance remains gated by qualified native
+in the existing managed worktree; its latest delivered checkpoint is
+`e2e841d0`; the current local increment expands owned-sampler contract tests
+across macOS and Linux. WP03 acceptance remains gated by qualified native
 statement coverage and independent review.
 This log continues the history in
 [`2026-10-12-native-local-validation.md`](../plans/engineering-notes/2026-10-12-native-local-validation.md),
@@ -123,6 +123,14 @@ second Store was selected by this lane.
   depend on WP03. The separate status view confirms WP01/WP02 approved and WP03
   in progress; no status repair or forced transition is needed. This expected
   selector result is easy to mistake for a blocked active package.
+- The standard test IO clock is not guaranteed to advance like the host clock.
+  A new deadline assertion initially compared against a second clock read and
+  failed despite valid sampler behavior; it now compares with the request's
+  captured start time.
+- Zig's multi-module test invocation emitted a macOS binary when the Linux
+  target option followed the root module declarations. File-format inspection
+  caught it before Linux evidence was claimed; the corrected invocation places
+  the target before module declarations.
 
 ## Engineering Decisions
 
@@ -195,6 +203,10 @@ second Store was selected by this lane.
   Zig unit test on macOS and as an AArch64 Linux binary in the already pinned
   container, keeping Linux parser evidence distinct from the broader process
   group integration result.
+- Expand the owned sampler fixture with bounded-attempt, request-binding,
+  commitment-mismatch, duplicate cgroup-output, and invalid-summary cases.
+  Validate the unchanged native contracts on both target platforms; never
+  weaken the executor's embedded-source qualification to obtain coverage.
 
 ## Known Limitations
 
@@ -244,6 +256,12 @@ second Store was selected by this lane.
 - WP03 has not yet completed independent Spec Kitty review, PR review checks, or
   default-main integration. No deployment, model, Source, Store, or
   production-hook qualification is established.
+- The latest verified changed-statement aggregate remains below acceptance at
+  1,219/1,623 (75.11%), 242 hits short of the 90% threshold. A source-equivalent
+  instrumented executor was refused by the existing sampler qualification
+  boundary before worker startup; the measurement harness did not bypass that
+  check. Further coverage work must use owner-compatible source-bound fixtures
+  or improve the approved deterministic inventory path.
 
 ## Validation And Delivery
 
@@ -400,3 +418,21 @@ second Store was selected by this lane.
   `zig fmt --check tools/zig/validation_process_darwin.zig`, and `make docs-lint`
   passed. Documentation lint reported zero errors and 19 existing changelog
   length warnings.
+- 2026-10-16 — The expanded owned-sampler fixture passed 5/5 on macOS and 5/5
+  in the pinned Linux ARM64 image `6b13e377e404ac4a3e8f307f79fa0621893d931bbd73d6c3116bc4a1556e0b2c`.
+  The memory-sampler module passed 5/5 and sampler-lifetime passed 6/6 in that
+  same Linux image. The source-equivalent instrumented native sampler suite
+  passed 334 tests with 29 declared skips in 153.59 seconds; its trace added no
+  new changed-statement hits to the existing aggregate. The aggregate remains
+  1,219/1,623 (75.11%), so WP03 is still in progress. The focused Python test
+  passed 1/1 in 25.47 seconds using the normal source build. Linux logs under
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r10/` have SHA-256
+  `655ad6975b347da97d21a2b4635723fed52f5c602a457c9fa59306b5ef1b954c`,
+  `cec31ae15c450f9ad9c2a9ee6f528f141d3eb1d1881fb99e218d64c4588b3b0b`, and
+  `4ba1e4f048918f677b1e39bdd03847d4d532d81ee9966eaf1b1e1b09292272b9` for the
+  owned fixture, memory module, and lifetime module, respectively. The focused
+  Python log SHA-256 is
+  `87e5a05f0e15d843e787e2abb24e5dc43ca3746603140bbf6fcc704aab89347b`.
+  The fresh source-bound coverage receipt is
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r10/coverage-summary-r10-final.json`
+  (SHA-256 `7e74379a9e0ea66828b8e31d02029097d55447009340215efecf34bd2349da75`).

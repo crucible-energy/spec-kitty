@@ -75,6 +75,30 @@ def request(directory: Path, **changes: Any) -> tuple[Path, dict[str, Any]]:
     return path, value
 
 
+def test_native_owned_sampling_zig_unit_contracts() -> None:
+    result = subprocess.run(
+        [
+            shutil.which("zig") or "zig",
+            "test",
+            "--dep",
+            "sampler",
+            "--dep",
+            "validation_process_darwin.zig",
+            "-Mroot=tests/local_validation/fixtures/native_owned_sampler.zig",
+            "--dep",
+            "validation_process_darwin.zig",
+            "-Msampler=tools/zig/validation_memory_sampler.zig",
+            "-Mvalidation_process_darwin.zig=tools/zig/validation_process_darwin.zig",
+            "-lc",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stderr.decode(errors="replace")
+    assert b"All 5 tests passed" in result.stdout + result.stderr
+
+
 def test_existing_native_entry_and_bound_image_are_usable(sampler_binary: Path, tmp_path: Path) -> None:
     path = tmp_path / "help.json"
     path.write_text(json.dumps({"repository_root": str(ROOT), "argv": ["--help"]}))

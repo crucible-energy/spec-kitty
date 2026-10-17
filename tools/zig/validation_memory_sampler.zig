@@ -1536,3 +1536,84 @@ pub fn appendSummary(init: std.process.Init, path: []const u8, line: []const u8,
     const final_named = (try statAt(dir, leaf)) orelse return error.SamplerOutputDrift;
     if (!same(after, final_named) or final_named.st_size != after.st_size) return error.SamplerOutputDrift;
 }
+
+test "meminfo parser accepts bounded ASCII values and rejects malformed samples" {
+    const valid = try parseUsage("MemTotal: 8192 kB\r\nMemAvailable: 2048 kB\n");
+    try std.testing.expect(valid != null);
+    try std.testing.expectEqual(@as(i128, 8192 * 1024), valid.?.total);
+    try std.testing.expectEqual(@as(i128, 2048 * 1024), valid.?.available);
+    try std.testing.expect((try parseUsage("MemTotal: 4 kB\nOther: 2\n")) == null);
+    try std.testing.expect((try parseUsage("MemTotal: nope kB\nMemAvailable: 1 kB\n")) == null);
+    try std.testing.expectError(error.UnsupportedSamplerEncoding, parseUsage("MemTotal: 1 kB\n\xff"));
+    try std.testing.expectError(error.UnsupportedSamplerValue, parseUsage("MemTotal: 18446744073709551616 kB\nMemAvailable: 1 kB\n"));
+}
+
+test "sampler requests enforce exact fields, ranges, and safe paths" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const request = try requestBytes(a, "{\"schema_version\":1,\"destination\":\"/tmp/out\",\"proc_root\":\"/proc\",\"interval_ms\":10,\"max_samples\":2,\"wall_ms\":1000}");
+    try std.testing.expectEqual(@as(u32, 2), request.max_samples);
+    for ([_][]const u8{
+        "[]",
+        "{}",
+        "{\"schema_version\":1,\"schema_version\":1,\"destination\":\"/tmp/out\",\"proc_root\":\"/proc\",\"interval_ms\":10,\"max_samples\":2,\"wall_ms\":1000}",
+        "{\"schema_version\":1,\"destination\":\"/tmp/out\",\"proc_root\":\"/proc\",\"interval_ms\":10,\"max_samples\":0,\"wall_ms\":1000}",
+        "{\"schema_version\":1,\"destination\":\"/tmp/out\",\"proc_root\":\"/proc\",\"interval_ms\":60001,\"max_samples\":2,\"wall_ms\":1000}",
+    }) |raw| try std.testing.expectError(error.InvalidSamplerRequest, requestBytes(a, raw));
+    try std.testing.expectError(error.InvalidSamplerPath, requestBytes(a, "{\"schema_version\":1,\"destination\":\"/tmp/../out\",\"proc_root\":\"/proc\",\"interval_ms\":10,\"max_samples\":2,\"wall_ms\":1000}"));
+}
+
+test "cgroup request and membership values reject ambiguous input" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const request = try cgroupRequestBytes(a, "{\"schema_version\":1,\"proc_root\":\"/proc\",\"sys_root\":\"/sys\",\"wall_ms\":500}");
+    try std.testing.expectEqual(@as(u32, 500), request.wall_ms);
+    try std.testing.expectError(error.InvalidCgroupRequest, cgroupRequestBytes(a, "{\"schema_version\":1,\"proc_root\":\"/proc\",\"sys_root\":\"/sys\",\"wall_ms\":0}"));
+    try std.testing.expectEqualStrings("/tenant/job", (try cgroupSuffix("5:cpu:/tenant/job\n0::/tenant/job\n")).?);
+    try std.testing.expect((try cgroupSuffix("5:cpu:/tenant/job\n")) == null);
+    try std.testing.expectError(error.UnsupportedCgroupEncoding, cgroupSuffix("0::/bad\xff"));
+    try std.testing.expectEqual(@as(?u64, 42), try cgroupValue(" \t42\r\n"));
+    try std.testing.expect((try cgroupValue("not-a-number")) == null);
+    try std.testing.expectError(error.UnsupportedCgroupEncoding, cgroupValue("\xff"));
+    try std.testing.expectError(error.UnsupportedCgroupValue, cgroupValue("18446744073709551616"));
+}
+
+test "report parsers preserve JSON boundaries and owner-neutral unavailable values" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    try std.testing.expectError(error.UnsupportedSamplerEncoding, reportDomain("\xff"));
+    try std.testing.expectError(error.UnsupportedReportValue, reportDomain("NaN"));
+    try std.testing.expectError(error.UnsupportedReportValue, reportDomain("[" ** 65 ++ "0" ++ "]" ** 65));
+    try std.testing.expect((try reportJson(a, "{\"x\":1,\"x\":2}", false)) == null);
+    const duplicate = (try reportJson(a, "{\"x\":1,\"x\":2}", true)).?;
+    try std.testing.expectEqualStrings("2", duplicate.object.get("x").?.number_string);
+    try std.testing.expectError(error.InvalidReportRequest, reportRequestBytes(a, "{}"));
+    const request = try reportRequestBytes(a, "{\"schema_version\":1,\"state_path\":\"/tmp/state\",\"cgroup_path\":null,\"warn_bytes\":10,\"error_bytes\":20,\"wall_ms\":100}");
+    try std.testing.expectEqual(@as(u64, 20), request.error_bytes);
+    const state = (try reportState(a, "{\"baseline_bytes\":10,\"peak_bytes\":15,\"samples\":2,\"pid\":7,\"elapsed_seconds\":-0.0,\"source\":\"meminfo\"}")).?;
+    try std.testing.expectEqual(@as(i128, 15), state.peak);
+    try std.testing.expect(std.math.signbit(state.elapsed));
+    try std.testing.expect((try reportState(a, null)) == null);
+    try std.testing.expect((try reportState(a, "{\"baseline_bytes\":1,\"peak_bytes\":2,\"samples\":1,\"pid\":7,\"elapsed_seconds\":\"bad\",\"source\":\"meminfo\"}")) == null);
+    try std.testing.expectError(error.UnsupportedReportValue, reportState(a, "{\"baseline_bytes\":1,\"peak_bytes\":2,\"samples\":1,\"pid\":7,\"elapsed_seconds\":1e9999,\"source\":\"meminfo\"}"));
+    try std.testing.expectEqual(@as(?u64, null), try reportCgroup(a, "{\"schema_version\":1,\"source\":\"unavailable\",\"peak_bytes\":null}"));
+    try std.testing.expectEqual(@as(?u64, 42), try reportCgroup(a, "{\"schema_version\":1,\"source\":\"cgroup-v2-memory-peak\",\"peak_bytes\":42}"));
+    try std.testing.expectError(error.InvalidCgroupResult, reportCgroup(a, "{}"));
+}
+
+test "report formatting rounds deterministically at fixed and threshold boundaries" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    try std.testing.expectEqualStrings("1.50", try reportFixed(a, 1.5, 2));
+    try std.testing.expectEqualStrings("-0.00", try reportFixed(a, -0.0, 2));
+    try std.testing.expectError(error.UnsupportedReportValue, reportFixed(a, std.math.nan(f64), 2));
+    try std.testing.expectError(error.UnsupportedReportValue, reportFixed(a, 1.0, 41));
+    try std.testing.expectEqualStrings("0", try reportThreshold(a, 0));
+    try std.testing.expectEqualStrings("9.31323e-10", try reportThreshold(a, 1));
+    try std.testing.expectEqualStrings("1", try reportThreshold(a, 1073741824));
+    try std.testing.expectEqualStrings("1e+06", try reportThreshold(a, 1073741824 * 1_000_000));
+}

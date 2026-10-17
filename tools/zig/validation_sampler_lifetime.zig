@@ -377,3 +377,112 @@ pub fn workerCommand(init: std.process.Init, path: []const u8) !u8 {
     try within(init.io, deadline);
     return 0;
 }
+
+fn testProcessInit(arena: *std.heap.ArenaAllocator, environment: *std.process.Environ.Map) std.process.Init {
+    return .{ .minimal = undefined, .arena = arena, .gpa = arena.child_allocator, .io = std.testing.io, .environ_map = environment, .preopens = undefined };
+}
+
+test "worker frames reject malformed, ambiguous, and mistyped JSON" {
+    const Envelope = struct { command: []const u8, schema_version: u8 };
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const valid = try frame(Envelope, a, "{\"command\":\"start\\\"quoted\",\"schema_version\":1}");
+    try std.testing.expectEqualStrings("start\"quoted", valid.command);
+    for ([_][]const u8{
+        "}",
+        "{",
+        "[]",
+        "{}",
+        "{\"command\":\"start\",\"schema_version\":1,\"extra\":true}",
+        "{\"unexpected\":true,\"schema_version\":1}",
+        "{\"command\":\"start\",\"schema_version\":1,\"command\":\"stop\"}",
+        "{\"command\":\"start\",\"schema_version\":\"1\"}",
+        "{\"command\":\"start\",\"schema_version\":999}",
+    }) |raw| try std.testing.expectError(error.SamplerProtocolRefused, frame(Envelope, a, raw));
+    var deeply_nested: std.ArrayList(u8) = .empty;
+    try deeply_nested.appendSlice(a, "[" ** 17 ++ "0" ++ "]" ** 17);
+    try std.testing.expectError(error.SamplerProtocolRefused, frame(Envelope, a, deeply_nested.items));
+}
+
+test "worker reader accepts fragmented frames and refuses truncation and coalescing" {
+    var pair: [2]c_int = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), c.socketpair(c.AF_UNIX, c.SOCK_STREAM, 0, &pair));
+    defer _ = c.close(pair[0]);
+    defer _ = c.close(pair[1]);
+    const flags = c.fcntl(pair[0], c.F_GETFL);
+    try std.testing.expect(flags >= 0);
+    try std.testing.expectEqual(@as(c_int, 0), c.fcntl(pair[0], c.F_SETFL, flags | c.O_NONBLOCK));
+    var reader: Reader = .{};
+    try std.testing.expect((try reader.read(pair[0])) == null);
+    try std.testing.expectEqual(@as(isize, 1), c.send(pair[1], "{", 1, 0));
+    try std.testing.expect((try reader.read(pair[0])) == null);
+    try std.testing.expectEqual(@as(isize, 2), c.send(pair[1], "}\n", 2, 0));
+    try std.testing.expectEqualStrings("{}", (try reader.read(pair[0])).?);
+    try std.testing.expectEqual(@as(isize, 4), c.send(pair[1], "{}\n{}", 4, 0));
+    try std.testing.expectError(error.SamplerProtocolRefused, reader.read(pair[0]));
+}
+
+test "worker reader rejects empty and oversized frames and detects peer loss" {
+    var pair: [2]c_int = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), c.socketpair(c.AF_UNIX, c.SOCK_STREAM, 0, &pair));
+    var reader: Reader = .{};
+    try std.testing.expectEqual(@as(isize, 1), c.send(pair[1], "\n", 1, 0));
+    try std.testing.expectError(error.SamplerProtocolRefused, reader.read(pair[0]));
+    _ = c.close(pair[0]);
+    _ = c.close(pair[1]);
+
+    try std.testing.expectEqual(@as(c_int, 0), c.socketpair(c.AF_UNIX, c.SOCK_STREAM, 0, &pair));
+    reader = .{};
+    var oversized: [max_frame + 1]u8 = @splat('x');
+    try std.testing.expectEqual(@as(isize, max_frame + 1), c.send(pair[1], &oversized, oversized.len, 0));
+    try std.testing.expectError(error.SamplerProtocolRefused, reader.read(pair[0]));
+    _ = c.close(pair[0]);
+    _ = c.close(pair[1]);
+
+    try std.testing.expectEqual(@as(c_int, 0), c.socketpair(c.AF_UNIX, c.SOCK_STREAM, 0, &pair));
+    _ = c.close(pair[1]);
+    reader = .{};
+    try std.testing.expectError(error.SamplerOwnerLost, reader.read(pair[0]));
+    _ = c.close(pair[0]);
+}
+
+test "worker deadline and commitment text remain bounded" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    try std.testing.expect(digestText("0123456789abcdef" ** 4));
+    try std.testing.expect(!digestText("0123456789abcdef"));
+    try std.testing.expect(!digestText("0123456789abcdef" ** 3 ++ "G" ++ "0123456789abcdef"));
+    try std.testing.expectError(error.SamplerProtocolRefused, deadlineValue("", std.testing.io));
+    try std.testing.expectError(error.SamplerProtocolRefused, deadlineValue("123456789012345678901234567890", std.testing.io));
+    try std.testing.expectError(error.SamplerProtocolRefused, deadlineValue("12x", std.testing.io));
+    try std.testing.expectError(error.SamplerProtocolRefused, deadlineValue("0", std.testing.io));
+    try std.testing.expectError(error.OperationDeadlineExceeded, deadlineValue("1", std.testing.io));
+    const too_far = now(std.testing.io) + 3_600_001 * std.time.ns_per_ms;
+    const too_far_encoded = try std.fmt.allocPrint(a, "{d}", .{too_far});
+    try std.testing.expectError(error.SamplerProtocolRefused, deadlineValue(too_far_encoded, std.testing.io));
+    const future = now(std.testing.io) + std.time.ns_per_s;
+    const encoded = try std.fmt.allocPrint(a, "{d}", .{future});
+    try std.testing.expectEqual(future, try deadlineValue(encoded, std.testing.io));
+}
+
+test "worker sender emits one bounded frame and refuses expired or oversized requests" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var environment = std.process.Environ.Map.init(arena.allocator());
+    const init = testProcessInit(&arena, &environment);
+    var pair: [2]c_int = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), c.socketpair(c.AF_UNIX, c.SOCK_STREAM, 0, &pair));
+    defer _ = c.close(pair[0]);
+    defer _ = c.close(pair[1]);
+    try send(init, pair[0], .{ .event = "ready" }, now(init.io) + std.time.ns_per_s);
+    var received: [64]u8 = undefined;
+    const count = c.recv(pair[1], @ptrCast(&received), received.len, 0);
+    try std.testing.expect(count > 0);
+    try std.testing.expectEqualStrings("{\"event\":\"ready\"}\n", received[0..@intCast(count)]);
+    try std.testing.expectError(error.OperationDeadlineExceeded, send(init, pair[0], .{ .event = "late" }, now(init.io) - 1));
+    const oversized = "x" ** max_frame;
+    try std.testing.expectError(error.SamplerProtocolRefused, send(init, pair[0], .{ .payload = oversized }, now(init.io) + std.time.ns_per_s));
+    try std.testing.expectError(error.SamplerProtocolRefused, send(init, -1, .{ .event = "invalid-fd" }, now(init.io) + std.time.ns_per_s));
+}
