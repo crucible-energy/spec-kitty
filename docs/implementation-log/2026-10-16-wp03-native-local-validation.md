@@ -14,7 +14,7 @@ and request binding, a retained direct-child owner across declared commands,
 final sampling and joined stop on success or middle-command failure, and private
 machine-readable evidence. The active lane is `codex/native-local-validation`
 in the existing managed worktree; its latest delivered checkpoint is
-`e2e841d0`; the current local increment expands owned-sampler contract tests
+`fbb7b2a1`; the current local increment expands owned-sampler contract tests
 across macOS and Linux. WP03 acceptance remains gated by qualified native
 statement coverage and independent review.
 This log continues the history in
@@ -131,6 +131,12 @@ second Store was selected by this lane.
   target option followed the root module declarations. File-format inspection
   caught it before Linux evidence was claimed; the corrected invocation places
   the target before module declarations.
+- The instrumented execution harness uses a source-transformed executable as
+  both binder and runner, while its staged files and qualification can describe
+  the original source closure. Generic `UnqualifiedProducer`,
+  `NativeSourceMismatch`, and `InputDrift` errors obscure that difference and
+  cost repeated setup; future harnesses should separate the binder and runner
+  while pinning both closures explicitly.
 
 ## Engineering Decisions
 
@@ -207,6 +213,11 @@ second Store was selected by this lane.
   commitment-mismatch, duplicate cgroup-output, and invalid-summary cases.
   Validate the unchanged native contracts on both target platforms; never
   weaken the executor's embedded-source qualification to obtain coverage.
+- 2026-10-16 — A temporary producer path can be normalized without changing
+  policy, but the test binary, binder, process-source digest, and staged
+  producer closure must still describe the same bytes. The r13 execution
+  attempts exposed mismatched source closures, so their traces are excluded
+  from the acceptance aggregate.
 
 ## Known Limitations
 
@@ -262,6 +273,19 @@ second Store was selected by this lane.
   boundary before worker startup; the measurement harness did not bypass that
   check. Further coverage work must use owner-compatible source-bound fixtures
   or improve the approved deterministic inventory path.
+- 2026-10-16 — Freshly rebuilt the ReleaseSafe native statement collector
+  (binary SHA-256 `106bc45c5a165291bbde438243343f2619f237ce6f14da456f0e07a11264f250`)
+  and verified all seven current source files. Their source hashes and selected
+  statement node identities match the saved r10 denominator exactly: 1,623
+  changed statements. This validates the denominator inputs, not trace
+  completeness or the 90% acceptance gate.
+- 2026-10-16 — The focused instrumented execution case still did not produce a
+  passing run after path normalization. The last retained attempt is
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r13/execution-ordinary-current-source-bind.log`
+  (SHA-256 `f37f6773ea45ed96cb5f52b3f035644cd38fa38682f70ef9c3dcaa5464e3e280`).
+  Failed-run traces are excluded from the coverage total. The instrumented
+  sampler rerun reproduced its previous trace and added no changed-statement
+  hits, so it is not a useful repeat.
 
 ## Validation And Delivery
 
@@ -436,3 +460,10 @@ second Store was selected by this lane.
   The fresh source-bound coverage receipt is
   `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r10/coverage-summary-r10-final.json`
   (SHA-256 `7e74379a9e0ea66828b8e31d02029097d55447009340215efecf34bd2349da75`).
+- 2026-10-16 — Fresh source-bound inventory comparison is retained under
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r12/current-inventory-comparison.json`
+  (SHA-256 `d235ff7f9e753d4e29a216ad14480857451357839be76044ad496e42a228179d`).
+  All seven files were accepted, each source hash matched, and every selected
+  node ID was present in current native inventory output. The 1,219/1,623 result
+  remains partial; WP03 still needs valid additional coverage, independent
+  review, and the remaining platform and entry qualification gates.
