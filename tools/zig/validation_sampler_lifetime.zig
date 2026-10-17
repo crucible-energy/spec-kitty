@@ -382,6 +382,22 @@ fn testProcessInit(arena: *std.heap.ArenaAllocator, environment: *std.process.En
     return .{ .minimal = undefined, .arena = arena, .gpa = arena.child_allocator, .io = std.testing.io, .environ_map = environment, .preopens = undefined };
 }
 
+test "supervisor reaps a worker that exits before its readiness acknowledgement" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var environment = std.process.Environ.Map.init(arena.allocator());
+    const init = testProcessInit(&arena, &environment);
+    const deadline = now(init.io) + 5 * std.time.ns_per_s;
+
+    const unexpected = Supervisor.start(init, &.{"/usr/bin/true"}, "/", &environment, deadline, 1000) catch |failure| {
+        try std.testing.expect(failure == error.SamplerOwnerLost or failure == error.SamplerProtocolRefused);
+        return;
+    };
+    var active = unexpected;
+    defer active.dispose(init.io) catch {};
+    return error.UnexpectedWorkerReady;
+}
+
 test "worker frames reject malformed, ambiguous, and mistyped JSON" {
     const Envelope = struct { command: []const u8, schema_version: u8 };
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);

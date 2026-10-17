@@ -144,6 +144,11 @@ second Store was selected by this lane.
 - The system Python on this Mac has no pytest installation. The repository's
   locked `uv run --frozen` environment is the supported route and passed the
   focused source-bound integration test.
+- The readiness-failure case reports `SamplerOwnerLost` on macOS and
+  `SamplerProtocolRefused` on Linux for the same child exit before the worker
+  acknowledgement. The first platform-specific assertion obscured this
+  stable refusal boundary; the test now accepts either defined error while
+  requiring that startup never succeeds.
 
 ## Engineering Decisions
 
@@ -230,6 +235,9 @@ second Store was selected by this lane.
   focused API-boundary tests; their only new measured hits are the two
   diagnostics-path rejection statements, while the summary-input rejection
   statements were already covered by prior traces.
+- Add an owned-worker startup failure case using a short-lived local child.
+  Require a refusal before readiness on both platforms and keep the test's
+  accepted error set limited to the two observed protocol/ownership outcomes.
 
 ## Known Limitations
 
@@ -302,6 +310,9 @@ second Store was selected by this lane.
   with 240 more selected statements required to reach 1,461/1,623 (90%). The
   two new diagnostics-path hits are real but do not materially close the gate;
   WP03 remains incomplete and the result is not acceptance evidence.
+- 2026-10-16 — The owner-cleanup test adds 14 newly covered statements, bringing
+  the source-bound aggregate to 1,235/1,623 (76.0937%). Another 226 selected
+  statements remain to reach 90%; no acceptance or review-ready claim follows.
 
 ## Validation And Delivery
 
@@ -496,3 +507,14 @@ second Store was selected by this lane.
   `make docs-lint` passed with zero errors and 19 existing changelog-length
   warnings; formatting and `git diff --check` passed. This remains partial
   WP03 evidence; independent review and the 90% gate are still outstanding.
+- 2026-10-16 — Five instrumented recipe drift/cancellation cases passed on
+  macOS but added no new selected statements. The worker-readiness failure test
+  passed 7/7 on macOS and Linux/arm64 and added 14 statements (13 in sampler
+  lifetime control, one in process supervision). Full outputs and current
+  source map are retained at
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r14/focused-validation-r14-lifecycle.log`
+  (SHA-256 `e754431b59cc3ffe0391bd5ba30526d5535329dac5656e221f146cf146e04fa3`)
+  and `coverage-summary-r14-lifecycle.json` (SHA-256
+  `bc3bd9968bb6b5cf9d1d08b77ececbf94d46aacb1a6a7aaf8970650b6ebe47ff`).
+  The 1,235/1,623 result remains partial; WP03 still needs 226 additional
+  selected hits, independent review, and the remaining platform and entry gates.
