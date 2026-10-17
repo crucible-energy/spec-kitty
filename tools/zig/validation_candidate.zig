@@ -4,6 +4,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const file_io_c = if (builtin.os.tag == .macos or builtin.os.tag == .linux) @cImport({
+    // Zig calls use explicit open/openat arities; glibc's C-call-site-only
+    // fortify wrappers confuse Zig's C header translator.
+    @cDefine("_FORTIFY_SOURCE", "0");
     @cInclude("errno.h");
     @cInclude("fcntl.h");
     @cInclude("sys/stat.h");

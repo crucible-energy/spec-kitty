@@ -6,6 +6,9 @@ const sampler = @import("validation_memory_sampler.zig");
 const process = @import("validation_process_darwin.zig");
 const c = @cImport({
     @cDefine("_GNU_SOURCE", "1");
+    // Zig calls use explicit open/openat arities; glibc's C-call-site-only
+    // fortify wrappers confuse Zig's C header translator.
+    @cDefine("_FORTIFY_SOURCE", "0");
     @cInclude("sys/socket.h");
     @cInclude("sys/un.h");
     @cInclude("unistd.h");
@@ -124,7 +127,11 @@ fn workerChannel() !void {
     try sampler.verifyWorkerChannel();
     var address: c.struct_sockaddr_un = std.mem.zeroes(c.struct_sockaddr_un);
     var length: c.socklen_t = @sizeOf(@TypeOf(address));
-    if (c.getpeername(0, @ptrCast(&address), &length) != 0 or address.sun_family != c.AF_UNIX) return error.SamplerOwnerRequired;
+    const peer_result = if (@hasDecl(c, "__SOCKADDR_ARG")) blk: {
+        const peer_argument: c.__SOCKADDR_ARG = .{ .__sockaddr_un__ = @ptrCast(&address) };
+        break :blk c.getpeername(0, peer_argument, &length);
+    } else c.getpeername(0, @ptrCast(&address), &length);
+    if (peer_result != 0 or address.sun_family != c.AF_UNIX) return error.SamplerOwnerRequired;
     for ([_]c_int{ 0, 1 }) |fd| {
         const flags = c.fcntl(fd, c.F_GETFL);
         if (flags < 0 or c.fcntl(fd, c.F_SETFL, flags | c.O_NONBLOCK) != 0) return error.SamplerProtocolRefused;

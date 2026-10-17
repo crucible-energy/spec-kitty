@@ -7,6 +7,8 @@ const std = @import("std");
 const builtin = @import("builtin");
 const owner = @import("validation_process_darwin.zig");
 const c = @cImport({
+    // Calls originate in Zig with checked argument counts, not fortified C.
+    @cDefine("_FORTIFY_SOURCE", "0");
     @cInclude("sys/stat.h");
     @cInclude("unistd.h");
     @cInclude("fcntl.h");

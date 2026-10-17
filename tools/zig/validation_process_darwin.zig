@@ -33,6 +33,9 @@ const c = if (builtin.os.tag == .macos) @cImport({
     @cInclude("signal.h");
 }) else if (builtin.os.tag == .linux) @cImport({
     @cDefine("_GNU_SOURCE", "1");
+    // Zig calls use explicit open/openat arities; glibc's C-call-site-only
+    // fortify wrappers confuse Zig's C header translator.
+    @cDefine("_FORTIFY_SOURCE", "0");
     @cInclude("sys/wait.h");
     @cInclude("sys/types.h");
     @cInclude("sys/stat.h");
@@ -338,6 +341,8 @@ const SignalBridge = struct {
         var action = std.mem.zeroes(c.struct_sigaction);
         if (builtin.os.tag == .macos) {
             action.__sigaction_u.__sa_handler = cancellationSignal;
+        } else if (@hasField(c.struct_sigaction, "__sigaction_handler")) {
+            action.__sigaction_handler.sa_handler = cancellationSignal;
         } else {
             action.__sa_handler.sa_handler = cancellationSignal;
         }
