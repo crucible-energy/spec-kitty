@@ -122,6 +122,27 @@ fn validBudget(limits: Limits) bool {
     return limits.wall_ms != 0 and limits.wall_ms <= 3_600_000 and limits.cleanup_ms != 0 and limits.cleanup_ms <= 5000 and limits.stdout_bytes <= 16 * 1024 * 1024 and limits.stderr_bytes <= 16 * 1024 * 1024 and limits.processes != 0 and limits.processes <= 64 and limits.resident_bytes != 0;
 }
 
+pub fn validateSpawnInputs(argv_values: []const []const u8, environment_map: ?*const std.process.Environ.Map) !void {
+    if (argv_values.len == 0) return error.InvalidArguments;
+    for (argv_values) |argument| if (std.mem.indexOfScalar(u8, argument, 0) != null) return error.InvalidArguments;
+    if (environment_map) |environment| for (environment.keys(), environment.values()) |key, value| {
+        if (key.len == 0 or std.mem.indexOfScalar(u8, key, '=') != null or std.mem.indexOfScalar(u8, key, 0) != null or std.mem.indexOfScalar(u8, value, 0) != null) return error.InvalidEnvironment;
+    };
+}
+
+test "spawn input validation refuses malformed arguments and values" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    try std.testing.expectError(error.InvalidArguments, validateSpawnInputs(&.{}, null));
+    try std.testing.expectError(error.InvalidArguments, validateSpawnInputs(&.{ "/usr/bin/true", "bad\x00argument" }, null));
+
+    var nul_value_environment = std.process.Environ.Map.init(allocator);
+    try nul_value_environment.put("BAD", "bad\x00value");
+    try std.testing.expectError(error.InvalidEnvironment, validateSpawnInputs(&.{"/usr/bin/true"}, &nul_value_environment));
+}
+
 fn validateOptions(io: std.Io, options: Options) !void {
     if (options.argv.len == 0 or !std.fs.path.isAbsolute(options.argv[0]) or !validBudget(options.limits)) return error.InvalidProcessBudget;
     if ((options.stdout_sink == null) != (options.stderr_sink == null)) return error.InvalidLogSink;
@@ -508,19 +529,16 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
 // the syscall; every unsuccessful attempt closes its exact parent descriptors.
 fn spawnOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, deadline: i96, scope: ?*CheckScope) !std.process.Child {
     if (comptime builtin.os.tag == .linux) return spawnOwnedLinux(allocator, io, options, deadline, scope);
+    try validateSpawnInputs(options.argv, options.environment);
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const temporary = arena.allocator();
     const argv = try temporary.allocSentinel(?[*:0]u8, options.argv.len, null);
     for (options.argv, 0..) |argument, index| {
-        if (std.mem.indexOfScalar(u8, argument, 0) != null) return error.InvalidArguments;
         argv[index] = (try temporary.dupeZ(u8, argument)).ptr;
     }
     var inherited: [*c]const [*c]u8 = c._NSGetEnviron().*;
     if (options.environment) |environment| {
-        for (environment.keys(), environment.values()) |key, value| {
-            if (key.len == 0 or std.mem.indexOfScalar(u8, key, '=') != null or std.mem.indexOfScalar(u8, key, 0) != null or std.mem.indexOfScalar(u8, value, 0) != null) return error.InvalidEnvironment;
-        }
         const block = try environment.createPosixBlock(temporary, .{});
         inherited = @ptrCast(block.slice.ptr);
     }
@@ -578,19 +596,16 @@ fn spawnOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, deadli
 }
 
 fn spawnOwnedLinux(allocator: std.mem.Allocator, io: std.Io, options: Options, deadline: i96, scope: ?*CheckScope) !std.process.Child {
+    try validateSpawnInputs(options.argv, options.environment);
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const temporary = arena.allocator();
     const argv = try temporary.allocSentinel(?[*:0]u8, options.argv.len, null);
     for (options.argv, 0..) |argument, index| {
-        if (std.mem.indexOfScalar(u8, argument, 0) != null) return error.InvalidArguments;
         argv[index] = (try temporary.dupeZ(u8, argument)).ptr;
     }
     var environment: [*c]const [*c]u8 = @ptrCast(std.c.environ);
     if (options.environment) |map| {
-        for (map.keys(), map.values()) |key, value| {
-            if (key.len == 0 or std.mem.indexOfScalar(u8, key, '=') != null or std.mem.indexOfScalar(u8, key, 0) != null or std.mem.indexOfScalar(u8, value, 0) != null) return error.InvalidEnvironment;
-        }
         const block = try map.createPosixBlock(temporary, .{});
         environment = @ptrCast(block.slice.ptr);
     }
@@ -662,16 +677,13 @@ pub fn spawnSamplerWorkerLinux(allocator: std.mem.Allocator, io: std.Io, argv_va
     if (comptime builtin.os.tag != .linux) return error.PlatformUnsupported;
     if (cleanup_ms == 0 or cleanup_ms > 5000) return error.InvalidProcessBudget;
     if (now(io) >= deadline) return error.OperationDeadlineExceeded;
+    try validateSpawnInputs(argv_values, environment_map);
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const temporary = arena.allocator();
     const argv = try temporary.allocSentinel(?[*:0]u8, argv_values.len, null);
     for (argv_values, 0..) |argument, index| {
-        if (std.mem.indexOfScalar(u8, argument, 0) != null) return error.InvalidArguments;
         argv[index] = (try temporary.dupeZ(u8, argument)).ptr;
-    }
-    for (environment_map.keys(), environment_map.values()) |key, value| {
-        if (key.len == 0 or std.mem.indexOfScalar(u8, key, '=') != null or std.mem.indexOfScalar(u8, key, 0) != null or std.mem.indexOfScalar(u8, value, 0) != null) return error.InvalidEnvironment;
     }
     const environment = try environment_map.createPosixBlock(temporary, .{});
     const cwd_z = try temporary.dupeZ(u8, cwd);

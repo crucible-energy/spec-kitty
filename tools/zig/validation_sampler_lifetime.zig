@@ -191,6 +191,7 @@ pub const Supervisor = struct {
 
     pub fn start(init: std.process.Init, argv: []const []const u8, cwd: []const u8, environment: *const std.process.Environ.Map, deadline: i96, cleanup_ms: u32) !Supervisor {
         if (builtin.os.tag != .macos and builtin.os.tag != .linux) return error.PlatformUnsupported;
+        try process.validateSpawnInputs(argv, environment);
         try within(init.io, deadline);
         var pair: [2]c_int = undefined;
         if (c.socketpair(c.AF_UNIX, c.SOCK_STREAM, 0, &pair) != 0) return error.SamplerProtocolRefused;
@@ -396,6 +397,37 @@ test "supervisor reaps a worker that exits before its readiness acknowledgement"
     var active = unexpected;
     defer active.dispose(init.io) catch {};
     return error.UnexpectedWorkerReady;
+}
+
+test "supervisor refuses expired starts, missing workers, and invalid environments" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var environment = std.process.Environ.Map.init(allocator);
+    const init = testProcessInit(&arena, &environment);
+    const future = now(init.io) + 5 * std.time.ns_per_s;
+
+    try std.testing.expectError(
+        error.OperationDeadlineExceeded,
+        Supervisor.start(init, &.{"/usr/bin/true"}, "/", &environment, now(init.io) - 1, 1000),
+    );
+
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const temp_relative = try std.fmt.allocPrint(allocator, ".zig-cache/tmp/{s}", .{tmp.sub_path});
+    const temp_root = try std.Io.Dir.cwd().realPathFileAlloc(init.io, temp_relative, allocator);
+    const missing_worker = try std.fs.path.join(allocator, &.{ temp_root, "missing-sampler-worker" });
+    try std.testing.expectError(
+        error.FileNotFound,
+        Supervisor.start(init, &.{missing_worker}, "/", &environment, future, 1000),
+    );
+
+    var invalid_environment = std.process.Environ.Map.init(allocator);
+    try invalid_environment.put("BAD", "bad\x00value");
+    try std.testing.expectError(
+        error.InvalidEnvironment,
+        Supervisor.start(init, &.{"/usr/bin/true"}, "/", &invalid_environment, future, 1000),
+    );
 }
 
 test "worker frames reject malformed, ambiguous, and mistyped JSON" {

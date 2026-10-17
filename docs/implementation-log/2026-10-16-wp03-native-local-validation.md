@@ -14,9 +14,10 @@ and request binding, a retained direct-child owner across declared commands,
 final sampling and joined stop on success or middle-command failure, and private
 machine-readable evidence. The active lane is `codex/native-local-validation`
 in the existing managed worktree; its latest delivered checkpoint is
-`fbb7b2a1`; the current local increment expands owned-sampler contract tests
-across macOS and Linux. WP03 acceptance remains gated by qualified native
-statement coverage and independent review.
+`16b8cfbc9a2048564ee5fb0254e5ccf3aa904abf`; the current local increment makes
+spawn-input refusal consistent across macOS and Linux and extends its contract
+tests. WP03 acceptance remains gated by qualified native statement coverage and
+independent review.
 This log continues the history in
 [`2026-10-12-native-local-validation.md`](../plans/engineering-notes/2026-10-12-native-local-validation.md),
 including its WP03 sampler-lifetime scope coordination.
@@ -149,6 +150,15 @@ second Store was selected by this lane.
   acknowledgement. The first platform-specific assertion obscured this
   stable refusal boundary; the test now accepts either defined error while
   requiring that startup never succeeds.
+- 2026-10-16 — A NUL-containing environment value was rejected before spawn on
+  Linux but accepted by macOS `std.process.spawn`, where it later surfaced as
+  `SamplerOwnerLost`. The late error concealed malformed input as a worker
+  failure; the shared pre-spawn check now refuses the value on both platforms.
+- The first full instrumented execution run reported 42 passes and 69 setup
+  errors because its temporary harness omitted four unchanged Zig imports.
+  Supplying that exact import closure allowed the remaining cases to run. Two
+  exact-source-closure tests correctly refused the transformed test binary and
+  then passed against the ordinary source build.
 
 ## Engineering Decisions
 
@@ -238,6 +248,16 @@ second Store was selected by this lane.
 - Add an owned-worker startup failure case using a short-lived local child.
   Require a refusal before readiness on both platforms and keep the test's
   accepted error set limited to the two observed protocol/ownership outcomes.
+- Validate argv and environment once at the shared process boundary before
+  platform-specific spawn setup, and call it before sampler socket creation.
+  Keep the checks in the macOS/Linux process paths and Linux worker path aligned.
+  Zig 0.16's `Environ.Map.put` asserts on malformed keys, so tests use representable
+  invalid values and arguments instead of triggering that assertion before the
+  boundary under test.
+- 2026-10-16 — Reconcile old trace IDs for the modified process and sampler
+  files only when exact statement bytes, AST tag, origin flags, and enclosing
+  function/test produce one unique match. Discard ambiguous, deleted, or changed
+  statements rather than carrying source-stale hits forward.
 
 ## Known Limitations
 
@@ -313,6 +333,12 @@ second Store was selected by this lane.
 - 2026-10-16 — The owner-cleanup test adds 14 newly covered statements, bringing
   the source-bound aggregate to 1,235/1,623 (76.0937%). Another 226 selected
   statements remain to reach 90%; no acceptance or review-ready claim follows.
+- 2026-10-16 — The fresh current-source aggregate is 1,239/1,626 (76.1993%),
+  225 below the 1,464 statements required for 90%. The exact-source statement
+  reconciliation and current trace receipt are retained in
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r15/`. The two exact
+  source-closure tests cannot run against transformed bytes; both passed with
+  the normal source build. WP03 remains incomplete.
 
 ## Validation And Delivery
 
@@ -518,3 +544,22 @@ second Store was selected by this lane.
   `bc3bd9968bb6b5cf9d1d08b77ececbf94d46aacb1a6a7aaf8970650b6ebe47ff`).
   The 1,235/1,623 result remains partial; WP03 still needs 226 additional
   selected hits, independent review, and the remaining platform and entry gates.
+- 2026-10-16 — The shared spawn-input validator passed macOS Zig process tests
+  (2/2) and sampler-lifetime tests (9/9). Instrumented current-source versions
+  passed 2/2 and 9/9 on macOS and in the pinned Linux/arm64 Zig 0.16.0 image.
+  The execution integration set had 109 passing current-source instrumented
+  cases; its two exact source-closure cases passed separately without
+  instrumentation. The exact-source Linux process-group and worker-ownership
+  integration passed (1 passed in 101.61 seconds). The source-bound macOS
+  process probe refused invalid argv, cwd, environment key, and environment
+  value before child effects (4 passed).
+- The current-source instrumented Linux backend fixture also passed in the
+  pinned runtime image, including invalid-input refusal, group cleanup, and
+  worker reaping. Its witness SHA-256 is
+  `6375bcc942a1873606252f6c0e7924b1adc55fa5ad8ea2ce155462117fefc794`; the
+  coverage receipt is `coverage-summary-r15-partial.json` (SHA-256
+  `98dbc865ee65a4f8f7d8d58b4f62169dc908dbb0ceecb9482ba20d05d57ecf12`). The
+  exact-source Linux integration log SHA-256 is
+  `1519a8dba620b7eb2f231d204c8feafeb9653496a4f7428f7861bf35819e12e0`.
+  Formatting, `git diff --check`, updated docs lint, and final branch delivery
+  checks remain to be run.
