@@ -2,7 +2,7 @@
 title: WP03 Native Local Validation
 description: Check-owned native sampler lifetime and local execution custody.
 doc_status: active
-updated: '2026-10-16'
+updated: '2026-10-17'
 ---
 
 # WP03 Native Local Validation
@@ -13,9 +13,9 @@ Implement the owned native sampler lifecycle for WP03/T011, with exact source
 and request binding, a retained direct-child owner across declared commands,
 final sampling and joined stop on success or middle-command failure, and private
 machine-readable evidence. The active lane is `codex/native-local-validation`
-in the existing managed worktree; its latest delivered checkpoint is
-`b2d3ba6c7eaa1ecfc1fc4431bbddba47ea5d6e30`; the current local increment adds
-direct supervisor-poll boundary and joined-child-disposal coverage. WP03
+in the existing managed worktree; its current base is
+`425c8c0dea5e7477b21601267e716e5b453eea0c`; the current local increment adds
+owned-worker protocol refusal and sampler-evidence custody controls. WP03
 acceptance remains gated by qualified native statement coverage and independent
 review.
 This log continues the history in
@@ -266,6 +266,12 @@ second Store was selected by this lane.
   and controlled in-flight/limit values. Call `dispose` as an asserted operation
   and require inactive supervisor state plus a reaped child; swallowing cleanup
   errors in a test defer would not prove the ownership contract.
+- 2026-10-17 — Direct worker start/stop controls now cover malformed frames,
+  wrong owner identity, expired deadlines, and refusal without a final sample.
+  Recipe controls preserve and verify tampered sampler state, cgroup requests
+  and results, optional peak input, and oversized summary evidence. These test
+  real refusal boundaries and child termination; they do not stand in for the
+  native statement coverage requirement.
 
 ## Known Limitations
 
@@ -356,6 +362,13 @@ second Store was selected by this lane.
   cumulative total can be claimed. This increment does not infer a percentage
   by adding its focused trace rows; the r15 figure remains a prior-source
   checkpoint, not a refreshed WP03 coverage result. The 90% gate remains open.
+- 2026-10-17 — The latest source-bound union is 1,286/1,633 executable
+  statements (78.7508%); 1,470 are required, leaving 184 uncovered. The fresh
+  measurement includes the current 139-test execution suite and passing
+  receipt tests. Remaining units cluster in Linux/Darwin process ownership,
+  sampler publication and cgroup evidence custody, and worker cleanup. The
+  threshold remains unmet; no denominator adjustment or fixture-count proxy
+  is used.
 
 ## Validation And Delivery
 
@@ -599,3 +612,22 @@ second Store was selected by this lane.
   bounded evidence receipt SHA-256 is
   `b93053cda776dfa11f80e1deca45641252f00bb7f9bf391d29b8876cf9a88002`. This is
   direct test evidence, not a reaggregated cumulative percentage.
+
+- 2026-10-17 — `tests/local_validation/test_execution.py` passes 139 tests with
+  no failures or skips in 271.82 seconds. Its source-bound trace is
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261017-r19/traces/execution-full-macos-r4.trace`
+  (SHA-256 `043b715ce42d79c1018e728e9949eb1e0e1d0d96343a38873cf19343316de07f`);
+  the full log is
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261017-r19/execution-full-macos-r4.log`
+  (SHA-256 `5dbd18c9a2b0f08c6ee752fcd19f894b631caf8a7ab3ecb1be2df76018435028`).
+  The added controls pass strict mypy, Ruff, Python compilation, and
+  `git diff --check`. The measured aggregate remains 1,286/1,633 (78.7508%),
+  below the 90% requirement; its seven-file denominator is bound to source-map
+  SHA-256 `de5794129be2b7a5630bfdaa4369def70e9dfba8fe7a592d49fe7cde3c93600f`.
+  The aggregate is
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261017-r19/coverage-summary-r19.json`
+  (SHA-256 `2391b98f219677a9ae626db69cf69ce91bf38cc03298ac17405661c440dea0f9`).
+  `make docs-lint` reports zero errors and 19 existing changelog-length
+  warnings; Ruff, strict mypy, Python compilation, and `git diff --check` pass.
+  The 178-row/16-original PDB packet remains pending intake only; this lane
+  made no PDB or model effect.

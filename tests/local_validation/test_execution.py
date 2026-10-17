@@ -1916,6 +1916,11 @@ def observe_lifetime_middle(
     *,
     kill_sampler_worker: bool = False,
     replace_sampler_directory: bool = False,
+    tamper_sampler_state: bytes | None = None,
+    tamper_cgroup_peak: bytes | None = None,
+    tamper_cgroup_request: bytes | None = None,
+    tamper_summary: bytes | None = None,
+    tamper_cgroup_result: bytes | None = None,
 ) -> dict[str, Any]:
     lifetime = inputs["sampler_lifetime"]
     stdout = tmp_path / "lifetime.stdout.log"
@@ -1947,6 +1952,19 @@ def observe_lifetime_middle(
                         state_directory = lifetime["state"].parent
                         state_directory.rename(state_directory.with_name("sampler-output-held"))
                         state_directory.mkdir(mode=0o700)
+                    if tamper_sampler_state is not None:
+                        lifetime["state"].write_bytes(tamper_sampler_state)
+                    if tamper_cgroup_peak is not None:
+                        group_request = json.loads(Path(lifetime["document"]["cgroup_request"]["path"]).read_bytes())
+                        peak_path = Path(group_request["sys_root"]) / "fs/cgroup/memory.peak"
+                        peak_path.write_bytes(tamper_cgroup_peak)
+                    if tamper_cgroup_request is not None:
+                        Path(lifetime["document"]["cgroup_request"]["path"]).write_bytes(tamper_cgroup_request)
+                    if tamper_summary is not None:
+                        lifetime["summary"].write_bytes(tamper_summary)
+                    if tamper_cgroup_result is not None:
+                        report_request = json.loads(Path(lifetime["document"]["report_request"]["path"]).read_bytes())
+                        Path(report_request["cgroup_path"]).write_bytes(tamper_cgroup_result)
                     (lifetime["proc"] / "meminfo").write_bytes(lifetime["final_meminfo"])
                     inputs["release"].write_bytes(b"release\n")
                     break
@@ -1967,6 +1985,67 @@ def observe_lifetime_middle(
                     child.wait(timeout=3)
                 raise
     return {"exit_code": code, "stdout": stdout.read_bytes(), "stderr": stderr.read_bytes(), "first_state": first_state, "identity": identity}
+
+
+def run_owned_sampler_worker_protocol(
+    executor: Path,
+    sampler_request: Path,
+    environment: dict[str, str],
+    start_frame: bytes,
+    stop_frame: bytes | None = None,
+) -> dict[str, Any]:
+    """Drive the real worker command over the same owned Unix socket endpoint."""
+    import socket
+
+    parent, child = socket.socketpair()
+    worker = subprocess.Popen(
+        [str(executor), "memory-owned-sample", str(sampler_request)],
+        stdin=child.fileno(),
+        stdout=child.fileno(),
+        stderr=subprocess.PIPE,
+        env=environment,
+    )
+    child.close()
+    ready = None
+    try:
+        parent.settimeout(10)
+        parent.sendall(start_frame)
+        if stop_frame is not None:
+            received = bytearray()
+            while b"\n" not in received:
+                chunk = parent.recv(4096)
+                if not chunk:
+                    break
+                received.extend(chunk)
+            ready = json.loads(bytes(received).split(b"\n", 1)[0])
+            parent.sendall(stop_frame)
+        try:
+            exit_code = worker.wait(timeout=12)
+        except subprocess.TimeoutExpired:
+            worker.terminate()
+            worker.wait(timeout=3)
+            raise
+        assert worker.stderr is not None
+        stderr = worker.stderr.read()
+        return {"exit_code": exit_code, "stderr": stderr, "ready": ready}
+    finally:
+        parent.close()
+        if worker.poll() is None:
+            worker.terminate()
+            worker.wait(timeout=3)
+
+
+def sampler_start_frame(owner_pid: int, deadline_ns: int | None = None) -> bytes:
+    clock = getattr(time, "CLOCK_MONOTONIC_RAW" if sys.platform == "darwin" else "CLOCK_BOOTTIME")
+    return json.dumps(
+        {
+            "schema_version": 1,
+            "command": "start",
+            "owner_pid": owner_pid,
+            "deadline_boot_ns": str(deadline_ns if deadline_ns is not None else time.clock_gettime_ns(clock) + 10_000_000_000),
+        },
+        separators=(",", ":"),
+    ).encode() + b"\n"
 
 
 @pytest.mark.parametrize("middle", ["ordinary", "nonzero"])
@@ -2054,6 +2133,88 @@ def test_native_recipe_refuses_and_reaps_lost_owned_sampler_worker(
     wait_identity_terminal(process_probe, observed["identity"])
 
 
+@pytest.mark.parametrize(
+    ("start_frame", "reason"),
+    [
+        (b"{}\n", b"SamplerProtocolRefused"),
+        (sampler_start_frame(os.getpid() + 1), b"SamplerOwnerRequired"),
+        (sampler_start_frame(os.getpid(), 1), b"OperationDeadlineExceeded"),
+    ],
+    ids=["closed-schema", "wrong-owner", "expired-deadline"],
+)
+def test_native_owned_lifetime_worker_rejects_invalid_start_on_owned_socket(
+    candidate_binary: Path,
+    executor_binary: Path,
+    repository: Path,
+    tmp_path: Path,
+    serial_program: dict[str, Any],
+    start_frame: bytes,
+    reason: bytes,
+) -> None:
+    inputs = execution_inputs(
+        candidate_binary,
+        executor_binary,
+        repository,
+        tmp_path,
+        serial_program,
+        recipe_case="ordinary",
+        sampler_lifetime="ordinary",
+    )
+    lifetime = inputs["sampler_lifetime"]
+    sampler_request = Path(lifetime["document"]["sampler_request"]["path"])
+    result = run_owned_sampler_worker_protocol(
+        executor_binary,
+        sampler_request,
+        inputs["environment"],
+        start_frame,
+    )
+    assert result["exit_code"] == 1
+    assert result["stderr"] == b"error: execution refused: " + reason + b"\n"
+    assert not lifetime["state"].parent.exists()
+
+
+@pytest.mark.parametrize(
+    "stop_frame",
+    [
+        b"\n",
+        b'{"schema_version":1,"command":"resume"}\n',
+        b'{"schema_version":1,"command":"stop","extra":true}\n',
+    ],
+    ids=["empty", "wrong-command", "extra-field"],
+)
+def test_native_owned_lifetime_worker_refuses_invalid_stop_without_final_sample(
+    candidate_binary: Path,
+    executor_binary: Path,
+    repository: Path,
+    tmp_path: Path,
+    serial_program: dict[str, Any],
+    stop_frame: bytes,
+) -> None:
+    inputs = execution_inputs(
+        candidate_binary,
+        executor_binary,
+        repository,
+        tmp_path,
+        serial_program,
+        recipe_case="ordinary",
+        sampler_lifetime="ordinary",
+    )
+    lifetime = inputs["sampler_lifetime"]
+    sampler_request = Path(lifetime["document"]["sampler_request"]["path"])
+    result = run_owned_sampler_worker_protocol(
+        executor_binary,
+        sampler_request,
+        inputs["environment"],
+        sampler_start_frame(os.getpid()),
+        stop_frame,
+    )
+    assert result["exit_code"] == 1
+    assert result["ready"] is not None and result["ready"]["event"] == "ready"
+    assert result["stderr"] == b"error: execution refused: SamplerProtocolRefused\n"
+    state = json.loads(lifetime["state"].read_bytes())
+    assert state["pid"] == result["ready"]["pid"] and state["samples"] == 1
+
+
 def test_native_recipe_refuses_replaced_owned_sampler_directory(
     candidate_binary: Path,
     executor_binary: Path,
@@ -2082,6 +2243,199 @@ def test_native_recipe_refuses_replaced_owned_sampler_directory(
     assert observed["identity"] is not None
     assert observed["exit_code"] != 0
     wait_identity_terminal(process_probe, observed["identity"])
+
+
+def test_native_recipe_refuses_cgroup_request_drift_and_reaps_owned_sampler(
+    candidate_binary: Path,
+    executor_binary: Path,
+    repository: Path,
+    tmp_path: Path,
+    serial_program: dict[str, Any],
+    process_probe: Path,
+) -> None:
+    inputs = execution_inputs(
+        candidate_binary,
+        executor_binary,
+        repository,
+        tmp_path,
+        serial_program,
+        recipe_case="ordinary",
+        sampler_lifetime="ordinary",
+    )
+    cgroup_request = Path(inputs["sampler_lifetime"]["document"]["cgroup_request"]["path"])
+    original = cgroup_request.read_bytes()
+    observed = observe_lifetime_middle(
+        executor_binary,
+        inputs,
+        tmp_path,
+        process_probe,
+        tamper_cgroup_request=b"{}\n",
+    )
+    assert observed["first_state"] is not None, (observed["exit_code"], observed["stderr"])
+    assert observed["identity"] is not None
+    assert observed["exit_code"] != 0
+    assert cgroup_request.read_bytes() == b"{}\n", "the executor must preserve the changed evidence"
+    wait_identity_terminal(process_probe, observed["identity"])
+    assert observed["stdout"]
+    report = json.loads(observed["stdout"])
+    assert report["accepted"] is False and report["refusal"] == "InputDrift"
+    producer = report["results"][0]
+    assert producer["status"] == "refused" and producer["reason"] == "InputDrift"
+    assert producer["sampler"] is None
+    assert report["qualified_scope_joined"] is False
+    assert original != cgroup_request.read_bytes()
+
+
+def test_native_recipe_refuses_changed_sampler_state_and_reaps_owned_sampler(
+    candidate_binary: Path,
+    executor_binary: Path,
+    repository: Path,
+    tmp_path: Path,
+    serial_program: dict[str, Any],
+    process_probe: Path,
+) -> None:
+    inputs = execution_inputs(
+        candidate_binary,
+        executor_binary,
+        repository,
+        tmp_path,
+        serial_program,
+        recipe_case="ordinary",
+        sampler_lifetime="ordinary",
+    )
+    lifetime = inputs["sampler_lifetime"]
+    changed = b"tampered sampler state\n"
+    observed = observe_lifetime_middle(
+        executor_binary,
+        inputs,
+        tmp_path,
+        process_probe,
+        tamper_sampler_state=changed,
+    )
+
+    assert observed["first_state"] is not None, (observed["exit_code"], observed["stderr"])
+    assert observed["identity"] is not None
+    assert observed["exit_code"] != 0
+    assert lifetime["state"].read_bytes() == changed, "the executor must preserve the changed evidence"
+    wait_identity_terminal(process_probe, observed["identity"])
+    assert observed["stdout"] == b""
+    assert b"execution refused: SamplerOutputDrift" in observed["stderr"]
+    assert b"execution refused: SamplerOwnerLost" in observed["stderr"]
+
+
+def test_native_recipe_treats_invalid_optional_cgroup_peak_as_unavailable(
+    candidate_binary: Path,
+    executor_binary: Path,
+    repository: Path,
+    tmp_path: Path,
+    serial_program: dict[str, Any],
+    process_probe: Path,
+) -> None:
+    inputs = execution_inputs(
+        candidate_binary,
+        executor_binary,
+        repository,
+        tmp_path,
+        serial_program,
+        recipe_case="ordinary",
+        sampler_lifetime="ordinary",
+    )
+    lifetime = inputs["sampler_lifetime"]
+    request = json.loads(Path(lifetime["document"]["cgroup_request"]["path"]).read_bytes())
+    peak_path = Path(request["sys_root"]) / "fs/cgroup/memory.peak"
+    changed = b"\xff\n"
+    observed = observe_lifetime_middle(
+        executor_binary,
+        inputs,
+        tmp_path,
+        process_probe,
+        tamper_cgroup_peak=changed,
+    )
+
+    assert observed["first_state"] is not None, (observed["exit_code"], observed["stderr"])
+    assert observed["identity"] is not None
+    assert observed["exit_code"] == 0
+    assert peak_path.read_bytes() == changed, "the executor must preserve the changed evidence"
+    wait_identity_terminal(process_probe, observed["identity"])
+    report = json.loads(observed["stdout"])
+    assert report["accepted"] is True and report["qualified_scope_joined"] is True
+    sampler = report["results"][0]["sampler"]
+    assert sampler is not None
+    assert any("cgroup_peak_bytes=na" in line for line in sampler["report"]["report_lines"])
+
+
+def test_native_recipe_refuses_summary_append_that_exceeds_private_log_limit(
+    candidate_binary: Path,
+    executor_binary: Path,
+    repository: Path,
+    tmp_path: Path,
+    serial_program: dict[str, Any],
+    process_probe: Path,
+) -> None:
+    inputs = execution_inputs(
+        candidate_binary,
+        executor_binary,
+        repository,
+        tmp_path,
+        serial_program,
+        recipe_case="ordinary",
+        sampler_lifetime="ordinary",
+    )
+    lifetime = inputs["sampler_lifetime"]
+    oversized_summary = b"S" * 65536
+    observed = observe_lifetime_middle(
+        executor_binary,
+        inputs,
+        tmp_path,
+        process_probe,
+        tamper_summary=oversized_summary,
+    )
+
+    assert observed["first_state"] is not None, (observed["exit_code"], observed["stderr"])
+    assert observed["identity"] is not None
+    assert observed["exit_code"] != 0
+    assert lifetime["summary"].read_bytes() == oversized_summary, "the executor must preserve changed evidence"
+    wait_identity_terminal(process_probe, observed["identity"])
+    assert observed["stdout"] == b""
+    assert b"execution refused: SamplerInputLimit" in observed["stderr"]
+
+
+def test_native_recipe_preserves_preexisting_cgroup_result_and_reaps_owned_sampler(
+    candidate_binary: Path,
+    executor_binary: Path,
+    repository: Path,
+    tmp_path: Path,
+    serial_program: dict[str, Any],
+    process_probe: Path,
+) -> None:
+    inputs = execution_inputs(
+        candidate_binary,
+        executor_binary,
+        repository,
+        tmp_path,
+        serial_program,
+        recipe_case="ordinary",
+        sampler_lifetime="ordinary",
+    )
+    lifetime = inputs["sampler_lifetime"]
+    preserved_result = b"existing cgroup result\n"
+    observed = observe_lifetime_middle(
+        executor_binary,
+        inputs,
+        tmp_path,
+        process_probe,
+        tamper_cgroup_result=preserved_result,
+    )
+
+    assert observed["first_state"] is not None, (observed["exit_code"], observed["stderr"])
+    assert observed["identity"] is not None
+    assert observed["exit_code"] != 0
+    report_request = json.loads(Path(lifetime["document"]["report_request"]["path"]).read_bytes())
+    cgroup_result = Path(report_request["cgroup_path"])
+    assert cgroup_result.read_bytes() == preserved_result, "the executor must not overwrite an existing result"
+    wait_identity_terminal(process_probe, observed["identity"])
+    assert observed["stdout"] == b""
+    assert b"execution refused: SamplerOutputDrift" in observed["stderr"]
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="Darwin foundation controls do not qualify another platform")
@@ -2246,7 +2600,11 @@ def test_native_recipe_never_resets_work_or_output_budget_for_next_argv_or_alway
         assert first["result"]["leader_reaped"] and first["result"]["group_disposed"]
         assert Path(first["stdout_log"]["path"]).read_bytes() == b"STAGED\n" + b"O" * 20000
         assert inputs["marker"].read_bytes() == b"producer\n", "the first command actually completed"
-        assert 2000 <= producer["result"]["elapsed_ms"] <= 3000
+        # Total elapsed includes the 2s work deadline, up to 1s of bounded
+        # cleanup, and macOS scheduling/reaping overhead. Keep the behavioral
+        # deadline assertions below authoritative without making host speed a
+        # pass condition.
+        assert 2000 <= producer["result"]["elapsed_ms"] <= 3500
         assert producer["result"]["failure"] == "wall_timeout"
         # Current-binding verification belongs to the same work lifetime. It
         # may exhaust the remainder before a second child can safely start.
