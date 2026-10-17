@@ -679,3 +679,72 @@ test "safe output paths remain strictly beneath the diagnostics root" {
     try std.testing.expect(!safeOutputPath("/tmp/diagnostics", "/tmp/diagnostics/summary\x1f.md"));
     try std.testing.expect(!safeOutputPath("/tmp/diagnostics", "/tmp/diagnostics/summary\xff.md"));
 }
+
+test "execution roster ordering is complete, cycle-safe, and lexical for ties" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const parsed = try std.json.parseFromSlice(
+        Value,
+        allocator,
+        "{\"alpha\":{\"dependencies\":[]},\"zeta\":{\"dependencies\":[]},\"outside\":{\"dependencies\":[\"missing\"]},\"left\":{\"dependencies\":[\"right\"]},\"right\":{\"dependencies\":[\"left\"]}}",
+        .{},
+    );
+    const checks = parsed.value.object;
+    try std.testing.expect(contains(&.{ "alpha", "zeta" }, "alpha"));
+    try std.testing.expect(!contains(&.{ "alpha", "zeta" }, "absent"));
+    const ordered = try dependencyOrder(allocator, checks, &.{ "zeta", "alpha" });
+    try std.testing.expectEqualStrings("alpha", ordered[0]);
+    try std.testing.expectEqualStrings("zeta", ordered[1]);
+    try std.testing.expectError(error.IncompleteSelection, dependencyOrder(allocator, checks, &.{"outside"}));
+    try std.testing.expectError(error.InvalidDependency, dependencyOrder(allocator, checks, &.{ "left", "right" }));
+}
+
+test "recipe context and sampler lifetime guards remain independently strict" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var context_document = try std.json.parseFromSlice(
+        Value,
+        allocator,
+        "{\"argv\":[[\"tool\"]],\"dependencies\":[\"producer\"],\"recipe\":{\"advisory\":false,\"applicability\":\"routing\",\"packages\":{},\"instance_environment\":{},\"required_inputs\":[\"candidate\",\"memory_output\"],\"instances\":[\"native\",\"native\"],\"conditions\":[\"success\",\"always\"],\"observed_dependencies\":[\"producer\"]}}",
+        .{},
+    );
+    try simpleContext(context_document.value.object, true);
+    try std.testing.expectError(error.UnsupportedRecipeBinding, simpleContext(context_document.value.object, false));
+    var context_recipe = context_document.value.object.getPtr("recipe").?.object;
+    context_recipe.getPtr("required_inputs").?.array.items[1] = .{ .string = "other" };
+    try std.testing.expectError(error.UnsupportedRecipeBinding, simpleContext(context_document.value.object, true));
+
+    const check_document = try std.json.parseFromSlice(
+        Value,
+        allocator,
+        "{\"argv\":[[\"/native\",\"memory-owned-sample\",\"/sampler.json\"],[\"/native\",\"middle\"],[\"/native\",\"middle\"],[\"/native\",\"memory-owned-stop\",\"/sampler.json\"]],\"recipe\":{\"required_inputs\":[\"candidate\",\"other\"],\"conditions\":[\"success\",\"success\",\"success\",\"always\"],\"instances\":[\"native\",\"native\",\"native\",\"native\"]}}",
+        .{},
+    );
+    var recipe = check_document.value.object.getPtr("recipe").?.object;
+    var lifetime: SamplerLifetime = .{
+        .schema_version = 1,
+        .scope = "exact-check-owned-native-memory-sampler",
+        .check_id = "producer",
+        .start_index = 0,
+        .stop_index = 3,
+        .sampler_request = undefined,
+        .cgroup_request = undefined,
+        .report_request = undefined,
+        .summary_path = "/diagnostics/summary.md",
+    };
+    try std.testing.expectError(error.UnsupportedRecipeBinding, validateSamplerLifetime(undefined, "producer", check_document.value.object, lifetime));
+
+    recipe.getPtr("required_inputs").?.array.items[1] = .{ .string = "memory_output" };
+    recipe.getPtr("conditions").?.array.items[3] = .{ .string = "success" };
+    try std.testing.expectError(error.UnqualifiedSamplerLifetime, validateSamplerLifetime(undefined, "producer", check_document.value.object, lifetime));
+
+    recipe.getPtr("conditions").?.array.items[3] = .{ .string = "always" };
+    recipe.getPtr("instances").?.array.items[0] = .{ .string = "linux" };
+    try std.testing.expectError(error.UnqualifiedSamplerLifetime, validateSamplerLifetime(undefined, "producer", check_document.value.object, lifetime));
+
+    recipe.getPtr("instances").?.array.items[0] = .{ .string = "native" };
+    lifetime.check_id = "another-check";
+    try std.testing.expectError(error.UnqualifiedSamplerLifetime, validateSamplerLifetime(undefined, "producer", check_document.value.object, lifetime));
+}

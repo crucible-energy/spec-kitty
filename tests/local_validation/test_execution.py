@@ -1480,6 +1480,31 @@ def configure_recipe_control(
     configure_unsupported_recipe(checks["z-producer"]["recipe"], case)
 
 
+def apply_lifetime_document_fault(documents: dict[str, Any], tmp_path: Path, fault: str | None) -> None:
+    if fault == "sampler-not-object":
+        documents["sampler"] = []
+    elif fault == "missing-sampler-destination":
+        documents["sampler"].pop("destination")
+    elif fault == "sampler-destination-not-string":
+        documents["sampler"]["destination"] = 7
+    elif fault == "unsafe-sampler-destination":
+        documents["sampler"]["destination"] = str(tmp_path / "outside-output")
+    elif fault == "report-not-object":
+        documents["report"] = []
+    elif fault == "missing-report-state-path":
+        documents["report"].pop("state_path")
+    elif fault == "missing-report-cgroup-path":
+        documents["report"].pop("cgroup_path")
+    elif fault == "report-state-path-not-string":
+        documents["report"]["state_path"] = 7
+    elif fault == "report-cgroup-path-not-string":
+        documents["report"]["cgroup_path"] = 7
+    elif fault == "unsafe-report-state-path":
+        documents["report"]["state_path"] = str(tmp_path / "outside-state.json")
+    elif fault == "unsafe-report-cgroup-path":
+        documents["report"]["cgroup_path"] = str(tmp_path / "outside-cgroup.json")
+
+
 def prepare_lifetime_control(
     root: Path,
     tmp_path: Path,
@@ -1505,9 +1530,13 @@ def prepare_lifetime_control(
     (sys_root / "fs/cgroup/memory.peak").write_bytes(b"0\n")
     logs = tmp_path / "logs"
     logs.mkdir(mode=0o700)
-    destination = logs / "sampler-output"
+    sampler_parent = logs
+    if lifetime_fault == "sampler-parent-not-private":
+        sampler_parent = logs / "sampler-parent"
+        sampler_parent.mkdir(mode=0o755)
+    destination = sampler_parent / "sampler-output"
     paths = {name: tmp_path / ("lifetime-" + name + ".json") for name in ("sampler", "cgroup", "report")}
-    documents = {
+    documents: dict[str, Any] = {
         "sampler": {"schema_version": 1, "destination": str(destination), "proc_root": str(proc), "interval_ms": 60000, "max_samples": 2, "wall_ms": 30000},
         "cgroup": {"schema_version": 1, "proc_root": str(proc), "sys_root": str(sys_root), "wall_ms": 30000},
         "report": {
@@ -1519,9 +1548,13 @@ def prepare_lifetime_control(
             "wall_ms": 30000,
         },
     }
+    apply_lifetime_document_fault(documents, tmp_path, lifetime_fault)
     for name, document in documents.items():
         paths[name].write_bytes(canonical(document))
         paths[name].chmod(0o600)
+    if lifetime_fault == "occupied-sampler-destination":
+        destination.mkdir(mode=0o700)
+        (destination / "preserved-marker").write_bytes(b"preexisting sampler output\n")
     original = copy.deepcopy(qualifications)
     producer = checks["z-producer"]
     seed = next(row for row in original if row["argv"] == producer["argv"][0])
@@ -1609,7 +1642,9 @@ def apply_lifetime_record_fault(rows: Any, document: dict[str, Any], fault: str 
 
 def apply_lifetime_recipe_fault(producer: dict[str, Any], fault: str | None) -> None:
     recipe = producer["recipe"]
-    if fault == "wrong-instance":
+    if fault == "wrong-owned-inputs":
+        recipe["required_inputs"] = ["candidate", "other"]
+    elif fault == "wrong-instance":
         recipe["instances"] = ["linux"] * 4
     elif fault == "wrong-condition":
         recipe["conditions"][0] = "always"
@@ -1709,7 +1744,7 @@ def execution_inputs(
             argv[0] = str(alias)
     import platform
 
-    architecture = {"arm64": "aarch64", "x86_64": "x86_64"}[platform.machine()]
+    architecture = {"arm64": "aarch64", "aarch64": "aarch64", "x86_64": "x86_64"}[platform.machine()]
     qualifications = [
         {
             "schema_version": 1,
@@ -1809,6 +1844,15 @@ def execution_inputs(
             files.append({"role": "observed_dependency", "path": str(path), "candidate_path_hex": None})
             known.add(resolved)
     bind_request = tmp_path / "binding-request.json"
+    binding_checks = [
+        {"id": name, "argv": checks[name]["argv"], "closure_proof": lifetime["document"] if lifetime and name == "z-producer" else None} for name in commands
+    ]
+    producer_binding = next(row for row in binding_checks if row["id"] == "z-producer")
+    if sampler_lifetime_fault == "closure-proof-missing":
+        producer_binding["closure_proof"] = None
+    elif sampler_lifetime_fault == "closure-proof-mismatch":
+        assert lifetime is not None
+        producer_binding["closure_proof"] = {**lifetime["document"], "summary_path": str(tmp_path / "logs" / "different-summary.md")}
     bind_request.write_bytes(
         canonical(
             {
@@ -1816,10 +1860,7 @@ def execution_inputs(
                 "candidate_manifest": str(manifest_path),
                 "files": files,
                 "environment_names": ["WP03_FLAG"],
-                "checks": [
-                    {"id": name, "argv": checks[name]["argv"], "closure_proof": lifetime["document"] if lifetime and name == "z-producer" else None}
-                    for name in commands
-                ],
+                "checks": binding_checks,
             }
         )
     )
@@ -1861,7 +1902,9 @@ def execution_inputs(
 
 def run_execution(image: Path, inputs: dict[str, Any]) -> tuple[subprocess.CompletedProcess[bytes], dict[str, Any]]:
     result = subprocess.run([str(image), "execute", str(inputs["request_path"])], env=inputs["environment"], capture_output=True, timeout=30)
-    report = json.loads((inputs["logs"] / "run.json").read_bytes()) if (inputs["logs"] / "run.json").exists() else {}
+    report_path = inputs["logs"] / "run.json"
+    report_bytes = report_path.read_bytes() if report_path.exists() else b""
+    report = json.loads(report_bytes) if report_bytes else {}
     return result, report
 
 
@@ -1870,6 +1913,9 @@ def observe_lifetime_middle(
     inputs: dict[str, Any],
     tmp_path: Path,
     process_probe: Path,
+    *,
+    kill_sampler_worker: bool = False,
+    replace_sampler_directory: bool = False,
 ) -> dict[str, Any]:
     lifetime = inputs["sampler_lifetime"]
     stdout = tmp_path / "lifetime.stdout.log"
@@ -1893,6 +1939,14 @@ def observe_lifetime_middle(
                     identity = inspect(process_probe, first_state["pid"])
                     assert identity["live"] and identity["parent"] == child.pid
                     assert os.getsid(first_state["pid"]) == first_state["pid"]
+                    if kill_sampler_worker:
+                        # The PID is the live direct child observed above, not a
+                        # value trusted from sampler output alone.
+                        os.kill(first_state["pid"], signal.SIGKILL)
+                    if replace_sampler_directory:
+                        state_directory = lifetime["state"].parent
+                        state_directory.rename(state_directory.with_name("sampler-output-held"))
+                        state_directory.mkdir(mode=0o700)
                     (lifetime["proc"] / "meminfo").write_bytes(lifetime["final_meminfo"])
                     inputs["release"].write_bytes(b"release\n")
                     break
@@ -1970,9 +2024,117 @@ def test_native_check_owned_sampler_finalizes_after_actual_middle_argv(
     assert report["results"][1]["status"] == ("passed" if middle == "ordinary" else "blocked")
 
 
+def test_native_recipe_refuses_and_reaps_lost_owned_sampler_worker(
+    candidate_binary: Path,
+    executor_binary: Path,
+    repository: Path,
+    tmp_path: Path,
+    serial_program: dict[str, Any],
+    process_probe: Path,
+) -> None:
+    inputs = execution_inputs(
+        candidate_binary,
+        executor_binary,
+        repository,
+        tmp_path,
+        serial_program,
+        recipe_case="ordinary",
+        sampler_lifetime="ordinary",
+    )
+    observed = observe_lifetime_middle(
+        executor_binary,
+        inputs,
+        tmp_path,
+        process_probe,
+        kill_sampler_worker=True,
+    )
+    assert observed["first_state"] is not None, (observed["exit_code"], observed["stderr"])
+    assert observed["identity"] is not None
+    assert observed["exit_code"] != 0
+    wait_identity_terminal(process_probe, observed["identity"])
+
+
+def test_native_recipe_refuses_replaced_owned_sampler_directory(
+    candidate_binary: Path,
+    executor_binary: Path,
+    repository: Path,
+    tmp_path: Path,
+    serial_program: dict[str, Any],
+    process_probe: Path,
+) -> None:
+    inputs = execution_inputs(
+        candidate_binary,
+        executor_binary,
+        repository,
+        tmp_path,
+        serial_program,
+        recipe_case="ordinary",
+        sampler_lifetime="ordinary",
+    )
+    observed = observe_lifetime_middle(
+        executor_binary,
+        inputs,
+        tmp_path,
+        process_probe,
+        replace_sampler_directory=True,
+    )
+    assert observed["first_state"] is not None, (observed["exit_code"], observed["stderr"])
+    assert observed["identity"] is not None
+    assert observed["exit_code"] != 0
+    wait_identity_terminal(process_probe, observed["identity"])
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin foundation controls do not qualify another platform")
+@pytest.mark.parametrize("fault", ["occupied-sampler-destination", "sampler-parent-not-private"])
+def test_native_recipe_refuses_unsafe_owned_sampler_startup(
+    candidate_binary: Path,
+    executor_binary: Path,
+    repository: Path,
+    tmp_path: Path,
+    serial_program: dict[str, Any],
+    fault: str,
+) -> None:
+    inputs = execution_inputs(
+        candidate_binary,
+        executor_binary,
+        repository,
+        tmp_path,
+        serial_program,
+        recipe_case="ordinary",
+        sampler_lifetime="ordinary",
+        sampler_lifetime_fault=fault,
+    )
+    result, report = run_execution(executor_binary, inputs)
+    assert result.returncode != 0
+    assert b"execution refused:" in result.stderr
+    assert result.stdout == b""
+    assert report == {}
+    assert not inputs["marker"].exists()
+    destination = inputs["sampler_lifetime"]["state"].parent
+    if fault == "occupied-sampler-destination":
+        assert (destination / "preserved-marker").read_bytes() == b"preexisting sampler output\n"
+        assert not (destination / "state.json").exists()
+    else:
+        assert destination.parent.stat().st_mode & 0o777 == 0o755
+        assert not destination.exists()
+
+
 @pytest.mark.parametrize(
     ("fault", "reason"),
     [
+        ("sampler-not-object", "UnqualifiedSamplerLifetime"),
+        ("missing-sampler-destination", "UnqualifiedSamplerLifetime"),
+        ("sampler-destination-not-string", "UnqualifiedSamplerLifetime"),
+        ("unsafe-sampler-destination", "PrivateEvidenceRequired"),
+        ("report-not-object", "UnqualifiedSamplerLifetime"),
+        ("missing-report-state-path", "UnqualifiedSamplerLifetime"),
+        ("missing-report-cgroup-path", "UnqualifiedSamplerLifetime"),
+        ("report-state-path-not-string", "UnqualifiedSamplerLifetime"),
+        ("report-cgroup-path-not-string", "UnqualifiedSamplerLifetime"),
+        ("unsafe-report-state-path", "PrivateEvidenceRequired"),
+        ("unsafe-report-cgroup-path", "PrivateEvidenceRequired"),
+        ("closure-proof-missing", "UnqualifiedSamplerLifetime"),
+        ("closure-proof-mismatch", "UnqualifiedSamplerLifetime"),
         ("rows-not-array", "UnqualifiedSamplerLifetime"),
         ("too-many-rows", "UnqualifiedSamplerLifetime"),
         ("duplicate-check", "UnqualifiedSamplerLifetime"),
