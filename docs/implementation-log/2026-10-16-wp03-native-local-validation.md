@@ -14,10 +14,10 @@ and request binding, a retained direct-child owner across declared commands,
 final sampling and joined stop on success or middle-command failure, and private
 machine-readable evidence. The active lane is `codex/native-local-validation`
 in the existing managed worktree; its latest delivered checkpoint is
-`16b8cfbc9a2048564ee5fb0254e5ccf3aa904abf`; the current local increment makes
-spawn-input refusal consistent across macOS and Linux and extends its contract
-tests. WP03 acceptance remains gated by qualified native statement coverage and
-independent review.
+`b2d3ba6c7eaa1ecfc1fc4431bbddba47ea5d6e30`; the current local increment adds
+direct supervisor-poll boundary and joined-child-disposal coverage. WP03
+acceptance remains gated by qualified native statement coverage and independent
+review.
 This log continues the history in
 [`2026-10-12-native-local-validation.md`](../plans/engineering-notes/2026-10-12-native-local-validation.md),
 including its WP03 sampler-lifetime scope coordination.
@@ -159,6 +159,10 @@ second Store was selected by this lane.
   Supplying that exact import closure allowed the remaining cases to run. Two
   exact-source-closure tests correctly refused the transformed test binary and
   then passed against the ordinary source build.
+- Supervisor polling failure reasons previously lacked a focused control that
+  separated process and resident limits, timeout, and lost ownership from
+  teardown. The new test asserts those outcomes and requires successful child
+  reaping, making failures local and diagnosable.
 
 ## Engineering Decisions
 
@@ -258,6 +262,10 @@ second Store was selected by this lane.
   files only when exact statement bytes, AST tag, origin flags, and enclosing
   function/test produce one unique match. Discard ambiguous, deleted, or changed
   statements rather than carrying source-stale hits forward.
+- 2026-10-16 — Exercise `Supervisor.poll` with one explicitly owned local child
+  and controlled in-flight/limit values. Call `dispose` as an asserted operation
+  and require inactive supervisor state plus a reaped child; swallowing cleanup
+  errors in a test defer would not prove the ownership contract.
 
 ## Known Limitations
 
@@ -339,6 +347,15 @@ second Store was selected by this lane.
   `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r15/`. The two exact
   source-closure tests cannot run against transformed bytes; both passed with
   the normal source build. WP03 remains incomplete.
+- 2026-10-16 — The supervisor polling control was added after the r15 aggregate.
+  It adds test code only: all 296 measured product statement units in
+  `validation_sampler_lifetime.zig` retain the same node identities and exact
+  source slices, and the seven-file denominator remains 1,626. The focused
+  current-source instrumented test passes on macOS and pinned Linux/arm64.
+  The older receipts require a fresh source-map reconciliation before a new
+  cumulative total can be claimed. This increment does not infer a percentage
+  by adding its focused trace rows; the r15 figure remains a prior-source
+  checkpoint, not a refreshed WP03 coverage result. The 90% gate remains open.
 
 ## Validation And Delivery
 
@@ -563,3 +580,22 @@ second Store was selected by this lane.
   `1519a8dba620b7eb2f231d204c8feafeb9653496a4f7428f7861bf35819e12e0`.
   Formatting, `git diff --check`, updated docs lint, and final branch delivery
   checks remain to be run.
+- 2026-10-16 — The sampler-lifetime module passed 10/10 tests on macOS and 10/10
+  in the pinned Linux/arm64 Zig 0.16.0 image
+  (`sha256:e6a95a83d907aa31995e97bdf771c8ff0e809fd25d0e12a43a6984b4a0ca33d2`).
+  The new supervisor-poll test also passed in isolation on both platforms (1/1
+  each); it asserts all poll outcomes and successful direct-child reaping.
+  Current-source instrumented traces and the source map are retained under
+  `/private/tmp/spec-kitty-wp03-statement-coverage-20261016-r16/`. The focused
+  Mac and Linux logs have SHA-256
+  `cfaec6f5192094041e14a367fad8e5d198987894c40d6167df93a96605bae9af`; their
+  complete module logs each have SHA-256
+  `e616bb9d8f99644ea0427ea380b6150d2e98aa6ebe40bc331b8f8328048ea617`; their
+  focused traces have SHA-256
+  `740594e28ff144984546ad85debdb0b3a2412ff33917728914852f95298cc59c` and
+  `1c3919e41048ef60404906cff63282ff1f8afcfc5055a4a4204ab3a5d479ba8b`.
+  The source map SHA-256 is
+  `3ee6998e69203314db6d815ae3925fd23f0d9cd07fbe7890a9b88c110245a606`. The
+  bounded evidence receipt SHA-256 is
+  `b93053cda776dfa11f80e1deca45641252f00bb7f9bf391d29b8876cf9a88002`. This is
+  direct test evidence, not a reaggregated cumulative percentage.

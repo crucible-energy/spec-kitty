@@ -430,6 +430,73 @@ test "supervisor refuses expired starts, missing workers, and invalid environmen
     );
 }
 
+test "supervisor polling enforces combined limits and disposes its child" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var environment = std.process.Environ.Map.init(arena.allocator());
+    const init = testProcessInit(&arena, &environment);
+
+    var pair: [2]c_int = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), c.socketpair(c.AF_UNIX, c.SOCK_STREAM, 0, &pair));
+    var parent_open = true;
+    var peer_open = true;
+    defer {
+        if (parent_open) _ = c.close(pair[0]);
+        if (peer_open) _ = c.close(pair[1]);
+    }
+
+    var child = try std.process.spawn(init.io, .{ .argv = &.{ "/bin/sleep", "5" } });
+    var child_owned = true;
+    defer if (child_owned) child.kill(init.io);
+    const pid = child.id orelse return error.SamplerIdentityUnknown;
+    var supervisor: Supervisor = .{
+        .io = init.io,
+        .fd = pair[0],
+        .identity = try process.DirectChild.init(pid),
+        .deadline = now(init.io) + 5 * std.time.ns_per_s,
+        .cleanup_ms = 1000,
+        .initial = .{
+            .event = "ready",
+            .pid = pid,
+            .parent_pid = c.getpid(),
+            .attempts = 1,
+            .samples = 1,
+            .state_sha256 = "0" ** 64,
+            .state_metadata_sha256 = "0" ** 64,
+            .directory_identity_sha256 = "0" ** 64,
+            .parent_identity_sha256 = "0" ** 64,
+        },
+    };
+    child.id = null;
+    child_owned = false;
+    parent_open = false;
+    defer supervisor.dispose(init.io) catch {};
+    _ = c.close(pair[1]);
+    peer_open = false;
+
+    try std.testing.expectEqual(@as(?process.Failure, null), supervisor.poll(.{}, .{}));
+    try std.testing.expectEqual(
+        @as(?process.Failure, .process_limit),
+        supervisor.poll(.{ .sampled_processes = std.math.maxInt(usize) }, .{}),
+    );
+    try std.testing.expectEqual(
+        @as(?process.Failure, .process_limit),
+        supervisor.poll(.{}, .{ .processes = 0 }),
+    );
+    try std.testing.expectEqual(
+        @as(?process.Failure, .resident_limit),
+        supervisor.poll(.{ .sampled_resident_bytes = 1 }, .{ .resident_bytes = 0 }),
+    );
+    supervisor.deadline = now(init.io) - 1;
+    try std.testing.expectEqual(@as(?process.Failure, .wall_timeout), supervisor.poll(.{}, .{}));
+    supervisor.active = false;
+    try std.testing.expectEqual(@as(?process.Failure, .ownership_lost), supervisor.poll(.{}, .{}));
+    supervisor.active = true;
+    try supervisor.dispose(init.io);
+    try std.testing.expect(!supervisor.active);
+    try std.testing.expect(supervisor.identity.reaped());
+}
+
 test "worker frames reject malformed, ambiguous, and mistyped JSON" {
     const Envelope = struct { command: []const u8, schema_version: u8 };
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
