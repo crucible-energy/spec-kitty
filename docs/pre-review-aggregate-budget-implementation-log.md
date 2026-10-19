@@ -118,6 +118,11 @@ comes first. Preserve the unmerged branch and remove only its eligible owned
 checkout. The review restoration inventory is retained externally at
 `/private/tmp/spec-kitty109-self-review-workspace-exception.json`.
 
+Follow-up self-review found that `baseline.py` still described its independent
+300-second baseline-capture timeout as shared with the now 1,800-second review
+budget. Corrected the comment to state the separate timeout contracts; no
+runtime behavior or test assertions changed.
+
 The normal candidate wheel is independently installed under
 `/private/tmp/spec-kitty-budget-repair-installed-20261019`; the shared operator
 installation remains unchanged. Source publication, protected-main merge and
