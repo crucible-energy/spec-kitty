@@ -1065,6 +1065,70 @@ def _write_declared_command_config(repo_root: Path, script_path: Path) -> None:
     )
 
 
+@pytest.mark.fast
+@pytest.mark.parametrize(
+    ("duration", "explicit_budget", "expected_outcome", "expected_elapsed"),
+    [
+        (360, None, GateOutcome.NO_NEW_FAILURES, 360),
+        (1801, None, GateOutcome.TIMED_OUT, 1800),
+        (360, 120, GateOutcome.TIMED_OUT, 120),
+    ],
+)
+def test_declared_aggregate_has_finite_budget_independent_of_baseline_capture(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    duration: int,
+    explicit_budget: int | None,
+    expected_outcome: GateOutcome,
+    expected_elapsed: int,
+) -> None:
+    """Simulate a long native aggregate through the real observer, without sleeping."""
+    _write_declared_command_config(tmp_path, tmp_path / "native_suite")
+    process = _FakeProcess()
+    now = 0.0
+    signals: list[bool] = []
+    launched: list[list[str]] = []
+
+    def launch(command: list[str], **kwargs: object) -> _FakeProcess:
+        del kwargs
+        launched.append(command)
+        return process
+
+    def signal_child(candidate: subprocess.Popen[str], *, force: bool) -> None:
+        assert candidate is process
+        signals.append(force)
+
+    def wait(candidate: subprocess.Popen[str], timeout: float) -> tuple[str, str]:
+        nonlocal now
+        assert candidate is process
+        if signals:
+            return "", ""
+        if now + timeout < duration:
+            now += timeout
+            raise subprocess.TimeoutExpired(cmd="native_suite", timeout=timeout)
+        now = float(duration)
+        return "", ""
+
+    monkeypatch.setattr(pre_review_gate, "_launch_scoped_process", launch)
+    monkeypatch.setattr(pre_review_gate, "_signal_owned_process_tree", signal_child)
+    source = DeclaredCommandScopeSource(repo_root=tmp_path)
+    kwargs = {} if explicit_budget is None else {"timeout": explicit_budget}
+    verdict = pre_review_gate.evaluate_pre_review_gate(
+        ["native/main.zig"],
+        repo_root=tmp_path,
+        baseline=_make_baseline(),
+        scope_source=source,
+        monotonic=lambda: now,
+        wait=wait,
+        **kwargs,
+    )
+
+    assert verdict.outcome is expected_outcome
+    assert now == expected_elapsed
+    assert launched == [source.test_command()]
+    assert signals == ([False] if expected_outcome is GateOutcome.TIMED_OUT else [])
+    assert baseline_module.CAPTURE_BASELINE_TIMEOUT_SECONDS == 300
+
 @pytest.mark.integration
 def test_declared_command_source_runs_and_parses_a_real_non_pytest_failure_never_importing_gate_coverage(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
