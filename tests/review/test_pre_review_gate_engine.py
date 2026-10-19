@@ -1129,6 +1129,7 @@ def test_declared_aggregate_has_finite_budget_independent_of_baseline_capture(
     assert signals == ([False] if expected_outcome is GateOutcome.TIMED_OUT else [])
     assert baseline_module.CAPTURE_BASELINE_TIMEOUT_SECONDS == 300
 
+
 @pytest.mark.integration
 def test_declared_command_source_runs_and_parses_a_real_non_pytest_failure_never_importing_gate_coverage(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
