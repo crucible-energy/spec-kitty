@@ -28,6 +28,9 @@
       "last_event_id": "01M5DTNDHRZD11TWMCJGKWM8WA",
       "last_transition_at": "2026-10-20T23:34:36.856178+00:00",
       "model": "__resolved_model_absent__",
+      "notes": [
+        "Adopt independently qualified discovery source and exact external receipts; read-only scope."
+      ],
       "provider": "__resolved_provider_absent__",
       "role": "implementer"
     },
