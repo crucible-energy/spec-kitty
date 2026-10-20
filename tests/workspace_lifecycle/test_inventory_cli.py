@@ -85,3 +85,24 @@ def test_inventory_page_bound_cannot_return_partial_success(monkeypatch: pytest.
     with pytest.raises(inventory.OrganizationInventoryUnavailable, match="page count"):
         inventory.fetch_repositories("crucible-energy")
     assert run.call_count == 100
+
+
+def test_report_distinguishes_observed_coverage_from_unobservable_scope(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty configured root cannot certify all stores in the organization."""
+    from specify_cli.cli.commands import _organization_workspaces_doctor as command
+
+    monkeypatch.setattr(command, "fetch_repositories", lambda org: {f"{org}/absent": 1})
+    result = CliRunner().invoke(app, ["organization-workspaces", "--root", str(tmp_path), "--max-depth", "2"])
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.output)
+    assert report["local_scan_complete"] is True
+    assert report["coverage_gaps"] == []
+    assert report["unmatched_repositories"] == ["crucible-energy/absent"]
+    assert report["observation_scope"] == {
+        "roots": [str(tmp_path)],
+        "max_depth": 2,
+        "max_directories": 10000,
+        "max_entries": 100000,
+        "unobservable": ["repositories_outside_authenticated_visibility", "stores_outside_configured_roots"],
+    }
+    assert not (tmp_path / ".kittify").exists()
