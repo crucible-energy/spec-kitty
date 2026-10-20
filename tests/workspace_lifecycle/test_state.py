@@ -79,3 +79,73 @@ def test_failed_durable_commit_does_not_report_a_committed_revision(tmp_path: Pa
         with pytest.raises(StateError):
             tx.commit(tx.state)
         assert tx.state.revision == 0
+
+
+def test_transaction_cannot_commit_after_lock_release(tmp_path: Path) -> None:
+    ledger = store(tmp_path)
+    with ledger.locked() as tx:
+        tx.commit(tx.state)
+    with ledger.locked() as current:
+        current.commit(current.state)
+    with pytest.raises(StateError):
+        tx.commit(tx.state)
+    assert ledger.read().revision == 2
+
+
+def test_transaction_cannot_commit_from_another_thread(tmp_path: Path) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    ledger = store(tmp_path)
+    with ledger.locked() as tx, ThreadPoolExecutor(max_workers=1) as pool:
+        with pytest.raises(StateError):
+            pool.submit(tx.commit, tx.state).result(timeout=3)
+
+
+def test_missing_previously_committed_ledger_never_becomes_empty_state(tmp_path: Path) -> None:
+    ledger = store(tmp_path)
+    with ledger.locked() as tx:
+        tx.commit(tx.state)
+    (ledger.root / "state.json").unlink()
+    with pytest.raises(StateError):
+        ledger.read()
+
+
+def test_hardlinked_lock_never_modifies_another_file(tmp_path: Path) -> None:
+    import os
+
+    ledger = store(tmp_path)
+    external = tmp_path / "valuable"
+    external.write_text("preserve")
+    external.chmod(0o600)
+    os.link(external, ledger.root / "lifecycle.lock")
+    try:
+        with pytest.raises(StateError):
+            ledger.read()
+    finally:
+        assert external.read_text() == "preserve"
+
+
+def test_fifo_state_refuses_without_blocking_open(tmp_path: Path) -> None:
+    import os
+    import subprocess
+    import sys
+
+    ledger = store(tmp_path)
+    os.mkfifo(ledger.root / "state.json", 0o600)
+    script = """from pathlib import Path
+import sys
+from specify_cli.workspace_lifecycle.state import StateStore, StateError
+try:
+    StateStore(Path(sys.argv[1])).read()
+except StateError:
+    print('refused')
+"""
+    proc = subprocess.Popen([sys.executable, "-c", script, str(ledger.root)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        output, error = proc.communicate(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.communicate()
+        pytest.fail("Malformed state blocked before type validation")
+    assert proc.returncode == 0, error.decode()
+    assert output.strip() == b"refused"

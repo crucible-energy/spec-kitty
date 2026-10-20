@@ -16,6 +16,8 @@ from specify_cli.workspace_lifecycle.state import StateError, StateStore
 
 
 class Creator:
+    authority_id = "registered-git-fixture"
+
     def __init__(self, ledger: StateStore, ident: Identity) -> None:
         self.ledger = ledger
         self.identity = ident
@@ -110,3 +112,49 @@ def test_intent_sync_failure_prevents_creator_effect(tmp_path: Path, monkeypatch
     with pytest.raises(StateError):
         c.reconcile("event-1", i, a)
     assert a.calls == 0
+
+
+def test_partial_inventory_never_discharges_prior_unknown_workspace(tmp_path: Path) -> None:
+    c, a, i = setup(tmp_path)
+    c.reconcile("event-1", i, a)
+    observation = {
+        "repository": i.repository,
+        "repository_id": i.repository_id,
+        "common_dir": i.common_dir,
+        "path": "/another/work",
+        "head": i.head,
+        "branch": i.branch,
+        "bare": False,
+        "exists": True,
+        "disposition": "retained",
+        "reason": "ownership_unknown",
+    }
+    c.account([observation])
+    c.account([])
+    assert c.store.read().observations[0]["path"] == "/another/work"
+    assert c.closeout(workflow_complete=True)["cleanup_complete"] is False
+
+
+def test_recovery_receives_exact_retained_intent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.workspace_lifecycle.state import Operation
+
+    c, a, i = setup(tmp_path)
+
+    def interrupted(identity: Identity, event_id: str) -> Result:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(a, "retire", interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        c.reconcile("event-1", i, a)
+    retained = c.store.read().operations[-1]
+
+    def recover(*args: object) -> object:
+        assert len(args) == 1 and isinstance(args[0], Operation)
+        assert args[0] == retained
+        assert args[0].release_id == "release" and args[0].delivery_id == "delivery"
+        from specify_cli.workspace_lifecycle.coordinator import Recovered
+
+        return Recovered(retained, Result("retired", "receipt_verified"))
+
+    monkeypatch.setattr(a, "recover", recover)
+    assert c.reconcile("event-1", i, a).status == "retired"

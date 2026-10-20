@@ -425,7 +425,8 @@ def test_durable_write_does_not_hide_directory_sync_failure(tmp_path: Path) -> N
     def fail_parent(fd: int) -> None:
         nonlocal count
         count+=1
-        if count == 2: raise OSError('directory sync failed')
+        if count == 2:
+            raise OSError('directory sync failed')
         original(fd)
     with patch('kernel.atomic.os.fsync', side_effect=fail_parent), pytest.raises(OSError):
         atomic_write(tmp_path/'ledger.json',b'{}',durable=True)

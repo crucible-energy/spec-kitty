@@ -44,5 +44,5 @@ def test_reused_path_or_lease_cannot_reuse_prior_evidence() -> None:
 
 
 def test_invalid_identity_is_not_admitted() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="generations"):
         replace(identity(), workspace_generation="")
