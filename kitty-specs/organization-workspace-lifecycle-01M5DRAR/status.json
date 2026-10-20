@@ -20,7 +20,7 @@
   "work_packages": {
     "WP01": {
       "actor": "reviewer-renata",
-      "agent": "codex",
+      "agent": "reviewer-renata",
       "agent_profile": "reviewer-renata",
       "agent_profile_version": "1.0",
       "force_count": 0,
@@ -30,7 +30,8 @@
       "model": "__resolved_model_absent__",
       "notes": [
         "Adopt independently qualified discovery source and exact external receipts; read-only scope.",
-        "PR113 scope136467de3: baseline2451pass/5skip; owning859pass/5skip; new statements7/7; red and exact frozen receipts lifecycle-scope-final-validation.json."
+        "PR113 scope136467de3: baseline2451pass/5skip; owning859pass/5skip; new statements7/7; red and exact frozen receipts lifecycle-scope-final-validation.json.",
+        "Independent reviewer claims bounded WP01 observation review; prior source review and frozen exact qualification receipts inspected. Durable FR-002 and SC-001 remain WP02."
       ],
       "provider": "__resolved_provider_absent__",
       "role": "reviewer"
