@@ -53,6 +53,9 @@
       "last_event_id": "01M5DVA0M5AG2NV3GBJKSGMJPP",
       "last_transition_at": "2026-10-20T23:45:51.749700+00:00",
       "model": "__resolved_model_absent__",
+      "notes": [
+        "Implement durable ledger, safe policy and generation-bound interrupted-operation recovery; no creator retirement until WP03."
+      ],
       "provider": "__resolved_provider_absent__",
       "role": "implementer"
     },
