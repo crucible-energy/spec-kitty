@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -147,6 +148,9 @@ def test_owned_work_package_context_after_finalization_stays_in_selected_checkou
 
 def test_context_resolve_accepts_explicit_owned_checkout_from_primary(checkouts, monkeypatch):
     primary, owned, sibling = checkouts
+    spaced_owned = owned.with_name("owned checkout")
+    git(primary, "worktree", "move", str(owned), str(spaced_owned))
+    owned = spaced_owned
     assert invoke("finalize-tasks", owned).exit_code == 0
     monkeypatch.chdir(primary)
     monkeypatch.setenv("SPECIFY_REPO_ROOT", str(primary))
@@ -171,7 +175,45 @@ def test_context_resolve_accepts_explicit_owned_checkout_from_primary(checkouts,
     payload = json.loads(result.output)
     assert Path(payload["workspace_path"]) == owned
     assert Path(payload["wp_file"]) == owned / "kitty-specs" / SLUG / "tasks/WP01-test.md"
+    assert payload["commands"]["workflow"].endswith(
+        f"--owned-checkout {shlex.quote(str(owned))}"
+    )
     assert tuple(snapshot(root) for root in (primary, owned, sibling)) == before
+
+
+def test_add_history_accepts_explicit_owned_checkout_from_primary(checkouts, monkeypatch):
+    from specify_cli.cli.commands.agent.tasks import app as tasks_app
+
+    primary, owned, sibling = checkouts
+    finalized = invoke("finalize-tasks", owned)
+    assert finalized.exit_code == 0, finalized.output
+    monkeypatch.chdir(primary)
+    monkeypatch.setenv("SPECIFY_REPO_ROOT", str(primary))
+    monkeypatch.setattr(
+        "specify_cli.cli.commands.agent.tasks.emit_history_added",
+        lambda **_kwargs: None,
+    )
+    before = snapshot(primary), snapshot(sibling)
+    wp_file = owned / "kitty-specs" / SLUG / "tasks/WP01-test.md"
+
+    result = runner.invoke(
+        tasks_app,
+        [
+            "add-history",
+            "WP01",
+            "--note",
+            "Blocked: waiting for an upstream decision",
+            "--mission",
+            SLUG,
+            "--owned-checkout",
+            str(owned),
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Blocked: waiting for an upstream decision" in wp_file.read_text(encoding="utf-8")
+    assert (snapshot(primary), snapshot(sibling)) == before
 
 
 def test_action_implement_claims_and_renders_in_explicit_owned_checkout(checkouts, monkeypatch):
@@ -213,6 +255,17 @@ def test_action_implement_claims_and_renders_in_explicit_owned_checkout(checkout
     assert result.exit_code == 0, result.output
     assert f"Workspace: cd {owned}" in result.output
     assert "--owned-checkout" in result.output
+    prompt_path_line = next(
+        line.strip() for line in result.output.splitlines() if line.strip().startswith("cat ")
+    )
+    prompt_text = Path(prompt_path_line.removeprefix("cat ")).read_text(encoding="utf-8")
+    blocked_commands = [
+        line.strip()
+        for line in prompt_text.splitlines()
+        if "spec-kitty agent tasks add-history" in line
+    ]
+    assert len(blocked_commands) == 2
+    assert all(f"--owned-checkout {shlex.quote(str(owned))}" in line for line in blocked_commands)
     assert get_wp_lane(owned / "kitty-specs" / SLUG, "WP01") == Lane.IN_PROGRESS
     assert snapshot(owned) != owned_before
     assert (snapshot(primary), snapshot(sibling)) == protected
