@@ -34,10 +34,19 @@ class WorkspaceObservation(TypedDict):
     reason: str
 
 
+class ObservationScope(TypedDict):
+    roots: list[str]
+    max_depth: int
+    max_directories: int
+    max_entries: int
+    unobservable: list[str]
+
+
 class DiscoveryReport(TypedDict):
     schema_version: str
     organization_inventory_scope: str
     organization_repository_count: int
+    observation_scope: ObservationScope
     local_scan_complete: bool
     entries_scanned: int
     directories_scanned: int
@@ -243,6 +252,13 @@ def discover_workspaces(
         "schema_version": "spec-kitty.organization-workspaces.v1",
         "organization_inventory_scope": "authenticated accessible repositories only",
         "organization_repository_count": len(repositories),
+        "observation_scope": {
+            "roots": sorted({str(p.expanduser().absolute()) for p in roots}),
+            "max_depth": max_depth,
+            "max_directories": max_directories,
+            "max_entries": max_entries,
+            "unobservable": ["repositories_outside_authenticated_visibility", "undiscovered_stores_outside_configured_roots"],
+        },
         "local_scan_complete": not gaps,
         "directories_scanned": scanned,
         "entries_scanned": entries_scanned,

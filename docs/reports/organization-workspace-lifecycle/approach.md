@@ -33,3 +33,13 @@ User Experience Findings: the formal implementation gate exposed missing explici
 Engineering Decisions: declare focused test surfaces and red-first sequence in each WP, map NFR-002 to adapter/integrated work, map durable SC-001 to WP02, distinguish known gaps from unobservable scope, and require measured <2-second fresh-process local status/enqueue acceptance. Long scans run in a bounded worker. Use a mission-local `SPEC_KITTY_HOME` selecting the current bundled authority, preserving global templates and project doctrine; independent review must revalidate that authority choice before recording.
 
 Known Limitations: no callback latency pass, durable ledger, creator retirement or automatic adoption is claimed. The original four-finding report was not canonically recorded because exact global-template provenance failed; it remains external evidence, not an accepted analysis event.
+
+## WP01 scoped accounting clarification
+
+User Experience Findings: a successful empty-root scan could be misread as whole-organization completeness. The narrowed formal specification requires explicit unknown scope, distinct from known coverage failures and accessible unmatched repositories.
+
+Engineering Decisions: add `observation_scope` to the actual report with normalized roots, configured scan bounds and the two unobservable categories. A committed failing production CLI test exposes the missing field before implementation. Canonical review admission correctly refused the earlier implementation because task finalization occurred after it; no planning/status backdating or gate bypass is used. This independently necessary scope correction is implemented against the admitted baseline.
+
+Known Limitations: the new metadata does not observe inaccessible repositories or out-of-root stores and does not grant ownership. Durable accounting remains WP02. Prior exact source qualification remains historical; changed source receives fresh required gates.
+
+Independent scope review additionally distinguishes entirely undiscovered stores from external stores discoverable through a linked checkout/registry. The report category and acceptance use that precise boundary. The first cluster result is intermediate evidence; final checks follow the wording correction.

@@ -103,6 +103,6 @@ def test_report_distinguishes_observed_coverage_from_unobservable_scope(tmp_path
         "max_depth": 2,
         "max_directories": 10000,
         "max_entries": 100000,
-        "unobservable": ["repositories_outside_authenticated_visibility", "stores_outside_configured_roots"],
+        "unobservable": ["repositories_outside_authenticated_visibility", "undiscovered_stores_outside_configured_roots"],
     }
     assert not (tmp_path / ".kittify").exists()
