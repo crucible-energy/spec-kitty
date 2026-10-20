@@ -401,3 +401,38 @@ class TestAtomicWriteCleanupSuppressesOSError:
 
         with pytest.raises(OSError, match="forced replace failure"):
             atomic_write(target, "content")
+
+
+def test_durable_write_syncs_file_and_parent_and_keeps_private_mode(tmp_path: Path) -> None:
+    import os
+    target=tmp_path/'ledger.json'
+    original=os.fsync
+    calls=[]
+    def observed(fd: int) -> None:
+        calls.append(fd)
+        original(fd)
+    with patch('kernel.atomic.os.fsync', side_effect=observed):
+        atomic_write(target,b'{"durable":true}',durable=True)
+    assert len(calls) == 2
+    assert target.read_bytes() == b'{"durable":true}'
+    assert target.stat().st_mode & 0o777 == 0o600
+
+
+def test_durable_write_does_not_hide_directory_sync_failure(tmp_path: Path) -> None:
+    import os
+    original=os.fsync
+    count=0
+    def fail_parent(fd: int) -> None:
+        nonlocal count
+        count+=1
+        if count == 2: raise OSError('directory sync failed')
+        original(fd)
+    with patch('kernel.atomic.os.fsync', side_effect=fail_parent), pytest.raises(OSError):
+        atomic_write(tmp_path/'ledger.json',b'{}',durable=True)
+
+
+def test_durable_write_refuses_replaced_parent_identity(tmp_path: Path) -> None:
+    target=tmp_path/'ledger.json'
+    with pytest.raises(OSError):
+        atomic_write(target,b'{}',durable=True,expected_parent=(0,0))
+    assert not target.exists()
