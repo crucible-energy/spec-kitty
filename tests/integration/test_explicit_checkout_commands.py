@@ -14,6 +14,8 @@ import typer
 from typer.testing import CliRunner
 
 from specify_cli.cli.commands.agent.mission import app as mission_app
+from specify_cli.cli.commands.agent.context import app as context_app
+from specify_cli.cli.commands.agent.workflow import app as action_app
 from specify_cli.cli.commands.accept import accept
 from specify_cli.cli.commands.spec_commit_cmd import spec_commit_command
 
@@ -140,6 +142,72 @@ def test_owned_work_package_context_after_finalization_stays_in_selected_checkou
     assert context.branch_name == TARGET
     assert context.dependencies == []
     assert tuple(snapshot(root) for root in (primary, owned, sibling)) == before
+
+
+def test_context_resolve_accepts_explicit_owned_checkout_from_primary(checkouts, monkeypatch):
+    primary, owned, sibling = checkouts
+    assert invoke("finalize-tasks", owned).exit_code == 0
+    monkeypatch.chdir(primary)
+    monkeypatch.setenv("SPECIFY_REPO_ROOT", str(primary))
+    before = tuple(snapshot(root) for root in (primary, owned, sibling))
+
+    result = runner.invoke(
+        context_app,
+        [
+            "resolve",
+            "--action",
+            "implement",
+            "--mission",
+            SLUG,
+            "--wp-id",
+            "WP01",
+            "--owned-checkout",
+            str(owned),
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert Path(payload["workspace_path"]) == owned
+    assert Path(payload["wp_file"]) == owned / "kitty-specs" / SLUG / "tasks/WP01-test.md"
+    assert tuple(snapshot(root) for root in (primary, owned, sibling)) == before
+
+
+def test_action_implement_claims_and_renders_in_explicit_owned_checkout(checkouts, monkeypatch):
+    from tests._factories import provision_test_charter
+    from specify_cli.identity.project import ensure_identity
+    from specify_cli.status import Lane, get_wp_lane
+
+    primary, owned, sibling = checkouts
+    provision_test_charter(owned)
+    ensure_identity(owned)
+    assert invoke("finalize-tasks", owned).exit_code == 0
+    monkeypatch.chdir(primary)
+    monkeypatch.setenv("SPECIFY_REPO_ROOT", str(primary))
+    protected = snapshot(primary), snapshot(sibling)
+    owned_before = snapshot(owned)
+
+    result = runner.invoke(
+        action_app,
+        [
+            "implement",
+            "WP01",
+            "--mission",
+            SLUG,
+            "--agent",
+            "codex",
+            "--owned-checkout",
+            str(owned),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert f"Workspace: cd {owned}" in result.output
+    assert "--owned-checkout" in result.output
+    assert get_wp_lane(owned / "kitty-specs" / SLUG, "WP01") == Lane.IN_PROGRESS
+    assert snapshot(owned) != owned_before
+    assert (snapshot(primary), snapshot(sibling)) == protected
 
 
 def test_owned_wp_normalization_cache_isolated_from_same_slug_primary(checkouts):
