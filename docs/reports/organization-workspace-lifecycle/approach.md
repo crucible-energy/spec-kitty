@@ -25,3 +25,11 @@ Two red regressions reproduced ambient Git repository/config redirection and an 
 ## Canonical task admission clarification — October20
 
 The earlier legacy-command limitation is superseded: `agent mission finalize-tasks --owned-checkout` already supports this checkout. Its read-only gate correctly requires machine-readable requirement references. The authored packages now provide them. Source code remains frozen at the validated hashes; these subsequent changes are mission/guidance artifacts only. Final documentation/admission checks precede publication, with executable test evidence reused only for unchanged relevant source and configuration.
+
+## Formal analysis remediation — October20
+
+User Experience Findings: the formal implementation gate exposed missing explicit test paths in all WP validation sections, incomplete adapter deadline mapping and ambiguous visibility/latency promises. Analysis recording separately refused stale user-global spec/plan templates before writing. The external blocked report and failed recorder receipt are preserved.
+
+Engineering Decisions: declare focused test surfaces and red-first sequence in each WP, map NFR-002 to adapter/integrated work, map durable SC-001 to WP02, distinguish known gaps from unobservable scope, and require measured <2-second fresh-process local status/enqueue acceptance. Long scans run in a bounded worker. Use a mission-local `SPEC_KITTY_HOME` selecting the current bundled authority, preserving global templates and project doctrine; independent review must revalidate that authority choice before recording.
+
+Known Limitations: no callback latency pass, durable ledger, creator retirement or automatic adoption is claimed. The original four-finding report was not canonically recorded because exact global-template provenance failed; it remains external evidence, not an accepted analysis event.

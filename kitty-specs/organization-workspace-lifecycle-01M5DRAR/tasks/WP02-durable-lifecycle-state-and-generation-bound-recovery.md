@@ -12,9 +12,12 @@ requirement_refs:
 - SC-003
 - NFR-001
 - NFR-003
+- SC-001
 planning_base_branch: codex/organization-workspace-lifecycle-20261020
 merge_target_branch: codex/organization-workspace-lifecycle-20261020
-branch_strategy: Planning artifacts for this mission were generated on codex/organization-workspace-lifecycle-20261020. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into codex/organization-workspace-lifecycle-20261020 unless the human explicitly redirects the landing branch.
+branch_strategy: Planning artifacts for this mission were generated on codex/organization-workspace-lifecycle-20261020. During /spec-kitty.implement this
+  WP may branch from a dependency-specific base, but completed changes must merge back into codex/organization-workspace-lifecycle-20261020 unless the human
+  explicitly redirects the landing branch.
 subtasks: []
 history: []
 authoritative_surface: src/specify_cli/workspace_lifecycle/
@@ -49,6 +52,10 @@ FR-002, FR-004, FR-005, FR-007, FR-008
 Durable lifecycle state and generation-bound recovery. Follow the accepted spec/plan and preserve all other owners. Primary branches advance only through PRs.
 
 ## Validation
+
+Targeted test surface: `tests/workspace_lifecycle/test_state.py`, `test_policy.py`, and `test_coordinator.py` (in that directory); existing authority regressions: `tests/kernel/test_atomic.py`, `tests/kernel/test_yaml_io.py`, `tests/kernel/test_locks.py`, `tests/kernel/test_locks_symlink_safe.py`, `tests/kernel/test_no_follow.py`; `tests/architectural/test_layer_rules.py`.
+
+Commit acceptance tests before implementation; verify the new checks fail on the planning base for the intended missing behavior, then pass on the candidate through the production interface. Preserve existing historical red/green receipts for already implemented WP01 cases; do not manufacture a new red by weakening behavior. Run focused checks during iteration and the unchanged required `make test-fast` plus affected subsystem gates before publication; no full heavy suite locally.
 
 Durable intent and corruption refusal; old generation/release refusal; replay and interruption; concurrent holds; no false cleanup completion.
 

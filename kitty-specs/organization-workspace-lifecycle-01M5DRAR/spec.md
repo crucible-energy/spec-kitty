@@ -16,11 +16,11 @@ Canonical terms: discovery is observation; delivery proves exact accepted conten
 
 An operator sees all accessible organization repositories matched to local Git stores and workspaces, including primary checkouts, independent clones, external worktrees and unsupported creators.
 
-**Independent Test**: A paginated organization fixture and real disposable local stores produce a complete inventory with explicit unmatched/inaccessible coverage. Paths, case and origin URL variations cannot masquerade as ownership.
+**Independent Test**: A paginated organization fixture and real disposable local stores produce a complete inventory with explicit unmatched repositories, known failures and unobservable scope. Paths, case and origin URL variations cannot masquerade as ownership.
 
 **Acceptance Scenarios**:
 1. Given lanes and non-lane worktrees, reconciliation records both.
-2. Given an inaccessible repository or broken Git registry, coverage is incomplete with an actionable reason, never silently complete.
+2. Given a known failed root/registration or broken Git registry, coverage is incomplete with an actionable reason. Repositories outside credential visibility and entirely undiscovered stores remain explicitly unknown scope, never invented per-store records.
 3. Given a foreign remote or similarly named directory, no organization identity is inferred from its name.
 
 ### User Story 2 — Close completed work safely (Priority: P1)
@@ -77,7 +77,7 @@ Missing remote permission, stale inventory, malformed/truncated state, symlinked
 | ID | Title | Requirement | Category | Priority | Status |
 |---|---|---|---|---|---|
 | NFR-001 | Preservation | Zero deletions of active, dirty, unknown, primary or runtime-dependent fixtures across all negative acceptance cases. | Safety | High | Accepted |
-| NFR-002 | Bounded execution | Every external inventory/adapter operation has a configured finite timeout; SessionEnd records only a bounded event within the documented maximum 3 seconds. | Reliability | High | Accepted |
+| NFR-002 | Bounded execution | Every external inventory/adapter operation has a configured finite timeout; Typical-project local status/event-enqueue CLI interactions complete in less than 2 seconds end to end, including process startup. SessionEnd records only a bounded event within its documented maximum 3 seconds; the stricter typical-project CLI budget still applies. Organization scans run as bounded background jobs, with status/enqueue returning within the CLI budget. | Reliability | High | Accepted |
 | NFR-003 | Evidence fidelity | Every retirement result binds exact repository, common store, path, HEAD, branch, owner release, delivery and adapter result. Unknown measurements remain unknown. | Auditability | High | Accepted |
 | NFR-004 | Validation | Changed executable statement coverage at least 90 percent; required baseline and affected subsystem gates pass; independent review before publication. | Quality | High | Accepted |
 
@@ -100,4 +100,4 @@ Missing remote permission, stale inventory, malformed/truncated state, symlinked
 
 ## Assumptions and Boundaries
 
-Authenticated visibility does not prove membership in inaccessible repositories. Local root discovery is configured and bounded; inaccessible or out-of-root stores remain visible coverage gaps. Existing unregistered owners cannot be invented. A managed creator may require a supported connection not available to a local hook; retain and retry through that creator. The first custody repair is PR112 and remains independently reviewable. Historical Op records and evidence are preserved.
+Authenticated visibility does not prove membership in inaccessible repositories. Local root discovery is configured and bounded. Known failed roots and registrations are enumerable coverage gaps; accessible repositories with no local match are reported separately. Entirely undiscovered stores outside configured roots, and repositories outside credential visibility, are unobservable scope with an explicit unknown declaration, not invented per-store gaps. Existing unregistered owners cannot be invented. A managed creator may require a supported connection not available to a local hook; retain and retry through that creator. The first custody repair is PR112 and remains independently reviewable. Historical Op records and evidence are preserved.

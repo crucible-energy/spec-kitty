@@ -12,9 +12,12 @@ requirement_refs:
 - SC-002
 - SC-004
 - NFR-001
+- NFR-002
 planning_base_branch: codex/organization-workspace-lifecycle-20261020
 merge_target_branch: codex/organization-workspace-lifecycle-20261020
-branch_strategy: Planning artifacts for this mission were generated on codex/organization-workspace-lifecycle-20261020. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into codex/organization-workspace-lifecycle-20261020 unless the human explicitly redirects the landing branch.
+branch_strategy: Planning artifacts for this mission were generated on codex/organization-workspace-lifecycle-20261020. During /spec-kitty.implement this
+  WP may branch from a dependency-specific base, but completed changes must merge back into codex/organization-workspace-lifecycle-20261020 unless the human
+  explicitly redirects the landing branch.
 subtasks: []
 history: []
 authoritative_surface: src/specify_cli/workspace_lifecycle/
@@ -47,6 +50,10 @@ FR-003, FR-004, FR-005, FR-008, FR-009
 Supported creator adapters and automatic ingress. Follow the accepted spec/plan and preserve all other owners. Primary branches advance only through PRs.
 
 ## Validation
+
+Targeted test surface: `tests/workspace_lifecycle/test_adapters.py` and `test_events.py`; `tests/specify_cli/git/test_destructive_guard.py`, `tests/git/test_delete_branch_ref.py`, `tests/architectural/test_destructive_op_routing.py` and `tests/architectural/test_layer_rules.py`. Include production completion/startup wiring, hung adapter timeout, bounded event callback and worker dispatch; event enqueue never scans or retires synchronously.
+
+Commit acceptance tests before implementation; verify the new checks fail on the planning base for the intended missing behavior, then pass on the candidate through the production interface. Preserve existing historical red/green receipts for already implemented WP01 cases; do not manufacture a new red by weakening behavior. Run focused checks during iteration and the unchanged required `make test-fast` plus affected subsystem gates before publication; no full heavy suite locally.
 
 Actual automatic supported completion and non-lane retirement under creator fence; shared/protected/dirty/ignored/nested/active preservation; managed API unavailable is retained; branch results separate.
 

@@ -11,7 +11,9 @@ requirement_refs:
 - NFR-003
 planning_base_branch: codex/organization-workspace-lifecycle-20261020
 merge_target_branch: codex/organization-workspace-lifecycle-20261020
-branch_strategy: Planning artifacts for this mission were generated on codex/organization-workspace-lifecycle-20261020. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into codex/organization-workspace-lifecycle-20261020 unless the human explicitly redirects the landing branch.
+branch_strategy: Planning artifacts for this mission were generated on codex/organization-workspace-lifecycle-20261020. During /spec-kitty.implement this
+  WP may branch from a dependency-specific base, but completed changes must merge back into codex/organization-workspace-lifecycle-20261020 unless the human
+  explicitly redirects the landing branch.
 subtasks: []
 history: []
 authoritative_surface: src/specify_cli/workspace_lifecycle/
@@ -47,6 +49,10 @@ FR-001, FR-002
 Verified organization discovery and accounting. Follow the accepted spec/plan and preserve all other owners. Primary branches advance only through PRs.
 
 ## Validation
+
+Targeted test surface: `tests/workspace_lifecycle/test_discovery.py`, `tests/workspace_lifecycle/test_inventory_cli.py`, `tests/kernel/`, and `tests/specify_cli/cli/commands/test_doctor_cli_surface_golden.py`; implicated architecture checks: `tests/architectural/test_git_path_listing_owner.py` and `tests/architectural/test_layer_rules.py`.
+
+Commit acceptance tests before implementation; verify the new checks fail on the planning base for the intended missing behavior, then pass on the candidate through the production interface. Preserve existing historical red/green receipts for already implemented WP01 cases; do not manufacture a new red by weakening behavior. Run focused checks during iteration and the unchanged required `make test-fast` plus affected subsystem gates before publication; no full heavy suite locally.
 
 Real Git stores and external worktrees; ambient overrides; malformed/failed pagination; bounded traversal and symlink/bare coverage; production CLI ingress; read-only actual representative inventory.
 

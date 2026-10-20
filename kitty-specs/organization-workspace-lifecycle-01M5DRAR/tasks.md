@@ -1,6 +1,6 @@
 # Organization workspace lifecycle — tasks
 
-These packages are authored for the accepted specification. Runtime admission/finalization is pending canonical task finalization and admission checks; no runtime claim or done event is inferred from source edits.
+These packages are authored for the accepted specification. Canonical finalization admitted all five packages; implementation/review transitions remain separate; no runtime claim or done event is inferred from source edits.
 
 ## WP01: Verified organization discovery and accounting
 
@@ -14,7 +14,7 @@ Requirement Refs: FR-001, FR-002, SC-001, NFR-001, NFR-002, NFR-003
 
 Depends on: WP01
 
-Requirement Refs: FR-002, FR-004, FR-005, FR-007, FR-008, SC-003, NFR-001, NFR-003
+Requirement Refs: FR-002, FR-004, FR-005, FR-007, FR-008, SC-003, SC-001, NFR-001, NFR-003
 
 - [ ] T002 Implement, validate and review durable lifecycle state and generation-bound recovery.
 
@@ -22,7 +22,7 @@ Requirement Refs: FR-002, FR-004, FR-005, FR-007, FR-008, SC-003, NFR-001, NFR-0
 
 Depends on: WP02
 
-Requirement Refs: FR-003, FR-004, FR-005, FR-008, FR-009, SC-002, SC-004, NFR-001
+Requirement Refs: FR-003, FR-004, FR-005, FR-008, FR-009, SC-002, SC-004, NFR-001, NFR-002
 
 - [ ] T003 Implement, validate and review supported creator adapters and automatic ingress.
 
@@ -38,6 +38,6 @@ Requirement Refs: FR-006, SC-005, C-001
 
 Depends on: WP01, WP02, WP03, WP04
 
-Requirement Refs: FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, SC-001, SC-002, SC-003, SC-004, SC-005, NFR-004, C-002, C-003, C-004
+Requirement Refs: FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, SC-001, SC-002, SC-003, SC-004, SC-005, NFR-002, NFR-004, C-002, C-003, C-004
 
 - [ ] T005 Implement, validate and review integrated recovery acceptance and adoption.
