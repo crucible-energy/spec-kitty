@@ -13,7 +13,7 @@ from typing import Literal
 import typer
 from specify_cli.cli.console import console
 
-from specify_cli.cli.commands.dispatch import _build_executor
+from specify_cli.cli.commands.dispatch import _build_executor, _operation_checkout
 from specify_cli.invocation.errors import (
     AlreadyClosedError,
     ContextUnavailableError,  # noqa: F401 — re-exported for callers/tests
@@ -113,6 +113,9 @@ def complete_invocation(
         help="Git commit SHA most directly produced by this invocation. Singular.",
     ),
     json_output: bool = typer.Option(False, "--json", help="Output JSON payload"),
+    owned_checkout: Path | None = typer.Option(
+        None, "--owned-checkout", help="Verified checkout holding the operation opened by dispatch.",
+    ),
 ) -> None:
     """Close an open invocation record. --invocation-id and --outcome are required.
 
@@ -135,7 +138,8 @@ def complete_invocation(
             param_hint="--outcome",
         )
 
-    repo_root = _get_repo_root()
+    primary = find_repo_root(owned_checkout) if owned_checkout is not None else _get_repo_root()
+    repo_root = _operation_checkout(primary, owned_checkout, writing=True)
     executor = _build_executor(repo_root)
     try:
         completed = executor.complete_invocation(

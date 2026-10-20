@@ -32,13 +32,14 @@ from __future__ import annotations
 import json
 import subprocess
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
 import pytest
 
-from mission_runtime import MissionArtifactKind
+from mission_runtime import CommitTarget, MissionArtifactKind, resolve_placement_only
 from specify_cli.coordination.commit_router import CommitRouterResult, commit_for_mission
 from specify_cli.git import protection_policy as _pp_module
 from specify_cli.git.protection_policy import ProtectionPolicy
@@ -124,6 +125,20 @@ def _seed_mission(repo_root: Path, slug: str, mid8: str, coord_branch: str) -> t
     # We create it here; callers must commit seed files before calling this so that
     # the branch starts from a clean state.
     return feature_dir, spec
+
+
+def _coordination_placement(coord_branch: str) -> Callable[..., CommitTarget]:
+    """Override the exercised coord kind, retaining real primary resolution.
+
+    The router also queries the same authority for its primary target. A
+    constant mock incorrectly aliases both surfaces and prevents coord routing.
+    """
+    def resolve(repo_root: Path, mission_slug: str, *, kind: MissionArtifactKind | None = None, **kwargs: Any) -> CommitTarget:
+        if kind is MissionArtifactKind.ACCEPTANCE_MATRIX:
+            return CommitTarget(ref=coord_branch)
+        return resolve_placement_only(repo_root, mission_slug, kind=kind, **kwargs)
+
+    return resolve
 
 
 # ---------------------------------------------------------------------------
@@ -247,16 +262,17 @@ class TestProtectedBranchesConfigHonoring:
         _git(repo.repo_root, "branch", coord_branch)
         report.write_text('{"updated": "via coord"}\n', encoding="utf-8")
 
+        main_before = _git(repo.repo_root, "rev-parse", "main").stdout
+        expected_report = report.read_text(encoding="utf-8")
         policy = ProtectionPolicy.resolve(repo.repo_root)
         assert policy.is_protected("main"), (
             "Precondition: 'main' must be protected with explicit [main]."
         )
 
-        from mission_runtime import CommitTarget
 
         with patch(
             "specify_cli.coordination.commit_router.resolve_placement_only",
-            return_value=CommitTarget(ref=coord_branch),
+            side_effect=_coordination_placement(coord_branch),
         ), patch(
             "specify_cli.coordination.commit_router._resolve_mid8",
             return_value=mid8,
@@ -270,6 +286,8 @@ class TestProtectedBranchesConfigHonoring:
                 kind=MissionArtifactKind.ACCEPTANCE_MATRIX,
             )
 
+        assert _git(repo.repo_root, "rev-parse", "main").stdout == main_before
+        assert _git(repo.repo_root, "show", f"{coord_branch}:kitty-specs/{slug}/acceptance-matrix.json").stdout == expected_report
         coord_worktree = repo.repo_root / ".worktrees" / f"{slug}-{mid8}-coord"
         assert coord_worktree.exists(), (
             "T024: coord worktree NOT created even though main is explicitly protected. "
@@ -373,15 +391,16 @@ class TestFR006HatchEndToEnd:
         _git(repo.repo_root, "branch", coord_branch)
         report.write_text('{"updated": "no hatch"}\n', encoding="utf-8")
 
+        main_before = _git(repo.repo_root, "rev-parse", "main").stdout
+        expected_report = report.read_text(encoding="utf-8")
         policy = ProtectionPolicy.resolve(repo.repo_root)
         assert not policy.operator_hatch_active, "Baseline: hatch must be OFF."
         assert policy.is_protected("main"), "Baseline: 'main' must be protected without hatch."
 
-        from mission_runtime import CommitTarget
 
         with patch(
             "specify_cli.coordination.commit_router.resolve_placement_only",
-            return_value=CommitTarget(ref=coord_branch),
+            side_effect=_coordination_placement(coord_branch),
         ), patch(
             "specify_cli.coordination.commit_router._resolve_mid8",
             return_value=mid8,
@@ -395,6 +414,8 @@ class TestFR006HatchEndToEnd:
                 kind=MissionArtifactKind.ACCEPTANCE_MATRIX,
             )
 
+        assert _git(repo.repo_root, "rev-parse", "main").stdout == main_before
+        assert _git(repo.repo_root, "show", f"{coord_branch}:kitty-specs/{slug}/acceptance-matrix.json").stdout == expected_report
         coord_worktree = repo.repo_root / ".worktrees" / f"{slug}-{mid8}-coord"
         assert coord_worktree.exists(), (
             "Baseline: coord worktree must be created when hatch is OFF and main is protected."

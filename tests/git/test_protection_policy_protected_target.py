@@ -33,6 +33,19 @@ from specify_cli.git.protection_policy import ProtectionPolicy
 pytestmark = pytest.mark.git_repo
 
 
+def test_pr_only_authoring_can_decline_operator_and_mission_bypasses(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _build_git_repo(tmp_path, branch="main")
+    _write_kittify_config(repo, "protection:\n  protected_branches: []\n")
+    monkeypatch.setenv("SPEC_KITTY_ALLOW_PROTECTED_BRANCH_COMMITS", "1")
+    policy = ProtectionPolicy.resolve(repo).scoped_to_mission({"commit_to_target": True, "target_branch": "main"})
+    assert policy.is_protected_target("main", primary_branch="main") is False
+    assert policy.is_protected_target("main", primary_branch="main", allow_bypass=False) is True
+    assert policy.is_protected_target("topic", primary_branch="main", allow_bypass=False) is False
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

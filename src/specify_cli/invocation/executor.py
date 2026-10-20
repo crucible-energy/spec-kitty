@@ -38,6 +38,7 @@ from specify_cli.invocation.errors import (
     AlreadyClosedError,
     InvalidModeForEvidenceError,
     InvocationError,
+    InvocationWriteError,
     RouterAmbiguityError,
     UndeterminedModeForEvidenceError,
 )
@@ -185,7 +186,12 @@ def mode_permits_evidence(mode: ModeOfWork | None | _UndeterminedMode) -> bool:
     return mode not in (ModeOfWork.ADVISORY, ModeOfWork.QUERY)
 
 
-def build_close_contract(invocation_id: str, mode_of_work: str | None = None) -> dict[str, object]:
+def build_close_contract(
+    invocation_id: str,
+    mode_of_work: str | None = None,
+    *,
+    owned_checkout: Path | None = None,
+) -> dict[str, object]:
     """Machine-readable close contract for an open Op (contracts/cli-do-output.md).
 
     Emitted in every invocation JSON payload so orchestrators know exactly how
@@ -201,6 +207,10 @@ def build_close_contract(invocation_id: str, mode_of_work: str | None = None) ->
         "artifact_flag": "--artifact",
         "commit_flag": "--commit",
     }
+    if owned_checkout is not None:
+        from shlex import quote
+
+        contract["command"] = f"{contract['command']} --owned-checkout {quote(str(owned_checkout))}"
     if not mode_permits_evidence(classify_mode_of_work(mode_of_work)):
         del contract["evidence_flag"]
     return contract
@@ -233,6 +243,7 @@ class InvocationPayload:
     # for this slot -- see to_dry_run_dict()'s explicit fail-fast guard below,
     # which is the real backstop at this layer.
     alternatives: list[dict[str, str]]
+    _owned_checkout: Path | None
 
     __slots__ = (
         "invocation_id",
@@ -248,6 +259,7 @@ class InvocationPayload:
         "recommendation",
         "empty_charter_fallback",
         "alternatives",
+        "_owned_checkout",
     )
 
     def __init__(self, **kwargs: object) -> None:
@@ -285,11 +297,15 @@ class InvocationPayload:
     def to_dict(self) -> dict[str, object]:
         # mode_of_work shapes the close contract below but is not part of
         # the serialized payload surface (contracts/cli-do-output.md).
-        result = self._serialize_slots(exclude=frozenset({"mode_of_work"}))
+        result = self._serialize_slots(exclude=frozenset({"mode_of_work", "_owned_checkout"}))
         # FR-002 / contracts/cli-do-output.md: invoke() leaves the Op open;
         # every JSON payload carries the explicit close contract.
         result["status"] = "open"
-        result["close_contract"] = build_close_contract(self.invocation_id, getattr(self, "mode_of_work", None))
+        result["close_contract"] = build_close_contract(
+            self.invocation_id,
+            getattr(self, "mode_of_work", None),
+            owned_checkout=getattr(self, "_owned_checkout", None),
+        )
         return result
 
     def to_dry_run_dict(self) -> dict[str, object]:
@@ -318,7 +334,7 @@ class InvocationPayload:
         """
         if getattr(self, "alternatives", None) is None:
             raise RuntimeError("InvocationPayload.alternatives was not set -- a construction site is missing alternatives=")
-        result = self._serialize_slots(exclude=frozenset({"mode_of_work", "invocation_id"}))
+        result = self._serialize_slots(exclude=frozenset({"mode_of_work", "invocation_id", "_owned_checkout"}))
         result["status"] = "dry_run"
         return result
 
@@ -464,6 +480,7 @@ class ProfileInvocationExecutor:
                 EDGE-005). Has no effect on the router-backed branch.
         """
         invocation_id = _new_ulid()  # uses codebase-standard ulid library
+        checkout_branch = self._current_branch()
 
         # 1-2a. Resolve (profile_id, action), the advisory model-routing
         # recommendation, the governance context, and the glossary scan --
@@ -510,7 +527,10 @@ class ProfileInvocationExecutor:
             mission_id=mission_id,
             wp_id=wp_id,
             recommended_model_id=recommended_model_id,
+            checkout_branch=checkout_branch,
         )
+        if self._current_branch() != checkout_branch:
+            raise InvocationWriteError("Checkout branch changed while opening the operation; no record was written.")
         self._writer.write_started(record)  # raises InvocationWriteError → non-zero exit
 
         # Step 5: Write glossary observation to trail (best-effort)
@@ -778,6 +798,14 @@ class ProfileInvocationExecutor:
         this executor (research R4): the spine append IS the canonical close
         path's write for the sweep caller.
         """
+        # A path alone is insufficient custody: an untracked record follows
+        # checkout switches. Bind agent completion to its recorded branch
+        # before any append, promotion or correlation-link effect. Legacy
+        # records without a branch remain readable/closable as before.
+        checkout_branch = self._read_started_event(invocation_id).get("checkout_branch") if closed_by == "agent" else None
+        if checkout_branch is not None and (not isinstance(checkout_branch, str) or not checkout_branch or self._current_branch() != checkout_branch):
+            raise InvocationError("Operation checkout branch changed; return to the original branch before closing.")
+
         # Step 1: Read started event for mode enforcement (FR-009).
         started_mode = self._read_started_mode(invocation_id)
 

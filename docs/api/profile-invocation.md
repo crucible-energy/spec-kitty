@@ -31,13 +31,26 @@ has a specific profile in mind or needs to bypass routing.
 |---|---|
 | `REQUEST` | Natural-language request [required] |
 | `--profile TEXT` | Optional profile ID; bypasses routing |
+| `--owned-checkout PATH` | Verified checkout in this repository that owns the Op records and commit |
 | `--json` | Output JSON payload |
 
 **Example**:
 ```bash
 uv run spec-kitty dispatch "Review this implementation approach" --json
 uv run spec-kitty dispatch "Implement token validation" --profile implementer-ivan --json
+uv run spec-kitty dispatch "Review this implementation" --owned-checkout "$PWD" --json
 ```
+
+Canonical repository discovery still finds the primary checkout. Use
+`--owned-checkout` to keep the operation in an owned feature checkout instead.
+Ownership is validated against the discovered repository before constructing
+the executor. Profile and governance resolution use the selected checkout's
+versioned configuration. Writes to protected branches and detached checkouts
+are refused before opening the record; read-only `--dry-run` remains available.
+The returned close command preserves the verified absolute checkout path,
+including shell quoting, so closing does not depend on the caller's directory.
+Primary-branch protection cannot be disabled for operation authoring through
+the operator hatch, a mission bypass or an empty configured protection list.
 
 ---
 
@@ -56,6 +69,7 @@ event to the trail file.
 | `--evidence TEXT` | Path to evidence file (Tier 2 promotion). Accepted for evidence-eligible records. |
 | `--artifact TEXT` | Path to an artifact produced by this invocation (repeatable) |
 | `--commit TEXT` | Git commit SHA most directly produced by this invocation (singular) |
+| `--owned-checkout PATH` | Checkout holding the Op; use the value preserved in dispatch's close command |
 | `--json` | Output JSON payload |
 
 **Example**:
@@ -80,6 +94,11 @@ contains a `started` event and, once closed, a `completed` event. It may also
 contain additional append-only events such as `glossary_checked`,
 `artifact_link`, or `commit_link`.
 
+With explicit checkout ownership, this path and the completed-record commit
+belong to that checkout. The primary checkout is not modified. Completion
+revalidates checkout ownership and branch protection before appending events.
+This does not grant authority to remove the checkout or change its branch.
+
 ### started event fields
 
 | Field | Type | Description |
@@ -95,6 +114,7 @@ contain additional append-only events such as `glossary_checked`,
 | `router_confidence` | string/null | Router confidence for auto-routed requests |
 | `started_at` | ISO 8601 timestamp | When the invocation was opened |
 | `mode_of_work` | string | `task_execution`, `mission_step`, or `query` |
+| `checkout_branch` | string/null | Branch captured when the Op opens; agent completion refuses a changed branch. Omitted for legacy or non-Git records. |
 
 ### completed event fields
 
