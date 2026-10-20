@@ -1,6 +1,10 @@
 ---
 doc_status: active
 updated: '2026-10-08'
+version_tag: internal
+type: none
+owning_workstream: shared-lane-owner-routing
+notes: Internal repair evidence and decisions; not product guidance.
 ---
 
 # Validation and delivery evidence
@@ -178,6 +182,53 @@ shared the SQLite data prefix. They remain retained; a byte-identical database
 copy passes SQLite integrity checking and produces the final report from an
 isolated data filename without those warnings. No test or source rule changes
 to repair this operator reporting mistake.
+
+## Explicit-owned action-implement continuation (2026-10-20)
+
+The causal public-command test was committed test-only first as
+`d11822702` (`test: pin owned implement CLI contract`). Before the source fix,
+both context resolution and action implementation refused `--owned-checkout`.
+The action regression now creates and commits a current analysis report through
+the canonical report writer, invokes implementation from the primary checkout,
+and verifies that the selected owner receives the claim while primary and
+sibling snapshots remain unchanged.
+
+Focused validation passes 147 tests across:
+
+```text
+tests/integration/test_explicit_checkout_commands.py
+tests/specify_cli/cli/commands/agent/test_implement_single_resolution.py
+tests/specify_cli/coordination/test_status_transition.py
+tests/status/test_work_package_lifecycle.py
+tests/specify_cli/cli/commands/agent/test_wrapper_delegation.py
+```
+
+Ruff passes on all changed Python files, strict UTF-8 decoding passes on all
+seven changed Python files, `git diff --check` passes, and the repository's
+`make typecheck` gate passes. A direct strict mypy run on the four changed agent
+command modules reports no issues. Expanding that direct run to the status
+transition and lifecycle modules reports seven existing diagnostics on
+unchanged lines in those two files; the added effective-root parameters produce
+no type diagnostics. The worktree's configured Git hook path is `.githooks`,
+but that directory is absent, so no local Git hook ran. The charter-required
+UTF-8 check and repository lint, test, and typecheck gates ran directly.
+
+This is source-level behavior evidence on a disposable Git fixture. PR70 still
+depends on PR67 and has not been merged or installed; it does not prove runtime
+adoption or production deployment.
+
+The full CLI-reference builder was interrupted during an unrelated command's
+help capture because it serially starts every visible command. The live
+`agent action implement --help` output was captured directly and its generated
+reference section was synchronized. The targeted CLI-reference freshness gate
+passes on the completed documentation diff.
+
+The first strict full-docs run found 23 inventory/index errors, including these
+five previously unregistered active report pages and stale index rows for the
+implementation guide and merge guide. The report pages are now explicitly
+classified as internal; the canonical inventory lockfile and retrieval index
+were regenerated. `inventory_lockfile --strict` and the full docs-freshness gate
+now pass: 799 generated/committed pages, zero findings, zero warnings.
 
 ## Substantive evidence probes adopted from independent review
 

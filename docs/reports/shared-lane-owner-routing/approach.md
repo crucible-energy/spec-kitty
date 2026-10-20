@@ -1,6 +1,10 @@
 ---
 doc_status: active
 updated: '2026-10-08'
+version_tag: internal
+type: none
+owning_workstream: shared-lane-owner-routing
+notes: Internal repair evidence and decisions; not product guidance.
 ---
 
 # Shared-lane and explicit checkout owner repair
@@ -58,3 +62,20 @@ all terminal events together. Acceptance's bounded provenance/residual sequence
 is checked structurally; a producer commit label cannot authorize changed source,
 verification inputs or review history. The current qualified installation remains
 unchanged, and tests never terminalize the actual accepted 3body mission.
+
+## Explicit action-implement continuation
+
+Issue #60 also covered the public `agent action implement` entry point. Its
+selected-root resolution now uses the same validated owner contract as the
+existing explicit-checkout commands. Work-package tasks, status events,
+analysis freshness, mission type, review artifacts, baseline artifacts, and
+claim commits are resolved against that root. The primary checkout remains the
+identity boundary for the owner validator, while status writes use the existing
+transactional effective-root route.
+
+An owned single-branch mission already identifies its execution checkout. The
+action therefore validates that exact workspace and does not create or repair a
+lane checkout or apply the lane ancestry merge gate. It still enforces the
+selected mission's dependency status, charter, sparse-checkout, staged-index,
+and active-sync preconditions. Prompted follow-up lifecycle commands preserve
+the explicit checkout flag and quote paths for shell use.

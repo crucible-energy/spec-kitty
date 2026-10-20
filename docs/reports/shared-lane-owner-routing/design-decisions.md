@@ -1,6 +1,10 @@
 ---
 doc_status: active
 updated: '2026-10-08'
+version_tag: internal
+type: none
+owning_workstream: shared-lane-owner-routing
+notes: Internal repair evidence and decisions; not product guidance.
 ---
 
 # Engineering decisions
@@ -63,3 +67,17 @@ updated: '2026-10-08'
   allowed changed paths and expected metadata, criterion inputs and review
   prefix. Beyond that boundary only one canonical terminal transaction is
   admitted; its actual integration proof must equal the boundary commit.
+
+- The action implementation path accepts an exact validated checkout root and
+  carries it through the canonical placement and status transaction seams.
+  This keeps the primary repository as the identity authority while ensuring
+  mutable status and mission artifacts land on the selected mission branch.
+- Explicit owner mode refuses active SaaS synchronization because that
+  single-branch transaction has no reviewed sync contract. It also skips lane
+  allocation and lane ancestry: those operations apply to computed multi-lane
+  workspaces, while the owned resolver already validates the mission's exact
+  target branch. Dependency readiness remains enforced from the selected
+  status surface.
+- Generated follow-up commands carry a shell-quoted `--owned-checkout` path.
+  Without that flag, the next action could resolve against the primary checkout
+  after the initial implementation prompt correctly used the selected owner.

@@ -54,6 +54,7 @@ class ImplementRequest:
     agent: str | None
     allow_sparse_checkout: bool
     acknowledge_not_bulk_edit: bool
+    owned_checkout: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +153,8 @@ def render_wp_prompt_wrapper(wp_text: str) -> list[str]:
 
 def workspace_contract_description(workspace: ResolvedWorkspace, wp_id: str) -> str:
     """Describe the canonical execution workspace for prompt output."""
+    if workspace.mode_source == "owned_checkout":
+        return "Workspace contract: explicitly selected checkout"
     if workspace.lane_id:
         shared = ", ".join(workspace.lane_wp_ids or [wp_id])
         return f"Workspace contract: lane {workspace.lane_id} shared by {shared}"

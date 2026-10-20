@@ -16,6 +16,7 @@ from typer.testing import CliRunner
 from specify_cli.cli.commands.agent.mission import app as mission_app
 from specify_cli.cli.commands.agent.context import app as context_app
 from specify_cli.cli.commands.agent.workflow import app as action_app
+from specify_cli.analysis_report import write_analysis_report
 from specify_cli.cli.commands.accept import accept
 from specify_cli.cli.commands.spec_commit_cmd import spec_commit_command
 
@@ -154,7 +155,6 @@ def test_context_resolve_accepts_explicit_owned_checkout_from_primary(checkouts,
     result = runner.invoke(
         context_app,
         [
-            "resolve",
             "--action",
             "implement",
             "--mission",
@@ -183,6 +183,14 @@ def test_action_implement_claims_and_renders_in_explicit_owned_checkout(checkout
     provision_test_charter(owned)
     ensure_identity(owned)
     assert invoke("finalize-tasks", owned).exit_code == 0
+    write_analysis_report(
+        feature_dir=owned / "kitty-specs" / SLUG,
+        repo_root=owned,
+        body="# Specification Analysis Report\n\nNo blocking findings.\n",
+        analyzer_agent="codex",
+    )
+    git(owned, "add", f"kitty-specs/{SLUG}/analysis-report.md")
+    git(owned, "commit", "-qm", "docs: record owned mission analysis")
     monkeypatch.chdir(primary)
     monkeypatch.setenv("SPECIFY_REPO_ROOT", str(primary))
     protected = snapshot(primary), snapshot(sibling)

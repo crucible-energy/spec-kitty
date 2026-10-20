@@ -1,6 +1,10 @@
 ---
 doc_status: active
 updated: '2026-10-08'
+version_tag: internal
+type: none
+owning_workstream: shared-lane-owner-routing
+notes: Internal repair evidence and decisions; not product guidance.
 ---
 
 # Findings and limitations
@@ -76,3 +80,22 @@ updated: '2026-10-08'
   focused rule. Eight unrelated existing sites reproduce at immutable c32 and
   remain a failed whole-tree gate, assigned to Samuel Goff in issue71. The
   source receipt distinguishes this baseline from zero new facade violations.
+- The first action-implement integration run reached the owned status reader and
+  exposed that `start_implementation_status` passed `effective_root` into its
+  transition writers but not `read_current_wp_state_transactional`. The reader
+  now accepts the same optional root and builds its read identity from the
+  selected checkout. The end-to-end test caught this at the public command
+  boundary.
+- The context command has one registered Typer command, so invoking its app
+  directly collapses the command name. The test now passes the options directly
+  while exercising the same public `resolve` callback; this corrects the test
+  harness, not the command's documented CLI path.
+- The full CLI-reference builder serially starts `uv run spec-kitty <command> --help`
+  for every visible command. It was interrupted while generating the
+  unrelated `accept --help` entry; the changed action help was captured from the
+  live command and the corresponding generated reference section was synced.
+- The full docs-freshness gate exposed that this active report folder had never
+  been classified in the page inventory or retrieval index, and that two other
+  pages had stale index metadata. The five report pages are now tagged as
+  internal from frontmatter; both generated indexes were refreshed and the
+  strict docs gate passes with zero findings.

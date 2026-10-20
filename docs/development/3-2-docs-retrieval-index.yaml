@@ -4726,6 +4726,7 @@ pages:
     - {slug: "mission-configuration", text: "Mission Configuration", level: 2}
     - {slug: "implementation-details", text: "Implementation Details", level: 2}
     - {slug: "charter-3-x-documentation-mission-under-governance", text: "Charter 3.x: Documentation Mission Under Governance", level: 2}
+    - {slug: "acceptance-without-work-packages", text: "Acceptance Without Work Packages", level: 2}
     - {slug: "try-it", text: "Try It", level: 2}
     - {slug: "how-to-guides", text: "How-To Guides", level: 2}
     - {slug: "reference-2", text: "Reference", level: 2}
@@ -8203,6 +8204,7 @@ pages:
     - {slug: "prerequisites", text: "Prerequisites", level: 2}
     - {slug: "step-1-get-the-wp-prompt", text: "Step 1: Get the WP Prompt", level: 2}
     - {slug: "step-2-create-or-resolve-the-workspace", text: "Step 2: Create or Resolve the Workspace", level: 2}
+    - {slug: "explicitly-select-an-owned-single-branch-checkout", text: "Explicitly select an owned single-branch checkout", level: 3}
     - {slug: "step-3-work-in-the-resolved-worktree", text: "Step 3: Work in the Resolved Worktree", level: 2}
     - {slug: "step-4-mark-the-wp-ready-for-review", text: "Step 4: Mark the WP Ready for Review", level: 2}
     - {slug: "what-happens", text: "What Happens", level: 2}
@@ -8239,6 +8241,7 @@ pages:
     anchors:
     - {slug: "prerequisites", text: "Prerequisites", level: 2}
     - {slug: "quick-start", text: "Quick Start", level: 2}
+    - {slug: "complete-an-explicitly-owned-single-branch-mission", text: "Complete an Explicitly Owned Single-Branch Mission", level: 2}
     - {slug: "pre-flight-validation", text: "Pre-flight Validation", level: 2}
     - {slug: "fixing-pre-flight-failures", text: "Fixing Pre-flight Failures", level: 3}
     - {slug: "focused-pr-for-autonomous-local-runs", text: "Focused PR for Autonomous Local Runs", level: 3}
@@ -13671,6 +13674,39 @@ pages:
     anchors:
     - {slug: "what-spec-kitty-init-does", text: "What `spec-kitty init` does", level: 2}
     - {slug: "authoring-your-project-charter", text: "Authoring your project charter", level: 2}
+  - path: "docs/reports/shared-lane-owner-routing/approach.md"
+    title: "Shared-lane and explicit checkout owner repair"
+    divio_type: "none"
+    abstract: "This is a necessary source-owner dependency repair for Temet Nosce mission `ecosystem-intelligence-runtime-01M4DFMG`, under the parent implement-review delegation and resolver-loaded Python Pedro. Spec Kitty issue69 owns membership refresh; the work-package continuation is the concrete explicit-checkout contract from issue60. No new canonical mission, status event, approval or installed CLI identity is invented."
+    anchors:
+    - {slug: "explicit-action-implement-continuation", text: "Explicit action-implement continuation", level: 2}
+  - path: "docs/reports/shared-lane-owner-routing/design-decisions.md"
+    title: "Engineering decisions"
+    divio_type: "none"
+    abstract: "- Finalized lanes own membership and exact mission/lane/branch/path identity. Canonical status owns which member is active. A membership mismatch refuses ownership with a specific diagnostic until supported action reentry refreshes it. - One owner operation validates identity before ancestry work and refreshes only current WP, complete members and dependencies after success. Base/creation, branch/path and environment provenance are retained. Missing context remains missing for the existing recovery lifecycle; no new provenance is fabricated. - Dirty in-flight work remains protected by the existing reentry/ancestry contract. Allocator reuse retains its distinct clean-workspace check for a new package. - Explicit checkout is propagated only from the opted-in owner boundary. WP cache identity uses the actual resolved task directory, preventing same-slug or flagless-worktree cache entries from crossing into an explicitly selected root. - A selected single-branch checkout remains the WP execution workspace. No child lane is guessed or allocated. Completion/review instructions retain supported explicit-checkout lifecycle flags; this is not authority to approve work. - The source policy is three checkouts and three active non-default streams. Five owner checkouts already existed. Dirty repository-root and two dirty lanes, plus unrelated closure work, were preserved. We reused this chat's clean PR67 checkout on a new branch; PR67 local/remote refs and evidence remain fixed. Conservatively counting the preserved dirty repository-root and two dirty lanes as active, this repair is a temporary fourth stream under the parent's explicit necessary-owner-repair authorization. It is a bounded exception, not permission inferred from an absent config knob. No checkout was added or another owner evicted; the parent/operator owns post-delivery branch/workspace disposition."
+    anchors: []
+  - path: "docs/reports/shared-lane-owner-routing/issue-matrix.md"
+    title: "Issue matrix"
+    divio_type: "none"
+    abstract: "| Issue | Scope | Claim | State | | --- | --- | --- | --- | | #69 | Shared finalized lane members and identity refresh | Python Pedro under parent Temet runtime mission | Implemented; independent review pending | | #60 | Explicit-checkout continuation and accepted single-branch local completion | Python Pedro under parent Temet runtime mission | Native progression, local completion, and action-implement continuation implemented on PR70; focused regression suite passes; PR review and runtime adoption remain pending | | #71 | Eight pre-existing whole-tree status-facade violations hidden by timing opt-in | Samuel Goff, verified `samuelgoff` assignee | Open; immutable c32 reproduction retained, no waiver or unrelated repair in this increment |"
+    anchors: []
+  - path: "docs/reports/shared-lane-owner-routing/tooling-friction.md"
+    title: "Findings and limitations"
+    divio_type: "none"
+    abstract: "- Spec Kitty has AGENTS.md and a binding project charter; SAM.md is absent here. - Installed dispatch folds to the dirty repository root checkout. This source repair remains under the parent's existing implement-review delegation rather than opening an unrequested Op on protected active state. - Lane observer drift can mask a valid canonical claim. Warn-mode acceptance is not proof of ownership; the repair does not change the policy mode or bypass it. - Native owned progression lost its explicit root after bootstrap and crossed to another checkout during WP mapping. A resolver-only correction is insufficient. - An owned code-change prompt was labeled planning work and omitted checkout flags from lifecycle instructions; source instructions now preserve explicit routing. - The minimal native test charter emits unresolved optional doctrine notices. These notices are retained; actual composition/guard failures are never mocked into passing. This fixture is code-contract proof, not deployed runtime evidence. - No global install/release, active3body/PDB mutation or Temet lifecycle transition is part of this repair. Fixed source still requires independent review and normal delivery before runtime adoption."
+    anchors: []
+  - path: "docs/reports/shared-lane-owner-routing/validation.md"
+    title: "Validation and delivery evidence"
+    divio_type: "none"
+    abstract: "The earlier production qualification is fixed at `0de4fdda43c6bd1baf48066a5fdde0cb45fa69d6`; `2cc7a3311` adds public recovery/identity refusal tests; `21afc9300` adds shared owned review-base authority and command quoting. The final source has a normalized file ending and is held unchanged throughout final qualification. The explicit review base is PR67 head `4196af70fe69d558c729d2e6265be921999b5761`, not the fork default branch. Python 3.11.15 and the existing checkout environment were used. Nothing was installed globally, and active sibling missions were not advanced by these tests."
+    anchors:
+    - {slug: "behaviors-demonstrated", text: "Behaviors demonstrated", level: 2}
+    - {slug: "checks", text: "Checks", level: 2}
+    - {slug: "retained-failed-attempts", text: "Retained failed attempts", level: 2}
+    - {slug: "explicit-owned-local-completion-follow-up", text: "Explicit-owned local completion follow-up", level: 2}
+    - {slug: "independent-completion-history-rejection-and-correction", text: "Independent completion-history rejection and correction", level: 2}
+    - {slug: "explicit-owned-action-implement-continuation-2026-10-20", text: "Explicit-owned action-implement continuation (2026-10-20)", level: 2}
+    - {slug: "substantive-evidence-probes-adopted-from-independent-review", text: "Substantive evidence probes adopted from independent review", level: 2}
   - path: "docs/reports/test-sanitation/assertive-test-suite-sanitation-01KZME3P/final-report.md"
     title: "Assertive Test-Suite Sanitation — Final Report"
     divio_type: "none"

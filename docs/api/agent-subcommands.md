@@ -102,6 +102,8 @@ _Mission action commands that display prompts and instructions for agents_
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
 │ --mission                            TEXT  Mission slug                      │
+│ --owned-checkout                     PATH  Exact owned single-branch         │
+│                                            checkout; requires --mission.     │
 │ --agent                              TEXT  Agent name (required for          │
 │                                            auto-move to in_progress)         │
 │ --model                              TEXT  Dispatch-resolved model asserted  │
