@@ -62,6 +62,7 @@ class OpStartedEvent(BaseModel):
     # readable for audit; it is never evidence of actual model execution.
     model_id: str | None = Field(default=None, min_length=1)
     recommended_model_id: str | None = Field(default=None, min_length=1)
+    checkout_branch: str | None = Field(default=None, min_length=1)
 
     model_config = {"frozen": True}
 

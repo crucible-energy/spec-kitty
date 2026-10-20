@@ -257,7 +257,7 @@ class ProtectionPolicy:
         """
         return cls.resolve(repo_root).for_mission(repo_root, mission_slug)
 
-    def is_protected_target(self, branch: str, *, primary_branch: str) -> bool:
+    def is_protected_target(self, branch: str, *, primary_branch: str, allow_bypass: bool = True) -> bool:
         """Return ``True`` iff *branch* is protected under the #5100 rule.
 
         The #5100 operator decision (comment 5870360497, option E) defines a
@@ -289,14 +289,17 @@ class ProtectionPolicy:
                 Required keyword — there is no default, so a caller cannot
                 silently pass no primary and get the plain :meth:`is_protected`
                 answer without naming it.
+            allow_bypass: Whether operator/mission bypasses may relax this
+                check. Authoring flows with a mandatory PR-only contract pass
+                ``False``; the existing default preserves other workflows.
 
         Returns:
             ``True`` when *branch* is the primary branch or is in the
             configured protected set, and the operator hatch is not active.
         """
-        if self.operator_hatch_active or (self.mission_bypass_branch is not None and branch == self.mission_bypass_branch):
+        if allow_bypass and (self.operator_hatch_active or (self.mission_bypass_branch is not None and branch == self.mission_bypass_branch)):
             return False
-        return branch == primary_branch or self.is_protected(branch)
+        return branch == primary_branch or branch in self.protected_branches
 
 
 # ---------------------------------------------------------------------------

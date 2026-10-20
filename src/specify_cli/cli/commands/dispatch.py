@@ -31,9 +31,14 @@ from specify_cli.invocation.errors import (
     ProfileNotFoundError,
     RouterAmbiguityError,
 )
+from kernel.git_topology import GitTopologyError
+from specify_cli.core.checkout_ownership import CheckoutOwnershipError
+from specify_cli.git.protection_policy import ProtectionConfigError
+from specify_cli.invocation.checkout import resolve_operation_checkout
 from specify_cli.invocation.executor import (
     InvocationPayload,
     ProfileInvocationExecutor,
+    build_close_contract,
     build_ambiguous_dry_run_payload,
 )
 from specify_cli.invocation.modes import ModeOfWork, derive_mode
@@ -56,6 +61,15 @@ def _build_executor(repo_root: Path) -> ProfileInvocationExecutor:
     router = ActionRouter(registry)
     propagator = InvocationSaaSPropagator(repo_root)
     return ProfileInvocationExecutor(repo_root, router=router, propagator=propagator)
+
+
+def _operation_checkout(primary: Path, owned_checkout: Path | None, *, writing: bool) -> Path:
+    """Render custody refusal before an executor can create any state."""
+    try:
+        return resolve_operation_checkout(primary, owned_checkout, writing=writing)
+    except (CheckoutOwnershipError, GitTopologyError, ProtectionConfigError, ValueError) as exc:
+        typer.echo(json.dumps({"error": "operation_checkout_refused", "message": str(exc)}), err=True)
+        raise typer.Exit(2) from exc
 
 
 def _detect_actor() -> str:
@@ -229,12 +243,14 @@ def _format_recommendation(recommendation: RoutingRecommendation) -> str:
 def render_open_hint_task_execution(payload: InvocationPayload) -> None:
     """Open-Op close hint for standalone dispatch."""
     console.print("\n[bold]This Op is OPEN.[/bold] After completing the work, close it with the real outcome:")
-    console.print(
-        f"  [dim]spec-kitty profile-invocation complete "
-        f"--invocation-id {payload.invocation_id} "
-        f"--outcome <done|failed|abandoned> "
-        f"\\[--evidence <file>] \\[--artifact <path>] \\[--commit <sha>][/dim]"
+    contract = build_close_contract(
+        payload.invocation_id, getattr(payload, "mode_of_work", None),
+        owned_checkout=getattr(payload, "_owned_checkout", None),
     )
+    optional = " [--artifact <path>] [--commit <sha>]"
+    if "evidence_flag" in contract:
+        optional = " [--evidence <file>]" + optional
+    console.print(f"  {contract['command']}{optional}", markup=False)
     console.print("[dim]Unclosed Ops are reported by `spec-kitty doctor ops` and swept to 'abandoned' when stale.[/dim]")
 
 
@@ -282,6 +298,7 @@ def _dispatch_impl(
     repo_root: Path,
     executor: ProfileInvocationExecutor,
     dry_run: bool = False,
+    owned_checkout: Path | None = None,
 ) -> None:
     """Open a standalone Op and emit either JSON or rich console output.
 
@@ -348,6 +365,7 @@ def _dispatch_impl(
         # actionable exit, so both surfaces degrade identically.
         exit_git_resolution_failure(e, repo_root, json_output=json_output)
 
+    payload._owned_checkout = owned_checkout
     # FR-001/FR-002: the Op stays OPEN. The caller closes it via
     # `spec-kitty profile-invocation complete` with the real outcome.
     if json_output:
@@ -379,6 +397,9 @@ def dispatch(
         "--dry-run",
         help="Route the request and return the routing signal without opening an Op or writing anything.",
     ),
+    owned_checkout: Path | None = typer.Option(
+        None, "--owned-checkout", help="Verified checkout that owns this operation's records and commits.",
+    ),
 ) -> None:
     """Dispatch a request to a governed Op.
 
@@ -388,7 +409,7 @@ def dispatch(
     opened, no kitty-ops/ file is written, no glossary event is persisted, and
     nothing is submitted to the SaaS propagator.
     """
-    repo_root = _get_repo_root()
+    repo_root = _operation_checkout(_get_repo_root(), owned_checkout, writing=not dry_run)
     executor = _build_executor(repo_root)
     _dispatch_impl(
         request,
@@ -398,4 +419,5 @@ def dispatch(
         repo_root=repo_root,
         executor=executor,
         dry_run=dry_run,
+        owned_checkout=repo_root if owned_checkout is not None else None,
     )
