@@ -2,6 +2,7 @@ Usage: tasks add-history [OPTIONS] TASK_ID
 Append history entry to task activity log.
 Examples:
 spec-kitty agent tasks add-history WP01 --note "Completed implementation" --json
+spec-kitty agent tasks add-history WP01 --note "Blocked: upstream decision" --mission 001-example --owned-checkout /path/to/checkout
 Arguments
 * task_id TEXT Task ID (e.g., WP01) [required]
 Options
@@ -9,5 +10,6 @@ Options
 --mission TEXT Mission slug
 --agent TEXT Agent name
 --shell-pid TEXT Shell PID
+--owned-checkout PATH Explicit single-branch checkout root.
 --json Output JSON format
 --help -h Show this message and exit.

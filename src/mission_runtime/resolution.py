@@ -21,6 +21,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+import shlex
 from typing import Any, Literal, cast, get_args
 
 from mission_runtime.artifacts import (
@@ -618,6 +619,7 @@ def _wp_workflow_commands(
     wp_id: str,
     mission_slug: str,
     agent: str | None,
+    effective_root: Path | None,
 ) -> dict[str, str]:
     """Compute the action-specific ``commands`` for a WP-bearing context.
 
@@ -626,19 +628,21 @@ def _wp_workflow_commands(
     ``commands`` mapping — the frozen composite forbids the historical
     ``context.commands["workflow"] = …`` post-build dict-write (T005).
     """
+    owned_option = f" --owned-checkout {shlex.quote(str(effective_root))}" if effective_root is not None else ""
     verb = "implement" if action == "implement" else "review"
     workflow = f"spec-kitty agent action {verb} {wp_id}"
     if agent:
         workflow += f" --agent {agent}"
+    workflow += owned_option
     commands = {"workflow": workflow}
     if action != "implement":
         commands["approve"] = (
             f"spec-kitty agent tasks move-task {wp_id} --to approved "
-            f'--mission {mission_slug} --note "Review passed: <summary>"'
+            f'--mission {mission_slug} --note "Review passed: <summary>"{owned_option}'
         )
         commands["reject"] = (
             f"spec-kitty agent tasks move-task {wp_id} --to planned "
-            f"--review-feedback-file <feedback-file> --mission {mission_slug}"
+            f"--review-feedback-file <feedback-file> --mission {mission_slug}{owned_option}"
         )
     return commands
 
@@ -729,6 +733,7 @@ def _resolve_wp_bearing_fields(
             wp_id=normalized_wp_id,
             mission_slug=mission_slug,
             agent=agent,
+            effective_root=effective_root,
         ),
     }
 

@@ -1272,7 +1272,7 @@ def implement_try_render_fix_mode_prompt(
         )
         fix_prompt_file = write_prompt_to_file("implement", mission_slug, normalized_wp_id, fix_prompt_text, repo_root=repo_root)
         print()
-        print(f"📍 Workspace: cd {workspace_path}")
+        print(f"📍 Workspace: cd {shlex.quote(str(workspace_path))}")
         print(f"🔧 Fix mode — Cycle {latest_artifact.cycle_number}: focused prompt from review artifact")
         print()
         print("▶▶▶ NEXT STEP: Read the full fix-mode prompt file now:")
@@ -1496,10 +1496,10 @@ def build_implement_prompt_lines(
     lines.append("=" * 80)
     lines.append("")
     lines.append("📍 WORKING DIRECTORY:")
-    lines.append(f"   cd {workspace_path}")
+    lines.append(f"   cd {shlex.quote(str(workspace_path))}")
     if workspace.lane_id:
         lines.append("   # All implementation work happens in this workspace")
-        lines.append(f"   # When done, return to repo root: cd {repo_root}")
+        lines.append(f"   # When done, return to repo root: cd {shlex.quote(str(repo_root))}")
     else:
         lines.append("   # Planning-artifact work for this WP happens in the repository root")
     lines.append("")
@@ -1606,7 +1606,7 @@ def implement_finalize_and_print(
     prompt_file = write_prompt_to_file("implement", mission_slug, normalized_wp_id, full_content, repo_root=repo_root)
 
     print()
-    print(f"📍 Workspace: cd {workspace_path}")
+    print(f"📍 Workspace: cd {shlex.quote(str(workspace_path))}")
     if workspace.mode_source == "owned_checkout":
         print("   Explicitly selected checkout")
     elif workspace.lane_id:
@@ -1964,7 +1964,7 @@ def _review_context_line(
         lines.append(f"Base branch: {base} ({review_ctx['commit_count']} commits ahead)")
         lines.append("")
         lines.append("Review commands (run in the workspace):")
-        lines.append(f"  cd {workspace_path}")
+        lines.append(f"  cd {shlex.quote(str(workspace_path))}")
         lines.append(f"  git log {base}..{branch_ref} --oneline{review_paths}           # WP commits only")
         lines.append(f"  git diff {base}..{branch_ref} --stat{review_paths}             # Changed files")
         lines.append(f"  git diff {base}..{branch_ref}{review_paths}                    # Full diff")
@@ -2106,11 +2106,11 @@ def build_review_prompt_lines(
     lines.append("=" * 80)
     lines.append("")
     lines.append("📍 WORKING DIRECTORY:")
-    lines.append(f"   cd {workspace_path}")
+    lines.append(f"   cd {shlex.quote(str(workspace_path))}")
     if workspace.lane_id:
         lines.append("   # Review the implementation in this workspace")
         lines.append("   # Read code, run tests, check against requirements")
-        lines.append(f"   # When done, return to repo root: cd {repo_root}")
+        lines.append(f"   # When done, return to repo root: cd {shlex.quote(str(repo_root))}")
     else:
         lines.append("   # Review the planning-artifact changes directly in the repository root")
     lines.append("")
@@ -2235,7 +2235,7 @@ def _review_print_finalize_summary(
         for line in dependents_warning:
             print(line)
         print()
-    print(f"📍 Workspace: cd {workspace_path}")
+    print(f"📍 Workspace: cd {shlex.quote(str(workspace_path))}")
     if workspace.lane_id:
         shared = ", ".join(workspace.lane_wp_ids or [normalized_wp_id])
         print(f"   Lane workspace: {workspace.lane_id} (shared by {shared})")

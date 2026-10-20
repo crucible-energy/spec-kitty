@@ -178,6 +178,26 @@ def test_context_resolve_accepts_explicit_owned_checkout_from_primary(checkouts,
     assert payload["commands"]["workflow"].endswith(
         f"--owned-checkout {shlex.quote(str(owned))}"
     )
+    review_result = runner.invoke(
+        context_app,
+        [
+            "--action",
+            "review",
+            "--mission",
+            SLUG,
+            "--wp-id",
+            "WP01",
+            "--owned-checkout",
+            str(owned),
+            "--json",
+        ],
+    )
+    assert review_result.exit_code == 0, review_result.output
+    review_commands = json.loads(review_result.output)["commands"]
+    assert all(
+        command.endswith(f"--owned-checkout {shlex.quote(str(owned))}")
+        for command in review_commands.values()
+    )
     assert tuple(snapshot(root) for root in (primary, owned, sibling)) == before
 
 
@@ -216,12 +236,61 @@ def test_add_history_accepts_explicit_owned_checkout_from_primary(checkouts, mon
     assert (snapshot(primary), snapshot(sibling)) == before
 
 
+@pytest.mark.parametrize("guard", ["active_sync", "staged_index"])
+def test_add_history_refuses_unsupported_owned_checkout_writes(checkouts, monkeypatch, guard):
+    from specify_cli.cli.commands.agent.tasks import app as tasks_app
+
+    primary, owned, sibling = checkouts
+    finalized = invoke("finalize-tasks", owned)
+    assert finalized.exit_code == 0, finalized.output
+    wp_file = owned / "kitty-specs" / SLUG / "tasks/WP01-test.md"
+    if guard == "active_sync":
+        monkeypatch.setattr(
+            "specify_cli.core.saas_sync_config.sync_active", lambda: True
+        )
+        expected_error = "active synchronization"
+    else:
+        wp_file.write_text(
+            wp_file.read_text(encoding="utf-8") + "\nStaged work.\n",
+            encoding="utf-8",
+        )
+        git(owned, "add", f"kitty-specs/{SLUG}/tasks/WP01-test.md")
+        expected_error = "no staged changes"
+    wp_before = wp_file.read_bytes()
+    before = snapshot(primary), snapshot(sibling)
+    monkeypatch.chdir(primary)
+    monkeypatch.setenv("SPECIFY_REPO_ROOT", str(primary))
+
+    result = runner.invoke(
+        tasks_app,
+        [
+            "add-history",
+            "WP01",
+            "--note",
+            "Blocked: waiting for an upstream decision",
+            "--mission",
+            SLUG,
+            "--owned-checkout",
+            str(owned),
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 1, result.output
+    assert expected_error in result.output
+    assert wp_file.read_bytes() == wp_before
+    assert (snapshot(primary), snapshot(sibling)) == before
+
+
 def test_action_implement_claims_and_renders_in_explicit_owned_checkout(checkouts, monkeypatch):
     from tests._factories import provision_test_charter
     from specify_cli.identity.project import ensure_identity
     from specify_cli.status import Lane, get_wp_lane
 
     primary, owned, sibling = checkouts
+    spaced_owned = owned.with_name("owned checkout")
+    git(primary, "worktree", "move", str(owned), str(spaced_owned))
+    owned = spaced_owned
     provision_test_charter(owned)
     ensure_identity(owned)
     assert invoke("finalize-tasks", owned).exit_code == 0
@@ -253,12 +322,13 @@ def test_action_implement_claims_and_renders_in_explicit_owned_checkout(checkout
     )
 
     assert result.exit_code == 0, result.output
-    assert f"Workspace: cd {owned}" in result.output
+    assert f"Workspace: cd {shlex.quote(str(owned))}" in result.output
     assert "--owned-checkout" in result.output
     prompt_path_line = next(
         line.strip() for line in result.output.splitlines() if line.strip().startswith("cat ")
     )
     prompt_text = Path(prompt_path_line.removeprefix("cat ")).read_text(encoding="utf-8")
+    assert f"cd {shlex.quote(str(owned))}" in prompt_text
     blocked_commands = [
         line.strip()
         for line in prompt_text.splitlines()

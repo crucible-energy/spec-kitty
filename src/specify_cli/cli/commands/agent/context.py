@@ -137,12 +137,14 @@ def resolve_context(
         if not raw_handle:
             raise ActionContextError("MISSING_MISSION", "--mission <slug> is required")
 
+        effective_root: Path | None = None
         if owned_checkout is not None:
             owner = resolve_owned_mission(
                 get_main_repo_root(repo_root), owned_checkout, raw_handle
             )
             mission_anchor_root = owner.root
             resolution_cwd = owner.root
+            effective_root = owner.root
         else:
             try:
                 operation: MissionOperationContext = resolve_mission_operation_context(
@@ -169,7 +171,7 @@ def resolve_context(
             wp_id=wp_id,
             agent=agent,
             cwd=resolution_cwd,
-            effective_root=mission_anchor_root,
+            effective_root=effective_root,
         )
 
         if json_output:
