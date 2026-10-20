@@ -2194,6 +2194,16 @@ _Project health diagnostics_
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
+## spec-kitty doctor organization-workspaces
+
+Read-only JSON accounting of accessible organization repositories and bounded local roots. Includes non-lane registered worktrees and independent stores; ownership remains unknown and retained. No cleanup is performed.
+
+```sh
+spec-kitty doctor organization-workspaces --root /absolute/local/root
+```
+
+Repeat `--root`; optional `--organization` defaults to `crucible-energy`. Bounds: `--max-depth 6`, `--max-directories 10000`, `--max-entries 100000`. Exit0 means only the configured local scan completed; exit1 reports local coverage gaps, exit2 unavailable/invalid organization inventory. Unmatched accessible repositories remain explicit. See [organization workspace lifecycle](../guides/how-to/workspace-lifecycle.md).
+
 ## spec-kitty doctor provenance
 
 ```

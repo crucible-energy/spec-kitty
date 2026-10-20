@@ -52,8 +52,8 @@ Store JSON machine state and Markdown human logs. Separate observe, intent, adap
 | WP | Outcome | Requirements | Dependencies | Validation |
 |---|---|---|---|---|
 | WP01 | Verified org discovery and non-lane accounting | FR-001, FR-002 | none | Real Git stores/worktrees, URL identity, pagination, duplicates, missing roots/permissions, bounded errors |
-| WP02 | Durable state and safe decision/replay coordinator | FR-002, FR-004, FR-005, FR-007 | WP01 | Corruption, replay, path reuse, holds, release generations, unknown outcomes and concurrent intent |
-| WP03 | Supported creator adapters and lifecycle ingress | FR-003, FR-004, FR-005 | WP02 | Real disposable retirement plus dirty/ignored/nested/active/primary preservation; managed creator refuses unsupported operation |
+| WP02 | Durable state and safe decision/replay coordinator | FR-002, FR-004, FR-005, FR-007, FR-008 | WP01 | Corruption, replay, path reuse, holds, release generations, unknown outcomes and concurrent intent |
+| WP03 | Supported creator adapters and lifecycle ingress | FR-003, FR-004, FR-005, FR-008, FR-009 | WP02 | Real disposable retirement plus dirty/ignored/nested/active/primary preservation; managed creator refuses unsupported operation |
 | WP04 | Branch-first consolidation and generated guidance | FR-006 | WP01 | Classified live occurrences, unchanged primary, feature integration/PR positive flow; preserve historical evidence |
 | WP05 | Integrated startup/completion acceptance and closeout | all | WP01–WP04 | Supported event path, interruption recovery, representative org inventory, release/adoption instructions and independent review |
 
@@ -66,3 +66,9 @@ Focused tests during iteration, `make test-fast` plus owning subsystem tests and
 ## Risks and limitations
 
 Automatic coverage depends on accessible organization inventory and configured local roots; inaccessible/out-of-root coverage stays unknown. Existing actors not honoring a lifecycle hold cannot be inferred safe. A session closing is insufficient release. The local machine may lack the arbitrary managed archive interface and hook trust; those are explicit adapter/adoption limitations, not permission to substitute raw removal. Global runtime adoption and production deployment remain separate gates. The full service-readiness plan remains unchanged by this tooling mission.
+
+## Independent review resolutions
+
+- Bind creator workspace and owner lease generations to every evidence record; old same-path/same-HEAD receipts cannot be reused. Release authority is verified at creator ingress, never inferred from a local JSON field. The retirement hold must fence participating producer lease acquisition through adapter completion. Unknown producers retain the workspace.
+- Minimum automatic closeout acceptance includes Spec Kitty completion and a registered non-lane Git creator with a running reconciler; event logging alone is insufficient. Codex-managed archive remains an explicitly incomplete adapter until the supported creator operation is demonstrated.
+- Account for local and remote branch disposition separately; preserve primary/shared/checked-out/drifted refs. Never automatically retire a canonical primary. Independent clones require explicit supported owner retirement.

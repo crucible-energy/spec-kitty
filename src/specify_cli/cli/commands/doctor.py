@@ -458,6 +458,20 @@ def workspaces(
     run_workspaces(repo_root, fix, json_output)
 
 
+@app.command(name="organization-workspaces")
+def organization_workspaces(
+    roots: Annotated[list[Path], typer.Option("--root", help="Bounded local discovery root; repeat for independent stores.")],
+    organization: Annotated[str, typer.Option("--organization")] = "crucible-energy",
+    max_depth: Annotated[int, typer.Option("--max-depth", min=0)] = 6,
+    max_directories: Annotated[int, typer.Option("--max-directories", min=1)] = 10000,
+    max_entries: Annotated[int, typer.Option("--max-entries", min=1)] = 100000,
+) -> None:
+    """Account for accessible organization workspaces as JSON; never remove them."""
+    from ._organization_workspaces_doctor import run_organization_workspaces
+
+    run_organization_workspaces(organization, roots, max_depth, max_directories, max_entries)
+
+
 @app.command(name="identity")
 def identity(
     json_output: Annotated[
