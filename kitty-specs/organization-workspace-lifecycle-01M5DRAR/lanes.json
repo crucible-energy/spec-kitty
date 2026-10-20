@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "mission_slug": "organization-workspace-lifecycle-01M5DRAR",
+  "mission_id": "01M5DRAR13PRV108ZDRQDS7SZ2",
+  "mission_branch": "codex/organization-workspace-lifecycle-20261020",
+  "target_branch": "codex/organization-workspace-lifecycle-20261020",
+  "lanes": [
+    {
+      "lane_id": "lane-planning",
+      "wp_ids": [
+        "WP01",
+        "WP02",
+        "WP03",
+        "WP04",
+        "WP05"
+      ],
+      "write_scope": [
+        ".kittify/charter/charter.md",
+        "AGENTS.md",
+        "docs/guides/how-to/workspace-lifecycle.md",
+        "docs/reports/organization-workspace-lifecycle/**",
+        "packs/built-in/missions/mission-steps/**",
+        "src/kernel/git_topology.py",
+        "src/specify_cli/cli/commands/_organization_workspaces_doctor.py",
+        "src/specify_cli/cli/commands/doctor.py",
+        "src/specify_cli/consolidation/**",
+        "src/specify_cli/workspace_lifecycle/adapters.py",
+        "src/specify_cli/workspace_lifecycle/coordinator.py",
+        "src/specify_cli/workspace_lifecycle/discovery.py",
+        "src/specify_cli/workspace_lifecycle/events.py",
+        "src/specify_cli/workspace_lifecycle/inventory.py",
+        "src/specify_cli/workspace_lifecycle/policy.py",
+        "src/specify_cli/workspace_lifecycle/service.py",
+        "src/specify_cli/workspace_lifecycle/state.py",
+        "tests/consolidation/**",
+        "tests/specify_cli/cli/commands/test_doctor_cli_surface_golden.py",
+        "tests/workspace_lifecycle/test_acceptance.py",
+        "tests/workspace_lifecycle/test_adapters.py",
+        "tests/workspace_lifecycle/test_coordinator.py",
+        "tests/workspace_lifecycle/test_discovery.py",
+        "tests/workspace_lifecycle/test_events.py",
+        "tests/workspace_lifecycle/test_inventory_cli.py",
+        "tests/workspace_lifecycle/test_policy.py",
+        "tests/workspace_lifecycle/test_state.py"
+      ],
+      "predicted_surfaces": [],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-10-20T23:20:02.333032+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [],
+  "planning_commit_sha": "503af3facd0fde0b9ee1a0e0042b0906b19ef11e"
+}
