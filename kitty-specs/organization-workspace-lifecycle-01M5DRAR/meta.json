@@ -1,4 +1,16 @@
 {
+  "acceptance_history": [
+    {
+      "acceptance_mode": "pr",
+      "accepted_at": "2026-10-21T06:59:58.012000+00:00",
+      "accepted_by": "codex",
+      "accepted_from_commit": "1e00f6e8e90d80da3580b0d7ab3bab5b8e46a3ea"
+    }
+  ],
+  "acceptance_mode": "pr",
+  "accepted_at": "2026-10-21T06:59:58.012000+00:00",
+  "accepted_by": "codex",
+  "accepted_from_commit": "1e00f6e8e90d80da3580b0d7ab3bab5b8e46a3ea",
   "change_mode": "bulk_edit",
   "created_at": "2026-10-20T22:53:50.041467+00:00",
   "flattened": false,
