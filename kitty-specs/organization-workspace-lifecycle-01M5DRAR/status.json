@@ -79,7 +79,8 @@
       "model": "__resolved_model_absent__",
       "notes": [
         "Frozen8c4d19ff: baseline2452/5skip, owning1958/16skip,675/745changed90.60%;16mypy/Ruffclean. Exact external receipt lifecycle-wp03-final-validation.json; independent review requested.",
-        "Independent reviewer claims WP03 supported creator/automatic ingress review. Exact qualified candidate8c4d19ff source/tests/docs unchanged, acceptance and final receipts reviewed; no global adoption or deployment scope."
+        "Independent reviewer claims WP03 supported creator/automatic ingress review. Exact qualified candidate8c4d19ff source/tests/docs unchanged, acceptance and final receipts reviewed; no global adoption or deployment scope.",
+        "Independent WP03 approval for supported newly created Git workspaces: durable generation/creation custody, joined bounded cooperative producer, scoped untrusted PR hint, independent exact repository/head/ref accepted delivery, shared fence, immutable authorizing intent/receipt recovery, strict ignored/nested/local-state preservation, protected primary/ref preservation, automatic detached completion/startup worker, per-creator failure isolation and newer-generation wakeup handoff. Review findings resolved; actual disposable CLI path reviewed. Final unchanged candidate baseline2452pass5skip, owning1958pass16skip, changed675/745=90.604percent, mypy16/Ruff clean. No duplicate builds. Unsupported managed/backlog creators retained; remote branches retained; global installation/adoption, all-repository runtime integration and deployment remain outside this verdict."
       ],
       "provider": "__resolved_provider_absent__",
       "review_result": {
