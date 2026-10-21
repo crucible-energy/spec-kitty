@@ -42,12 +42,21 @@ so this module never imports the consolidation layer that persists it.
 
 from __future__ import annotations
 
-from kernel.owned_process import bounded_run, budget_active
+from kernel.owned_process import bounded_run, budget_active, process_deadline
 
+import argparse
 import enum
+import json
+import math
+import os
+import re
+import signal
 import subprocess
+import sys
+import tempfile
+import time
 from collections.abc import Callable, Collection, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -267,15 +276,25 @@ def _run_git(
     *,
     env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    executor = bounded_run if budget_active() else subprocess.run
-    return executor(
-        ["git", *args],
-        cwd=str(cwd),
-        capture_output=True,
-        text=True,
-        check=False,
-        env=env,
-    )
+    # Bind direct-ref identity under Git's native lock, including bookkeeping
+    # refs: a namespace check must not be escaped through a symbolic alias.
+    ref_write = bool(args) and args[0] == "update-ref"
+    executor = bounded_run if budget_active() or (ref_write and os.name == "posix") else subprocess.run
+    if ref_write:
+        # Let the controller settle native locks and join descendants before
+        # the caller's outer budget must force termination of its whole group.
+        now = time.monotonic()
+        inherited = process_deadline()
+        deadline = min(now + 20, inherited - 1) if inherited is not None else now + 20
+        if deadline <= now:
+            raise subprocess.TimeoutExpired(args, 0)
+        child_args = ["--message=" + args[2], *args[3:]] if len(args) > 2 and args[1] == "-m" else args[1:]
+        # The joining parent owns capture cleanup even if the controller must
+        # terminate its isolated group during an unsettled transaction.
+        with tempfile.TemporaryDirectory(prefix="kitty-ref-cas-") as capture_dir:
+            argv = [sys.executable, __file__, "--owned-controller", "--capture-dir=" + capture_dir, "--deadline=" + str(deadline), *child_args]
+            return executor(argv, cwd=str(cwd), capture_output=True, text=True, check=False, env=env, timeout=30)
+    return executor(["git", *args], cwd=str(cwd), capture_output=True, text=True, check=False, env=env)
 
 
 def _list_worktrees(repo_root: Path, env: dict[str, str] | None) -> list[_WorktreeEntry]:
@@ -1018,3 +1037,167 @@ def delete_bookkeeping_ref(repo_root: Path, ref: str) -> bool:
     """
     _require_bookkeeping_ref(ref)
     return _run_git(repo_root, ["update-ref", "-d", ref]).returncode == 0
+
+
+def _direct_cas_oid(value: str) -> str:
+    if not re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", value):
+        raise ValueError("A complete object ID is required for direct-ref CAS")
+    return value
+
+
+def _stop_unjoined_ref_transaction(process: subprocess.Popen[bytes], owned_controller: bool) -> None:
+    if process.poll() is not None:
+        return
+    # The parent creates/joins this isolated controller. Returning with a
+    # reference hook still running would leave the original effect unsettled.
+    if owned_controller and os.name == "posix" and os.getpgrp() == os.getpid():
+        print("Direct-ref CAS unjoined Git; terminating the owned controller group.", file=sys.stderr, flush=True)
+        # Give native Git a bounded opportunity to release its own ref locks.
+        # The controller remains the live group leader until the final kill.
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        os.killpg(os.getpid(), signal.SIGTERM)
+        with suppress(subprocess.TimeoutExpired):
+            process.wait(timeout=0.5)
+        os.killpg(os.getpid(), signal.SIGKILL)
+    if owned_controller and os.name == "nt":
+        subprocess.run(["taskkill", "/PID", str(os.getpid()), "/T", "/F"], capture_output=True, timeout=5, check=False)
+    process.kill()
+    process.wait(timeout=5)
+
+
+def _direct_ref_command(ref: str, value: str | None, old: str | None, delete: bool) -> str:
+    branch = ref.startswith("refs/heads/")
+    bookkeeping = ref.startswith(BOOKKEEPING_REF_PREFIX) and ref != BOOKKEEPING_REF_PREFIX
+    if not (branch or bookkeeping) or any(ord(char) < 32 or ord(char) == 127 for char in ref):
+        raise ValueError("An explicit branch or scoped bookkeeping ref is required")
+    if branch and (value is None or (not delete and old is None)):
+        raise ValueError("Branch writes require an explicit expected object ID")
+    quoted = json.dumps(ref, ensure_ascii=False)
+    if delete:
+        command = f"delete {quoted}" + (f" {_direct_cas_oid(value)}" if value is not None else "")
+    else:
+        command = f"update {quoted} {_direct_cas_oid(value or '')}" + (f" {_direct_cas_oid(old)}" if old is not None else "")
+    return command
+
+
+def _transact_direct_ref(
+    ref: str,
+    value: str | None,
+    old: str | None,
+    *,
+    delete: bool = False,
+    message: str | None = None,
+    owned_controller: bool = False,
+    capture_dir: Path | None = None,
+    deadline: float | None = None,
+) -> int:
+    """Prepare/lock, verify direct identity, then commit; otherwise abort.
+
+    --no-deref alone protects primary but still replaces a foreign symref at
+    the same object ID. Inspecting after prepare binds ref type while Git
+    holds the actual target lock; another precheck would leave the race open.
+    """
+    if owned_controller and capture_dir is None:
+        raise ValueError("Owned controllers require parent-owned capture storage")
+    command = _direct_ref_command(ref, value, old, delete)
+    argv = ["git", "update-ref", "--stdin", "--no-deref"]
+    if message is not None:
+        argv.extend(["-m", message])
+    now = time.monotonic()
+    if deadline is not None and not math.isfinite(deadline):
+        raise ValueError("Finite controller deadline required")
+    deadline = min(now + 20, deadline) if deadline is not None else now + 20
+
+    def remaining() -> float:
+        seconds = deadline - time.monotonic()
+        if seconds <= 0:
+            raise subprocess.TimeoutExpired(argv, 20)
+        return seconds
+
+    # Files avoid descendant-held capture pipes. Only this controller's input
+    # pipe is interactive; all protocol records are finite and validated.
+    with (
+        tempfile.TemporaryDirectory(prefix="kitty-ref-cas-") if capture_dir is None else nullcontext(str(capture_dir)) as directory,
+        (Path(directory) / "output.log").open("w+b") as output,
+        (Path(directory) / "errors.log").open("w+b") as errors,
+    ):
+
+        def read_record(name: str) -> bytes:
+            # A separate open-file description cannot move Git's write offset.
+            with (Path(directory) / name).open("rb") as record:
+                return record.read(65536)
+
+        remaining()
+        process = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=output, stderr=errors)
+        try:
+            if process.stdin is None:
+                raise RuntimeError("Git transaction input unavailable")
+            process.stdin.write(f"start\n{command}\nprepare\n".encode())
+            process.stdin.flush()
+            while True:
+                remaining()
+                observed = read_record("output.log")
+                if b"prepare: ok" in observed.splitlines():
+                    break
+                if process.poll() is not None:
+                    sys.stderr.buffer.write(read_record("errors.log"))
+                    return process.returncode or 1
+                time.sleep(min(0.005, remaining()))
+            # prepare holds Git's real ref lock, including for a symbolic ref
+            # when no-deref is set. Do not use a tool-private advisory lock.
+            kind = subprocess.run(
+                ["git", "symbolic-ref", "--quiet", "--no-recurse", ref],
+                capture_output=True,
+                timeout=min(5, remaining()),
+                check=False,
+            )
+            direct = kind.returncode == 1
+            remaining()
+            process.stdin.write(b"commit\n" if direct else b"abort\n")
+            process.stdin.flush()
+            process.stdin.close()
+            process.wait(timeout=remaining())
+            observed = read_record("output.log")
+            if not direct:
+                print("Direct-ref CAS refused: symbolic or unconfirmed ref identity; transaction aborted.", file=sys.stderr)
+                return 1
+            if process.returncode or b"commit: ok" not in observed.splitlines():
+                sys.stderr.buffer.write(read_record("errors.log"))
+                print("Direct-ref CAS did not confirm commit.", file=sys.stderr)
+                return process.returncode or 1
+            return 0
+        finally:
+            _stop_unjoined_ref_transaction(process, owned_controller)
+            if process.stdin is not None and not process.stdin.closed:
+                process.stdin.close()
+
+
+def _direct_ref_main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--owned-controller", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--capture-dir", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--deadline", type=float, help=argparse.SUPPRESS)
+    parser.add_argument("-m", "--message", dest="message")
+    parser.add_argument("-d", dest="delete", action="store_true")
+    parser.add_argument("ref")
+    parser.add_argument("value", nargs="?")
+    parser.add_argument("old", nargs="?")
+    args = parser.parse_args()
+    try:
+        return _transact_direct_ref(
+            args.ref,
+            args.value,
+            args.old,
+            delete=args.delete,
+            message=args.message,
+            owned_controller=args.owned_controller,
+            capture_dir=args.capture_dir,
+            deadline=args.deadline,
+        )
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+        print(f"Direct-ref CAS refused: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(_direct_ref_main())

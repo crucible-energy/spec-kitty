@@ -103,3 +103,19 @@ def test_windows_tree_adapter_uses_exact_owned_pid_and_retains_direct_fallback(m
 
     signal_owned_process_tree(child, force=True, platform="nt", windows_tree_kill=unavailable)
     assert calls == [["taskkill", "/PID", "12345", "/T", "/F"], "kill"]
+
+
+def test_deadline_observation_preserves_nested_budget_and_restores_owner() -> None:
+    from kernel.owned_process import process_budget, process_deadline
+
+    assert process_deadline() is None
+    with process_budget(5):
+        outer = process_deadline()
+        assert outer is not None
+        with process_budget(10):
+            assert process_deadline() == outer
+        with process_budget(1):
+            inner = process_deadline()
+            assert inner is not None and inner < outer
+        assert process_deadline() == outer
+    assert process_deadline() is None

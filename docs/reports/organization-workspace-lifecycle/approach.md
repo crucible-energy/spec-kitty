@@ -234,3 +234,29 @@ Configured narrow mypy exposes three pre-existing import-skip diagnostics in
 unchanged acceptance symbols. The exact WP03 base snapshot reproduces the same
 three diagnostics, and their ASTs are identical. No suppression, policy change or
 claimed clean acceptance type check substitutes for that attributed result.
+
+
+### Native Git identity and bounded recovery
+
+User Experience Findings: actual late symbolic-ref swaps reproduced both primary
+advance/delete and bookkeeping namespace escape. Ordinary OID CAS dereferences
+aliases. `--no-deref` alone protects primary but replaces the alias, so it is not
+a preservation proof. A real reference-transaction hook also reproduced an
+inherited short deadline killing the controller before Git settled its lock.
+
+Engineering Decisions: all canonical ref writes use Git's prepared native
+transaction with no dereference, inspect direct identity under that same lock,
+and commit only a confirmed direct ref. Refuse aliases, malformed protocol and
+unconfirmed commit. Branch writes retain expected-OID CAS; scoped bookkeeping
+writes retain their existing single-writer semantics. A parent-owned capture
+directory survives abrupt controller termination only until its joining parent
+cleans it. The shared process budget supplies an absolute monotonic deadline;
+the controller reserves one second for native lock cleanup and owned-group
+termination before the outer deadline. No hook overrides or manual lock deletion.
+
+Known Limitations: supported automatic ownership is the documented finite POSIX
+profile. Rejected/unknown writes never imply a successful move. Fresh full gates
+and independent review must cover the final frozen candidate; earlier full
+owning output overlapped these edits and is superseded diagnostic evidence.
+The focused actual Git/kernel repair checks passed 18 cases, including a fresh
+retry after the injected hook fault is removed.

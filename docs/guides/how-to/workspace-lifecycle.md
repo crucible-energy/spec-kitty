@@ -111,3 +111,19 @@ original receipts; missing/corrupt records require explicit recovery.
 Installing/trusting startup integration for all organization repos remains a
 separate adoption gate. Existing unknown/backlog workspaces stay retained until
 their actual creator supplies release, producer fencing and delivery evidence.
+
+
+## Branch-first landing and bounded failure
+
+Consolidate on an existing concrete feature/integration branch, then advance the
+primary branch through its PR workflow. A symbolic alias, revision expression or
+primary target is not an eligible local landing target. A newer main commit does
+not authorize local primary consolidation.
+
+Canonical branch and bookkeeping writes bind direct-ref identity while Git holds
+its native prepared lock. A late alias swap aborts rather than escaping into
+primary or replacing the alias. In the supported owned-process profile, inherited
+deadlines reserve a bounded cleanup interval for Git's native lock and owned
+hook descendants. A refusal is not delivery. Inspect retained outcomes and use
+the supported recovery workflow; never remove a native lock to manufacture a
+successful retry.

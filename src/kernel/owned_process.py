@@ -17,7 +17,7 @@ from contextvars import ContextVar
 from pathlib import Path
 from typing import Literal, TypeVar, overload
 
-__all__ = ["bounded_run", "budget_active", "process_budget", "signal_owned_process_tree"]
+__all__ = ["bounded_run", "budget_active", "process_budget", "process_deadline", "signal_owned_process_tree"]
 _deadline: ContextVar[float | None] = ContextVar("owned_process_deadline", default=None)
 _Output = TypeVar("_Output", str, bytes)
 
@@ -70,8 +70,13 @@ def process_budget(seconds: float) -> Iterator[None]:
         _deadline.reset(token)
 
 
+def process_deadline() -> float | None:
+    """Read the caller's absolute monotonic deadline without extending its budget."""
+    return _deadline.get()
+
+
 def budget_active() -> bool:
-    return _deadline.get() is not None
+    return process_deadline() is not None
 
 
 @overload
