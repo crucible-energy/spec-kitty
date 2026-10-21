@@ -143,7 +143,7 @@
     },
     "WP06": {
       "actor": "user",
-      "agent": "codex",
+      "agent": null,
       "agent_profile": "__resolved_profile_absent__",
       "agent_profile_version": "__resolved_profile_version_absent__",
       "force_count": 1,
@@ -152,7 +152,11 @@
       "last_event_id": "01M5EF80WVYB2J3VAR2F8W0W74",
       "last_transition_at": "2026-10-21T05:34:18.011185+00:00",
       "model": "__resolved_model_absent__",
+      "notes": [
+        "Independent feedback: required broader gates fail; preserve committed WP06 source and requeue pending separately admitted WP07 repair and complete qualification."
+      ],
       "provider": "__resolved_provider_absent__",
+      "review": null,
       "review_result": {
         "feedback_path": "/Users/sam/git/crucible/spec-kitty/.worktrees/review-thread-closure-upstream/kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout/review-cycle-1.md",
         "reference": "review-cycle://organization-workspace-lifecycle-01M5DRAR/WP06-owned-code-kind-acceptance-and-strict-closeout/review-cycle-1.md",
@@ -160,8 +164,11 @@
         "verdict": "changes_requested"
       },
       "role": "implementer",
-      "shell_pid": 81796,
-      "shell_pid_created_at": "1792559827.040551"
+      "shell_pid": null,
+      "shell_pid_created_at": null,
+      "subtasks": {
+        "T006": "planned"
+      }
     },
     "WP07": {
       "actor": "finalize-tasks",
