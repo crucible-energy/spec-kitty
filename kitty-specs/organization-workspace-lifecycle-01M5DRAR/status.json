@@ -69,7 +69,7 @@
     },
     "WP03": {
       "actor": "reviewer-renata",
-      "agent": "codex",
+      "agent": "reviewer-renata",
       "agent_profile": "reviewer-renata",
       "agent_profile_version": "1.0",
       "force_count": 0,
@@ -78,7 +78,8 @@
       "last_transition_at": "2026-10-21T01:54:52.056175+00:00",
       "model": "__resolved_model_absent__",
       "notes": [
-        "Frozen8c4d19ff: baseline2452/5skip, owning1958/16skip,675/745changed90.60%;16mypy/Ruffclean. Exact external receipt lifecycle-wp03-final-validation.json; independent review requested."
+        "Frozen8c4d19ff: baseline2452/5skip, owning1958/16skip,675/745changed90.60%;16mypy/Ruffclean. Exact external receipt lifecycle-wp03-final-validation.json; independent review requested.",
+        "Independent reviewer claims WP03 supported creator/automatic ingress review. Exact qualified candidate8c4d19ff source/tests/docs unchanged, acceptance and final receipts reviewed; no global adoption or deployment scope."
       ],
       "provider": "__resolved_provider_absent__",
       "role": "reviewer"
