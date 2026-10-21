@@ -153,7 +153,8 @@
       "last_transition_at": "2026-10-21T06:47:31.141266+00:00",
       "model": "__resolved_model_absent__",
       "notes": [
-        "Independent feedback: required broader gates fail; preserve committed WP06 source and requeue pending separately admitted WP07 repair and complete qualification."
+        "Independent feedback: required broader gates fail; preserve committed WP06 source and requeue pending separately admitted WP07 repair and complete qualification.",
+        "Full WP06 source qualified: original acceptance fix plus immutable retained claim recovery. Frozen40fa2cfd7: baseline2452pass5skip; owning97pass; relevantarchitecture31pass; repair15/16 statements93.75%; prior disjoint qualification66/68 preserved. Receipt lifecycle-wp06-claim-final-validation.json. Review full retained implementation from original immutable claimbase bc5203eae, not later planningpin."
       ],
       "provider": "__resolved_provider_absent__",
       "review": null,
