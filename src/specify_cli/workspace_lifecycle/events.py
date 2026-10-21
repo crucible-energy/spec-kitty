@@ -67,7 +67,7 @@ class EventQueue:
         )
 
     def notify(self, trigger: str, *, dispatch: Callable[[], None] | None = None) -> int:
-        if trigger not in ("completion", "startup", "delivery"):
+        if trigger not in ("completion", "startup", "delivery", "session-end"):
             raise StateError("Unsupported lifecycle wakeup")
         with self.locked():
             generation, acknowledged = self._read()

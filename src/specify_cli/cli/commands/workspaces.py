@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import shlex
+from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, NoReturn
 
@@ -150,3 +152,69 @@ def managed_run(
     except (StateError, OSError, ValueError, NoFollowPathError) as exc:
         _fail(exc)
     typer.echo(json.dumps({"action": "released_and_queued", "creator": creator.authority_id, "cleanup_complete": False}))
+
+
+@app.command("configure")
+def configure_organization(
+    state_dir: _StateDirectory,
+    roots: Annotated[list[Path], typer.Option("--root", help="Explicit bounded observation roots, including independent stores.")],
+    max_depth: Annotated[int, typer.Option(min=0, max=64)] = 6,
+    max_directories: Annotated[int, typer.Option(min=1, max=100000)] = 10000,
+    max_entries: Annotated[int, typer.Option(min=1, max=1000000)] = 100000,
+    worker_timeout: Annotated[float, typer.Option(min=1, max=300)] = 60,
+) -> None:
+    """Admit background observation scope; never install hooks or adopt creators."""
+    from specify_cli.workspace_lifecycle.configuration import OrganizationScope
+
+    try:
+        store = StateStore(state_dir)
+        scope = OrganizationScope(tuple(sorted({str(root.expanduser().absolute()) for root in roots})), max_depth, max_directories, max_entries, worker_timeout)
+        scope.admit(store)
+    except (StateError, OSError, ValueError, NoFollowPathError) as exc:
+        _fail(exc)
+    typer.echo(json.dumps({"action": "configured", "scope": scope.record(), "runtime_installed": False}))
+
+
+class _EventKind(StrEnum):
+    START = "session-start"
+    END = "session-end"
+    DELIVERY = "delivery"
+
+
+@app.command("event")
+def lifecycle_event(state_dir: _StateDirectory, kind: Annotated[_EventKind, typer.Option("--kind")]) -> None:
+    """Queue a hint, never owner release. SessionEnd does not dispatch a worker."""
+    from specify_cli.workspace_lifecycle.worker import LifecycleService
+
+    try:
+        service = LifecycleService(StateStore(state_dir))
+        if kind is _EventKind.END:
+            service.queue.notify("session-end")
+        elif kind is _EventKind.START:
+            service.resume()
+        else:
+            service.queue.notify("delivery", dispatch=service.launch)
+    except (StateError, OSError, ValueError, NoFollowPathError) as exc:
+        _fail(exc)
+    typer.echo(json.dumps({"action": "enqueued", "trigger": kind.value, "cleanup_complete": False}))
+
+
+@app.command("hook-definition")
+def hook_definition(state_dir: _StateDirectory) -> None:
+    """Print exact reviewable hooks. Installation and platform trust are separate."""
+    from specify_cli.workspace_lifecycle.configuration import OrganizationScope
+
+    try:
+        store = StateStore(state_dir)
+        store.observe()
+        if OrganizationScope.read(store) is None:
+            raise StateError("Configure explicit organization roots before generating hooks")
+    except (StateError, OSError, ValueError, NoFollowPathError) as exc:
+        _fail(exc)
+    from specify_cli.workspace_lifecycle.runtime import distribution_argv
+
+    hooks = {}
+    for event, kind in [("SessionStart", "session-start"), ("SessionEnd", "session-end")]:
+        command = shlex.join(distribution_argv("specify_cli", "workspaces", "event", "--state-dir", str(store.root), "--kind", kind))
+        hooks[event] = [{"hooks": [{"type": "command", "command": command, "timeout": 3}]}]
+    typer.echo(json.dumps({"hooks": hooks}))

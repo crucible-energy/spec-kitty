@@ -13,6 +13,11 @@ import re
 from contextlib import AbstractContextManager
 from dataclasses import asdict, dataclass, replace
 from typing import Protocol, cast
+from collections.abc import Sequence
+
+from kernel.git import GitCommandError
+from kernel.locks import LockAcquireTimeout, LockNotAcquired
+from kernel.no_follow import NoFollowPathError
 
 from specify_cli.workspace_lifecycle.discovery import WorkspaceObservation
 from specify_cli.workspace_lifecycle.policy import Evidence, Identity, decide, generation_key
@@ -82,14 +87,51 @@ class Coordinator:
     def __init__(self, store: StateStore) -> None:
         self.store = store
 
-    def account(self, observations: list[WorkspaceObservation]) -> None:
+    def account(self, observations: list[WorkspaceObservation], *, registered: Sequence[tuple[Identity, Creator]] = ()) -> None:
         """Merge unknown observations; omission never discharges prior work."""
         with self.store.locked() as tx:
             current: dict[tuple[int, str, str, str, str, str, str, str], AccountedObservation] = {}
+            bindings: dict[tuple[object, ...], list[tuple[Identity, str]]] = {}
+            unavailable_bindings: set[tuple[object, ...]] = set()
+            binding_key: tuple[object, ...]
+            for expected, creator in registered:
+                if any(
+                    op.status in ("retired", "intent", "unknown")
+                    and generation_key(op.identity, op.creator_id) == generation_key(expected, creator.authority_id)
+                    for op in tx.state.operations
+                ):
+                    continue
+                matching = [row for row in observations if self._matches(row, expected)]
+                if not matching:
+                    continue
+                binding_key = (expected.repository_id, expected.repository, expected.common_dir, expected.path, expected.head, expected.branch)
+                try:
+                    with creator.hold(expected):
+                        if creator.inspect(expected).identity != expected:
+                            raise StateError("Creator accounting identity changed")
+                        proof = (expected, creator.authority_id)
+                        if proof not in bindings.setdefault(binding_key, []):
+                            bindings[binding_key].append(proof)
+                except (StateError, GitCommandError, OSError, ValueError, NoFollowPathError, LockNotAcquired, LockAcquireTimeout):
+                    # Failed competing authority taints this observation only.
+                    unavailable_bindings.add(binding_key)
+                    continue
             for row in observations:
                 # A discovery payload cannot mint creator bindings or retirement.
                 unbound = cast(AccountedObservation, {k: v for k, v in row.items() if k in WorkspaceObservation.__annotations__})
                 unbound["disposition"] = "retained"
+                binding_key = (row["repository_id"], row["repository"], row["common_dir"], row["path"], row["head"], row["branch"])
+                matches = bindings.get(binding_key, [])
+                if binding_key in unavailable_bindings:
+                    unbound["reason"] = "creator_registration_unavailable"
+                elif len(matches) == 1 and row["exists"] and not row["bare"]:
+                    identity, authority = matches[0]
+                    unbound["workspace_generation"] = identity.workspace_generation
+                    unbound["lease_generation"] = identity.lease_generation
+                    unbound["creator_id"] = authority
+                    unbound["reason"] = "registered_creator_observation"
+                elif len(matches) > 1:
+                    unbound["reason"] = "ambiguous_creator_registration"
                 key = _observation_key(unbound)
                 if key in current and current[key] != unbound:
                     raise StateError("Conflicting observations for one workspace")
@@ -102,6 +144,14 @@ class Coordinator:
                         unavailable["reason"] = "not_observed_in_latest_scope"
                     current[key] = unavailable
             tx.commit(replace(tx.state, observations=tuple(current[k] for k in sorted(current))))
+
+    @staticmethod
+    def _matches(row: WorkspaceObservation, expected: Identity) -> bool:
+        return (
+            (row["repository_id"], row["repository"], row["common_dir"], row["path"], row["head"], row["branch"])
+            == (expected.repository_id, expected.repository, expected.common_dir, expected.path, expected.head, expected.branch)
+            and row["exists"] and not row["bare"]
+        )
 
     def account_owned(self, expected: Identity, creator: Creator) -> None:
         """Capture a registered creator generation under its authenticated hold.

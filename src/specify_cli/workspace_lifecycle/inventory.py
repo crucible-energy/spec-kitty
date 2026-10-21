@@ -8,6 +8,8 @@ import os
 import subprocess
 import time
 
+from kernel.owned_process import bounded_run, budget_active
+
 from specify_cli.workspace_lifecycle.discovery import parse_repository_pages
 
 
@@ -29,7 +31,8 @@ def fetch_repositories(organization: str, *, timeout: float = 30.0) -> dict[str,
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise OrganizationInventoryUnavailable("Organization inventory deadline exceeded")
-            response = subprocess.run(
+            executor = bounded_run if budget_active() else subprocess.run
+            response = executor(
                 [
                     "gh",
                     "api",

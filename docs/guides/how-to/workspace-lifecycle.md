@@ -127,3 +127,54 @@ deadlines reserve a bounded cleanup interval for Git's native lock and owned
 hook descendants. A refusal is not delivery. Inspect retained outcomes and use
 the supported recovery workflow; never remove a native lock to manufacture a
 successful retry.
+
+## Organization scope and session integration
+
+Configure one initialized private ledger with every intended local discovery
+root, including independent clones. Inventory uses the authenticated accessible
+`crucible-energy` repository IDs; folder names never establish membership.
+
+```sh
+spec-kitty workspaces configure --state-dir /absolute/private/ledger \
+  --root /absolute/organization-clones --root /absolute/other-clones \
+  --worker-timeout 60
+spec-kitty workspaces hook-definition --state-dir /absolute/private/ledger
+```
+
+The second command prints a reviewable SessionStart/SessionEnd hook definition.
+It does **not** install or trust it. Use the supported host's hook configuration
+and trust workflow separately. The command pins its generating distribution;
+regenerate the definition after moving or replacing that installation. Private-ledger event/status commands validate their explicit state directly;
+they do not install global runtime assets or depend on the current project's
+schema. Normal configuration and production commands retain their startup gates.
+
+SessionStart enqueues and dispatches the existing background worker. SessionEnd
+only durably queues a hint: a session ending does not prove that its producers
+have stopped or release an owner. Delivery notifications use
+`workspaces event --state-dir /absolute/private/ledger --kind delivery`.
+Missed notifications are recovered at the next startup or explicit `resume`.
+There is no mandatory additional model prompt to reconsider an already released
+registered creator. An event carries no cleanup authority.
+
+The worker combines bounded organization discovery with registered creator
+verification. Exact current observations can be bound only under the real
+creator's hold; historical unknown observations retain their independent
+obligations. A failed or conflicting registration cannot make another apparent
+claim authoritative. Unsupported creators, active work, unregistered historical
+worktrees, primary checkouts and work outside configured visibility stay
+retained. Existing Codex-managed workspaces require their actual creator's
+supported archive integration; this adapter does not substitute raw Git removal.
+
+Status includes `organization_observation`, its exact scope, event generation and
+observation time, plus `organization_observation_current`. Reconfiguration or a
+new hint makes an older report stale. Authenticated inventory failure preserves
+previous obligations and a sanitized unknown diagnostic. Incomplete discovery
+retains coverage gaps and outside-visibility declarations. Accessible inventory
+is not proof that every organization repository or remote machine is observable.
+
+Worker deadlines bound owned external processes and cooperatively stop traversal
+between directory/entry operations. They cannot preempt an uninterruptible local
+filesystem syscall. A blocked pass stays pending without an unchanged-error spin;
+a subsequent event/resume triggers fresh verification. Remote branches remain
+retained by this creator profile. Completion, cleanup, organization observation,
+and runtime installation are separate reported facts.

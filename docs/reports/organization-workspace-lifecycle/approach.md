@@ -271,3 +271,44 @@ remain unconfirmed. The failing full receipt and direct regression are retained
 externally. Admission controls also prove missing capture ownership, nonfinite
 or expired deadlines, missing expected old identity, and insufficient outer
 cleanup budget cannot start a Git mutation.
+
+## WP05 integration and local adoption boundary
+
+### User Experience Findings
+
+Creator completion/recovery existed, but configuring an organization observation
+scope and connecting session events still required an external integrator.
+Stale scope reports could look current; a failed registration could suppress
+new unknown observations; and a foreground distribution pin did not automatically
+pin its detached worker. Integration tests now exercise those boundaries through
+real Git stores, scoped fixture GitHub responses and actual joined processes.
+The real Spec Kitty acceptance uses a local origin mirror for branch-currentness
+checks; it does not disable that gate or contact a production source repository.
+
+### Engineering Decisions
+
+Persist explicit private observation roots and finite bounds. Inventory/discovery
+and creator verification run in the background; a session ending is only a
+queued hint, never owner release. Bind exact current observations under the real
+creator hold, isolate unavailable registrations and preserve historical unknown
+rows. Report exact scope, event generation, canonical time and explicit report
+currentness. Keep the accessible-inventory and outside-root limits visible.
+
+Pin both hook and worker children to their generating distribution, including
+unrelated working directories and hostile ambient module paths. Status/event
+operate on the explicit private ledger and skip unrelated global runtime repair
+and project-schema checks. Configuration, producer and worker commands retain
+normal startup; effects still require independent creator and delivery checks.
+The two-second status/enqueue acceptance measures five fresh processes each on
+one repository/three registered workspaces/100 settled fixture entries. Preserve
+every elapsed sample externally; fixture entries are not real delivery metrics.
+
+### Known Limitations
+
+Source qualification does not install or trust organization hooks. Unsupported
+managed creators, unknown history and runtime-dependent work remain retained;
+there is no raw Git fallback or inferred adoption. Discovery cooperatively checks
+deadlines between directory entries but cannot preempt an uninterruptible
+filesystem syscall. The finite POSIX producer profile and remote-branch retention
+remain explicit. Deployment is paused. Final frozen gate receipts and canonical
+independent verdict are external; intermediate passing checks are not adoption.

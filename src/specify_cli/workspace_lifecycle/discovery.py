@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from pathlib import Path
 from typing import TypedDict
 from urllib.parse import urlsplit
 
+from kernel.owned_process import process_deadline
 from kernel.git import GitCommandError, run_git
 from kernel.git.worktree_registry import parse_worktree_records
 from kernel.git_topology import GitTopologyError, inspect_git_common_dir
@@ -166,6 +168,9 @@ def _scan_children(
     children: list[Path] = []
     with os.scandir(path) as entries:
         for entry in entries:
+            if (deadline := process_deadline()) is not None and time.monotonic() >= deadline:
+                gaps.append({"path": str(path), "reason": "worker_deadline_exhausted"})
+                return children, entries_scanned, True
             if entries_scanned >= max_entries:
                 gaps.append({"path": str(path), "reason": "entry_budget_exhausted"})
                 return children, entries_scanned, True
@@ -218,6 +223,9 @@ def discover_workspaces(
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     env.update({"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull, "GIT_OPTIONAL_LOCKS": "0"})
     while pending:
+        if (deadline := process_deadline()) is not None and time.monotonic() >= deadline:
+            gaps.append({"path": str(pending[-1][0]), "reason": "worker_deadline_exhausted"})
+            break
         path, depth = pending.pop()
         if path in visited:
             continue

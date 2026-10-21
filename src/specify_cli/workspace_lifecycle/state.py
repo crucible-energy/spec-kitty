@@ -289,6 +289,14 @@ class StateStore:
         finally:
             os.close(fd)
 
+    def read_json_private(self, name: str, *, limit: int = MAX_BYTES) -> object:
+        """Decode bounded owned JSON with the ledger's duplicate-key refusal."""
+        try:
+            value: object = json.loads(self.read_private(name, limit=limit), object_pairs_hook=_pairs)
+            return value
+        except (ValueError, TypeError) as exc:
+            raise StateError("Invalid private lifecycle JSON") from exc
+
     def _read(self) -> State:
         try:
             return _decode(self.read_private("state.json"))
