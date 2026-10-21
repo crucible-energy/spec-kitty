@@ -176,3 +176,21 @@ merely because they run in a fresh interpreter. No paths are excluded or coverag
 thresholds relaxed. Additional refusal tests cover invalid creator/wakeup records
 and invalid subprocess-capture configuration. Earlier qualification attempts and
 their one failure remain retained; they are not labelled final success.
+
+## WP04 branch-first correction — active
+
+User Experience Findings: live charter/agent instructions direct local-main
+consolidation before creating the PR branch, contradicting the owner's PR-only
+rule. The existing status-target refusal checks done-bookkeeping policy; target
+integration safety must be proved independently through the production path.
+
+Engineering Decisions: canonical occurrence map covers all eight surfaces before
+source edits. Preserve historical facts, serialized identities and negative-case
+`main` fixtures. Review live guidance/target behaviour individually. No blind
+string replacement, global upgrade or new checkout. Reuse the existing owned
+lane; inherited four-checkout exception remains bounded to its review checkpoint.
+
+Known Limitations: actual positive feature/integration consolidation and protected
+primary refusal still require acceptance-first proof, implementation and required
+validation. Org-wide generated/adopted guidance remains unverified. Deployment
+stays held.
