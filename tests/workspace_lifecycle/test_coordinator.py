@@ -193,3 +193,21 @@ def test_uncertain_intent_must_recover_before_another_event_effect(tmp_path: Pat
     with pytest.raises(StateError):
         c.reconcile("event-2", i, a)
     assert a.calls == 1
+
+
+def test_retired_generation_is_terminal_across_different_events(tmp_path: Path) -> None:
+    c, a, i = setup(tmp_path)
+    first = c.reconcile("event-1", i, a)
+    duplicate = c.reconcile("event-2", i, a)
+    assert duplicate == first
+    assert a.calls == 1
+    assert len(c.store.read().operations) == 1
+
+
+def test_retired_generation_cannot_be_readmitted(tmp_path: Path) -> None:
+    c, a, i = setup(tmp_path)
+    c.account_owned(i, a)
+    c.reconcile("event-1", i, a)
+    with pytest.raises(StateError):
+        c.account_owned(i, a)
+    assert c.closeout(workflow_complete=True)["cleanup_complete"] is True
