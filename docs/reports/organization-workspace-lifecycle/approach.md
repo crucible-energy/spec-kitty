@@ -43,3 +43,45 @@ Engineering Decisions: add `observation_scope` to the actual report with normali
 Known Limitations: the new metadata does not observe inaccessible repositories or out-of-root stores and does not grant ownership. Durable accounting remains WP02. Prior exact source qualification remains historical; changed source receives fresh required gates.
 
 Independent scope review additionally distinguishes entirely undiscovered stores from external stores discoverable through a linked checkout/registry. The report category and acceptance use that precise boundary. The first cluster result is intermediate evidence; final checks follow the wording correction.
+
+## WP02 durable core and usable accounting
+
+User Experience Findings: independent review and red regressions exposed stale
+transactions after lock release, thread/fork capability reuse, blocking malformed
+state, hardlinked lock-sidecar mutation, incomplete recovery custody, lost partial
+inventory and generation closeout/replay defects. These concern real preservation
+and recovery behavior; initial green unit checks were insufficient evidence for
+the finished core.
+
+Engineering Decisions: extend the existing kernel atomic writer with opt-in
+strict file/directory synchronization and bound parent identity; extend canonical
+locking with opt-in private, single-link regular-file validation. Legacy callers
+retain default behavior. Transactions bind lifetime, thread and process. Missing
+history refuses instead of becoming empty state. Accounted creator generations,
+unknown discovery and immutable operation receipts remain distinct. Recovery
+receives the complete retained intent, uncertain intents block competing effects,
+and a retired generation is terminal across event IDs. Unknown/replaced work is
+never discharged by omission or another generation's result.
+
+Minimal out-of-map integration adds the ordinary lazy `workspaces` command group
+and its real CLI acceptance tests: initialization, status and durable foreground
+accounting. This makes the core usable and avoids shipping a test-only coordinator;
+it does not expose arbitrary release JSON or a retirement command. The kernel
+primitive extensions and command registration are necessary shared-authority
+changes, not parallel implementations. Tests commit before repairs; no source,
+review or status gate is bypassed. Static publication refs will carry stacked PR
+snapshots while this single-branch mission keeps its bound existing checkout.
+
+Known Limitations: concrete creator authentication, shared producer fencing,
+automatic event/worker execution, actual disposable retirement, branch-first
+consolidation and integrated adoption remain WP03–WP05. Unsupported strict
+filesystem capabilities retain/refuse; no cross-platform success, callback latency,
+global install, production retry or actual creator deletion is claimed by core
+protocol tests. Final qualification lives in external receipts after freeze.
+
+Final status review exposed admission side effects and misleading unknown counts.
+A missing/invalid ledger is checked before lock creation, then read authoritatively
+under the lock. Status failure leaves an uninitialized directory admissible.
+Known retained generations count as unresolved; unknown ownership is separate.
+Both regressions were committed red before repair. Broader draft validation
+passed 1,011 tests with five skipped; final frozen qualification is external.

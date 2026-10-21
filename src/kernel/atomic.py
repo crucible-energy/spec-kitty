@@ -30,6 +30,9 @@ from __future__ import annotations
 import contextlib
 import os
 import tempfile
+import secrets
+
+from kernel.no_follow import fd_relative_dir_ops_supported, open_no_follow
 from collections.abc import Callable
 from pathlib import Path
 
@@ -46,7 +49,7 @@ __all__ = [
 StripFn = Callable[[str, frozenset[str]], str]
 
 
-def atomic_write(path: Path, content: str | bytes, *, mkdir: bool = False) -> None:
+def atomic_write(path: Path, content: str | bytes, *, mkdir: bool = False, durable: bool = False, expected_parent: tuple[int, int] | None = None) -> None:
     """Write *content* atomically to *path*.
 
     Parameters
@@ -56,8 +59,22 @@ def atomic_write(path: Path, content: str | bytes, *, mkdir: bool = False) -> No
     content : str | bytes
         File content. ``str`` is encoded to UTF-8; ``bytes`` is written raw.
     mkdir : bool
-        If True, create parent directories before writing.
+        If True, create parent directories before writing (non-durable mode).
+    durable : bool
+        Opt into private, descriptor-anchored writes and strict file/parent fsync.
+        Parent directories must already exist; unsupported capabilities or sync
+        failures raise. Failure after replacement leaves the outcome unconfirmed.
+    expected_parent : tuple[int, int] | None
+        Optional device/inode binding, checked on the open parent descriptor.
+        Supported only with durable=True; existing callers retain their contract.
     """
+    if durable:
+        if mkdir:
+            raise ValueError("Durable writes require an existing parent directory")
+        _durable_write(path, content.encode("utf-8") if isinstance(content, str) else content, expected_parent)
+        return
+    if expected_parent is not None:
+        raise ValueError("Parent identity binding requires a durable write")
     if mkdir:
         path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -79,6 +96,47 @@ def atomic_write(path: Path, content: str | bytes, *, mkdir: bool = False) -> No
         with contextlib.suppress(OSError):
             Path(tmp_path).unlink()
         raise
+
+
+def _durable_write(path: Path, raw: bytes, expected_parent: tuple[int, int] | None) -> None:
+    """Strict, descriptor-anchored write; sync failure is never durable success.
+
+    Refuses platforms without fd-relative no-follow operations. Existing atomic
+    callers retain their original contract. The caller owns a dedicated lock.
+    """
+    if not fd_relative_dir_ops_supported():
+        raise OSError("Strict durable writes are unsupported on this platform")
+    candidate = path.absolute()
+    if ".." in candidate.parts:
+        raise ValueError("Durable path cannot contain parent traversal")
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    parent_fd = open_no_follow(Path(candidate.anchor), flags)
+    tmp_name = ".atomic-" + secrets.token_hex(16) + ".tmp"
+    try:
+        for part in candidate.parent.parts[1:]:
+            next_fd = os.open(part, flags, dir_fd=parent_fd)
+            os.close(parent_fd)
+            parent_fd = next_fd
+        info = os.fstat(parent_fd)
+        if expected_parent is not None and (info.st_dev, info.st_ino) != expected_parent:
+            raise OSError("Durable parent identity changed")
+        fd = os.open(tmp_name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=parent_fd)
+        try:
+            remaining = memoryview(raw)
+            while remaining:
+                written = os.write(fd, remaining)
+                if written <= 0:
+                    raise OSError("Durable write made no progress")
+                remaining = remaining[written:]
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        os.replace(tmp_name, candidate.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+        os.fsync(parent_fd)
+    finally:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name, dir_fd=parent_fd)
+        os.close(parent_fd)
 
 
 def substantively_equal(

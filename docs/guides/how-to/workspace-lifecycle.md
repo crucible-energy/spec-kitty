@@ -17,3 +17,44 @@ This first discovery increment performs no retirement. Automatic closeout requir
 The lifecycle belongs in Spec Kitty completion and startup recovery. A turn/session ending is an observation, not proof of mission completion or release. Existing production deployment remains on hold.
 
 The report’s `observation_scope` names normalized configured roots and scan bounds. `local_scan_complete` applies only inside that scope. Known read/traversal failures appear in `coverage_gaps`; accessible repositories without a local match appear in `unmatched_repositories`. Repositories outside authenticated visibility and stores not discoverable through configured roots or their Git registrations remain explicitly unobservable. An empty error list never certifies the whole organization or cleanup eligibility.
+
+## Private durable ledger
+
+The source now provides `spec-kitty workspaces initialize`, `status` and `account`.
+These commands operate only on an explicitly selected workspace ledger. They do
+not open application data stores, start services or retire workspaces.
+
+Initialize only an owner-admitted, existing empty private directory with
+`workspaces initialize --state-dir /absolute/private/ledger`. Its owner and mode
+must be the current user and `0700`. Existing contents refuse initialization.
+Normal reads never recreate missing history. `workspaces status --state-dir ...`
+reports recorded obligations and keeps workflow completion separate from cleanup.
+It does not infer that a mission has completed.
+
+`workspaces account --state-dir ... --root /absolute/root` performs a foreground
+organization inventory and durably merges its bounded observations. Repeat
+`--root` for additional roots. Known coverage gaps and unobservable scope remain
+explicit. Missing entries in later/partial scans never erase prior obligations.
+This foreground diagnostic is not the bounded automatic-event callback.
+
+Registered creator accounting and retirement use the core protocol under the
+creator's authenticated shared hold. Unbound discovery cannot assign a creator
+generation. A confirmed retirement settles only that creator's bound generation;
+unknown observations and replacement generations remain retained. Retirement is
+terminal across event IDs and reuses its original receipt. Recovery receives the
+exact retained intent, including source, release, delivery and evidence identity;
+unknown effects are inspected rather than blindly retried. Historical observations
+and operation receipts remain in the ledger.
+
+Strict persistence requires supported descriptor-relative no-follow operations.
+Unsupported platforms refuse admission. The caller owns first-directory creation
+and durable parent admission. File/parent synchronization failure is not success;
+results may remain unconfirmed. This ledger is private local bookkeeping, not a
+substitute for authenticated creator release, producer fencing or proof of data
+delivery. Automatic creator adapters and completion/startup integration are still
+pending; no global runtime installation or real retirement is established here.
+
+Status distinguishes all `unresolved_observations` from genuinely unbound
+`unknown_observations`. Known retained work still prevents cleanup completion.
+Checking an uninitialized directory refuses without creating ledger/lock files;
+explicit initialization remains possible afterward.

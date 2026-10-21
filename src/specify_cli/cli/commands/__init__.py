@@ -280,6 +280,12 @@ def _register_doctor(app: typer.Typer) -> None:
     app.add_typer(doctor_module.app, name="doctor", help="Project health diagnostics")
 
 
+def _register_workspaces(app: typer.Typer) -> None:
+    from . import workspaces as workspaces_module
+
+    app.add_typer(workspaces_module.app, name="workspaces", help="Durable workspace accounting and status")
+
+
 def _register_doctrine(app: typer.Typer) -> None:
     # CR-02 (mission charter-code-topology-01M152G1 S4): the `doctrine`
     # group is a deprecated, hidden alias -- `spec-kitty doctrine <x>` still
@@ -619,6 +625,7 @@ _ALL_COMMAND_REGISTRARS: tuple[_CommandRegistrar, ...] = (
     _register_context,
     _register_cutover_guard,
     _register_doctor,
+    _register_workspaces,
     _register_doctrine,
     _register_docs,
     _register_events,
@@ -674,6 +681,7 @@ _COMMAND_REGISTRARS: dict[str, _CommandRegistrar] = {
     "context": _register_context,
     "cutover-guard": _register_cutover_guard,
     "doctor": _register_doctor,
+    "workspaces": _register_workspaces,
     "doctrine": _register_doctrine,
     "docs": _register_docs,
     "events": _register_events,
