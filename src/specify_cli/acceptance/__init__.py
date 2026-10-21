@@ -1882,7 +1882,8 @@ def _build_acceptance_instructions(
     """Build human-readable next-step and cleanup instruction lists.
 
     ``landed_by_consolidate``: *branch* is a protected single_branch Mission's minted
-    branch, which ``spec-kitty consolidate`` lands on the target and then removes.
+    branch, which ``spec-kitty consolidate`` lands on the selected target.
+    This prediction is not a cleanup receipt; retention and creator results decide retirement.
     """
     instructions: list[str] = []
     cleanup_instructions: list[str] = []
@@ -1894,8 +1895,9 @@ def _build_acceptance_instructions(
             instructions.extend(
                 [
                     f"Review the acceptance commit on branch `{branch}`.",
-                    f"Consolidate onto an existing owned feature/integration branch: `spec-kitty consolidate --mission {summary.feature} --target <feature-or-integration-branch>`",
-                    "After merge, run /spec-kitty-mission-review and the retrospective workflow.",
+                    "Consolidate onto an existing owned feature/integration branch: "
+                    f"`spec-kitty consolidate --mission {summary.feature} --target <feature-or-integration-branch>`",
+                    "After PR acceptance, run /spec-kitty-mission-review and the retrospective workflow.",
                 ]
             )
     elif mode == "local":
@@ -1904,22 +1906,32 @@ def _build_acceptance_instructions(
         else:
             instructions.extend(
                 [
-                    f"Acceptance passed. Consolidate onto an existing owned feature/integration branch: `spec-kitty consolidate --mission {summary.feature} --target <feature-or-integration-branch>`",
-                    "After merge, run /spec-kitty-mission-review and the retrospective workflow.",
+                    "Acceptance passed. Consolidate onto an existing owned feature/integration branch: "
+                    f"`spec-kitty consolidate --mission {summary.feature} --target <feature-or-integration-branch>`",
+                    "After PR acceptance, run /spec-kitty-mission-review and the retrospective workflow.",
                 ]
             )
     else:  # checklist
-        instructions.append(f"All checks passed. Consolidate onto an existing owned feature/integration branch: `spec-kitty consolidate --mission {summary.feature} --target <feature-or-integration-branch>`.")
+        instructions.append(
+            "All checks passed. Consolidate onto an existing owned feature/integration branch: "
+            f"`spec-kitty consolidate --mission {summary.feature} --target <feature-or-integration-branch>`."
+        )
 
     instructions.append("Local consolidation does not publish to the primary branch; advance it only through an accepted pull request.")
     if summary.worktree_root != summary.primary_repo_root:
-        cleanup_instructions.append("After verified PR delivery and producer release, retire the worktree through its creator lifecycle. Unknown, active, dirty or unsupported workspaces stay retained with a reason.")
+        cleanup_instructions.append(
+            "After verified PR delivery and producer release, retire the worktree through its creator lifecycle. "
+            "Unknown, active, dirty or unsupported workspaces stay retained with a reason."
+        )
     if landed_by_consolidate:
         cleanup_instructions.append(
-            f"`spec-kitty consolidate` lands the Mission branch `{branch}` onto its target branch and removes it; there is nothing to delete by hand."
+            f"`spec-kitty consolidate` lands Mission branch `{branch}` onto its selected target. "
+            "Inspect the recorded retention and creator cleanup result; do not infer branch removal from acceptance."
         )
     elif not is_integration_branch:
-        cleanup_instructions.append(f"Retire Mission branch `{branch}` through its creator lifecycle after verified PR delivery and release; otherwise it stays retained.")
+        cleanup_instructions.append(
+            f"Retire Mission branch `{branch}` through its creator lifecycle after verified PR delivery and release; otherwise it stays retained."
+        )
 
     return instructions, cleanup_instructions
 

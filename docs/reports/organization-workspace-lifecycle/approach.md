@@ -190,10 +190,9 @@ source edits. Preserve historical facts, serialized identities and negative-case
 string replacement, global upgrade or new checkout. Reuse the existing owned
 lane; inherited four-checkout exception remains bounded to its review checkpoint.
 
-Known Limitations: actual positive feature/integration consolidation and protected
-primary refusal still require acceptance-first proof, implementation and required
-validation. Org-wide generated/adopted guidance remains unverified. Deployment
-stays held.
+Known Limitations: final unchanged baseline, owning validation, changed-statement
+coverage and independent approval remain. Actual feature landing and protected
+primary refusal are proven below. Org-wide adoption remains WP05; deployment stays held.
 
 The complete `tests/terminus` harness supplied the actual positive control with no
 merge/status/bookkeeping mocks. On the planning candidate, its primary-target run
@@ -215,3 +214,23 @@ still target main, as expected under the changed contract. Migrate their target
 semantics to actual feature/integration branches with a distinct real primary;
 keep primary-refusal cases and all original rollback/reconciliation assertions.
 Do not mock or relax the entry guard to preserve the old successful-main path.
+
+
+The actual acceptance formatter now names an explicit feature/integration target
+and PR acceptance, rather than an ambiguous default or direct manual deletion.
+Independent review found its minted-branch hint promised removal even under
+retention; a new failing regression reproduces that claim, and the repaired hint
+refers to the recorded retention/creator cleanup result instead. Acceptance is
+not a deletion receipt.
+
+The broader fixture migration preserves original defaults in shared builders;
+full-executor positives opt into a feature target with a distinct pinned primary.
+Historical issue prose is identified as historical, not rewritten into fabricated
+original evidence. Existing content, done/bookkeeping, rollback, resume, refusal
+and recovery assertions remain. Boundary-mocked missing-branch units now provide
+a real eligible Git target rather than mocking the new protection decision.
+
+Configured narrow mypy exposes three pre-existing import-skip diagnostics in
+unchanged acceptance symbols. The exact WP03 base snapshot reproduces the same
+three diagnostics, and their ASTs are identical. No suppression, policy change or
+claimed clean acceptance type check substitutes for that attributed result.

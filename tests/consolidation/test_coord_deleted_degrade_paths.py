@@ -86,7 +86,7 @@ def _build_coord_deleted_mission(repo_root: Path) -> Path:
     state yields UNMATERIALIZED (→ PRIMARY) instead, which is why this fixture never
     creates the branch at all.
     """
-    _git(repo_root, "init", "-q")
+    _git(repo_root, "init", "-q", "-b", "feature/integration")
     _git(repo_root, "config", "user.email", "coord-deleted-3012@example.test")
     _git(repo_root, "config", "user.name", "Coord Deleted Degrade")
 
@@ -101,6 +101,7 @@ def _build_coord_deleted_mission(repo_root: Path) -> Path:
                 "slug": _SLUG_WITH_MID8,
                 "friendly_name": _MISSION_SLUG,
                 "mission_type": "software-dev",
+                "target_branch": "feature/integration",
                 "coordination_branch": _COORD_BRANCH,
                 "topology": "coord",
             }
@@ -117,6 +118,9 @@ def _build_coord_deleted_mission(repo_root: Path) -> Path:
 
     _git(repo_root, "add", "-A")
     _git(repo_root, "commit", "-qm", "init mission declaring a nonexistent coord branch")
+    from tests._support.feature_landing import pin_primary
+
+    pin_primary(repo_root)
     return feature_dir
 
 

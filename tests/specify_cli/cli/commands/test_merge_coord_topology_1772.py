@@ -74,15 +74,19 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return _run(["git", "-C", str(repo), *args])
 
 
-def _init_git_repo(repo: Path) -> None:
+def _init_git_repo(repo: Path, *, target_branch: str = "main") -> None:
     repo.mkdir(parents=True, exist_ok=True)
-    _run(["git", "init", "-qb", "main", str(repo)])
+    _run(["git", "init", "-qb", target_branch, str(repo)])
     _git(repo, "config", "user.email", "test@test.com")
     _git(repo, "config", "user.name", "Test")
     _git(repo, "config", "commit.gpgsign", "false")
     (repo / "README.md").write_text("init\n", encoding="utf-8")
     _git(repo, "add", ".")
     _git(repo, "commit", "-m", "init")
+    if target_branch != "main":
+        from tests._support.feature_landing import pin_primary
+
+        pin_primary(repo)
 
 
 def _file_on_branch(repo: Path, branch: str, relpath: str) -> bool:
@@ -114,7 +118,7 @@ MISSION_ID = "01CRDTOPO000000000000001772"
 COORD_BRANCH = f"kitty/mission-{MISSION_SLUG}-{MISSION_ID[:8]}"
 
 
-def _write_meta(feature_dir: Path) -> None:
+def _write_meta(feature_dir: Path, *, target_branch: str = "main") -> None:
     """meta.json declaring a coordination_branch (coord-topology mission)."""
     meta = {
         "mission_slug": MISSION_SLUG,
@@ -122,7 +126,7 @@ def _write_meta(feature_dir: Path) -> None:
         "mid8": MISSION_ID[:8],
         "mission_number": None,
         "mission_type": "software-dev",
-        "target_branch": "main",
+        "target_branch": target_branch,
         "coordination_branch": COORD_BRANCH,
         "purpose_tldr": "coord-topology merge regression (#1772)",
         "purpose_context": "merge must integrate lane diffs or fail loudly",
@@ -132,7 +136,7 @@ def _write_meta(feature_dir: Path) -> None:
     )
 
 
-def _write_manifest(feature_dir: Path) -> LanesManifest:
+def _write_manifest(feature_dir: Path, *, target_branch: str = "main") -> LanesManifest:
     """A single code lane (legacy branch naming)."""
     manifest = LanesManifest(
         version=1,
@@ -152,7 +156,7 @@ def _write_manifest(feature_dir: Path) -> LanesManifest:
         # without one; ``None`` is the value that is actually correct here.
         mission_id=None,
         mission_branch=COORD_BRANCH,
-        target_branch="main",
+        target_branch=target_branch,
         lanes=[
             ExecutionLane(
                 lane_id="lane-a",
@@ -173,6 +177,7 @@ def _write_manifest(feature_dir: Path) -> LanesManifest:
 def _bootstrap_coord_mission(
     repo: Path,
     *,
+    target_branch: str = "main",
     with_tracked_worktrees_junk: bool = False,
     lane_code_relpath: str = "src/feature_code.py",
 ) -> Path:
@@ -182,8 +187,8 @@ def _bootstrap_coord_mission(
     """
     feature_dir = repo / "kitty-specs" / MISSION_SLUG
     (feature_dir / "tasks").mkdir(parents=True)
-    _write_meta(feature_dir)
-    _write_manifest(feature_dir)
+    _write_meta(feature_dir, target_branch=target_branch)
+    _write_manifest(feature_dir, target_branch=target_branch)
 
     # status.events.jsonl in-branch (tracked). Pre-record per-WP done events so
     # the in-branch status path resolves and post-merge validation can read it.
@@ -241,7 +246,7 @@ def _bootstrap_coord_mission(
     code_path.write_text("def feature() -> int:\n    return 1772\n", encoding="utf-8")
     _git(repo, "add", lane_code_relpath)
     _git(repo, "commit", "-m", f"feat({MISSION_SLUG}): lane code for WP01")
-    _git(repo, "checkout", "main")
+    _git(repo, "checkout", target_branch)
 
     # The log records the approval the ``done`` event follows, stamped with the lane tip
     # review approved (#5668: an approval with no stamp cannot be bounded).
@@ -369,8 +374,8 @@ def test_retry_after_abort_integrates_lane_code_or_fails_loudly(tmp_path: Path) 
     with ``allow_noop_squash=True`` returns ``already_applied=True`` — a silent
     zero-code success. The lane code never reaches ``main``.
     """
-    _init_git_repo(tmp_path)
-    _bootstrap_coord_mission(tmp_path)
+    _init_git_repo(tmp_path, target_branch="feature/integration")
+    _bootstrap_coord_mission(tmp_path, target_branch="feature/integration")
     _materialize_coord_worktree(tmp_path)
     lane_code = "src/feature_code.py"
 
@@ -378,14 +383,14 @@ def test_retry_after_abort_integrates_lane_code_or_fails_loudly(tmp_path: Path) 
     state = ConsolidationState(
         mission_id=MISSION_ID,
         mission_slug=MISSION_SLUG,
-        target_branch="main",
+        target_branch="feature/integration",
         wp_order=["WP01"],
         completed_wps=["WP01"],
         strategy="squash",
     )
     save_state(state, tmp_path)
 
-    assert not _file_on_branch(tmp_path, "main", lane_code), (
+    assert not _file_on_branch(tmp_path, "feature/integration", lane_code), (
         "fixture precondition: lane code must NOT be on main before merge"
     )
 
@@ -406,7 +411,7 @@ def test_retry_after_abort_integrates_lane_code_or_fails_loudly(tmp_path: Path) 
             # A loud structured failure (non-zero exit) is an acceptable outcome.
             failed_loudly = exc.exit_code != 0
 
-    integrated = _file_on_branch(tmp_path, "main", lane_code)
+    integrated = _file_on_branch(tmp_path, "feature/integration", lane_code)
 
     assert integrated or failed_loudly, (
         "#1772 FR-037 regression: merge reported success but integrated ZERO "
@@ -423,8 +428,8 @@ def test_retry_after_abort_integrates_lane_code_or_fails_loudly(tmp_path: Path) 
 def test_fresh_merge_integrates_lane_code(tmp_path: Path) -> None:
     """Healthy-merge path (NFR-001): with no aborted ConsolidationState, a fresh merge
     integrates the lane code onto the target branch."""
-    _init_git_repo(tmp_path)
-    _bootstrap_coord_mission(tmp_path)
+    _init_git_repo(tmp_path, target_branch="feature/integration")
+    _bootstrap_coord_mission(tmp_path, target_branch="feature/integration")
     _materialize_coord_worktree(tmp_path)
     lane_code = "src/feature_code.py"
 
@@ -439,7 +444,7 @@ def test_fresh_merge_integrates_lane_code(tmp_path: Path) -> None:
             allow_sparse_checkout=True,
         )
 
-    assert _file_on_branch(tmp_path, "main", lane_code), (
+    assert _file_on_branch(tmp_path, "feature/integration", lane_code), (
         "healthy-merge regression: fresh merge did not integrate the lane code "
         "onto the target branch."
     )
@@ -474,14 +479,14 @@ def test_merge_records_baseline_merge_commit_on_target(tmp_path: Path) -> None:
     succeeds. This test pins only the happy-path durability invariant; do not
     widen it to the crash-window re-run edge in this WP.
     """
-    _init_git_repo(tmp_path)
-    _bootstrap_coord_mission(tmp_path)
+    _init_git_repo(tmp_path, target_branch="feature/integration")
+    _bootstrap_coord_mission(tmp_path, target_branch="feature/integration")
     _materialize_coord_worktree(tmp_path)
 
     # The baseline the merge must record: the target branch tip BEFORE the
     # mission lands (merge.py captures it via ``git rev-parse <target>``
     # before the mission→target merge).
-    pre_merge_target_sha = _git(tmp_path, "rev-parse", "main").stdout.strip()
+    pre_merge_target_sha = _git(tmp_path, "rev-parse", "feature/integration").stdout.strip()
 
     with _real_merge_external_mocks(real_baseline_recording=True):
         _run_lane_based_consolidation(
@@ -495,7 +500,7 @@ def test_merge_records_baseline_merge_commit_on_target(tmp_path: Path) -> None:
         )
 
     committed = _git(
-        tmp_path, "show", f"main:kitty-specs/{MISSION_SLUG}/meta.json"
+        tmp_path, "show", f"feature/integration:kitty-specs/{MISSION_SLUG}/meta.json"
     ).stdout
     committed_meta = json.loads(committed)
     recorded = committed_meta.get("baseline_merge_commit")
@@ -519,7 +524,7 @@ def test_squash_applied_branch_is_integrated_by_tree_not_ancestry(tmp_path: Path
         _lane_already_integrated,
     )
 
-    _init_git_repo(tmp_path)
+    _init_git_repo(tmp_path, target_branch="feature/integration")
     _git(tmp_path, "checkout", "-b", "mission")
     code_path = tmp_path / "src" / "feature_code.py"
     code_path.parent.mkdir(parents=True, exist_ok=True)
@@ -527,12 +532,12 @@ def test_squash_applied_branch_is_integrated_by_tree_not_ancestry(tmp_path: Path
     _git(tmp_path, "add", "src/feature_code.py")
     _git(tmp_path, "commit", "-m", "feat: mission code")
 
-    _git(tmp_path, "checkout", "main")
+    _git(tmp_path, "checkout", "feature/integration")
     _git(tmp_path, "merge", "--squash", "mission")
     _git(tmp_path, "commit", "-m", "squash mission")
 
-    assert not _lane_already_integrated(tmp_path, "mission", "main")
-    assert _branch_trees_equal(tmp_path, "mission", "main")
+    assert not _lane_already_integrated(tmp_path, "mission", "feature/integration")
+    assert _branch_trees_equal(tmp_path, "mission", "feature/integration")
 
 
 # ---------------------------------------------------------------------------
@@ -547,8 +552,8 @@ def test_doctor_flags_tracked_worktrees_content(tmp_path: Path) -> None:
 
     from specify_cli.cli.commands.doctor import app as doctor_app
 
-    _init_git_repo(tmp_path)
-    _bootstrap_coord_mission(tmp_path, with_tracked_worktrees_junk=True)
+    _init_git_repo(tmp_path, target_branch="feature/integration")
+    _bootstrap_coord_mission(tmp_path, with_tracked_worktrees_junk=True, target_branch="feature/integration")
 
     runner = CliRunner()
     # #2059: the coordination command resolves repo_root in its sibling module
@@ -587,8 +592,8 @@ def test_post_merge_validation_reads_in_branch_status_path(tmp_path: Path) -> No
     ``.worktrees/`` worktree path (``git show <branch>:.worktrees/…``)."""
     from specify_cli.cli.commands.consolidate import _assert_merged_wps_done_on_target
 
-    _init_git_repo(tmp_path)
-    feature_dir = _bootstrap_coord_mission(tmp_path)
+    _init_git_repo(tmp_path, target_branch="feature/integration")
+    feature_dir = _bootstrap_coord_mission(tmp_path, target_branch="feature/integration")
 
     captured_refs: list[str] = []
 
@@ -609,7 +614,7 @@ def test_post_merge_validation_reads_in_branch_status_path(tmp_path: Path) -> No
         _assert_merged_wps_done_on_target(
             tmp_path,
             MISSION_SLUG,
-            "main",
+            "feature/integration",
             ["WP01"],
             feature_dir=feature_dir,
             mission_id=MISSION_ID,
