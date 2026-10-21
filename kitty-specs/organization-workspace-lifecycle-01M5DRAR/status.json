@@ -77,6 +77,9 @@
       "last_event_id": "01M5E2NBSGA1DF33HJ2ABYMCK2",
       "last_transition_at": "2026-10-21T01:54:23.664804+00:00",
       "model": "__resolved_model_absent__",
+      "notes": [
+        "Frozen8c4d19ff: baseline2452/5skip, owning1958/16skip,675/745changed90.60%;16mypy/Ruffclean. Exact external receipt lifecycle-wp03-final-validation.json; independent review requested."
+      ],
       "provider": "__resolved_provider_absent__",
       "role": "implementer"
     },
