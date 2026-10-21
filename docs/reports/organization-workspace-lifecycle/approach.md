@@ -163,3 +163,16 @@ generations still do not spin. Public and module workers both exit unsuccessfull
 on blocked outcomes. Accepted-PR evidence also binds the source branch name as
 well as its commit, repository and default target, so another branch sharing the
 same commit is not substituted for this creator's delivery.
+
+The first owning gate found a pre-existing baseline timeout double representing
+an already-exited process while expecting it to be signalled. Its timeout case
+now models a live/unreaped child (`returncode=None`); the completed-case default
+and real process-tree acceptance remain. The no-post-reap signal guard stays.
+
+Coverage is measured with the project's existing source/path configuration plus
+subprocess tracing in a retained external config: actual dispatched Python
+workers must contribute their executed source, rather than appearing uncovered
+merely because they run in a fresh interpreter. No paths are excluded or coverage
+thresholds relaxed. Additional refusal tests cover invalid creator/wakeup records
+and invalid subprocess-capture configuration. Earlier qualification attempts and
+their one failure remain retained; they are not labelled final success.

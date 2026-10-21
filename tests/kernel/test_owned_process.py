@@ -67,3 +67,39 @@ def test_shared_signal_authority_refuses_reaped_identifier(monkeypatch: pytest.M
     monkeypatch.setattr(os, "killpg", lambda *args: calls.append(args))
     signal_owned_process_tree(SimpleNamespace(returncode=0, pid=123456), force=True, platform="posix")
     assert calls == []
+
+
+def test_invalid_capture_modes_refuse_before_starting_child() -> None:
+    from kernel.owned_process import bounded_run, process_budget
+
+    with pytest.raises(ValueError, match="Encoding"):
+        bounded_run(["unused"], timeout=1, encoding="utf-8")
+    with pytest.raises(OSError, match="unsupported"):
+        bounded_run(["unused"], timeout=1, capture_output=False)
+    with pytest.raises(ValueError, match="Finite"):
+        bounded_run(["unused"])
+    with pytest.raises(ValueError, match="Finite"), process_budget(float("inf")):
+        pass
+
+
+def test_bounded_capture_preserves_nonzero_command_failure() -> None:
+    from kernel.owned_process import bounded_run
+
+    with pytest.raises(subprocess.CalledProcessError) as failure:
+        bounded_run([sys.executable, "-c", "raise SystemExit(7)"], timeout=2, check=True)
+    assert failure.value.returncode == 7
+
+
+def test_windows_tree_adapter_uses_exact_owned_pid_and_retains_direct_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+    from kernel.owned_process import signal_owned_process_tree
+
+    calls = []
+    child = SimpleNamespace(returncode=None, pid=12345, poll=lambda: None, kill=lambda: calls.append("kill"), terminate=lambda: calls.append("terminate"))
+
+    def unavailable(command):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 1)
+
+    signal_owned_process_tree(child, force=True, platform="nt", windows_tree_kill=unavailable)
+    assert calls == [["taskkill", "/PID", "12345", "/T", "/F"], "kill"]

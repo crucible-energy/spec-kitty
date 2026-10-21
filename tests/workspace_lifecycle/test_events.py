@@ -283,3 +283,127 @@ def test_public_worker_reports_blocked_as_failure(tmp_path: Path, monkeypatch: p
     result = invoke(monkeypatch, ["worker", "--state-dir", str(store.root)])
     assert result.exit_code == 2
     assert json.loads(result.output)["worker"] == "blocked"
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        {"schema_version": 2, "generation": 1, "acknowledged": 0},
+        {"schema_version": 1, "generation": True, "acknowledged": 0},
+        {"schema_version": 1, "generation": 0, "acknowledged": 1},
+        {"schema_version": 1, "generation": 1, "acknowledged": 0, "release": True},
+    ],
+)
+def test_corrupt_wakeup_cannot_certify_completion(tmp_path: Path, record) -> None:
+    import json
+    from specify_cli.workspace_lifecycle.events import EventQueue
+
+    store = ledger(tmp_path)
+    path = store.root / "events.json"
+    path.write_text(json.dumps(record))
+    path.chmod(0o600)
+    with pytest.raises(StateError, match="history"):
+        EventQueue(store).snapshot()
+
+
+def test_exhausted_and_unknown_events_refuse_without_reset(tmp_path: Path) -> None:
+    import json
+    from specify_cli.workspace_lifecycle.events import EventQueue
+
+    store = ledger(tmp_path)
+    queue = EventQueue(store)
+    with pytest.raises(StateError, match="Unsupported"):
+        queue.notify("anything-else")
+    path = store.root / "events.json"
+    path.write_text(json.dumps({"schema_version": 1, "generation": 2**63 - 1, "acknowledged": 0}))
+    path.chmod(0o600)
+    before = path.read_bytes()
+    with pytest.raises(StateError, match="exhausted"):
+        queue.notify("completion")
+    assert path.read_bytes() == before
+
+
+def test_resume_cli_dispatches_a_joined_real_worker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
+    from test_ledger_cli import invoke
+    from specify_cli.workspace_lifecycle.events import EventQueue
+
+    store = ledger(tmp_path)
+    children = []
+    original = subprocess.Popen
+
+    def capture(*args, **kwargs):
+        child = original(*args, **kwargs)
+        children.append(child)
+        return child
+
+    monkeypatch.setattr(subprocess, "Popen", capture)
+    result = invoke(monkeypatch, ["resume", "--state-dir", str(store.root)])
+    assert result.exit_code == 0, result.output
+    assert len(children) == 1
+    assert children[0].wait(timeout=20) == 0
+    assert EventQueue(store).snapshot() == (1, 1)
+
+
+@pytest.mark.parametrize("command", ["resume", "worker"])
+def test_execution_cli_refuses_missing_history_without_admission(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, command: str) -> None:
+    from test_ledger_cli import invoke
+
+    root = tmp_path / "empty"
+    root.mkdir(mode=0o700)
+    result = invoke(monkeypatch, [command, "--state-dir", str(root)])
+    assert result.exit_code == 2
+    assert list(root.iterdir()) == []
+
+
+def test_managed_cli_refuses_primary_before_workspace_creation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+    from test_adapters import managed_owner
+    from test_ledger_cli import invoke
+
+    _, store, _, repo = managed_owner(tmp_path, monkeypatch)
+    path = tmp_path / "forbidden"
+    result = invoke(
+        monkeypatch,
+        [
+            "managed-run",
+            "--state-dir",
+            str(store.root),
+            "--repo-root",
+            str(repo),
+            "--workspace",
+            str(path),
+            "--branch",
+            "main",
+            "--repository",
+            "crucible-energy/example",
+            "--repository-id",
+            "7",
+            "--pr",
+            "9",
+            "--",
+            sys.executable,
+            "-c",
+            "pass",
+        ],
+    )
+    assert result.exit_code == 2, result.output
+    assert not path.exists()
+
+
+def test_busy_worker_keeps_pending_wakeup_without_competing_effect(tmp_path: Path) -> None:
+    from kernel.locks import machine_file_lock
+    from specify_cli.workspace_lifecycle.worker import LifecycleService
+
+    store = ledger(tmp_path)
+    service = LifecycleService(store)
+    service.queue.notify("completion")
+    with machine_file_lock(store.root / "worker.lock", blocking=False, private=True):
+        assert service.run() == {"worker": "already_running", "results": []}
+    assert service.queue.snapshot() == (1, 0)
+
+
+def test_sidecar_read_cannot_escape_ledger(tmp_path: Path) -> None:
+    store = ledger(tmp_path)
+    with pytest.raises(StateError, match="Invalid private"):
+        store.read_private("../outside")

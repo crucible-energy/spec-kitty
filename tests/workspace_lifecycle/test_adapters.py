@@ -435,3 +435,29 @@ def test_same_commit_on_another_pr_branch_is_not_creator_delivery(monkeypatch: p
 
     monkeypatch.setattr(subprocess, "run", wrong_branch)
     assert GitHubDelivery(timeout=1).verify(identity(), 9) is None
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("schema_version", 2),
+        ("identity", []),
+        ("device", -1),
+        ("repo_root", "relative"),
+        ("release_hash", "not-a-digest"),
+        ("status", "unknown-status"),
+        ("producer_succeeded", "true"),
+        ("release_cap", 9),
+        ("pr", True),
+        ("schema_version", True),
+    ],
+)
+def test_malformed_creator_fields_never_establish_owner_authority(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field, value) -> None:
+    from specify_cli.workspace_lifecycle.state import StateError
+
+    owner, _, _, _ = managed_owner(tmp_path, monkeypatch)
+    data = json.loads(owner._path.read_text())
+    data[field] = value
+    owner._path.write_text(json.dumps(data))
+    with pytest.raises(StateError, match="history"):
+        _ = owner.identity

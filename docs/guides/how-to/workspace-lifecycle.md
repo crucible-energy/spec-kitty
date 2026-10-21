@@ -51,10 +51,63 @@ Unsupported platforms refuse admission. The caller owns first-directory creation
 and durable parent admission. File/parent synchronization failure is not success;
 results may remain unconfirmed. This ledger is private local bookkeeping, not a
 substitute for authenticated creator release, producer fencing or proof of data
-delivery. Automatic creator adapters and completion/startup integration are still
-pending; no global runtime installation or real retirement is established here.
+delivery. The original WP02 increment supplied the core only; the explicit
+creator and completion/startup commands below now exercise real supported Git
+retirement. Global runtime installation and organization adoption remain separate.
 
 Status distinguishes all `unresolved_observations` from genuinely unbound
 `unknown_observations`. Known retained work still prevents cleanup completion.
 Checking an uninitialized directory refuses without creating ledger/lock files;
 explicit initialization remains possible afterward.
+
+
+## Managed production and automatic closeout
+
+Use the source CLI's `workspaces managed-run` for one **new** creator-owned linked
+checkout. It does not adopt an existing worktree or external managed workspace.
+Initialize its private ledger first, then run:
+
+```sh
+spec-kitty workspaces managed-run --state-dir /absolute/private/ledger \
+  --repo-root /absolute/repository --workspace /absolute/new-workspace \
+  --branch feature/my-change --repository crucible-energy/example \
+  --repository-id 123 -- my-producer its-arguments
+```
+
+The producer runs in the new checkout and receives
+`SPEC_KITTY_LIFECYCLE_RESULT`, a creator-specific result-file path outside it.
+After allocating its PR, the producer writes exactly `{"pr": 123}` as an owned
+regular **0600** file at that path. Alternatively, supply an already allocated
+`--pr 123` to `managed-run`. The PR number is a delivery hint, never release
+permission. Do not write credentials to this result. No shell interprets the
+producer argument vector. This foreground profile has a 30-second maximum;
+longer/detached/scheduled producers require their own supported ownership and
+fencing integration, and are not inferred safe by a parent exiting.
+
+The runner joins the owned producer, records owner release and durably enqueues a
+wakeup. Cleanup runs asynchronously: the worker independently verifies the exact
+repository, source branch/commit and merged PR against the repository's default
+branch, then rechecks creator generation, shared hold, clean state, ignored data,
+nested repositories and runtime ownership before guarded removal. Failed or
+unconfirmed production remains unreleased. Unmerged work stays retained. Unknown
+or unsupported managed creators never fall back to raw removal. Local and remote
+branch outcomes are separate; this adapter leaves remote branches retained.
+
+Inspect `workspaces status --state-dir /absolute/private/ledger` for recorded
+obligations, `pending_wakeup` and `last_worker_observation`. A blocked creator
+remains pending without starving eligible creators. A new event arriving during
+a blocked pass is reconsidered; unchanged errors do not trigger a retry loop.
+The source result does not certify global cleanup or workflow completion.
+
+At an explicitly integrated startup/completion checkpoint, use
+`workspaces resume --state-dir /absolute/private/ledger`. It queues a fresh scan
+of registered creator records and starts the same worker. This recovers missed
+callbacks or a CLI that exited after durable owner release. For foreground
+inspection, `workspaces worker --state-dir /absolute/private/ledger` uses that
+same path and exits 2 on blocked outcomes. Recovery inspects an uncertain saved
+intent rather than blindly repeating its effect. Preserve private history and
+original receipts; missing/corrupt records require explicit recovery.
+
+Installing/trusting startup integration for all organization repos remains a
+separate adoption gate. Existing unknown/backlog workspaces stay retained until
+their actual creator supplies release, producer fencing and delivery evidence.
