@@ -85,3 +85,7 @@ The supported accept diagnostic observed all five packages approved but wrongly 
 ### Additional strict-closeout findings
 
 The expanded architecture gate exposed standalone Op routing that bypasses the sole ownership minter and propagates unvalidated Path claims internally. WP07 centralizes that validation and carries an opaque operation fact; it does not weaken the scan. Two existing owned lifecycle fixtures also encode stale supported-action/posture expectations; align their exact assertions with the actual contract while preserving no-effect and primary-content protections. Preserve the failed gates and validate the complete repaired candidate.
+
+### WP06 retained claim-base recovery
+
+Re-finalization advances the mission-wide planning pin but does not erase completed WP source. WP06 additionally owns the existing tasks_move_task review-base adapter and its complete owned-checkout test module. Consume the immutable per-WP claim base already recorded by canonical claim; retain the mission pin as planning evidence and all existing reachability, ancestry and owned-file refusal checks. This amendment adds no worktree, runtime authority, guard bypass, or competing work package.
