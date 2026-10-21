@@ -198,3 +198,55 @@ def test_failed_producer_is_not_implicitly_released(tmp_path: Path, monkeypatch:
     with pytest.raises(StateError, match="successful producer"):
         owner.complete(pr=9)
     assert events == []
+
+
+def test_creator_persists_creation_custody_before_git_effect(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.workspace_lifecycle import adapters
+
+    original = adapters.run_git
+
+    def inspect_before_effect(repo, *args, **kwargs):
+        if args[:2] == ("worktree", "add"):
+            records = list((tmp_path / "ledger").glob("creator-*.json"))
+            assert len(records) == 1, "Creation must have durable custody before Git runs"
+            assert json.loads(records[0].read_text())["status"] == "creating"
+        return original(repo, *args, **kwargs)
+
+    monkeypatch.setattr(adapters, "run_git", inspect_before_effect)
+    managed_owner(tmp_path, monkeypatch)
+
+
+def test_creator_authority_rejects_duplicate_history_keys(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.workspace_lifecycle.state import StateError
+
+    owner, ledger, _, _ = managed_owner(tmp_path, monkeypatch)
+    record = next(ledger.root.glob("creator-*.json"))
+    raw = record.read_text()
+    record.write_text('{"status":"active",' + raw[1:])
+    with pytest.raises(StateError, match="duplicate|invalid"):
+        _ = owner.identity
+
+
+def test_active_creator_cannot_carry_released_proof(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.workspace_lifecycle.state import StateError
+
+    owner, ledger, _, _ = managed_owner(tmp_path, monkeypatch)
+    record = next(ledger.root.glob("creator-*.json"))
+    data = json.loads(record.read_text())
+    data["release_id"] = "forged-release"
+    record.write_text(json.dumps(data))
+    with pytest.raises(StateError, match="invalid"):
+        _ = owner.identity
+
+
+def test_creator_owns_and_joins_the_actual_producer_before_release(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+
+    owner, _, events, _ = managed_owner(tmp_path, monkeypatch)
+    path = Path(owner.identity.path)
+    script = "import time; from pathlib import Path; time.sleep(.05); Path('joined.md').write_text('finished')"
+    owner.run_producer([sys.executable, "-c", script], timeout=5)
+    assert (path / "joined.md").read_text() == "finished"
+    assert events == []
+    owner.complete(pr=9)
+    assert len(events) == 1
