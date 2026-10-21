@@ -203,7 +203,7 @@ def test_managed_run_cli_joins_reports_pr_and_automatically_retires(tmp_path: Pa
 
     def capture(*args, **kwargs):
         child = original_popen(*args, **kwargs)
-        if "specify_cli.workspace_lifecycle.worker" in args[0]:
+        if any("specify_cli.workspace_lifecycle.worker" in arg for arg in args[0]):
             children.append(child)
         return child
 

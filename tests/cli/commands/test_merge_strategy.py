@@ -22,7 +22,8 @@ from specify_cli.cli.commands.consolidate import (
     _is_linear_history_rejection,
 )
 from specify_cli.consolidation.config import ConfigError, MergeStrategy, load_merge_config
-from tests.terminus.conftest import CoordMission, blob_present_at, build_coord_mission, run_terminus, sha_reachable
+from tests.terminus.conftest import CoordMission, blob_present_at, run_terminus, sha_reachable
+from tests._support.feature_landing import build_feature_coord_mission
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
 
@@ -186,7 +187,8 @@ def test_consolidate_strategy_decides_whether_lane_history_reaches_the_target(
     Precedence (FR-005/006/008): ``--strategy`` > ``merge.strategy`` config > squash.
     """
     wps = ("WP01", "WP02")
-    mission = build_coord_mission(tmp_path, wps=wps, mid8="01M3RBFC")
+    mission = build_feature_coord_mission(tmp_path, wps=wps, mid8="01M3RBFC")
+    primary_before = mission.rev("main")
     if config_strategy is not None:
         _commit_merge_config(mission, config_strategy)
     lane_tips = {wp: mission.rev(mission.lane_branch(wp)) for wp in wps}
@@ -195,6 +197,7 @@ def test_consolidate_strategy_decides_whether_lane_history_reaches_the_target(
     result = run_terminus(mission, ["consolidate", "--mission", mission.slug, "--yes", "--keep-branch", *cli_args])
 
     assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+    assert mission.rev("main") == primary_before
     target = mission.target_branch
     assert all(blob_present_at(mission.repo, target, f"src/pkg/{wp.lower()}.py") for wp in wps)
     lane_tips_on_target = {wp: sha_reachable(mission.repo, tip, target) for wp, tip in lane_tips.items()}
