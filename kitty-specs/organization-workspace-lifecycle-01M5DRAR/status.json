@@ -101,6 +101,9 @@
       "last_event_id": "01M5E2VX7N6NM50K1Y528FMGC8",
       "last_transition_at": "2026-10-21T01:57:58.133660+00:00",
       "model": "__resolved_model_absent__",
+      "notes": [
+        "Continue existing owned lane; bounded occurrence classification prepared; preserve inherited four checkouts, no new admission. WP03 approved/published PR115."
+      ],
       "provider": "__resolved_provider_absent__",
       "role": "implementer"
     },
