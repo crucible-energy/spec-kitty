@@ -55,7 +55,8 @@
       "model": "__resolved_model_absent__",
       "notes": [
         "Implement durable ledger, safe policy and generation-bound interrupted-operation recovery; no creator retirement until WP03.",
-        "Independent reviewer claims WP02 core ledger/protocol review; frozen source9e4b8239c unchanged, prior findings and exact qualification receipts inspected. Actual creator adapters/producer fencing and automatic execution remain WP03."
+        "Independent reviewer claims WP02 core ledger/protocol review; frozen source9e4b8239c unchanged, prior findings and exact qualification receipts inspected. Actual creator adapters/producer fencing and automatic execution remain WP03.",
+        "Independent approval for WP02 private durable accounting and coordination protocol. Review regressions addressed: bounded malformed-state refusal, strict private locks, transaction lifetime/thread/PID binding, exact retained-intent recovery, unknown inventory preservation, generation-bound settlement and terminal receipt reuse, truthful status and non-mutating missing-ledger refusal. Frozen source/docs unchanged; final baseline2452pass/5skip, owning1013pass/5skip, registration18pass; changed480/516=93.02percent, configured typing/Ruff clean. No duplicate suites run. Authenticated creator implementation, shared producer fencing, actual retirement, automatic callbacks/workers, global adoption and deployment remain outside this approval."
       ],
       "provider": "__resolved_provider_absent__",
       "review_result": {
