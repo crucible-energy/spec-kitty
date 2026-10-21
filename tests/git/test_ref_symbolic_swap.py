@@ -6,12 +6,13 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 from typing import Any
 
 import pytest
 
 from specify_cli.git import ref_advance
-from kernel.owned_process import bounded_run
+from kernel.owned_process import bounded_run, process_budget
 from tests._support.git_cli import git_out
 
 pytestmark = [pytest.mark.git_repo, pytest.mark.non_sandbox]
@@ -108,7 +109,8 @@ def test_malformed_protocol_input_refuses_without_moving_refs(tmp_path: Path, re
 
 
 @pytest.mark.skipif(os.name != "posix", reason="Owned POSIX controller group fixture")
-def test_expired_controller_terminates_git_and_live_hook_descendants(tmp_path: Path) -> None:
+@pytest.mark.parametrize("expiry", ["clock", "inherited-budget"])
+def test_expired_controller_terminates_git_and_live_hook_descendants(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, expiry: str) -> None:
     before, candidate = _prepare_repo(tmp_path)
     marker = tmp_path / "hook-processes.json"
     hook = tmp_path / ".git" / "hooks" / "reference-transaction"
@@ -122,18 +124,42 @@ def test_expired_controller_terminates_git_and_live_hook_descendants(tmp_path: P
         "    time.sleep(20)\n"
     )
     hook.chmod(0o700)
-    # A controlled clock expiry after the real hook has spawned a descendant
-    # exercises the inner deadline without a 20-second test or a fake writer.
-    controller = (
-        "from pathlib import Path; from specify_cli.git import ref_advance as owner; "
-        f"owner.time.monotonic=lambda: 100.0 if Path({str(marker)!r}).exists() else 0.0; "
-        f"owner._transact_direct_ref('refs/heads/feature/result', {candidate!r}, {before!r}, owned_controller=True)"
-    )
-    result = bounded_run([sys.executable, "-c", controller], cwd=tmp_path, timeout=5, text=True)
-    assert result.returncode == -signal.SIGKILL, result.stderr
-    assert "terminating the owned controller group" in result.stderr
+    if expiry == "clock":
+        # Controlled expiry after a real descendant, not a fake writer.
+        with tempfile.TemporaryDirectory(dir=tmp_path, prefix="owned-capture-") as directory:
+            capture = Path(directory)
+            controller = (
+                "from pathlib import Path; from specify_cli.git import ref_advance as owner; "
+                f"owner.time.monotonic=lambda: 100.0 if Path({str(marker)!r}).exists() else 0.0; "
+                f"owner._transact_direct_ref('refs/heads/feature/result', {candidate!r}, {before!r}, owned_controller=True, capture_dir=Path({str(capture)!r}))"
+            )
+            result = bounded_run([sys.executable, "-c", controller], cwd=tmp_path, timeout=5, text=True)
+        assert not capture.exists(), "The joining parent owns capture cleanup even after controller termination."
+        assert result.returncode == -signal.SIGKILL, result.stderr
+        assert "terminating the owned controller group" in result.stderr
+    else:
+        captures: list[Path] = []
+        original = tempfile.TemporaryDirectory
+
+        def observe_capture(*args: Any, **kwargs: Any) -> Any:
+            owned = original(*args, **kwargs)
+            if kwargs.get("prefix") == "kitty-ref-cas-":
+                captures.append(Path(owned.name))
+            return owned
+
+        monkeypatch.setattr(ref_advance.tempfile, "TemporaryDirectory", observe_capture)
+        with process_budget(2), pytest.raises(ref_advance.RefAdvanceError):
+            ref_advance.advance_branch_ref(tmp_path, "feature/result", candidate, expected_old_sha=before)
+        assert captures and all(not path.exists() for path in captures)
     for pid in json.loads(marker.read_text()):
         state = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True, timeout=2, check=False).stdout.strip()
         assert not state or state.startswith("Z"), f"Owned hook descendant {pid} is still active: {state}"
     assert git_out(tmp_path, "rev-parse", "main") == before
     assert git_out(tmp_path, "rev-parse", "feature/result") == before
+    assert not (tmp_path / ".git" / "refs" / "heads" / "feature" / "result.lock").exists()
+    # Clear only our injected hook fault, then prove ordinary fresh operation
+    # works without deleting native locks or weakening any guard.
+    hook.unlink()
+    ref_advance.advance_branch_ref(tmp_path, "feature/result", candidate, expected_old_sha=before)
+    assert git_out(tmp_path, "rev-parse", "feature/result") == candidate
+    assert git_out(tmp_path, "rev-parse", "main") == before
