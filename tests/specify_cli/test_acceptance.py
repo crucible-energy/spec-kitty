@@ -181,6 +181,14 @@ def test_acceptance_on_integration_branch_still_requires_pr(tmp_path: Path, mode
     assert not any("No merge needed" in item for item in instructions)
 
 
+def test_landed_mission_guidance_does_not_promise_removal_before_retention_result(tmp_path: Path) -> None:
+    repo, _ = _create_mission(tmp_path, topology="single_branch", wp_lanes={"WP01": Lane.DONE})
+    _, cleanup = _build_acceptance_instructions(_summary(repo), "local", "feature/result", False, landed_by_consolidate=True)
+    text = " ".join(cleanup)
+    assert "removes it" not in text and "nothing to delete" not in text
+    assert "retention" in text and "creator" in text
+
+
 # ---------------------------------------------------------------------------
 # FR-008 — topology-aware dirty gate (#2084)
 # ---------------------------------------------------------------------------
