@@ -563,6 +563,7 @@ def _bootstrap_legacy_planning_only_mission(
         slug,
         code_wp_ids=[],
         planning_wp_ids=["WP01"],
+        target_branch=target_branch,
     )
     # #4764/T007: _assert_mission_terminal_ready now hard-refuses a mission
     # with a non-approved WP before any mutation, so every test built on this
@@ -578,7 +579,7 @@ def _bootstrap_legacy_planning_only_mission(
     planning_relpath = f"kitty-specs/{slug}/research/decision-A.md"
     _commit_file(
         repo,
-        branch="main",
+        branch=target_branch,
         relpath=planning_relpath,
         content="# Decision A\n\nPlanning artifact body.\n",
         message=f"plan({slug}): commit planning artifact on target",
