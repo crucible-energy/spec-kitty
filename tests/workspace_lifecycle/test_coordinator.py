@@ -10,9 +10,9 @@ from collections.abc import Iterator
 
 import pytest
 
-from specify_cli.workspace_lifecycle.coordinator import Coordinator, Result
+from specify_cli.workspace_lifecycle.coordinator import Coordinator, Recovered, Result
 from specify_cli.workspace_lifecycle.policy import Evidence, Identity
-from specify_cli.workspace_lifecycle.state import StateError, StateStore
+from specify_cli.workspace_lifecycle.state import Operation, StateError, StateStore
 
 
 class Creator:
@@ -49,16 +49,16 @@ class Creator:
         self.calls += 1
         return Result("retired", "creator_confirmed")
 
-    def recover(self, identity: Identity, event_id: str) -> Result:
+    def recover(self, intent: Operation) -> Recovered:
         assert self.held
         self.recovery_calls += 1
-        return Result("unknown", "creator_outcome_unconfirmed")
+        return Recovered(intent, Result("unknown", "creator_outcome_unconfirmed"))
 
 
 def setup(tmp_path: Path) -> tuple[Coordinator, Creator, Identity]:
     root = tmp_path / "ledger"
     root.mkdir(mode=0o700)
-    ledger = StateStore(root)
+    ledger = StateStore.initialize(root)
     ident = Identity(1, "crucible-energy/example", "/store/.git", "/work/feature", "a" * 40, "refs/heads/feature", "workspace-1", "lease-1")
     return Coordinator(ledger), Creator(ledger, ident), ident
 
@@ -158,3 +158,38 @@ def test_recovery_receives_exact_retained_intent(tmp_path: Path, monkeypatch: py
 
     monkeypatch.setattr(a, "recover", recover)
     assert c.reconcile("event-1", i, a).status == "retired"
+
+
+def test_owned_accounting_settles_exact_generation_at_closeout(tmp_path: Path) -> None:
+    c, a, i = setup(tmp_path)
+    c.account_owned(i, a)
+    assert c.closeout(workflow_complete=True)["cleanup_complete"] is False
+    c.reconcile("event-1", i, a)
+    assert c.store.read().observations[0]["disposition"] == "retired"
+    assert c.closeout(workflow_complete=True)["cleanup_complete"] is True
+
+
+def test_replacement_generation_cannot_discharge_prior_accounting(tmp_path: Path) -> None:
+    c, a, old = setup(tmp_path)
+    c.account_owned(old, a)
+    new = replace(old, workspace_generation="workspace-replacement")
+    a.identity = new
+    a.current = replace(a.current, identity=new)
+    c.account_owned(new, a)
+    c.reconcile("event-new", new, a)
+    assert c.closeout(workflow_complete=True)["cleanup_complete"] is False
+    assert len(c.store.read().observations) == 2
+
+
+def test_uncertain_intent_must_recover_before_another_event_effect(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    c, a, i = setup(tmp_path)
+
+    def unknown(identity: Identity, event_id: str) -> Result:
+        a.calls += 1
+        return Result("unknown", "creator_outcome_unconfirmed")
+
+    monkeypatch.setattr(a, "retire", unknown)
+    assert c.reconcile("event-1", i, a).status == "unknown"
+    with pytest.raises(StateError):
+        c.reconcile("event-2", i, a)
+    assert a.calls == 1

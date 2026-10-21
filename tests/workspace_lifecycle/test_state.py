@@ -11,7 +11,7 @@ from specify_cli.workspace_lifecycle.state import StateError, StateStore
 def store(tmp_path: Path) -> StateStore:
     root = tmp_path / "lifecycle"
     root.mkdir(mode=0o700)
-    return StateStore(root)
+    return StateStore.initialize(root)
 
 
 def test_private_state_round_trip_and_monotonic_revision(tmp_path: Path) -> None:
@@ -60,6 +60,7 @@ def test_symlinked_state_and_insecure_root_refuse(tmp_path: Path) -> None:
     ledger = store(tmp_path)
     external = tmp_path / "valuable"
     external.write_text("preserve")
+    (ledger.root / "state.json").unlink()
     (ledger.root / "state.json").symlink_to(external)
     with pytest.raises(StateError):
         ledger.read()
@@ -96,9 +97,8 @@ def test_transaction_cannot_commit_from_another_thread(tmp_path: Path) -> None:
     from concurrent.futures import ThreadPoolExecutor
 
     ledger = store(tmp_path)
-    with ledger.locked() as tx, ThreadPoolExecutor(max_workers=1) as pool:
-        with pytest.raises(StateError):
-            pool.submit(tx.commit, tx.state).result(timeout=3)
+    with ledger.locked() as tx, ThreadPoolExecutor(max_workers=1) as pool, pytest.raises(StateError):
+        pool.submit(tx.commit, tx.state).result(timeout=3)
 
 
 def test_missing_previously_committed_ledger_never_becomes_empty_state(tmp_path: Path) -> None:
@@ -117,6 +117,7 @@ def test_hardlinked_lock_never_modifies_another_file(tmp_path: Path) -> None:
     external = tmp_path / "valuable"
     external.write_text("preserve")
     external.chmod(0o600)
+    (ledger.root / "lifecycle.lock").unlink()
     os.link(external, ledger.root / "lifecycle.lock")
     try:
         with pytest.raises(StateError):
@@ -131,6 +132,7 @@ def test_fifo_state_refuses_without_blocking_open(tmp_path: Path) -> None:
     import sys
 
     ledger = store(tmp_path)
+    (ledger.root / "state.json").unlink()
     os.mkfifo(ledger.root / "state.json", 0o600)
     script = """from pathlib import Path
 import sys
@@ -149,3 +151,33 @@ except StateError:
         pytest.fail("Malformed state blocked before type validation")
     assert proc.returncode == 0, error.decode()
     assert output.strip() == b"refused"
+
+
+def test_transaction_cannot_survive_owner_process(tmp_path: Path) -> None:
+    import multiprocessing
+    import os
+
+    if not hasattr(os, "fork"):
+        pytest.skip("fork capability is not present on this platform")
+    ledger = store(tmp_path)
+    context = multiprocessing.get_context("fork")
+    released = context.Event()
+    with ledger.locked() as tx:
+
+        def child_commit() -> None:
+            assert released.wait(5)
+            try:
+                tx.commit(tx.state)
+            except StateError:
+                return
+            raise AssertionError("Forked transaction committed after owner released its lock")
+
+        child = context.Process(target=child_commit)
+        child.start()
+    released.set()
+    child.join(timeout=5)
+    if child.is_alive():
+        child.terminate()
+        child.join(timeout=5)
+        pytest.fail("Forked capability test did not terminate")
+    assert child.exitcode == 0
