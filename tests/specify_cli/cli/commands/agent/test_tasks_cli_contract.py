@@ -132,7 +132,7 @@ CONTRACT_FLAGS: dict[str, tuple[str, ...]] = {
         "--json",
     ),
     "list-tasks": ("--lane", "--mission", "--json"),
-    "add-history": ("--note", "--mission", "--agent", "--shell-pid", "--json"),
+    "add-history": ("--note", "--mission", "--agent", "--shell-pid", "--owned-checkout", "--json"),
     "finalize-tasks": ("--mission", "--json", "--validate-only"),
     "map-requirements": (
         "--wp",

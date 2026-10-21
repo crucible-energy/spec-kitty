@@ -12,7 +12,8 @@ from specify_cli.cli.console import console
 from typing_extensions import Annotated
 
 from specify_cli.cli.selector_resolution import resolve_mission_handle
-from specify_cli.core.paths import locate_project_root
+from specify_cli.core.owned_mission import resolve_owned_mission
+from specify_cli.core.paths import get_main_repo_root, locate_project_root
 from specify_cli.missions.operation_context import (
     MissionOperationContext,
     MissionSurfaceConflictError,
@@ -108,6 +109,13 @@ def resolve_context(
     mission: Annotated[str | None, typer.Option("--mission", help="Mission slug (e.g., '020-my-mission')")] = None,
     wp_id: Annotated[str | None, typer.Option("--wp-id", help="Work package ID (e.g., WP01)")] = None,
     agent: Annotated[str | None, typer.Option("--agent", help="Agent name for exact command rendering")] = None,
+    owned_checkout: Annotated[
+        Path | None,
+        typer.Option(
+            "--owned-checkout",
+            help="Exact owned single-branch checkout; requires --mission.",
+        ),
+    ] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Output results as JSON")] = False,
 ) -> None:
     """Resolve canonical feature/work-package/action context for prompt execution."""
@@ -128,18 +136,30 @@ def resolve_context(
         raw_handle = mission.strip() if mission else None
         if not raw_handle:
             raise ActionContextError("MISSING_MISSION", "--mission <slug> is required")
-        try:
-            operation: MissionOperationContext = resolve_mission_operation_context(
-                repo_root,
-                raw_handle,
-                cwd=Path.cwd(),
+
+        effective_root: Path | None = None
+        if owned_checkout is not None:
+            owner = resolve_owned_mission(
+                get_main_repo_root(repo_root), owned_checkout, raw_handle
             )
-        except MissionSurfaceConflictError as exc:
-            raise ActionContextError("MISSION_CONTEXT_CONFLICT", str(exc)) from exc
+            mission_anchor_root = owner.root
+            resolution_cwd = owner.root
+            effective_root = owner.root
+        else:
+            try:
+                operation: MissionOperationContext = resolve_mission_operation_context(
+                    repo_root,
+                    raw_handle,
+                    cwd=Path.cwd(),
+                )
+            except MissionSurfaceConflictError as exc:
+                raise ActionContextError("MISSION_CONTEXT_CONFLICT", str(exc)) from exc
+            mission_anchor_root = operation.mission_anchor_root
+            resolution_cwd = Path.cwd()
 
         mission_resolved = resolve_mission_handle(
             raw_handle,
-            operation.mission_anchor_root,
+            mission_anchor_root,
             json_mode=json_output,
         )
         mission_slug = mission_resolved.mission_slug
@@ -150,8 +170,8 @@ def resolve_context(
             feature=mission_slug,
             wp_id=wp_id,
             agent=agent,
-            cwd=Path.cwd(),
-            effective_root=operation.mission_anchor_root,
+            cwd=resolution_cwd,
+            effective_root=effective_root,
         )
 
         if json_output:

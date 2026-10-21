@@ -1,0 +1,129 @@
+{
+  "source_head": "0de4fdda43c6bd1baf48066a5fdde0cb45fa69d6",
+  "base_pr": 67,
+  "base_head": "4196af70fe69d558c729d2e6265be921999b5761",
+  "review_branch": "fix/shared-lane-context-owned-routing",
+  "scope": "source-contract qualification; no installed or active mission adoption",
+  "python": "3.11.15",
+  "checks": {
+    "affected": {
+      "passed": 744,
+      "existing_warning": "LegacyOrgPackDoctrineKeyWarning"
+    },
+    "architecture": {
+      "passed": 214,
+      "existing_skipped": 1
+    },
+    "strict_mypy": {
+      "source_files": 9,
+      "issues": 0
+    },
+    "ruff": "passed; no new suppressions",
+    "diff_check": "passed"
+  },
+  "statement_coverage": {
+    "base": "4196af70fe69d558c729d2e6265be921999b5761",
+    "source_head": "0de4fdda43c6bd1baf48066a5fdde0cb45fa69d6",
+    "measurement": "Added executable statement lines against PR67 base; excludes unchanged source/nonexecutable diff lines; not branch coverage",
+    "files": {
+      "src/mission_runtime/resolution.py": {
+        "new_executable_lines": 3,
+        "executed": 3,
+        "missing_lines": [],
+        "source_sha256": "3370cc09e8d36f0e483ced7d4794f2246f000a987b4b2d413fe183bbbeabe3e9"
+      },
+      "src/runtime/next/decision.py": {
+        "new_executable_lines": 6,
+        "executed": 4,
+        "missing_lines": [
+          491,
+          579
+        ],
+        "source_sha256": "adb163f9d4787797938d80c52cd5442c340a194110d6140ed4ae13737d9403b3"
+      },
+      "src/runtime/next/prompt_builder.py": {
+        "new_executable_lines": 63,
+        "executed": 62,
+        "missing_lines": [
+          321
+        ],
+        "source_sha256": "92fd34e744b379decbf3c0b4a0c3d1f1ff2671f5b935fb5c7c567d7ff50962cc"
+      },
+      "src/runtime/next/runtime_bridge.py": {
+        "new_executable_lines": 10,
+        "executed": 9,
+        "missing_lines": [
+          1757
+        ],
+        "source_sha256": "6d4b01ddbb306731609665caec91214c32ea8f76bf310c2abbc2d85b63fc4ca7"
+      },
+      "src/runtime/next/runtime_bridge_engine.py": {
+        "new_executable_lines": 1,
+        "executed": 1,
+        "missing_lines": [],
+        "source_sha256": "bc9cbb0f2a99a9de357d0280389b90965f1e781425f9313bcc3be050d42606dd"
+      },
+      "src/specify_cli/cli/commands/agent/tasks_move_task.py": {
+        "new_executable_lines": 5,
+        "executed": 5,
+        "missing_lines": [],
+        "source_sha256": "72ec3f888a62a321937eeed40debe023b7a24e14f6c1ce63cbd7bccf339e8908"
+      },
+      "src/specify_cli/lanes/for_review_gate.py": {
+        "new_executable_lines": 25,
+        "executed": 25,
+        "missing_lines": [],
+        "source_sha256": "50b97aee5f65a556bccdf692161738b0399923bfdecd555600ea3c31104b1850"
+      },
+      "src/specify_cli/lanes/implement_support.py": {
+        "new_executable_lines": 9,
+        "executed": 9,
+        "missing_lines": [],
+        "source_sha256": "078d5bff26adfd431eb2a77802aec4ffd7d3ca10399315f25687e52593b5faae"
+      },
+      "src/specify_cli/workspace/context.py": {
+        "new_executable_lines": 51,
+        "executed": 51,
+        "missing_lines": [],
+        "source_sha256": "1a0beac189fed223c4f3945c2eb8576e92d4c5d22ca652e0ab78209af4b2043f"
+      }
+    },
+    "total": {
+      "new_executable_lines": 173,
+      "executed": 169,
+      "percent": 97.6878612716763
+    }
+  },
+  "private_operator_receipts": {
+    "spec-kitty-qualified-final-coverage.log": {
+      "sha256": "62c163ad6c715c725837da33b632f7b9e66946befaaa2f438ca7ab6a935d6389",
+      "bytes": 1982
+    },
+    "spec-kitty-qualified-final-architecture.log": {
+      "sha256": "719eca0485ca0e6f2873eac67481793550f25768ef19f224fbd1284acd7723f4",
+      "bytes": 325
+    },
+    "spec-kitty-qualified-final-coverage.json": {
+      "sha256": "fc7c582d1596fce13ab9593191262751af5a2114de8c3b533dac4fcf564fd50a",
+      "bytes": 180874
+    },
+    "spec-kitty-owned-native-advance.bound-baseline.log": {
+      "sha256": "42ead4fa16d5a58f7099fa3b14c6545e4adc47e67de491a534d2b4ce24364a1d",
+      "bytes": 5163
+    },
+    "spec-kitty-owned-finalized-review.red.log": {
+      "sha256": "37355a0d3d107462d9317c9164c86162ee6bc6b3bddc42b7506f0f878cdf8bfe",
+      "bytes": 9688
+    },
+    "spec-kitty-review-scope-commands.green.log": {
+      "sha256": "5e3cf07b0bd7424cf7bb0536e8f442c968143561ebce772fbd3c1414649c86c7",
+      "bytes": 486
+    }
+  },
+  "limits": [
+    "Independent review and normal delivery still required",
+    "PR67 dependency remains unmerged",
+    "Historical formatter case supplies nullable-lane workspace resolution port; modern cases use actual canonical resolution and admission",
+    "Statement coverage does not establish deployed runtime readiness or semantic completeness"
+  ]
+}

@@ -2,7 +2,7 @@
 title: Changelog
 description: Canonical changelog for the Spec Kitty CLI and templates, following Keep a Changelog and Semantic Versioning, with added, breaking, and fixed entries per release.
 doc_status: active
-updated: '2026-09-03'
+updated: '2026-10-08'
 ---
 # Changelog
 
@@ -18,6 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 _The 3.2.7rc1 candidate cycle is open. Entries land here as missions merge._
 
 ### Fixed
+
+- Shared-lane allocator reuse and agent reentry refresh finalized workspace
+  membership, current work and dependencies while preserving creation/base
+  provenance. Wrong mission/lane/branch/path identities refuse before ancestry
+  mutations; ownership observation reports membership drift rather than guessing.
+- Explicit `next --owned-checkout` work-package continuation retains the selected
+  root through normalization, native composition advancement and prompt mapping.
+  Same-slug caches and issued lifecycle instructions preserve that boundary;
+  commands without the option keep canonical repository-root placement.
+- Modern owned review prompts use the same finalized planning-commit validation
+  as owned review admission and refuse invalid authority. Rendered checkout paths,
+  scoped pathspecs and revision ranges are shell-quoted for usable copied commands.
 
 - **A project could be handed the wrong governance — SPDD/REASONS guidance, org-required directives, tactics and paradigms — whenever its _active_ configuration had drifted from what it originally authored (`#3871`; closes `#3838`).** Four charter surfaces decided what doctrine to deliver by reading the authoring record (`selected_*`) instead of the resolved authority (`activated_*`), so a project whose activation differed from its authored set quietly received doctrine it never activated — and missed doctrine it did — with no error and no warning. Activation is now the single authority across all four surfaces: every directive, tactic and paradigm identifier is canonicalized at the moment it enters a union, an identifier whose form cannot be canonicalized fails loud instead of being silently dropped, and an absent activation set resolves to the documented built-in catalog default rather than collapsing to an empty set.
 

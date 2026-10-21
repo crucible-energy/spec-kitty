@@ -89,6 +89,7 @@ from specify_cli.core.paths import get_feature_target_branch as get_feature_targ
 from specify_cli.core.paths import get_status_read_root as get_status_read_root
 from specify_cli.mission import get_mission_type as get_mission_type
 from mission_runtime import (
+    ActionContextError,
     MissionArtifactKind,
     # Explicit ``as`` re-export: no direct call site remains in this module
     # after WP02 (tasks-py-degod-wave2-01KWH9EQ), but the module binding is a
@@ -1011,12 +1012,17 @@ def add_history(
 
     agent: Annotated[str | None, typer.Option("--agent", help="Agent name")] = None,
     shell_pid: Annotated[str | None, typer.Option("--shell-pid", help="Shell PID")] = None,
+    owned_checkout: Annotated[
+        Path | None,
+        typer.Option("--owned-checkout", help="Explicit single-branch checkout root."),
+    ] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON format")] = False,
 ) -> None:
     """Append history entry to task activity log.
 
     Examples:
         spec-kitty agent tasks add-history WP01 --note "Completed implementation" --json
+        spec-kitty agent tasks add-history WP01 --note "Blocked: upstream decision" --mission 001-example --owned-checkout /path/to/checkout
     """
     try:
         # Get repo root and feature slug
@@ -1025,21 +1031,54 @@ def add_history(
             _output_error(json_output, "Could not locate project root")
             raise typer.Exit(1)
 
-        # FR-010 / FR-019: one-shot sparse-checkout session warning.
-        _emit_sparse_session_warning(repo_root, command="spec-kitty agent tasks add-history")
+        effective_root: Path | None = None
+        if owned_checkout is None:
+            # FR-010 / FR-019: one-shot sparse-checkout session warning.
+            _emit_sparse_session_warning(repo_root, command="spec-kitty agent tasks add-history")
+            mission_slug = _find_mission_slug(
+                explicit_mission=mission,
+                json_output=json_output,
+                repo_root=repo_root,
+            )
+            # Ensure we operate on the target branch for this feature.
+            _ah_main_repo_root, _ = _ensure_target_branch_checked_out(
+                repo_root, mission_slug, json_output
+            )
+        else:
+            from specify_cli.core.owned_mission import (
+                require_unstaged_index,
+                resolve_owned_mission,
+            )
+            from specify_cli.core.saas_sync_config import sync_active
 
-        mission_slug = _find_mission_slug(explicit_mission=mission, json_output=json_output, repo_root=repo_root)
-
-        # Ensure we operate on the target branch for this feature
-        _ah_main_repo_root, _ = _ensure_target_branch_checked_out(repo_root, mission_slug, json_output)
+            owned = resolve_owned_mission(
+                get_main_repo_root(repo_root), owned_checkout, mission
+            )
+            require_unstaged_index(owned)
+            if sync_active():
+                raise ActionContextError(
+                    "OWNED_SYNC_UNSUPPORTED",
+                    "Owned add-history does not yet support active synchronization.",
+                )
+            repo_root = owned.root
+            mission_slug = owned.slug
+            _ah_main_repo_root = owned.primary
+            effective_root = owned.root
+            _emit_sparse_session_warning(
+                repo_root, command="spec-kitty agent tasks add-history"
+            )
 
         # Boundary guard — hard-reject pre-3.0 layout before any WP mutation.
         # Resolve through the kind-aware authority (resolution-authority gate:
         # add_history is a WRITE-classified function, so a kind-blind
         # resolve_feature_dir_for_mission here would be a coord-authority violation).
-        _ah_feature_dir = placement_seam(_ah_main_repo_root, mission_slug).read_dir(
-            MissionArtifactKind.TASKS_INDEX
-        )
+        from specify_cli.core.owned_mission import effective_root_kwargs
+
+        _ah_feature_dir = placement_seam(
+            _ah_main_repo_root,
+            mission_slug,
+            **effective_root_kwargs(effective_root),
+        ).read_dir(MissionArtifactKind.TASKS_INDEX)
         try:
             check_pre30_layout(_ah_feature_dir)
         except Pre30LayoutError as e:
@@ -1047,7 +1086,12 @@ def add_history(
             raise typer.Exit(1) from None
 
         # Load work package
-        wp = locate_work_package(repo_root, mission_slug, task_id)
+        wp = locate_work_package(
+            repo_root,
+            mission_slug,
+            task_id,
+            **effective_root_kwargs(effective_root),
+        )
 
         # Build history entry. Route agent/shell_pid through the
         # WorkPackage.agent/.shell_pid seam -- which routes unconditionally

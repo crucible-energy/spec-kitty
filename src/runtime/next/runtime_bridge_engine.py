@@ -321,6 +321,7 @@ def advance_run_state_after_composition(
     progress: dict[str, int | float] | None,
     origin: dict[str, Any],
     sync_emitter: SyncRuntimeEventEmitter,
+    effective_root: Path | None = None,
 ) -> Decision:
     """Advance run state after a successful composed action and return a Decision.
 
@@ -337,6 +338,8 @@ def advance_run_state_after_composition(
     ``runtime_bridge._advance_run_state_after_composition`` is a thin residual
     compat delegate that forwards here (contracts/compat-surface.md).
     """
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
     from runtime.next import runtime_bridge as _rb  # noqa: PLC0415 — deferred to avoid the circular top-level import
 
     run_dir = Path(run_ref.run_dir)
@@ -377,4 +380,5 @@ def advance_run_state_after_composition(
         timestamp,
         progress,
         origin,
+        **effective_root_kwargs(effective_root),
     )

@@ -464,12 +464,15 @@ def _state_to_action(
     feature_dir: Path,
     repo_root: Path,
     mission_name: str,
+    *, effective_root: Path | None = None,
 ) -> tuple[str | None, str | None, str | None]:
     """Map a mission state to a ``(action, wp_id, workspace_path)`` triple.
 
     Returns ``(None, None, None)`` if the state cannot be mapped to a
     command template.
     """
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
     # "implement" state: find first planned or in_progress WP
     if state == "implement":
         wp_id = _find_first_wp_by_lane(feature_dir, "planned")
@@ -485,7 +488,7 @@ def _state_to_action(
             # reassigned (FR-012a).
             review_wp = _find_first_wp_by_lane(feature_dir, "for_review")
             if review_wp:
-                workspace_path = str(resolve_workspace_for_wp(repo_root, mission_slug, review_wp).worktree_path)
+                workspace_path = str(resolve_workspace_for_wp(repo_root, mission_slug, review_wp, **effective_root_kwargs(effective_root)).worktree_path)
                 return "review", review_wp, workspace_path
             # in_review WPs exist but are not actionable by this agent —
             # review is already in progress, nothing to pick up.
@@ -494,7 +497,7 @@ def _state_to_action(
                 return None, None, None
             return None, None, None
 
-        workspace_path = str(resolve_workspace_for_wp(repo_root, mission_slug, wp_id).worktree_path)
+        workspace_path = str(resolve_workspace_for_wp(repo_root, mission_slug, wp_id, **effective_root_kwargs(effective_root)).worktree_path)
         return "implement", wp_id, workspace_path
 
     # "review" state: WP-level if for_review WP exists, else template-level.
@@ -503,7 +506,7 @@ def _state_to_action(
     if state == "review":
         wp_id = _find_first_wp_by_lane(feature_dir, "for_review")
         if wp_id is not None:
-            workspace_path = str(resolve_workspace_for_wp(repo_root, mission_slug, wp_id).worktree_path)
+            workspace_path = str(resolve_workspace_for_wp(repo_root, mission_slug, wp_id, **effective_root_kwargs(effective_root)).worktree_path)
             return "review", wp_id, workspace_path
         # Explicitly skip in_review WPs — they are claimed by another
         # reviewer (FR-012a).  Fall through to generic template resolution.
@@ -564,6 +567,7 @@ def _build_prompt_safe(
     agent: str,
     repo_root: Path,
     mission_type: str,
+    *, effective_root: Path | None = None,
 ) -> str | None:
     """Build prompt, returning None on failure instead of raising.
 
@@ -572,6 +576,8 @@ def _build_prompt_safe(
         exception text so callers can emit a structured ``blocked`` decision
         with a populated ``reason`` (WP06 / FR-006 / FR-013).
     """
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
     path, _err = _build_prompt_or_error(
         action=action,
         feature_dir=feature_dir,
@@ -580,6 +586,7 @@ def _build_prompt_safe(
         agent=agent,
         repo_root=repo_root,
         mission_type=mission_type,
+        **effective_root_kwargs(effective_root),
     )
     return path
 
@@ -594,6 +601,7 @@ def _build_prompt_or_error(
     agent: str,
     repo_root: Path,
     mission_type: str,
+    *, effective_root: Path | None = None,
 ) -> tuple[str | None, str | None]:
     """Build prompt, returning ``(path, None)`` on success or ``(None, error)``.
 
@@ -611,6 +619,8 @@ def _build_prompt_or_error(
     emit a ``blocked`` decision, this function writes a minimal marker file so
     the ``kind=step`` invariant is satisfied (FR-007 / T019).
     """
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
     # Fast path: composed actions do not use file-based templates.  Write a
     # lightweight marker file and return its path so callers can emit a
     # ``kind=step`` Decision without hitting the ``if prompt_file is None``
@@ -654,6 +664,7 @@ def _build_prompt_or_error(
                 agent=agent,
                 repo_root=repo_root,
                 mission_type=mission_type,
+                **effective_root_kwargs(effective_root),
             )
         path_str = str(prompt_path)
         try:

@@ -2,7 +2,7 @@
 title: How to implement a work package
 description: 'How to implement a work package with Spec Kitty 3.2: Use this guide to implement a single work package (WP) in its execution workspace.'
 doc_status: active
-updated: '2026-06-14'
+updated: '2026-10-20'
 audience: docs/context/audience/external/project-owner.md
 type: how-to
 related:
@@ -49,6 +49,16 @@ Your agent will call `spec-kitty agent action implement WP01 --agent <name>` for
 > **Advanced / internal tool**: `spec-kitty implement WP01` is available as a lower-level direct invocation for advanced users. Prefer `spec-kitty next` for the standard workflow.
 
 If the WP depends on another WP, task finalization will already have assigned it to the correct execution lane. Both the agent loop and the direct invocation handle this automatically.
+
+### Explicitly select an owned single-branch checkout
+
+For a finalized single-branch mission whose checkout cannot be inferred from the current directory, pass its exact checkout to the action command:
+
+```bash
+spec-kitty agent action implement WP01 --mission <slug> --agent <agent> --owned-checkout "/absolute/path/to/checkout"
+```
+
+The command validates that the checkout owns the mission and is on its target branch, then records the claim and writes the prompt in that checkout. It does not create a lane worktree. The generated `mark-status`, `move-task`, and `add-history` commands retain `--owned-checkout` so later lifecycle actions stay scoped to the same checkout. Active synchronization is not supported for this path.
 
 ## Step 3: Work in the Resolved Worktree
 

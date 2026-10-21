@@ -1160,11 +1160,14 @@ def _advance_run_state_after_composition(
     progress: dict[str, int | float] | None,
     origin: dict[str, Any],
     sync_emitter: SyncRuntimeEventEmitter,
+    effective_root: Path | None = None,
 ) -> Decision:
     """Thin compat delegate — forwards to
     :func:`runtime_bridge_engine.advance_run_state_after_composition`. See the
     module-level comment above for why this delegate must stay (FR-012 compat
     surface) even though the logic itself moved (FR-013)."""
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
     return _engine_adapter.advance_run_state_after_composition(
         run_ref=run_ref,
         agent=agent,
@@ -1176,6 +1179,7 @@ def _advance_run_state_after_composition(
         progress=progress,
         origin=origin,
         sync_emitter=sync_emitter,
+        **effective_root_kwargs(effective_root),
     )
 
 
@@ -1402,6 +1406,7 @@ class DecideNextContext:
     run_ref: MissionRunRef
     run_dir: Path
     current_step_id: str | None
+    effective_root: Path | None = None
 
 
 def _dn_bootstrap(
@@ -1565,6 +1570,7 @@ def _dn_bootstrap(
             run_ref=run_ref,
             run_dir=run_dir,
             current_step_id=current_step_id,
+            effective_root=effective_root,
         ),
         None,
     )
@@ -1577,6 +1583,8 @@ def _dn_dependency_gate(ctx: DecideNextContext) -> Decision | None:
     blocked/step ``Decision`` when a guard holds the run in place, else
     ``None`` to fall through to composition-dispatch.
     """
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
     agent = ctx.agent
     mission_slug = ctx.mission_slug
     mission_type = ctx.mission_type
@@ -1622,6 +1630,7 @@ def _dn_dependency_gate(ctx: DecideNextContext) -> Decision | None:
                 progress,
                 origin,
                 run_ref,
+                **effective_root_kwargs(ctx.effective_root),
             )
         # All WPs done for this step — check guards before advancing.
         #
@@ -1656,6 +1665,7 @@ def _dn_dependency_gate(ctx: DecideNextContext) -> Decision | None:
                 origin,
                 run_ref,
                 guard_failures=guard_failures,
+                **effective_root_kwargs(ctx.effective_root),
             )
 
     # Check guards for non-WP steps before advancing.
@@ -1683,6 +1693,7 @@ def _dn_dependency_gate(ctx: DecideNextContext) -> Decision | None:
                 feature_dir,
                 repo_root,
                 mission_type,
+                **effective_root_kwargs(ctx.effective_root),
             )
             prompt_file: str | None = None
             prompt_error: str | None = None
@@ -1695,6 +1706,7 @@ def _dn_dependency_gate(ctx: DecideNextContext) -> Decision | None:
                     agent,
                     repo_root,
                     mission_type,
+                    **effective_root_kwargs(ctx.effective_root),
                 )
             else:
                 prompt_error = f"no action mapped for step '{current_step_id}'; cannot resolve prompt"
@@ -1742,12 +1754,15 @@ def _dn_composition_blocked_decision(
     keep that phase's own complexity down; it re-extracts nothing WP06-08
     already own — it is pure orchestration plumbing local to this phase.
     """
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
     action, wp_id, workspace_path = _state_to_action(
         current_step_id,
         ctx.mission_slug,
         ctx.feature_dir,
         ctx.repo_root,
         ctx.mission_type,
+        **effective_root_kwargs(ctx.effective_root),
     )
     prompt_file = (
         _build_prompt_safe(
@@ -1758,6 +1773,7 @@ def _dn_composition_blocked_decision(
             ctx.agent,
             ctx.repo_root,
             ctx.mission_type,
+            **effective_root_kwargs(ctx.effective_root),
         )
         if action
         else None
@@ -1800,6 +1816,8 @@ def _dn_composition_dispatch(ctx: DecideNextContext) -> Decision | None:
     ``None``) to composition unchanged so decision-materialize runs the
     runtime planner next.
     """
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
     agent = ctx.agent
     mission_slug = ctx.mission_slug
     mission_type = ctx.mission_type
@@ -1873,6 +1891,7 @@ def _dn_composition_dispatch(ctx: DecideNextContext) -> Decision | None:
                 progress=progress,
                 origin=origin,
                 sync_emitter=ctx.sync_emitter,
+                **effective_root_kwargs(ctx.effective_root),
             )
         except Exception as exc:  # noqa: BLE001 — EDGE-003 contract: any
             # advancement-helper failure must surface as a structured
@@ -2014,6 +2033,8 @@ def _dn_decision_materialize(ctx: DecideNextContext) -> Decision:
     post-completion policy is best-effort and must not buffer or roll back
     MissionRunCompleted; it runs after terminal events have flushed.
     """
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
     policy, _source_map, policy_error = _resolve_retrospective_policy_for_runtime(ctx.repo_root)
     retrospective_enabled = bool(getattr(policy, "enabled", False))
     block_on_retrospective = _retrospective_seam._retrospective_blocks_completion(policy)
@@ -2105,6 +2126,7 @@ def _dn_decision_materialize(ctx: DecideNextContext) -> Decision:
         ctx.now,
         ctx.progress,
         ctx.origin,
+        **effective_root_kwargs(ctx.effective_root),
     )
 
 
@@ -2680,14 +2702,18 @@ def _build_wp_iteration_decision(
     origin: dict,
     run_ref: MissionRunRef,
     guard_failures: list[str] | None = None,
+    *, effective_root: Path | None = None,
 ) -> Decision:
     """Build a Decision for WP iteration within a step."""
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
     action, wp_id, workspace_path = _state_to_action(
         step_id,
         mission_slug,
         feature_dir,
         repo_root,
         mission_type,
+        **effective_root_kwargs(effective_root),
     )
 
     if action is None:
@@ -2716,6 +2742,7 @@ def _build_wp_iteration_decision(
         agent,
         repo_root,
         mission_type,
+        **effective_root_kwargs(effective_root),
     )
     # WP06 (FR-006/FR-013) / WP07 (FR-011): step_or_blocked never issues
     # kind=step with an unresolvable prompt_file; see the analogous note in
@@ -2786,18 +2813,22 @@ def _map_wp_step_decision(
     progress: dict | None,
     origin: dict,
     run_id: str | None,
+    effective_root: Path | None = None,
 ) -> Decision:
     """WP-iteration branch of the ``kind="step"`` mapping (#2531 WP07/T026).
 
     Extracted verbatim from ``_map_runtime_decision``'s former WP-step
     triad — the ``action is None`` early-blocked case, plus the
     ``step_or_blocked`` collapse of the former prompt-resolution triad."""
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
     action, wp_id, workspace_path = _state_to_action(
         step_id,
         mission_slug,
         feature_dir,
         repo_root,
         mission_type,
+        **effective_root_kwargs(effective_root),
     )
     if action is None:
         return _materialize_decision(
@@ -2823,6 +2854,7 @@ def _map_wp_step_decision(
         agent,
         repo_root,
         mission_type,
+        **effective_root_kwargs(effective_root),
     )
     return _materialize_decision(
         _cores.DecisionEnvelope(
@@ -2857,18 +2889,22 @@ def _map_non_wp_step_decision(
     progress: dict | None,
     origin: dict,
     run_id: str | None,
+    effective_root: Path | None = None,
 ) -> Decision:
     """Non-WP branch of the ``kind="step"`` mapping (#2531 WP07/T026).
 
     Extracted verbatim from ``_map_runtime_decision``'s former non-WP
     triad — template-resolution via ``_state_to_action`` +
     ``_build_prompt_or_error``, collapsed via ``step_or_blocked``."""
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
     action, wp_id, workspace_path = _state_to_action(
         step_id or "unknown",
         mission_slug,
         feature_dir,
         repo_root,
         mission_type,
+        **effective_root_kwargs(effective_root),
     )
     prompt_file: str | None = None
     prompt_error: str | None = None
@@ -2881,6 +2917,7 @@ def _map_non_wp_step_decision(
             agent,
             repo_root,
             mission_type,
+            **effective_root_kwargs(effective_root),
         )
     else:
         prompt_error = "no action and no step_id; cannot resolve prompt"
@@ -2915,6 +2952,7 @@ def _map_runtime_decision(
     timestamp: str,
     progress: dict | None,
     origin: dict,
+    *, effective_root: Path | None = None,
 ) -> Decision:
     """Convert runtime NextDecision to CLI Decision dataclass.
 
@@ -2935,6 +2973,8 @@ def _map_runtime_decision(
     extracted to :func:`_map_wp_step_decision` / :func:`_map_non_wp_step_
     decision` so this dispatcher stays a flat kind-lookup.
     """
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
     step_id = decision.step_id
     run_id = decision.run_id
 
@@ -3008,6 +3048,7 @@ def _map_runtime_decision(
             progress=progress,
             origin=origin,
             run_id=run_id,
+            **effective_root_kwargs(effective_root),
         )
 
     return _map_non_wp_step_decision(
@@ -3021,6 +3062,7 @@ def _map_runtime_decision(
         progress=progress,
         origin=origin,
         run_id=run_id,
+        **effective_root_kwargs(effective_root),
     )
 
 

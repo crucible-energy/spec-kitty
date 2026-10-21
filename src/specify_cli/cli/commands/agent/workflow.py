@@ -363,7 +363,9 @@ def _load_coord_branch_meta(feature_dir: Path) -> tuple[str | None, str | None, 
     return (coord, mid, mid8)
 
 
-def _canonical_status_feature_dir(main_repo_root: Path, mission_slug: str) -> Path:
+def _canonical_status_feature_dir(
+    main_repo_root: Path, mission_slug: str, *, effective_root: Path | None = None
+) -> Path:
     """Resolve the canonical read-side mission directory for status state.
 
     Routes through the single guarded read-side seam
@@ -381,6 +383,11 @@ def _canonical_status_feature_dir(main_repo_root: Path, mission_slug: str) -> Pa
     no caller of ``_canonical_status_feature_dir`` consumed any coord-branch-only
     meta field (all three read callers only need the resolved directory).
     """
+    if effective_root is not None:
+        return _workflow_placement_seam(
+            main_repo_root, mission_slug, effective_root=effective_root
+        ).read_dir(MissionArtifactKind.STATUS_STATE)
+
     from specify_cli.missions._read_path_resolver import resolve_handle_to_read_path
 
     return resolve_handle_to_read_path(main_repo_root, mission_slug)
@@ -558,7 +565,9 @@ def _revert_coordination_commit(receipt: CommitReceipt) -> None:
         )
 
 
-def _workflow_placement_seam(repo_root: Path, mission_slug: str) -> PlacementSeam:
+def _workflow_placement_seam(
+    repo_root: Path, mission_slug: str, *, effective_root: Path | None = None
+) -> PlacementSeam:
     """Construct the ONE placement-seam instance every workflow.py wrapper shares.
 
     read-surface-ssot-closeout WP04 (T017/T018): the pre-existing
@@ -574,11 +583,14 @@ def _workflow_placement_seam(repo_root: Path, mission_slug: str) -> PlacementSea
     """
     from mission_runtime import placement_seam
 
-    return placement_seam(repo_root, mission_slug)
+    from specify_cli.core.owned_mission import effective_root_kwargs
+
+    return placement_seam(repo_root, mission_slug, **effective_root_kwargs(effective_root))
 
 
 def _resolve_workflow_placement(
-    *, repo_root: Path, mission_slug: str, kind: MissionArtifactKind
+    *, repo_root: Path, mission_slug: str, kind: MissionArtifactKind,
+    effective_root: Path | None = None,
 ) -> CommitTarget:
     """Resolve the write :class:`CommitTarget` for ``kind`` via the placement seam.
 
@@ -593,11 +605,14 @@ def _resolve_workflow_placement(
     mechanism) keep reading that separately — this helper answers only "where
     does a write of this kind land", the seam's one job.
     """
-    return _workflow_placement_seam(repo_root, mission_slug).write_target(kind)
+    return _workflow_placement_seam(
+        repo_root, mission_slug, effective_root=effective_root
+    ).write_target(kind)
 
 
 def _resolve_workflow_read_dir(
-    *, repo_root: Path, mission_slug: str, kind: MissionArtifactKind
+    *, repo_root: Path, mission_slug: str, kind: MissionArtifactKind,
+    effective_root: Path | None = None,
 ) -> Path:
     """Resolve the read directory for ``kind`` via the placement seam (IC-04/T017).
 
@@ -609,7 +624,9 @@ def _resolve_workflow_read_dir(
     ``.read_dir(kind)`` instead of re-deriving the seam call inline at each
     read site.
     """
-    read_dir: Path = _workflow_placement_seam(repo_root, mission_slug).read_dir(kind)
+    read_dir: Path = _workflow_placement_seam(
+        repo_root, mission_slug, effective_root=effective_root
+    ).read_dir(kind)
     return read_dir
 
 
@@ -668,6 +685,7 @@ def _resolve_legacy_porcelain_root(
 def _commit_via_legacy_safe_commit(
     *,
     repo_root: Path,
+    worktree_root: Path | None = None,
     target_branch: str,
     paths: list[Path],
     message: str,
@@ -692,7 +710,12 @@ def _commit_via_legacy_safe_commit(
     # WP01/T004 (FR-002(b)): run the pre-check in the resolved worktree root, not
     # ``repo_root`` — a gitignored ``.worktrees/`` status file reads as clean
     # from ``repo_root`` and would trip a phantom "already committed" no-op.
-    porcelain_root = _resolve_legacy_porcelain_root(repo_root, mission_slug, mid8)
+    commit_root = worktree_root or repo_root
+    porcelain_root = (
+        commit_root
+        if worktree_root is not None
+        else _resolve_legacy_porcelain_root(repo_root, mission_slug, mid8)
+    )
     porcelain = subprocess.run(
         ["git", "status", "--porcelain", "--", *[str(p) for p in paths]],
         cwd=porcelain_root,
@@ -718,8 +741,8 @@ def _commit_via_legacy_safe_commit(
     # protected-branch flow: a protected ``target_branch`` (legacy missions
     # tracking ``main``) is REFUSED by the guard, never waived (FR-008).
     result = safe_commit(
-        repo_root=repo_root,
-        worktree_root=repo_root,
+        repo_root=commit_root,
+        worktree_root=commit_root,
         target=CommitTarget(ref=target_branch),
         message=message,
         paths=tuple(paths),
@@ -875,7 +898,9 @@ def _find_mission_slug(
 
 
 
-def _preview_claimable_wp_for_mission(repo_root: Path, mission_slug: str):
+def _preview_claimable_wp_for_mission(
+    repo_root: Path, mission_slug: str, *, effective_root: Path | None = None
+):
     """Return the shared claimable preview for *mission_slug*, if tasks exist.
 
     WP04 / T016 / FR-002: tasks/ and dependency reads route to the PRIMARY
@@ -895,6 +920,7 @@ def _preview_claimable_wp_for_mission(repo_root: Path, mission_slug: str):
         repo_root=main_root,
         mission_slug=mission_slug,
         kind=MissionArtifactKind.WORK_PACKAGE_TASK,
+        effective_root=effective_root,
     )
     if not (planning_dir / "tasks").is_dir():
         return None
@@ -904,13 +930,16 @@ def _preview_claimable_wp_for_mission(repo_root: Path, mission_slug: str):
         repo_root=main_root,
         mission_slug=mission_slug,
         kind=MissionArtifactKind.STATUS_STATE,
+        effective_root=effective_root,
     )
     return preview_claimable_wp(planning_dir, status_dir=status_dir)
 
 
 
 
-def _analysis_report_gate_dir(main_repo_root: Path, mission_slug: str) -> Path:
+def _analysis_report_gate_dir(
+    main_repo_root: Path, mission_slug: str, *, effective_root: Path | None = None
+) -> Path:
     """Resolve the mission dir the implement gate reads ``analysis-report.md`` from.
 
     #1989: this MUST be the topology-blind primary checkout — where
@@ -930,10 +959,13 @@ def _analysis_report_gate_dir(main_repo_root: Path, mission_slug: str) -> Path:
         repo_root=main_repo_root,
         mission_slug=mission_slug,
         kind=MissionArtifactKind.ANALYSIS_REPORT,
+        effective_root=effective_root,
     )
 
 
-def _mission_id_for_claim(main_repo_root: Path, mission_slug: str) -> str:
+def _mission_id_for_claim(
+    main_repo_root: Path, mission_slug: str, *, effective_root: Path | None = None
+) -> str:
     """Resolve claim identity from the canonical primary planning surface."""
     # read-side-seam-primary-primitive-closure-01KYKMMT WP05/FR-004: meta.json
     # lives only on PRIMARY (PRIMARY_METADATA is a PRIMARY-partition kind), so
@@ -943,6 +975,7 @@ def _mission_id_for_claim(main_repo_root: Path, mission_slug: str) -> str:
         repo_root=main_repo_root,
         mission_slug=mission_slug,
         kind=MissionArtifactKind.PRIMARY_METADATA,
+        effective_root=effective_root,
     )
     return resolve_mission_identity(primary_dir).mission_id
 
@@ -1172,6 +1205,13 @@ def _resolve_dispatch_binding(
 def implement(
     wp_id: Annotated[str | None, typer.Argument(help="Work package ID (e.g., WP01, wp01, WP01-slug) - auto-detects first planned if omitted")] = None,
     mission: Annotated[str | None, typer.Option("--mission", help="Mission slug")] = None,
+    owned_checkout: Annotated[
+        Path | None,
+        typer.Option(
+            "--owned-checkout",
+            help="Exact owned single-branch checkout; requires --mission.",
+        ),
+    ] = None,
     agent: Annotated[str | None, typer.Option("--agent", help="Agent name (required for auto-move to in_progress)")] = None,
     model: Annotated[str | None, typer.Option("--model", help=_MODEL_OPT_HELP)] = None,
     profile: Annotated[str | None, typer.Option("--profile", help=_PROFILE_OPT_HELP)] = None,
@@ -1216,6 +1256,7 @@ def implement(
         agent=agent,
         allow_sparse_checkout=allow_sparse_checkout,
         acknowledge_not_bulk_edit=acknowledge_not_bulk_edit,
+        owned_checkout=owned_checkout,
     )
 
     # WP06 T029: reset the commit-receipt accumulator for this invocation.
@@ -1227,40 +1268,83 @@ def implement(
             print("Error: Could not locate project root")
             raise typer.Exit(1)
         repo_root = get_main_repo_root(repo_root)
+        effective_root: Path | None = None
+        operation_repo_root = repo_root
+        if request.owned_checkout is not None:
+            from mission_runtime import ActionContextError
+            from specify_cli.core.owned_mission import require_unstaged_index, resolve_owned_mission
+            from specify_cli.core.saas_sync_config import sync_active
 
-        mission_slug = _find_mission_slug(explicit_mission=request.mission, repo_root=repo_root)
+            owner = resolve_owned_mission(
+                repo_root, request.owned_checkout, request.mission
+            )
+            require_unstaged_index(owner)
+            if sync_active():
+                raise ActionContextError(
+                    "OWNED_SYNC_UNSUPPORTED",
+                    "Owned implementation does not yet support active synchronization.",
+                )
+            effective_root = owner.root
+            request_owned_checkout = owner.root
+            operation_repo_root = owner.root
+            mission_slug = owner.slug
+            main_repo_root, target_branch = repo_root, owner.target
+            print(f"Branch: {target_branch} (target for this mission)")
+        else:
+            request_owned_checkout = None
+            mission_slug = _find_mission_slug(explicit_mission=request.mission, repo_root=repo_root)
+            # -- WP05/T021 FR-007: Sparse-checkout preflight -- runs BEFORE any
+            # worktree creation or state changes (same surface as merge).
+            _executor.implement_sparse_checkout_preflight(
+                repo_root, mission_slug, request.agent, request.allow_sparse_checkout
+            )
+            # Ensure planning repo is on the target branch before we start
+            # (needed for auto-commits and status tracking inside this command)
+            main_repo_root, target_branch = _ensure_target_branch_checked_out(repo_root, mission_slug)
 
-        # -- WP05/T021 FR-007: Sparse-checkout preflight -- runs BEFORE any
-        # worktree creation or state changes (same surface as merge).
-        _executor.implement_sparse_checkout_preflight(repo_root, mission_slug, request.agent, request.allow_sparse_checkout)
-
-        # Ensure planning repo is on the target branch before we start
-        # (needed for auto-commits and status tracking inside this command)
-        main_repo_root, target_branch = _ensure_target_branch_checked_out(repo_root, mission_slug)
+        if effective_root is not None:
+            _executor.implement_sparse_checkout_preflight(
+                effective_root, mission_slug, request.agent, request.allow_sparse_checkout
+            )
 
         # Determine which WP to implement
         if request.wp_id:
             normalized_wp_id = _normalize_wp_id(request.wp_id)
         else:
             # Auto-detect first planned WP
-            _claimable_preview = _preview_claimable_wp_for_mission(repo_root, mission_slug)
+            _claimable_preview = _preview_claimable_wp_for_mission(
+                repo_root, mission_slug, effective_root=effective_root
+            )
             normalized_wp_id = getattr(_claimable_preview, "wp_id", None)
             if not normalized_wp_id:
                 print(f"Error: {_auto_claim_failure_message(_claimable_preview)}")
                 raise typer.Exit(1)
 
         # Find WP file to read dependencies
-        wp = _executor.implement_locate_wp(repo_root, mission_slug, normalized_wp_id)
+        wp = _executor.implement_locate_wp(
+            repo_root,
+            mission_slug,
+            normalized_wp_id,
+            effective_root=effective_root,
+        )
 
         # C-006 charter precondition: check BEFORE any worktree creation or
         # status transition.
-        _executor.implement_check_wp_charter_precondition(main_repo_root, wp, normalized_wp_id)
+        _executor.implement_check_wp_charter_precondition(
+            operation_repo_root, wp, normalized_wp_id
+        )
 
         wp_meta, _ = read_wp_frontmatter(wp.path)
 
         # Only gate the not-yet-started claim transition (resumes on an
         # already-in-flight WP are never re-gated).
-        _executor.implement_check_dependency_gate(main_repo_root, mission_slug, normalized_wp_id, wp_meta)
+        _executor.implement_check_dependency_gate(
+            main_repo_root,
+            mission_slug,
+            normalized_wp_id,
+            wp_meta,
+            effective_root=effective_root,
+        )
 
         (
             feature_dir,
@@ -1268,7 +1352,13 @@ def implement(
             review_feedback_ref,
             review_feedback_file,
             _review_feedback_source,
-        ) = _executor.implement_resolve_feedback_and_gate(main_repo_root, mission_slug, normalized_wp_id, wp)
+        ) = _executor.implement_resolve_feedback_and_gate(
+            main_repo_root,
+            mission_slug,
+            normalized_wp_id,
+            wp,
+            effective_root=effective_root,
+        )
 
         # FR-008/#1832 (C-IC05): SINGLE resolution path. Resolve the workspace
         # exactly once here, then *consume* that resolved context for the rest
@@ -1281,7 +1371,14 @@ def implement(
         # implement` WP-execution write site — refuse a claim invoked from a
         # checkout the mission does not own. write_intent gates the
         # checkout-identity refusal (pure reads leave it False).
-        workspace = resolve_workspace_for_wp(main_repo_root, mission_slug, normalized_wp_id, write_intent=True)
+        workspace = resolve_workspace_for_wp(
+            main_repo_root,
+            mission_slug,
+            normalized_wp_id,
+            write_intent=True,
+            current_cwd=effective_root or Path.cwd(),
+            effective_root=effective_root,
+        )
         status_execution_mode = "direct_repo" if workspace.resolution_kind == "repo_root" else "worktree"
 
         def _create_workspace() -> None:
@@ -1294,41 +1391,41 @@ def implement(
                 actor=agent,
             )
 
-        # FR-005/#3281 (C-006): a retry over an already-materialized lane
-        # worktree re-enters the allocator's idempotent reuse-path self-heal
-        # instead of the prior bare `workspace.exists: return` short-circuit.
-        from specify_cli.lanes.implement_support import reenter_lane_self_heal
+        if effective_root is not None:
+            if workspace.worktree_path.resolve() != effective_root.resolve() or not workspace.exists:
+                print("Error: selected owned checkout did not resolve as the implementation workspace.")
+                raise typer.Exit(1)
+        else:
+            # FR-005/#3281 (C-006): a retry over an already-materialized lane
+            # worktree re-enters the allocator's idempotent reuse-path self-heal
+            # instead of the prior bare `workspace.exists: return` short-circuit.
+            from specify_cli.lanes.implement_support import reenter_lane_self_heal
 
-        def _reenter_self_heal() -> None:
-            reenter_lane_self_heal(main_repo_root, mission_slug, normalized_wp_id)
+            def _reenter_self_heal() -> None:
+                reenter_lane_self_heal(main_repo_root, mission_slug, normalized_wp_id)
 
-        _ensure_workspace_materialized(workspace, normalized_wp_id, _create_workspace, _reenter_self_heal)
+            _ensure_workspace_materialized(
+                workspace, normalized_wp_id, _create_workspace, _reenter_self_heal
+            )
         workspace_path = workspace.worktree_path
 
-        # Seam C-005 (#3281/FR-007): the claim-ancestry gate runs HERE --
-        # POST-materialize (after the self-heal above re-runs the planning-
-        # commit + dependency-tip merges), keyed on the MERGED tip, BEFORE any
-        # claim status event is emitted below. Never move this above
-        # ``_ensure_workspace_materialized`` (or before it in the call
-        # sequence) -- evaluating ancestry against a pre-merge HEAD deadlocks
-        # an already-approved same-mission dependency that simply has not
-        # been merged into this lane's worktree yet.
-        from specify_cli.lanes.implement_support import resolve_claim_ancestry_gate
+        if effective_root is None:
+            # Lane claims must pass this gate after materialization and
+            # self-healing, before any claim status event is emitted. Owned
+            # single-branch checkouts already run on their mission branch and
+            # do not use lane ancestry or dependency-tip merging.
+            from specify_cli.lanes.implement_support import resolve_claim_ancestry_gate
 
-        # The predicate's dependency-status lookup reads the STATUS event log,
-        # which is a DIFFERENT surface than the PRIMARY ``feature_dir`` above
-        # (WORK_PACKAGE_TASK) for coord-topology missions -- reuse the same
-        # coord-aware resolver ``implement_claim_transition`` below consults.
-        status_feature_dir = _canonical_status_feature_dir(main_repo_root, mission_slug)
-        ancestry = resolve_claim_ancestry_gate(
-            main_repo_root, mission_slug, status_feature_dir, normalized_wp_id, workspace_path
-        )
-        if not ancestry.ok:
-            print(
-                f"Error: cannot claim {normalized_wp_id}: ancestry could not be "
-                f"established after self-heal for: {', '.join(ancestry.missing_refs)}"
+            status_feature_dir = _canonical_status_feature_dir(main_repo_root, mission_slug)
+            ancestry = resolve_claim_ancestry_gate(
+                main_repo_root, mission_slug, status_feature_dir, normalized_wp_id, workspace_path
             )
-            raise typer.Exit(1)
+            if not ancestry.ok:
+                print(
+                    f"Error: cannot claim {normalized_wp_id}: ancestry could not be "
+                    f"established after self-heal for: {', '.join(ancestry.missing_refs)}"
+                )
+                raise typer.Exit(1)
 
         subtask_ids = [str(item) for item in wp_meta.subtasks if isinstance(item, str)]
         subtask_cmd = " ".join(subtask_ids) if subtask_ids else "<subtask-ids>"
@@ -1339,7 +1436,9 @@ def implement(
             invocation_id=invocation_id,
             repo_root=main_repo_root,
             mission_id=(
-                _mission_id_for_claim(main_repo_root, mission_slug)
+                _mission_id_for_claim(
+                    main_repo_root, mission_slug, effective_root=effective_root
+                )
                 if invocation_id is not None
                 else None
             ),
@@ -1360,6 +1459,8 @@ def implement(
             workspace_path=workspace_path,
             status_execution_mode=status_execution_mode,
             resolved_binding=resolved_binding,
+            operation_repo_root=operation_repo_root,
+            effective_root=effective_root,
         )
         wp = claim_result.wp
         wp_slug = claim_result.wp_slug
@@ -1377,13 +1478,16 @@ def implement(
             workspace_path=workspace_path,
             mission_slug=mission_slug,
             normalized_wp_id=normalized_wp_id,
-            repo_root=repo_root,
+            repo_root=operation_repo_root,
+            effective_root=effective_root,
         )
         if fix_prompt_file is not None:
             return
 
         # Detect mission type and get deliverables_path for research missions.
-        mission_type, deliverables_path = _executor.implement_resolve_mission_type(repo_root, mission_slug)
+        mission_type, deliverables_path = _executor.implement_resolve_mission_type(
+            repo_root, mission_slug, effective_root=effective_root
+        )
 
         # Capture baseline test results (one-time, cached) before the agent starts coding
         _executor.implement_capture_baseline(
@@ -1394,6 +1498,8 @@ def implement(
             feature_dir=feature_dir,
             wp_slug=wp_slug,
             main_repo_root=main_repo_root,
+            effective_root=effective_root,
+            operation_repo_root=operation_repo_root,
         )
 
         prompt_lines = _executor.build_implement_prompt_lines(
@@ -1402,7 +1508,7 @@ def implement(
             workspace=workspace,
             workspace_path=workspace_path,
             wp_agent_assignment=claim_result.wp_agent_assignment,
-            repo_root=repo_root,
+            repo_root=operation_repo_root,
             mission_slug=mission_slug,
             target_branch=target_branch,
             subtask_cmd=subtask_cmd,
@@ -1411,13 +1517,14 @@ def implement(
             review_feedback_file=review_feedback_file,
             mission_type=mission_type,
             deliverables_path=deliverables_path,
+            owned_checkout=request_owned_checkout,
         )
 
         _executor.implement_finalize_and_print(
             prompt_lines=prompt_lines,
             mission_slug=mission_slug,
             normalized_wp_id=normalized_wp_id,
-            repo_root=repo_root,
+            repo_root=operation_repo_root,
             workspace=workspace,
             workspace_path=workspace_path,
             has_feedback=has_feedback,
@@ -1425,6 +1532,7 @@ def implement(
             mission_type=mission_type,
             deliverables_path=deliverables_path,
             subtask_cmd=subtask_cmd,
+            owned_checkout=request_owned_checkout,
         )
 
     except typer.Exit:

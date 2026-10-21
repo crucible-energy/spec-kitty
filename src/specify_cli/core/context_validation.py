@@ -29,7 +29,7 @@ import os
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import TypeVar
+from typing import TypeVar, cast
 from collections.abc import Callable
 
 import typer
@@ -223,6 +223,23 @@ def require_main_repo(func: F) -> F:
         return func(*args, **kwargs)
 
     return wrapper  # type: ignore
+
+
+def require_main_repo_unless_owned(func: F) -> F:
+    """Keep the main-repo guard unless an explicit owned route is selected.
+
+    The command must validate the supplied checkout with resolve_owned_mission
+    before effects. This dispatch exception confers no ownership authority.
+    """
+    ordinary = require_main_repo(func)
+
+    @functools.wraps(func)
+    def wrapper(*args: object, **kwargs: object) -> object:
+        if isinstance(kwargs.get("owned_checkout"), Path):
+            return func(*args, **kwargs)
+        return ordinary(*args, **kwargs)
+
+    return cast(F, wrapper)
 
 
 def require_worktree(func: F) -> F:

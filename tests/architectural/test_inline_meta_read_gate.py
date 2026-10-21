@@ -340,7 +340,14 @@ FLOOR_MARGIN = 2
 ROUTED_LOAD_META_FLOOR_MARGIN = 4
 # Zero-WP documentation acceptance adds one routed fail-closed metadata read.
 # Raise the floor with that canonical usage; keep the existing margin unchanged.
-ROUTED_LOAD_META_FLOOR = 154
+# Explicit-owned completion adds two canonical readers: live fail-closed
+# metadata and immutable acceptance-record decode. Live rises 158 -> 160;
+# tighten the floor by two while preserving the four-site margin and the
+# strictly-below-live invariant. No reader allowance or gate is relaxed.
+# Per-commit acceptance validation adds one immutable producer metadata decode.
+# Measured live usage is 161; raise the floor to 157 to retain the same margin
+# of four. This tightens canonical usage without adding any inline allowance.
+ROUTED_LOAD_META_FLOOR = 157
 
 
 # --------------------------------------------------------------------------- #
