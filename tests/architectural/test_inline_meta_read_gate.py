@@ -338,7 +338,9 @@ FLOOR_MARGIN = 2
 # ``pytest tests/architectural/test_inline_meta_read_gate.py::test_routed_load_meta_floor``
 # on the integrated (rebased) PR tip.
 ROUTED_LOAD_META_FLOOR_MARGIN = 4
-ROUTED_LOAD_META_FLOOR = 153
+# Zero-WP documentation acceptance adds one routed fail-closed metadata read.
+# Raise the floor with that canonical usage; keep the existing margin unchanged.
+ROUTED_LOAD_META_FLOOR = 154
 
 
 # --------------------------------------------------------------------------- #

@@ -942,6 +942,19 @@ The mission phases (discover → audit → design → generate → validate → 
 `src/specify_cli/missions/documentation/mission-runtime.yaml` and are the authoritative source
 for step ordering and profile assignments.
 
+## Acceptance Without Work Packages
+
+A single-branch documentation mission may complete its runtime steps without
+creating software work packages. Acceptance requires an existing, readable
+`status.events.jsonl` and a matching persisted documentation run whose frozen
+template reports terminal completion. An outstanding step, pending decision,
+blocked run, corrupt state, or mismatched identity still prevents acceptance.
+Changes to the original runtime template also retain the runtime's drift refusal.
+
+The normal artifact, unchecked-task, metadata, branch, and clean-tree gates
+continue to apply. Documentation missions that contain work packages also
+retain the canonical work-package status checks.
+
 ## Try It
 
 - [Tutorial: Governed Charter Workflow End-to-End](../guides/tutorials/charter-governed-workflow.md)

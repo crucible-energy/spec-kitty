@@ -93,6 +93,7 @@ _CORPUS_DATA_ROOTS = (
 # they read nothing real today).
 _CORPUS_MARKED_MODULES = frozenset(
     {
+        "tests/specify_cli/acceptance/test_zero_wp_documentation.py",
         "tests/architectural/test_bare_prose_corpus_ratchet.py",
         "tests/architectural/test_transition_guard_shrink_only.py",
         "tests/charter/synthesizer/test_manifest.py",

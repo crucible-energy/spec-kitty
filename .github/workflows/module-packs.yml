@@ -44,6 +44,7 @@ jobs:
             tests/doctrine \
             tests/glossary \
             tests/integration \
+            tests/specify_cli/acceptance \
             -m "corpus and not windows_ci" -q --tb=short \
             --timeout=240 --timeout-method=signal \
             -n auto --dist loadfile \

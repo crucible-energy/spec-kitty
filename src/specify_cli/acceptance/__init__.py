@@ -873,7 +873,9 @@ def _resolve_git_context(repo_root: Path) -> tuple[str | None, Path, Path, list[
     return branch, worktree_root, primary_repo_root, git_dirty
 
 
-def _collect_snapshot_wps(feature: str, feature_dir: Path, activity_issues: list[str]) -> dict[str, dict[str, Any]]:
+def _collect_snapshot_wps(
+    feature: str, feature_dir: Path, activity_issues: list[str], *, completed_documentation: bool = False,
+) -> dict[str, dict[str, Any]]:
     """Load canonical WP states from status.events.jsonl; append issues on failure."""
     events_path = feature_dir / EVENTS_FILENAME
     _missing_msg = (
@@ -892,7 +894,7 @@ def _collect_snapshot_wps(feature: str, feature_dir: Path, activity_issues: list
         snapshot = reduce(event_stream.transitions, event_stream.annotations)
     except StoreError as exc:
         raise AcceptanceError(f"Status event log is corrupted for feature '{feature}': {exc}") from exc
-    if not snapshot.work_packages:
+    if not snapshot.work_packages and not completed_documentation:
         activity_issues.append(_missing_msg)
     return snapshot.work_packages
 
@@ -1179,8 +1181,6 @@ def collect_feature_summary(
     skipped_checks: list[AcceptanceCheckDiagnostic] = []
     blocked_checks: list[AcceptanceCheckDiagnostic] = []
 
-    snapshot_wps = _collect_snapshot_wps(feature, status_feature_dir, activity_issues)
-
     # #2122: PRIMARY-partition reads (WP tasks/, planning artifacts) must key on
     # the canonical PRIMARY slug, not the raw handle. A mid8/ULID/numeric handle
     # passed straight to the kind-aware seam composes a nonexistent
@@ -1189,10 +1189,17 @@ def collect_feature_summary(
     # differ from the coord read-dir name for backfilled legacy missions).
     # STATUS reads above/below stay coord-aware on the raw `feature` (C-002).
     primary_slug = feature_dir.name
+    wp_tasks = list(_iter_work_packages(repo_root, primary_slug, **scope))
+    from specify_cli.acceptance.documentation_runtime import completed_documentation_runtime
+
+    completed_documentation = not wp_tasks and completed_documentation_runtime(effective_root or repo_root, feature_dir)
+    snapshot_wps = _collect_snapshot_wps(
+        feature, status_feature_dir, activity_issues, completed_documentation=completed_documentation,
+    )
 
     expected_wp_ids: list[str] = []
     canceled_wps: list[dict[str, str]] = []
-    for wp in _iter_work_packages(repo_root, primary_slug, **scope):
+    for wp in wp_tasks:
         wp_id = wp.work_package_id or wp.path.stem
         expected_wp_ids.append(wp_id)
 
