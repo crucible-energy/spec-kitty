@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-21T06:03:05.764420+00:00'
+generated_at: '2026-10-21T06:30:20.707223+00:00'
 analyzer_agent: reviewer-renata
 input_artifacts:
   spec.md:
@@ -12,7 +12,7 @@ input_artifacts:
     sha256: 86b2522bbcdda8c123aeab27223c4c2da0ffdad37b75de001c53429f2c6ee6ba
   plan.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md
-    sha256: 1e417a68a6b150e43f723e8337abcc5db5fb6c512c75ce1c6aece16b43aaa6e5
+    sha256: c54f9e1248a0c12b98532884a32378d0f8f5c63a4e3860fe37809718da745297
   tasks.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md
     sha256: 63de531735a12eef9277bca812fda58678e88194c4291235b6ef5983b4aefc6d
@@ -1611,7 +1611,7 @@ input_artifacts:
     sha256: a2aeb95ca0ec3bda36317f0cc6a3b57a7d38a0e4fd07bd82e856bbd141a57541
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md
-    sha256: 1e417a68a6b150e43f723e8337abcc5db5fb6c512c75ce1c6aece16b43aaa6e5
+    sha256: c54f9e1248a0c12b98532884a32378d0f8f5c63a4e3860fe37809718da745297
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/spec.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/spec.md
     sha256: 86b2522bbcdda8c123aeab27223c4c2da0ffdad37b75de001c53429f2c6ee6ba
@@ -1698,7 +1698,16 @@ input_artifacts:
     sha256: 5529380d18c2db484cad39dcd951a0ac9fe61411c459638a4669940b625ee532
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout.md
-    sha256: 623f88ff0cefa55505c68b8a112640f3b70b48485b01a29f2ea6ab4378e91fbb
+    sha256: aa2f4cabf5570ab5a2f68896aaafea532826f659c795bf2b003608d1eb38a3ae
+  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration:
+    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration
+    sha256: directory
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration/.gitignore
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration/.gitignore
+    sha256:
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration/review-cycle-1.md
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration/review-cycle-1.md
+    sha256: 2956b24cd59465884b2f08d7f585f62224af2d569df1800f1db49658625dbd1d
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration.md
     sha256: a74d1486cc9a7f5ca31b3f09ca619d12d5d06adff817af53c337dfe79580efe4
@@ -1977,42 +1986,42 @@ input_artifacts:
     sha256: fea1875994035726a2f52b6e4ed0cec837b14452ea4dd2d85538fcb8b91c42a3
   git:source-membership:
     path:
-    sha256: 829b4f2187378028e5d2bcb0f1f0aa05aa7da31446b3b4ec44fbb586d5069ff2
+    sha256: 0527092dfad11842ab07c61eb97e42f5cd733084d5311e480d3435808670fdb5
 verdict: ready
 issue_counts:
-  medium: 0
-  high: 0
-  low: 0
   critical: 0
+  low: 0
+  high: 0
+  medium: 0
   info: 0
 findings: []
-report_transaction: 41d27d8d0311457ab73be2c251ff9cfd
+report_transaction: b3185ea6685e4e79a95c99c47485507a
 material_manifest_version: 1
 ---
 
 ## Specification Analysis Report
 
-Mission `organization-workspace-lifecycle-01M5DRAR`. Independent incremental seven-WP planning analysis at `b2bbbd1a6079f3a05677fca5f116962e69e1cdaf`, following canonical WP07 ownership-map amendment `b2bbbd1a6079f3a05677fca5f116962e69e1cdaf`.
-
-Scope: reuse the prior unchanged seven-package requirement/dependency assessment and inspect only the newly admitted fixture path and its actual source guard contract, while explicitly correcting the prior finalizer-root hypothesis. Spec, plan, tasks, WP01–WP06 prompts and lifecycle contract are unchanged by this amendment. WP07 adds `tests/integration/test_owned_analysis_implementation_cli.py` and a bounded objective paragraph; its original production scope, prior no-effect requirements and validation thresholds remain intact. The earlier rejected WP06 feedback remains truthful additional material. Canonical prerequisite check ran once for this refresh under the same isolated mission-local home, returned valid/no errors/warnings and matching branch context; result is externally retained in `lifecycle-analysis-wp07-model-fixture-prerequisites.json`.
-
-No source/status/report mutation or tests were performed by this review. Only this external carrier was written; it is not a canonical analysis report until the recorder successfully persists it with the complete current manifest.
+Mission `organization-workspace-lifecycle-01M5DRAR`. Independent incremental formal analysis at `c9bd99da67f3e2c2b2cd77c484ec95ca31f521c5`, following WP06 retained-claim ownership amendment de6febc39 and canonical finalizations62318f704,344012173 andc9bd99da6. Reuse unchanged seven-WP requirement/dependency assessments; this pass reads the bounded plan/WP06 additions and the canonical claim/review-base source contract. No test, source/status/matrix/report mutation or canonical recording performed by this analysis; only this external carrier is written.
 
 | ID | Category | Severity | Location(s) | Summary | Recommendation |
 |----|----------|----------|-------------|---------|----------------|
-| — | — | — | — | No unresolved cross-artifact finding in this bounded amendment. | Record the complete current inputs canonically, then repair the declared fixture and qualify the final candidate. |
+| — | — | — | — | No unresolved cross-artifact findings in the bounded amendment. | Persist current complete material scope canonically before the declared red-first implementation. |
 
-### Newly Admitted Model-Provenance Fixture
+### Amendment and Canonical Authority
 
-The expanded gate exposed a stale assertion in `test_owned_dispatch_requires_correlated_model`: it supplies `--model invented-model` without an invocation ID and expects guidance requesting `--invocation-id`. Actual `workflow._resolve_dispatch_binding` rejects every supplied model because this seam has no model-execution evidence producer. Correlation establishes dispatch/profile identity, not actual model execution. With an invocation ID, source validates correlation first and still rejects an unproven model; without one, as in this fixture, no correlation attempt occurs. Describing the guard as universally preceding correlation would be inaccurate.
+WP06 now additionally owns `src/specify_cli/cli/commands/agent/tasks_move_task.py`, the existing complete `tests/specify_cli/cli/commands/agent/test_owned_checkout_move_task.py` module, `tests/integration/migration/test_wp03_advance_to_approval.py`, canonical `src/specify_cli/lanes/claim_base.py` and its complete `tests/lanes/test_claim_base.py` module. With the original acceptance adapter/test pair, WP06 now has exactly seven admitted owning files. The plan and prompt describe a real strict-closeout refusal: the mission-wide planning pin advanced during genuine later planning, past already committed retained implementation. The current owned-review adapter uses that mutable mission pin as the implementation window and ignores the existing per-WP immutable claim base. It therefore rejects an authentic owned-file change as absent.
 
-The WP07 extension is therefore a test-contract repair, not a permission to change production provenance. Appropriate acceptance preserves exact exit1, byte-identical event stream and complete primary-state assertions, renames the test to express unverified-model refusal and requires the actual execution-evidence refusal. No fake correlated-model positive, warning waiver or fabricated execution metadata is authorized. Existing accepted-analysis implementation positive coverage remains untouched. The added file is now explicitly admitted through canonical task authoring/finalization rather than silently edited outside the ownership map.
+The canonical claim seam already records an immutable, idempotent-by-absence per-WP base through lanes.claim_base.record_claim_base. This mission has a real WP06 ref at bc5203eae26de49e9c4b72dfc67493703c7db72b, before its committed red485d3c2c5 and implementation6ce9f43cf; its owned-file diff is present. This is existing authority, not a manually inferred replacement SHA. A requeue does not clear that ref; done/canceled cleanup owns its retirement. The current mission planning pin remains valid planning evidence and must not be rewound to force a review diff.
 
-This extension directly supports FR-007/FR-008 evidence fidelity and the existing strict-closeout objective. It introduces no new top-level requirement and no dependency cycle. WP06 remains separately owned; earlier approved packages remain frozen. Full affected owning/architecture/static/coverage validation and independent verdict remain required after the actual fixture change. Prior failed gates stay diagnostic history; serial passes of unchanged slow scenarios do not erase the original failed invocation or relax its deadlines.
+The bounded repair should validate the current mission planning pin with the existing presence, target-currentness/ancestry and HEAD guards, then read and independently validate the canonical per-WP claim base for the implementation review window. The original missing, unreadable, foreign, orphaned, equal-to-HEAD and ancestry checks on the mission planning pin remain in force before selection. When a per-WP claim ref is present, its independent commit/HEAD/ancestry/currentness validation must refuse invalid evidence and must never fall back to planning. A genuinely absent claim ref preserves the pre-existing validated planning-base compatibility path for older or doctor-rebuilt missions; it is not a new relaxation. The existing migration tests explicitly exercise that healthy rebuilt state without a claim. Because read_claim_base currently returns None for any rev-parse failure, add an opt-in strict read mode in that existing canonical authority; its default legacy behavior stays unchanged. Strict absence requires the expected absent return code1 AND empty stdout AND empty stderr, with any additional native existence probe satisfying the same expected absent shape. Any diagnostic output, unexpected return code, execution/IO error or empty successful output refuses. The owner's controlled disposable Git probe showed a malformed loose ref can yield rc1 with warning stderr, while show-ref --verify --quiet also returns1 and suppresses that warning. Dual return codes alone therefore do not prove absence. Do not match warning text; use the closed return-code/output contract and retain raw probe evidence. A present result still undergoes independent commit/HEAD/ancestry validation; the strict reader cannot turn a blob or invalid ref into acceptance. No CLI duplicate of the private claim-ref namespace is introduced. This compatibility clarification supersedes the stricter absence-refusal recommendation in the previous external carrier, which would unnecessarily break an existing supported recovery contract. Preserve real authored owned-file matching and status-only/out-of-scope/rename refusals. Do not create an alternative writer, fabricate source churn, set the ref manually or edit status events.
 
-### Finalizer Causal Correction
+### Validation and Compatibility
 
-The earlier planning report proposed observing ledger roots[R,R] based on an incomplete trace. Subsequent source inspection and the retained probe establish the actual transaction path: owned identity selectsP; acquire initially receivesR but rewrites lock_root to owned.owned_root and constructs the transaction withP; _defer_fan_out passes txn.repo_root to the real ledger_posture. Consequently the actual two reads use[P,P], and resolve_canonical_root follows each .git worktree pointer through get_main_repo_root, yielding the original22lookup ledger. The amended fixture retains exact22, observes both actualP roots and pins one guarded resolver read per real posture delegation after explicit import preparation. The original20-read observation is not an alternative permitted count. This correction supersedes the earlier hypothesis; no production read removal or relaxed guard is inferred from it.
+The amended prompt explicitly requires a committed real linked-checkout regression before repair, then the complete owning move-task module and unchanged required baseline/affected/static/coverage/review gates. The meaningful positive is claim→commit actual owned implementation→genuine planning amendment/finalization advances only the mission pin→review still uses the original canonical claim window. Primary/sibling snapshots, exact typed custody and event integrity remain protected.
+
+Negative controls must preserve existing missing/foreign/orphan/HEAD mission-pin tests and add invalid present-claim checks rather than using claim authority to bypass planning validation. A separate positive retains the real doctor-rebuilt healthy planning-base path without a claim, with the same required evidence as before. Migration SimpleNamespace fixtures receive actual task_id/mission_slug fields matching the real state; no getattr fallback or guessed identity exists solely to keep old fixtures green. New-claim positives should reach the normal claim seam, not invent refs. Full module coverage retains the status-only, auto-commit/out-of-owned-scope, outside-to-inside rename and review/approval durability checks. This is source recovery within WP06; it grants no new worktree, competing WP, runtime authority, primary integration or deployment permission.
+
+The canonical authoring/finalization commits admit these five added surfaces without resetting WP status. The final current-scope authoring receipt lifecycle-wp06-strict-claim-finalize.json reports result=success. The existing prerequisite response lifecycle-analysis-wp06-legacy-claim-prerequisites.json returned valid with no errors/warnings for the unchanged core artifacts; canonical recorder must still resolve current seven-file task material after this final scope amendment. Recording this new analysis still requires the complete current material manifest; successful authoring/finalization is not itself implementation admission or approval. The previously approved WP07 and earlier packages remain independent and unchanged; original rejected WP06 evidence is preserved. No fresh test or final WP06 success is claimed by this planning report.
 
 ### Coverage Summary Table
 
@@ -2038,39 +2047,40 @@ Success criteria remain mapped: SC-001→T001/T002/T005; SC-002→T003/T005; SC-
 
 
 
+
 ### Charter Alignment Issues
 
-None unresolved. The amendment owns the newly discovered fixture, preserves provenance/no-effects requirements, uses the canonical workflow and retains red-first/full affected validation, independent reviewer and quality thresholds. Canonical minter/typed custody repairs remain substantive, with no scanner exemptions or renaming as evasion. No runtime installation, producer release, unknown-workspace adoption, PR merge or deployment authority is added.
+None unresolved in this planning scope. The fix reuses existing canonical claim authority, preserves mandatory refusals, owns the affected adapter/test module, requires a red-first regression plus full bounded gates and independent review, and avoids a manual status or pin bypass. It directly supports FR-005/FR-007/FR-008 and evidence fidelity. Prior source and failed closeout receipts stay intact. Required quality thresholds and PR-only workflow remain unchanged.
 
 ### Unmapped Tasks
 
-None. T001–T007 retain their original mappings. The new fixture is an explicit T007 owning surface rather than a new untracked work package.
+None. The added surfaces belong to T006; all seven existing task mappings remain valid. No additional top-level requirement or dependency cycle is introduced.
 
 ### Metrics
 
 - Requirements:13 (9functional,4non-functional).
 - Tasks:7.
-- Requirement task-association coverage:13/13=100%; not implementation completion.
-- Unresolved findings:0; critical0/high0/medium0/low0; overflow0.
-- Unresolved ambiguity/duplication findings:0/0.
-- New owned test surface:1file, no production guard change planned.
-- No new execution measurements produced by this analysis.
+- Requirement trace association:13/13=100%; not runtime/mission completion.
+- Unresolved findings:0; critical0/high0/medium0/low0.
+- Ambiguity/duplication findings:0/0; overflow0.
+- Newly admitted owning surfaces:5existing files, plus the original2; totalWP06scope7files.
+- No tests, token/cost or elapsed implementation measurements produced by this analysis. The malformed-ref behavior is owner-supplied controlled probe evidence, not a validation run by this reviewer.
 
 ### Material Identity Snapshot
 
-Canonical recorder must recompute complete current inputs including directory/.gitignore/source-membership and feedback material; this table is supporting evidence only.
+Canonical recorder must independently resolve all current material/directory/.gitignore/source-membership inputs; these hashes support review reproducibility only.
 
 | Material | SHA-256 |
 |----------|---------|
 | `kitty-specs/organization-workspace-lifecycle-01M5DRAR/spec.md` | `86b2522bbcdda8c123aeab27223c4c2da0ffdad37b75de001c53429f2c6ee6ba` |
-| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md` | `1e417a68a6b150e43f723e8337abcc5db5fb6c512c75ce1c6aece16b43aaa6e5` |
+| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md` | `c54f9e1248a0c12b98532884a32378d0f8f5c63a4e3860fe37809718da745297` |
 | `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md` | `63de531735a12eef9277bca812fda58678e88194c4291235b6ef5983b4aefc6d` |
 | `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP01-verified-organization-discovery-and-accounting.md` | `4dc70e62161a40d75c546abc3a207adcab93f69ee6f32c978e4879006250c785` |
 | `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP02-durable-lifecycle-state-and-generation-bound-recovery.md` | `6c1fc7da7b468c12a4789f2dff15868c407fb9ff229368b01481898e123d8555` |
 | `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP03-supported-creator-adapters-and-automatic-ingress.md` | `2158e2e45517fc8585527e991647474081f7ab9f9baba3ee8bb09ceff1d1b317` |
 | `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP04-branch-first-consolidation-and-guidance.md` | `26694aa068ab23ff713ad3517f1a131d78fed5637bace8d0c4e4a74a0451da83` |
 | `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP05-integrated-recovery-acceptance-and-adoption.md` | `bd0559ce2968722d167705b67508492ffdf1d12369e9e01fd2f0f5d6703977cb` |
-| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout.md` | `4834aa2c629ffbc6343ae4f0ab28042ecc1c7b22aa61f3d40ba003272dbe5643` |
+| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout.md` | `93c7bf1a9e9a2dce1aa85a1adb4ef871ae420cb9e422c592d3153c5441cfd957` |
 | `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration.md` | `b4281f7584e213ad5a55b650b8a387a020db01a13870e949405cb99b1b64a9f3` |
 | `kitty-specs/organization-workspace-lifecycle-01M5DRAR/contracts/workspace-lifecycle.md` | `0c71b6cf9d49b6abf38ec4c113048ea07d08f436a310877ebd7cd4619aa83be4` |
 | `.kittify/charter/charter.md` | `d59dd63cbfc6ab75c708c31b9ff5d6da0f80e49469284f665b41285ec8ba81f4` |
@@ -2078,4 +2088,4 @@ Canonical recorder must recompute complete current inputs including directory/.g
 
 ### Next Actions
 
-Record this carrier under the current complete material selection before modifying the newly admitted fixture. Make its truthful assertion/name update; preserve strict model-evidence rejection and no-effects assertions. Finish final required relevant qualification and independent WP07/WP06 reviews, then strict matrix closeout with real evidence. This planning-ready assessment is not implementation approval, global trust/adoption, backlog cleanup or deployment permission.
+Persist this carrier through canonical owned record-analysis with the complete current manifest after finalization settles. Commit the real retained-claim regression, implement the bounded adapter repair, run all required relevant qualification and obtain independent WP06 review. Preserve strict matrix/claim/pin guards and exact source evidence. This ready planning assessment does not approve a WP, merge a PR, install/trust hooks, release a creator, clean unknown workspaces or authorize deployment.
