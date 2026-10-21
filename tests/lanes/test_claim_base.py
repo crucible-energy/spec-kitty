@@ -856,3 +856,25 @@ def test_non_ascii_implementation_path_still_qualifies(tmp_path: Path) -> None:
     _commit_file(repo, "src/café.py", "VALUE = 1\n")
 
     assert _has_qualifying_commit_since_claim_base(repo, base, _MISSION_SLUG) is True
+
+
+@pytest.mark.parametrize("state", ["absent", "present", "broken", "nonrepo"])
+def test_strict_claim_base_distinguishes_absence_from_unreadable_state(tmp_path: Path, state: str) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    if state == "present":
+        expected = record_claim_base(repo, repo, _MISSION_SLUG, _WP_ID)
+        assert read_claim_base(repo, _MISSION_SLUG, _WP_ID, strict=True) == expected
+    elif state == "absent":
+        assert read_claim_base(repo, _MISSION_SLUG, _WP_ID, strict=True) is None
+    else:
+        if state == "broken":
+            path = repo / ".git" / _claim_base_ref(_MISSION_SLUG, _WP_ID)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("malformed ref\n", encoding="utf-8")
+        else:
+            repo = tmp_path / "not-a-repository"
+            repo.mkdir()
+        with pytest.raises(RuntimeError, match="claim base"):
+            read_claim_base(repo, _MISSION_SLUG, _WP_ID, strict=True)
+        assert read_claim_base(repo, _MISSION_SLUG, _WP_ID) is None
