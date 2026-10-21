@@ -29,6 +29,7 @@ owned_files:
 - tests/specify_cli/invocation/cli/test_owned_checkout.py
 - tests/integration/test_owned_lifecycle_acceptance_finalize.py
 - tests/integration/test_owned_lifecycle_acceptance_e2e.py
+- tests/integration/test_owned_analysis_implementation_cli.py
 tags: []
 tracker_refs: []
 ---
@@ -39,7 +40,7 @@ tracker_refs: []
 
 Close the actual sole-minter/typed-custody violations exposed by the expanded architecture gate in the original Op routing repair. Mint a dedicated opaque operation-root fact in the existing canonical owned-mission authority, using the existing ownership validator and unchanged protection policy. Carry that fact through dispatch, internal payload and generated close contract; raw paths remain only at the documented CLI claim boundary. Preserve explicit read-only primary selection, protected-branch refusal, legacy no-explicit-custody/non-Git context errors, branch drift checks and primary immutability. This grants no mission ownership or runtime authority.
 
-Correct the two stale owning integration fixtures to test the real supported contract: exact resolver accounting under an explicit posture, and missing-analysis refusal for supported owned implement separately from unsupported owned review. Preserve all no-effect/content-read/unknown-frame assertions and existing accepted-analysis positive coverage. Do not relax production or architectural gates, widen allowlists or rename parameters merely to evade scans.
+Correct the stale owning integration fixtures to test the real supported contract: exact resolver accounting under an explicit posture, and missing-analysis refusal for supported owned implement separately from unsupported owned review. Preserve all no-effect/content-read/unknown-frame assertions and existing accepted-analysis positive coverage. The expanded owning gate also exposed a stale model-provenance refusal assertion: require the actual earlier rejection of an unproven resolved-model claim, preserving exit, event-stream and primary-state checks; never fabricate model execution evidence. Do not relax production or architectural gates, widen allowlists or rename parameters merely to evade scans.
 
 ## Validation
 
