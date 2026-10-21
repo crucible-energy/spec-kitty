@@ -410,7 +410,28 @@ def test_allocated_pr_result_never_accepts_duplicate_authority_keys(tmp_path: Pa
     from specify_cli.workspace_lifecycle.state import StateError
 
     owner, _, _, _ = managed_owner(tmp_path, monkeypatch)
-    script = "import os; fd=os.open(os.environ['SPEC_KITTY_LIFECYCLE_RESULT'],os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600); os.write(fd,b'{\"pr\":9,\"pr\":10}'); os.close(fd)"
+    script = (
+        "import os; fd=os.open(os.environ['SPEC_KITTY_LIFECYCLE_RESULT'],os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600); "
+        'os.write(fd,b\'{"pr":9,"pr":10}\'); os.close(fd)'
+    )
     owner.run_producer([sys.executable, "-c", script], timeout=5)
     with pytest.raises(StateError, match="producer PR"):
         owner.complete()
+
+
+def test_same_commit_on_another_pr_branch_is_not_creator_delivery(monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.workspace_lifecycle.adapters import GitHubDelivery
+
+    responses(monkeypatch)
+    transport = subprocess.run
+
+    def wrong_branch(argv, **kwargs):
+        result = transport(argv, **kwargs)
+        if argv[-1].endswith("/pulls/9"):
+            data = json.loads(result.stdout)
+            data["head"]["ref"] = "unrelated-branch"
+            result.stdout = json.dumps(data).encode()
+        return result
+
+    monkeypatch.setattr(subprocess, "run", wrong_branch)
+    assert GitHubDelivery(timeout=1).verify(identity(), 9) is None
