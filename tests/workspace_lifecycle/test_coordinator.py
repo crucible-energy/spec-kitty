@@ -39,7 +39,7 @@ class Creator:
         assert self.held
         return self.current
 
-    def retire(self, identity: Identity, event_id: str) -> Result:
+    def retire(self, intent: Operation) -> Result:
         import json
 
         assert self.held
@@ -95,7 +95,7 @@ def test_refusal_is_durable_without_adapter_effect(tmp_path: Path) -> None:
 def test_interruption_recovers_without_blind_retirement_retry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     c, a, i = setup(tmp_path)
 
-    def interrupted(identity: Identity, event_id: str) -> Result:
+    def interrupted(intent: Operation) -> Result:
         raise KeyboardInterrupt
 
     monkeypatch.setattr(a, "retire", interrupted)
@@ -144,7 +144,7 @@ def test_recovery_receives_exact_retained_intent(tmp_path: Path, monkeypatch: py
 
     c, a, i = setup(tmp_path)
 
-    def interrupted(identity: Identity, event_id: str) -> Result:
+    def interrupted(intent: Operation) -> Result:
         raise KeyboardInterrupt
 
     monkeypatch.setattr(a, "retire", interrupted)
@@ -188,7 +188,7 @@ def test_replacement_generation_cannot_discharge_prior_accounting(tmp_path: Path
 def test_uncertain_intent_must_recover_before_another_event_effect(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     c, a, i = setup(tmp_path)
 
-    def unknown(identity: Identity, event_id: str) -> Result:
+    def unknown(intent: Operation) -> Result:
         a.calls += 1
         return Result("unknown", "creator_outcome_unconfirmed")
 
@@ -269,3 +269,22 @@ def test_known_retained_generation_is_unresolved_without_being_unknown(tmp_path:
     assert report["unknown_observations"] == 0
     assert report["unresolved_observations"] == 1
     assert report["cleanup_complete"] is False
+
+
+def test_creator_effect_receives_the_exact_durable_authorizing_intent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    coordinator, creator, identity = setup(tmp_path)
+    received = []
+
+    def retire(intent: Operation) -> Result:
+        import json
+        from dataclasses import asdict
+
+        durable = json.loads((coordinator.store.root / "state.json").read_text())["operations"][-1]
+        assert durable == asdict(intent)
+        assert intent.status == "intent" and intent.creator_id == creator.authority_id
+        received.append(intent)
+        return Result("retired", "full_intent_confirmed")
+
+    monkeypatch.setattr(creator, "retire", retire)
+    assert coordinator.reconcile("full-intent", identity, creator).status == "retired"
+    assert len(received) == 1

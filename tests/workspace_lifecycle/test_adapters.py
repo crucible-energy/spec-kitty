@@ -311,7 +311,7 @@ def test_creator_hold_bounds_actual_git_observation(tmp_path: Path, monkeypatch:
     assert time.monotonic() - before < 2
 
 
-@pytest.mark.parametrize("field", ["release_id", "delivery_id"])
+@pytest.mark.parametrize("field", ["release_id", "delivery_id", "evidence_sha256"])
 def test_recovery_requires_original_creator_receipt_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str) -> None:
     from dataclasses import replace
     from specify_cli.workspace_lifecycle.coordinator import Coordinator
@@ -323,7 +323,7 @@ def test_recovery_requires_original_creator_receipt_fields(tmp_path: Path, monke
     assert intent.status == "retired"
     with owner.hold(owner.identity):
         assert owner.recover(intent).result.status == "retired"
-        assert owner.recover(replace(intent, **{field: "other-receipt"})).result.status == "unknown"
+        assert owner.recover(replace(intent, **{field: "f" * 64 if field == "evidence_sha256" else "other-receipt"})).result.status == "unknown"
 
 
 @pytest.mark.parametrize("mutation", ["generation", "remote_disposition"])
