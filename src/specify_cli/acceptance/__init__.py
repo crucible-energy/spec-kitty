@@ -1894,31 +1894,32 @@ def _build_acceptance_instructions(
             instructions.extend(
                 [
                     f"Review the acceptance commit on branch `{branch}`.",
-                    f"Run the mission consolidation when ready: `spec-kitty consolidate --mission {summary.feature}`",
+                    f"Consolidate onto an existing owned feature/integration branch: `spec-kitty consolidate --mission {summary.feature} --target <feature-or-integration-branch>`",
                     "After merge, run /spec-kitty-mission-review and the retrospective workflow.",
                 ]
             )
     elif mode == "local":
         if is_integration_branch:
-            instructions.append(f"Acceptance recorded directly on `{branch}`. No merge needed.")
+            instructions.append(f"Acceptance recorded on integration branch `{branch}`. Push and open a pull request to the primary branch.")
         else:
             instructions.extend(
                 [
-                    f"Acceptance passed. Run the mission consolidation: `spec-kitty consolidate --mission {summary.feature}`",
+                    f"Acceptance passed. Consolidate onto an existing owned feature/integration branch: `spec-kitty consolidate --mission {summary.feature} --target <feature-or-integration-branch>`",
                     "After merge, run /spec-kitty-mission-review and the retrospective workflow.",
                 ]
             )
     else:  # checklist
-        instructions.append(f"All checks passed. Recommended next step: `spec-kitty consolidate --mission {summary.feature}`.")
+        instructions.append(f"All checks passed. Consolidate onto an existing owned feature/integration branch: `spec-kitty consolidate --mission {summary.feature} --target <feature-or-integration-branch>`.")
 
+    instructions.append("Local consolidation does not publish to the primary branch; advance it only through an accepted pull request.")
     if summary.worktree_root != summary.primary_repo_root:
-        cleanup_instructions.append(f"After merging, remove the worktree: `git worktree remove {summary.worktree_root}`")
+        cleanup_instructions.append("After verified PR delivery and producer release, retire the worktree through its creator lifecycle. Unknown, active, dirty or unsupported workspaces stay retained with a reason.")
     if landed_by_consolidate:
         cleanup_instructions.append(
             f"`spec-kitty consolidate` lands the Mission branch `{branch}` onto its target branch and removes it; there is nothing to delete by hand."
         )
     elif not is_integration_branch:
-        cleanup_instructions.append(f"Delete the Mission branch when done: `git branch -d {branch}`")
+        cleanup_instructions.append(f"Retire Mission branch `{branch}` through its creator lifecycle after verified PR delivery and release; otherwise it stays retained.")
 
     return instructions, cleanup_instructions
 

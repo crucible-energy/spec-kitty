@@ -194,3 +194,24 @@ Known Limitations: actual positive feature/integration consolidation and protect
 primary refusal still require acceptance-first proof, implementation and required
 validation. Org-wide generated/adopted guidance remains unverified. Deployment
 stays held.
+
+The complete `tests/terminus` harness supplied the actual positive control with no
+merge/status/bookkeeping mocks. On the planning candidate, its primary-target run
+actually succeeded and advanced local main (red); the feature-target run succeeded
+with main unchanged. The new entry gate repairs that concrete defect and the
+paired production checks pass. It uses the existing canonical target resolver and
+strict ProtectionPolicy decision before status seeding, and rechecks persisted
+state before locked effects and after the canonical load.
+
+A symbolic feature alias was admitted by the first entry guard but refused by a
+later existing off-target backstop in the retained reproduction. This is not a
+claim that that reproduction advanced main. The entry contract now refuses
+symbolic landing refs before the writable accessor; concrete feature landing
+continues to pass. Primary/configured protection cannot be bypassed with the
+operator hatch. Revisions/HEAD cannot substitute for a concrete local branch.
+
+The broader consolidation iteration found legacy successful-landing fixtures that
+still target main, as expected under the changed contract. Migrate their target
+semantics to actual feature/integration branches with a distinct real primary;
+keep primary-refusal cases and all original rollback/reconciliation assertions.
+Do not mock or relax the entry guard to preserve the old successful-main path.
