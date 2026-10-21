@@ -41,3 +41,11 @@ Depends on: WP01, WP02, WP03, WP04
 Requirement Refs: FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, SC-001, SC-002, SC-003, SC-004, SC-005, NFR-002, NFR-004, C-002, C-003, C-004
 
 - [ ] T005 Implement, validate and review integrated recovery acceptance and adoption.
+
+## WP06: Owned code-kind acceptance and strict closeout
+
+Depends on: WP05
+
+Requirement Refs: FR-005, FR-007, FR-008, SC-003, C-001, C-003
+
+- [ ] T006 Preserve the admitted checkout through code-kind acceptance, prove missing matrices cannot be silently skipped, and finish strict local acceptance without altering prior approvals or runtime admission.
