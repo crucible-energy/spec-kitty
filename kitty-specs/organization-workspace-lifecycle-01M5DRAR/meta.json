@@ -11,6 +11,7 @@
   "purpose_context": "Extend Spec Kitty lifecycle accounting beyond declared lanes, preserve active and unknown ownership, and recover missed events deterministically through supported creator adapters. Deployment remains held.",
   "purpose_tldr": "Automatically account for and safely retire completed workspaces across Crucible Energy repositories.",
   "slug": "organization-workspace-lifecycle-01M5DRAR",
+  "status_phase": "1",
   "target_branch": "codex/organization-workspace-lifecycle-20261020",
   "topology": "single_branch"
 }

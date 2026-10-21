@@ -2,7 +2,7 @@
   "mission_slug": "organization-workspace-lifecycle-01M5DRAR",
   "mission_number": "",
   "mission_type": "software-dev",
-  "overall_verdict": "pending",
+  "overall_verdict": "pass",
   "criteria": [
     {
       "criterion_id": "FR-001",
@@ -101,8 +101,11 @@
       "description": "Closeout must not bypass owned code matrix checks, destroy dirty/ignored/nested/active/primary state, or advance primary directly; genuine feature landing remains usable.",
       "verification_method": "custom_command",
       "verification_command": "/Users/sam/git/crucible/spec-kitty/.worktrees/review-thread-closure-upstream/.venv/bin/python -m pytest -n0 -q tests/acceptance/test_owned_code_kind.py::test_owned_code_missing_matrix_is_blocked tests/workspace_lifecycle/test_adapters.py::test_completed_creator_preserves_late_local_state tests/workspace_lifecycle/test_adapters.py::test_failed_producer_is_not_implicitly_released tests/workspace_lifecycle/test_adapters.py::test_creator_never_admits_primary_even_with_empty_protection_config tests/consolidation/test_branch_first_landing.py::test_consolidation_preserves_primary_and_lands_only_on_feature tests/consolidation/test_branch_first_landing.py::test_symbolic_feature_alias_cannot_land_on_primary tests/consolidation/test_branch_first_landing.py::test_custom_primary_stays_pr_only_with_empty_config_and_operator_hatch",
-      "result": "pending",
-      "evidence": null
+      "result": "confirmed_absent",
+      "evidence": "Command exited 0: ...........                                                              [100%]\n============================== slowest durations ===============================\n11.69s call     tests/consolidation/tes",
+      "verified_ref": "codex/organization-workspace-lifecycle-20261020",
+      "verified_surface_kind": "primary",
+      "provenance_origin": "recorded"
     }
   ]
 }

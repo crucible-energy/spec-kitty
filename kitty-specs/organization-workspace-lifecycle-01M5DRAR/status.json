@@ -41,7 +41,10 @@
         "reviewer": "reviewer-renata",
         "verdict": "approved"
       },
-      "role": "reviewer"
+      "role": "reviewer",
+      "subtasks": {
+        "T001": "planned"
+      }
     },
     "WP02": {
       "actor": "reviewer-renata",
@@ -65,7 +68,10 @@
         "reviewer": "reviewer-renata",
         "verdict": "approved"
       },
-      "role": "reviewer"
+      "role": "reviewer",
+      "subtasks": {
+        "T002": "planned"
+      }
     },
     "WP03": {
       "actor": "reviewer-renata",
@@ -89,7 +95,10 @@
         "reviewer": "reviewer-renata",
         "verdict": "approved"
       },
-      "role": "reviewer"
+      "role": "reviewer",
+      "subtasks": {
+        "T003": "planned"
+      }
     },
     "WP04": {
       "actor": "reviewer-renata",
@@ -114,7 +123,10 @@
         "reviewer": "reviewer-renata",
         "verdict": "approved"
       },
-      "role": "reviewer"
+      "role": "reviewer",
+      "subtasks": {
+        "T004": "planned"
+      }
     },
     "WP05": {
       "actor": "reviewer-renata",
@@ -139,7 +151,10 @@
         "reviewer": "reviewer-renata",
         "verdict": "approved"
       },
-      "role": "reviewer"
+      "role": "reviewer",
+      "subtasks": {
+        "T005": "planned"
+      }
     },
     "WP06": {
       "actor": "reviewer-renata",
