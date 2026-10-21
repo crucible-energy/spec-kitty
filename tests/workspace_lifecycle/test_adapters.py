@@ -393,3 +393,24 @@ def test_creator_never_admits_primary_even_with_empty_protection_config(tmp_path
         )
     assert not (tmp_path / "primary").exists()
     assert set(ledger.root.iterdir()) == before
+
+
+def test_joined_producer_reports_allocated_pr_without_predicting_number(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    owner, _, _, _ = managed_owner(tmp_path, monkeypatch)
+    script = (
+        "import os; p=os.environ['SPEC_KITTY_LIFECYCLE_RESULT']; fd=os.open(p,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600); os.write(fd,b'{\"pr\":9}'); os.close(fd)"
+    )
+    owner.run_producer([sys.executable, "-c", script], timeout=5)
+    owner.complete()
+    assert owner.identity.path
+    assert json.loads(owner._path.read_text())["pr"] == 9
+
+
+def test_allocated_pr_result_never_accepts_duplicate_authority_keys(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.workspace_lifecycle.state import StateError
+
+    owner, _, _, _ = managed_owner(tmp_path, monkeypatch)
+    script = "import os; fd=os.open(os.environ['SPEC_KITTY_LIFECYCLE_RESULT'],os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600); os.write(fd,b'{\"pr\":9,\"pr\":10}'); os.close(fd)"
+    owner.run_producer([sys.executable, "-c", script], timeout=5)
+    with pytest.raises(StateError, match="producer PR"):
+        owner.complete()
