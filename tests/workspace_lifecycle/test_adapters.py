@@ -99,6 +99,7 @@ def managed_owner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     git(repo, "config", "user.email", "fixture@example.invalid")
     git(repo, "commit", "--allow-empty", "-m", "base")
     git(repo, "remote", "add", "origin", "https://github.com/crucible-energy/example.git")
+    git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
     root = tmp_path / "ledger"
     root.mkdir(mode=0o700)
     ledger = StateStore.initialize(root)
@@ -132,7 +133,10 @@ def managed_owner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             value = {"id": 7, "full_name": "crucible-energy/example", "default_branch": "main"}
         return subprocess.CompletedProcess(argv, 0, json.dumps(value).encode(), b"")
 
+    from specify_cli.workspace_lifecycle import adapters
+
     monkeypatch.setattr(subprocess, "run", transport)
+    monkeypatch.setattr(adapters, "bounded_run", transport, raising=False)
     return owner, ledger, events, repo
 
 
@@ -285,3 +289,83 @@ def test_reaped_producer_never_authorizes_later_process_group_signals(monkeypatc
     reaped = SimpleNamespace(returncode=0, pid=123456, wait=lambda **kwargs: 0)
     adapters.ManagedGitCreator._stop_producer(reaped)
     assert signals == [], "A reaped PID/PGID is no longer owned signalling authority"
+
+
+def test_creator_hold_bounds_actual_git_observation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import os
+    import time
+    from kernel.git import GitCommandError
+
+    owner, _, _, _ = managed_owner(tmp_path, monkeypatch)
+    monkeypatch.setattr(owner, "operation_timeout", 0.1, raising=False)
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    tool = tools / "git"
+    tool.write_text(f"#!{sys.executable}\nimport time\ntime.sleep(20)\n")
+    tool.chmod(0o700)
+    monkeypatch.setenv("PATH", str(tools) + os.pathsep + os.environ["PATH"])
+    expected = owner.identity
+    before = time.monotonic()
+    with pytest.raises(GitCommandError), owner.hold(expected):
+        owner.inspect(expected)
+    assert time.monotonic() - before < 2
+
+
+@pytest.mark.parametrize("field", ["release_id", "delivery_id"])
+def test_recovery_requires_original_creator_receipt_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str) -> None:
+    from dataclasses import replace
+    from specify_cli.workspace_lifecycle.coordinator import Coordinator
+
+    owner, ledger, events, _ = managed_owner(tmp_path, monkeypatch)
+    owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
+    owner.complete(pr=9)
+    intent = Coordinator(ledger).reconcile(events[0].event_id, owner.identity, owner)
+    assert intent.status == "retired"
+    with owner.hold(owner.identity):
+        assert owner.recover(intent).result.status == "retired"
+        assert owner.recover(replace(intent, **{field: "other-receipt"})).result.status == "unknown"
+
+
+@pytest.mark.parametrize("mutation", ["generation", "remote_disposition"])
+def test_creator_history_cannot_impersonate_another_generation_or_remote_result(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str) -> None:
+    from specify_cli.workspace_lifecycle.state import StateError
+
+    owner, ledger, _, _ = managed_owner(tmp_path, monkeypatch)
+    record = next(ledger.root.glob("creator-*.json"))
+    data = json.loads(record.read_text())
+    if mutation == "generation":
+        data["identity"]["workspace_generation"] = "other-generation"
+    else:
+        data["branch_disposition"] = "local_retired;remote_retired"
+    record.write_text(json.dumps(data))
+    with pytest.raises(StateError, match="Creator|creator"):
+        _ = owner.identity
+
+
+def test_joined_owner_release_does_not_wait_for_delivery_or_run_network_inline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    owner, _, events, _ = managed_owner(tmp_path, monkeypatch)
+    owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Completion must persist release/enqueue; delivery belongs to worker")
+
+    monkeypatch.setattr(owner.delivery, "verify", forbidden)
+    owner.complete(pr=9)
+    assert len(events) == 1
+    assert Path(owner.identity.path).exists()
+
+
+def test_released_owner_waits_safely_for_accepted_delivery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.workspace_lifecycle.coordinator import Coordinator
+
+    owner, ledger, events, _ = managed_owner(tmp_path, monkeypatch)
+    owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
+    original = owner.delivery.verify
+    monkeypatch.setattr(owner.delivery, "verify", lambda *args: None)
+    owner.complete(pr=9)
+    coordinator = Coordinator(ledger)
+    result = coordinator.reconcile(events[0].event_id, owner.identity, owner)
+    assert result.status == "retained" and result.reason == "delivery_missing"
+    assert Path(owner.identity.path).exists()
+    monkeypatch.setattr(owner.delivery, "verify", original)
+    assert coordinator.reconcile("accepted-later", owner.identity, owner).status == "retired"
