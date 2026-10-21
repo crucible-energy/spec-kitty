@@ -878,3 +878,13 @@ def test_strict_claim_base_distinguishes_absence_from_unreadable_state(tmp_path:
         with pytest.raises(RuntimeError, match="claim base"):
             read_claim_base(repo, _MISSION_SLUG, _WP_ID, strict=True)
         assert read_claim_base(repo, _MISSION_SLUG, _WP_ID) is None
+
+
+@pytest.mark.parametrize("returncode,stdout,stderr", [(1, " ", ""), (1, "", "\n"), (0, "", ""), (0, "abc", "\n"), (2, "", "")])
+def test_strict_claim_base_refuses_ambiguous_git_protocol(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, returncode: int, stdout: str, stderr: str) -> None:
+    from types import SimpleNamespace
+    from specify_cli.lanes import claim_base
+
+    monkeypatch.setattr(claim_base.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr))
+    with pytest.raises(RuntimeError, match="claim base"):
+        read_claim_base(tmp_path, _MISSION_SLUG, _WP_ID, strict=True)
