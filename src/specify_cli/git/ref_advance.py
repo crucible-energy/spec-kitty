@@ -47,6 +47,7 @@ from kernel.owned_process import bounded_run, budget_active, process_deadline
 import argparse
 import enum
 import json
+import logging
 import math
 import os
 import re
@@ -291,9 +292,22 @@ def _run_git(
         child_args = ["--message=" + args[2], *args[3:]] if len(args) > 2 and args[1] == "-m" else args[1:]
         # The joining parent owns capture cleanup even if the controller must
         # terminate its isolated group during an unsettled transaction.
-        with tempfile.TemporaryDirectory(prefix="kitty-ref-cas-") as capture_dir:
-            argv = [sys.executable, __file__, "--owned-controller", "--capture-dir=" + capture_dir, "--deadline=" + str(deadline), *child_args]
-            return executor(argv, cwd=str(cwd), capture_output=True, text=True, check=False, env=env, timeout=30)
+        completed: subprocess.CompletedProcess[str] | None = None
+        try:
+            with tempfile.TemporaryDirectory(prefix="kitty-ref-cas-") as capture_dir:
+                argv = [sys.executable, __file__, "--owned-controller", "--capture-dir=" + capture_dir, "--deadline=" + str(deadline), *child_args]
+                completed = executor(argv, cwd=str(cwd), capture_output=True, text=True, check=False, env=env, timeout=30)
+            return completed
+        except OSError as exc:
+            if completed is None:
+                raise
+            # Cleanup after a joined, settled command cannot undo its result.
+            # In particular, do not tell an expected-parent caller its confirmed
+            # CAS failed before it can record the landed commit identity.
+            diagnostic = f"Direct-ref command settled; capture cleanup failed: {exc}"
+            logging.getLogger(__name__).warning(diagnostic)
+            completed.stderr = (completed.stderr or "") + "\n" + diagnostic
+            return completed
     return executor(["git", *args], cwd=str(cwd), capture_output=True, text=True, check=False, env=env)
 
 

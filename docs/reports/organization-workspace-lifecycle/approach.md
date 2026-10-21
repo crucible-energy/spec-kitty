@@ -260,3 +260,14 @@ and independent review must cover the final frozen candidate; earlier full
 owning output overlapped these edits and is superseded diagnostic evidence.
 The focused actual Git/kernel repair checks passed 18 cases, including a fresh
 retry after the injected hook fault is removed.
+
+
+The first frozen expanded gate found a concrete regression in the existing
+expected-parent commit cleanup test: capture cleanup could raise after a native
+CAS had returned success, before its caller recorded the landed SHA. Preserve
+the joined command's confirmed result and report cleanup separately; never turn
+that write into a retryable failure. Before a command result exists, failures
+remain unconfirmed. The failing full receipt and direct regression are retained
+externally. Admission controls also prove missing capture ownership, nonfinite
+or expired deadlines, missing expected old identity, and insufficient outer
+cleanup budget cannot start a Git mutation.
