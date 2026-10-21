@@ -102,7 +102,8 @@
       "last_transition_at": "2026-10-21T04:06:50.471465+00:00",
       "model": "__resolved_model_absent__",
       "notes": [
-        "Continue existing owned lane; bounded occurrence classification prepared; preserve inherited four checkouts, no new admission. WP03 approved/published PR115."
+        "Continue existing owned lane; bounded occurrence classification prepared; preserve inherited four checkouts, no new admission. WP03 approved/published PR115.",
+        "WP04 frozen c1ebf7456; source207e1b351 unchanged. Baseline2452/5skip; complete mapped4209-case split owning gate (functional4191pass7skip6xfail + isolated5pass), coverage164/180=91.1111percent; static/attribution retained. Exact external lifecycle-wp04-final-validation.json. Independent review required; no adoption/deployment."
       ],
       "provider": "__resolved_provider_absent__",
       "role": "implementer"
