@@ -104,8 +104,11 @@ FROZEN_SUBCOMMANDS: frozenset[str] = frozenset(
 # "flag" = boolean switch (is_flag), "value" = takes one value, "multi" = repeatable.
 EXPECTED_OPTIONS: dict[str, dict[str, str]] = {
     "organization-workspaces": {
-        "--root": "multi", "--organization": "value", "--max-depth": "value",
-        "--max-directories": "value", "--max-entries": "value",
+        "--root": "multi",
+        "--organization": "value",
+        "--max-depth": "value",
+        "--max-directories": "value",
+        "--max-entries": "value",
     },
     "command-files": {"--json": "flag"},
     "skills": {"--fix": "flag", "--json": "flag"},
