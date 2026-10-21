@@ -163,3 +163,55 @@ def test_expired_controller_terminates_git_and_live_hook_descendants(tmp_path: P
     ref_advance.advance_branch_ref(tmp_path, "feature/result", candidate, expected_old_sha=before)
     assert git_out(tmp_path, "rev-parse", "feature/result") == candidate
     assert git_out(tmp_path, "rev-parse", "main") == before
+
+
+def test_capture_cleanup_cannot_reclassify_a_confirmed_ref_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    before, candidate = _prepare_repo(tmp_path)
+    original = tempfile.TemporaryDirectory.cleanup
+
+    def cleanup_then_raise(directory: Any) -> None:
+        original(directory)
+        raise OSError("injected capture cleanup failure")
+
+    monkeypatch.setattr(tempfile.TemporaryDirectory, "cleanup", cleanup_then_raise)
+    ref_advance.advance_branch_ref(tmp_path, "feature/result", candidate, expected_old_sha=before)
+    assert git_out(tmp_path, "rev-parse", "feature/result") == candidate
+    assert git_out(tmp_path, "rev-parse", "main") == before
+    assert "capture cleanup" in caplog.text
+
+
+@pytest.mark.parametrize("invalid", ["missing-capture", "nonfinite", "expired", "missing-old"])
+def test_invalid_controller_admission_never_starts_git(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, invalid: str) -> None:
+    before, candidate = _prepare_repo(tmp_path)
+    refs = git_out(tmp_path, "for-each-ref", "--format=%(refname) %(objectname)")
+
+    def no_child(*args: Any, **kwargs: Any) -> Any:
+        pytest.fail("Invalid controller admission must not start a child")
+
+    monkeypatch.setattr(ref_advance.subprocess, "Popen", no_child)
+    kwargs: dict[str, Any] = {}
+    old: str | None = before
+    if invalid == "missing-capture":
+        kwargs["owned_controller"] = True
+    elif invalid == "nonfinite":
+        kwargs["deadline"] = float("inf")
+    elif invalid == "expired":
+        kwargs["deadline"] = 0.0
+    else:
+        old = None
+    with pytest.raises((ValueError, subprocess.TimeoutExpired)):
+        ref_advance._transact_direct_ref("refs/heads/feature/result", candidate, old, **kwargs)
+    monkeypatch.undo()
+    assert git_out(tmp_path, "for-each-ref", "--format=%(refname) %(objectname)") == refs
+
+
+def test_expired_outer_budget_refuses_before_capture_or_child(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    before, candidate = _prepare_repo(tmp_path)
+
+    def no_capture(*args: Any, **kwargs: Any) -> Any:
+        pytest.fail("No cleanup margin: refuse before creating capture state")
+
+    monkeypatch.setattr(ref_advance.tempfile, "TemporaryDirectory", no_capture)
+    with process_budget(0.1), pytest.raises(subprocess.TimeoutExpired):
+        ref_advance._run_git(tmp_path, ["update-ref", "refs/heads/feature/result", candidate, before])
+    assert git_out(tmp_path, "rev-parse", "feature/result") == before
