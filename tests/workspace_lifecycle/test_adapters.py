@@ -369,3 +369,27 @@ def test_released_owner_waits_safely_for_accepted_delivery(tmp_path: Path, monke
     assert Path(owner.identity.path).exists()
     monkeypatch.setattr(owner.delivery, "verify", original)
     assert coordinator.reconcile("accepted-later", owner.identity, owner).status == "retired"
+
+
+def test_creator_never_admits_primary_even_with_empty_protection_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.git.protection_policy import ProtectionPolicy
+    from specify_cli.workspace_lifecycle.adapters import GitHubDelivery, ManagedGitCreator
+    from specify_cli.workspace_lifecycle.state import StateError
+
+    _, ledger, events, repo = managed_owner(tmp_path, monkeypatch)
+    git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/release")
+    monkeypatch.setattr(ProtectionPolicy, "resolve", lambda _: ProtectionPolicy(frozenset(), True))
+    before = set(ledger.root.iterdir())
+    with pytest.raises(StateError, match="Protected branch"):
+        ManagedGitCreator.create(
+            ledger,
+            repo_root=repo,
+            path=tmp_path / "primary",
+            branch="release",
+            repository="crucible-energy/example",
+            repository_id=7,
+            delivery=GitHubDelivery(timeout=1),
+            on_complete=events.append,
+        )
+    assert not (tmp_path / "primary").exists()
+    assert set(ledger.root.iterdir()) == before
