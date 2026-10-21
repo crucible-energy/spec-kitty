@@ -413,6 +413,64 @@ def resolve_owned_mission(
     return result
 
 
+_OPERATION_ROOT_TOKEN = object()
+
+
+@dataclass(frozen=True)
+class OperationRoot:
+    """Validated standalone operation custody, not mission or execution authority.
+
+    Only the canonical ownership minter constructs this fact. ``writing`` records
+    the checked mode; legacy non-Git roots still reach the existing context error.
+    Writers retain their current-branch and commit guards at the actual effect.
+    """
+
+    repository_root: Path
+    checkout: Path
+    branch: str | None
+    writing: bool
+    _token: object = field(default=None, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if self._token is not _OPERATION_ROOT_TOKEN:
+            raise TypeError("OperationRoot is minted only by resolve_operation_root")
+
+
+def resolve_operation_root(repository_root: Path, checkout: Path | None, *, writing: bool) -> OperationRoot:
+    """Mint standalone custody using the shared claim and strict protection rules.
+
+    Explicit read-only primary and detached selection remain supported. A write
+    requires an attached unprotected branch before any registry construction.
+    """
+    from kernel.git_topology import NotAGitRepositoryError, git_toplevel
+    from specify_cli.core.checkout_ownership import error_for_claim, resolve_ownership_claim
+    from specify_cli.core.git_ops import resolve_primary_branch
+
+    primary = repository_root.resolve()
+    selected = primary
+    if checkout is not None:
+        claim = resolve_ownership_claim(checkout, resolved_primary=primary)
+        error = error_for_claim(claim)
+        if error is not None:
+            raise error
+        selected = claim.claimed_checkout
+    branch = None
+    if writing:
+        try:
+            git_toplevel(selected)
+        except NotAGitRepositoryError:
+            return OperationRoot(primary, selected, branch, writing, _token=_OPERATION_ROOT_TOKEN)
+        branch = get_current_branch(selected)
+        if branch is None:
+            raise ValueError("Operation records require an attached feature branch; detached HEAD is read-only.")
+        primary_branch = resolve_primary_branch(primary, bias=False)
+        if any(ProtectionPolicy.resolve(root).is_protected_target(branch, primary_branch=primary_branch, allow_bypass=False) for root in {primary, selected}):
+            raise ValueError(f"Refusing operation writes on protected branch '{branch}'; use --owned-checkout on a feature branch.")
+    else:
+        branch = get_current_branch(selected)
+    return OperationRoot(primary, selected, branch, writing, _token=_OPERATION_ROOT_TOKEN)
+
+
 @dataclass(frozen=True)
 class OwnedCreateRoot:
     """The validated owned root for ``agent mission create --owned-checkout`` (data-model.md).
