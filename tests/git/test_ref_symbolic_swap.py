@@ -108,6 +108,7 @@ def test_malformed_protocol_input_refuses_without_moving_refs(tmp_path: Path, re
     assert git_out(tmp_path, "for-each-ref", "--format=%(refname) %(objectname)") == before
 
 
+@pytest.mark.timing
 @pytest.mark.skipif(os.name != "posix", reason="Owned POSIX controller group fixture")
 @pytest.mark.parametrize("expiry", ["clock", "inherited-budget"])
 def test_expired_controller_terminates_git_and_live_hook_descendants(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, expiry: str) -> None:
