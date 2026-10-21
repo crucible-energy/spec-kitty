@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -140,10 +141,11 @@ def test_owned_non_lane_producer_releases_then_real_worktree_retires(tmp_path: P
 
     owner, ledger, events, repo = managed_owner(tmp_path, monkeypatch)
     path = Path(owner.identity.path)
-    with owner.producer():
-        (path / "result.md").write_text("delivered result\n")
-        git(path, "add", "result.md")
-        git(path, "commit", "-m", "result")
+    script = (
+        "from pathlib import Path; import subprocess; Path('result.md').write_text('delivered result'); "
+        "subprocess.run(['git','add','result.md'],check=True); subprocess.run(['git','commit','-m','result'],check=True)"
+    )
+    owner.run_producer([sys.executable, "-c", script], timeout=5)
     owner.complete(pr=9)
     assert len(events) == 1
     assert path.exists(), "Completion callback must not retire inline"
@@ -166,6 +168,7 @@ def test_completed_creator_preserves_late_local_state(tmp_path: Path, monkeypatc
             (path / ".gitignore").write_text("valuable.bin\n")
             git(path, "add", ".gitignore")
             git(path, "commit", "-m", "ignore build data")
+    owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
     owner.complete(pr=9)
     if kind == "nested":
         nested = path / "child"
@@ -182,8 +185,7 @@ def test_new_producer_cannot_reacquire_released_generation(tmp_path: Path, monke
     from specify_cli.workspace_lifecycle.state import StateError
 
     owner, _, _, _ = managed_owner(tmp_path, monkeypatch)
-    with owner.producer():
-        pass
+    owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
     owner.complete(pr=9)
     with pytest.raises(StateError, match="released"), owner.producer():
         pytest.fail("Released owner admitted a new producer")
@@ -240,8 +242,6 @@ def test_active_creator_cannot_carry_released_proof(tmp_path: Path, monkeypatch:
 
 
 def test_creator_owns_and_joins_the_actual_producer_before_release(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    import sys
-
     owner, _, events, _ = managed_owner(tmp_path, monkeypatch)
     path = Path(owner.identity.path)
     script = "import time; from pathlib import Path; time.sleep(.05); Path('joined.md').write_text('finished')"
@@ -250,3 +250,26 @@ def test_creator_owns_and_joins_the_actual_producer_before_release(tmp_path: Pat
     assert events == []
     owner.complete(pr=9)
     assert len(events) == 1
+
+
+def test_leaving_a_lease_alone_does_not_certify_a_joined_producer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.workspace_lifecycle.state import StateError
+
+    owner, _, events, _ = managed_owner(tmp_path, monkeypatch)
+    with owner.producer():
+        pass
+    with pytest.raises(StateError, match="successful producer"):
+        owner.complete(pr=9)
+    assert events == []
+
+
+def test_timed_out_owned_producer_is_joined_without_releasing_generation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.workspace_lifecycle.state import StateError
+
+    owner, _, events, _ = managed_owner(tmp_path, monkeypatch)
+    with pytest.raises(StateError, match="producer"):
+        owner.run_producer([sys.executable, "-c", "import time; time.sleep(20)"], timeout=0.05)
+    with pytest.raises(StateError, match="released|unavailable|producer"):
+        owner.complete(pr=9)
+    assert events == []
+    assert Path(owner.identity.path).is_dir()
