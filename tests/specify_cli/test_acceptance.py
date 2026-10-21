@@ -31,7 +31,7 @@ from pathlib import Path
 import pytest
 from ulid import ULID
 
-from specify_cli.acceptance import AcceptanceSummary, collect_feature_summary
+from specify_cli.acceptance import AcceptanceSummary, _build_acceptance_instructions, collect_feature_summary
 from specify_cli.status.models import Lane, StatusEvent
 from specify_cli.status.store import append_event
 
@@ -159,6 +159,26 @@ def _summary(repo_root: Path) -> AcceptanceSummary:
         strict_metadata=False,
         mutate_matrix=False,
     )
+
+
+@pytest.mark.parametrize("mode", ["pr", "local", "checklist"])
+def test_acceptance_guidance_selects_feature_target_and_creator_cleanup(tmp_path: Path, mode: str) -> None:
+    repo, _ = _create_mission(tmp_path, topology="single_branch", wp_lanes={"WP01": Lane.DONE})
+    summary = _summary(repo)
+    summary.worktree_root = repo / ".worktrees" / "owned"
+    instructions, cleanup = _build_acceptance_instructions(summary, mode, "feature/result", False)
+    assert any("--target <feature-or-integration-branch>" in item for item in instructions)
+    assert any("pull request" in item.lower() for item in instructions)
+    assert not any("git worktree remove" in item or "git branch -d" in item for item in cleanup)
+    assert any("creator" in item and "retained" in item for item in cleanup)
+
+
+@pytest.mark.parametrize("mode", ["pr", "local"])
+def test_acceptance_on_integration_branch_still_requires_pr(tmp_path: Path, mode: str) -> None:
+    repo, _ = _create_mission(tmp_path, topology="single_branch", wp_lanes={"WP01": Lane.DONE})
+    instructions, _ = _build_acceptance_instructions(_summary(repo), mode, "feature/integration", True)
+    assert any("pull request" in item.lower() for item in instructions)
+    assert not any("No merge needed" in item for item in instructions)
 
 
 # ---------------------------------------------------------------------------
