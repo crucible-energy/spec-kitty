@@ -27,6 +27,8 @@ owned_files:
 - src/specify_cli/cli/commands/agent/tasks_move_task.py
 - tests/specify_cli/cli/commands/agent/test_owned_checkout_move_task.py
 - tests/integration/migration/test_wp03_advance_to_approval.py
+- src/specify_cli/lanes/claim_base.py
+- tests/lanes/test_claim_base.py
 tags: []
 task_type: implement
 tracker_refs: []
@@ -49,3 +51,5 @@ No primary-copy mutation, guard relaxation, lenient acceptance, manual status ev
 ## Retained-claim review recovery
 
 Strict closeout reproduced OWNED_IMPLEMENTATION_MISSING after genuine later planning finalization moved the mission pin beyond this retained implementation. Reuse the existing canonical per-WP immutable claim-base ref for the implementation review window; preserve validation of mission planning and claim ancestry/currentness, real owned-file changes, primary protection and missing/invalid-ref refusals. Never rewind the mission pin, fabricate implementation churn, or edit status events. Commit a real linked-checkout regression before repair; validate the complete owning move-task module plus required gates and independent review.
+
+The existing canonical claim-base reader gains strict error handling for the owned-review consumer only; legacy callers keep their current non-raising behavior. Genuine ref absence preserves the existing validated planning-base compatibility path. A malformed or unreadable present ref must refuse, never masquerade as historical absence.
