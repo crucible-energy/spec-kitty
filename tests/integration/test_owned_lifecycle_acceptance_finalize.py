@@ -875,14 +875,22 @@ def test_armed_get_main_repo_root_pin_owned_finalize(
     monkeypatch.chdir(checkouts.repository_root)
     snapshotter = make_r_snapshot(checkouts)
     before_r = snapshotter.take()
-    from specify_cli.core import hosted_posture
+    from specify_cli.core import hosted_posture, paths as paths_module
+    from specify_cli.coordination import status_transition
 
+    assert status_transition.hosted_posture is hosted_posture
     real_ledger_posture = hosted_posture.ledger_posture
     ledger_roots: list[Path | None] = []
 
     def observe_ledger_posture(project_root: Path | None = None) -> hosted_posture.LedgerPosture:
         ledger_roots.append(project_root)
-        return real_ledger_posture(project_root)
+        resolver_globals = hosted_posture.resolve_canonical_root.__globals__
+        assert resolver_globals is vars(paths_module)
+        assert resolver_globals["get_main_repo_root"] is paths_module.get_main_repo_root
+        before_reads = len(passed_through)
+        posture = real_ledger_posture(project_root)
+        assert len(passed_through) == before_reads + 1, f"posture root={project_root}; missing canonical resolver observation"
+        return posture
 
     monkeypatch.setattr(hosted_posture, "ledger_posture", observe_ledger_posture)
     hits, passed_through, arm = _arm_get_main_repo_root(monkeypatch)
