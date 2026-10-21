@@ -45,7 +45,7 @@
     },
     "WP02": {
       "actor": "reviewer-renata",
-      "agent": "codex",
+      "agent": "reviewer-renata",
       "agent_profile": "reviewer-renata",
       "agent_profile_version": "1.0",
       "force_count": 0,
@@ -54,7 +54,8 @@
       "last_transition_at": "2026-10-21T00:29:25.887060+00:00",
       "model": "__resolved_model_absent__",
       "notes": [
-        "Implement durable ledger, safe policy and generation-bound interrupted-operation recovery; no creator retirement until WP03."
+        "Implement durable ledger, safe policy and generation-bound interrupted-operation recovery; no creator retirement until WP03.",
+        "Independent reviewer claims WP02 core ledger/protocol review; frozen source9e4b8239c unchanged, prior findings and exact qualification receipts inspected. Actual creator adapters/producer fencing and automatic execution remain WP03."
       ],
       "provider": "__resolved_provider_absent__",
       "role": "reviewer"
