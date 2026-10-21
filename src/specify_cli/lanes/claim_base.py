@@ -78,11 +78,11 @@ def read_claim_base(repo_root: Path, mission_slug: str, wp_id: str, *, strict: b
         check=False,
     )
     if result.returncode != 0:
-        if strict and (result.returncode != 1 or result.stdout.strip() or result.stderr.strip()):
+        if strict and (result.returncode != 1 or result.stdout or result.stderr):
             raise RuntimeError("cannot read claim base: Git did not establish a valid ref or quiet absence")
         return None
     sha = result.stdout.strip()
-    if strict and (not sha or result.stderr.strip()):
+    if strict and (not sha or result.stderr):
         raise RuntimeError("cannot read claim base: Git returned empty or diagnostic-bearing success")
     return sha or None
 

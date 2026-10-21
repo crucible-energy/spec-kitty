@@ -923,8 +923,8 @@ def _mt_require_owned_implementation(st: _MoveTaskState) -> None:
             "OWNED_IMPLEMENTATION_MISSING",
             "Owned review could not read the committed change set: the merge-base diff against review base "
             f"{st.review_base_ref} (recorded claim base or validated legacy planning base) failed in {st.owned.owned_root}. "
-            "Make sure that commit is reachable in this checkout (fetch it, or recreate the local branch that carries it), "
-            f"or repoint `planning_commit_sha` in {st.feature_dir / 'lanes.json'} to a commit that is an ancestor of HEAD, then retry.",
+            "Restore the recorded base through the owning claim or planning recovery workflow, "
+            "verify it is reachable and an ancestor of this checkout, then retry; do not move the mission planning pin to repair a claim base.",
         )
     if not patterns or not any(_mt_matches_owned_file(path, patterns) for path in changed):
         raise ActionContextError(
