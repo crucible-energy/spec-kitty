@@ -118,10 +118,24 @@ def test_fresh_worker_process_resumes_released_owner_and_retains_unmerged_pr(tmp
     assert queue.snapshot() == (1, 0 if blocked else 1)
     pull["merged"] = True
     metadata.write_text(json.dumps({"repo": repository, "pull": pull}))
-    queue.notify("delivery")
-    second = worker()
-    assert second.returncode == (2 if blocked else 0), second.stderr
-    assert json.loads(second.stdout)["results"][-1]["status"] == "retired"
+    from specify_cli.workspace_lifecycle.worker import LifecycleService
+
+    children = []
+    original_popen = subprocess.Popen
+
+    def capture_child(*args, **kwargs):
+        child = original_popen(*args, **kwargs)
+        children.append(child)
+        return child
+
+    monkeypatch.setattr(subprocess, "Popen", capture_child)
+    service = LifecycleService(store)
+    service.resume()
+    assert len(children) == 1
+    assert children[0].wait(timeout=20) == (2 if blocked else 0)
+    report = service.status()
+    assert report["last_worker_observation"]["results"][-1]["status"] == "retired"
+    assert report["pending_wakeup"] is blocked
     assert not path.exists()
     assert queue.snapshot() == (2, 0 if blocked else 2)
 
@@ -152,3 +166,120 @@ def test_worker_entrypoint_is_registered_in_real_cli(tmp_path: Path, monkeypatch
     import json
 
     assert json.loads(result.output) == {"worker": "settled", "results": []}
+
+
+def test_managed_run_cli_joins_reports_pr_and_automatically_retires(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import json
+    import os
+    import subprocess
+    import sys
+
+    from test_adapters import git, managed_owner
+    from test_ledger_cli import invoke
+    from specify_cli.workspace_lifecycle.worker import LifecycleService
+
+    _, store, _, repo = managed_owner(tmp_path, monkeypatch)
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    repository = {"id": 7, "full_name": "crucible-energy/example", "default_branch": "main"}
+    pull = {
+        "number": 9,
+        "merged": True,
+        "state": "closed",
+        "merged_at": "2026-10-20",
+        "merge_commit_sha": "b" * 40,
+        "head": {"sha": git(repo, "rev-parse", "HEAD"), "repo": repository},
+        "base": {"ref": "main", "repo": repository},
+    }
+    gh = bindir / "gh"
+    gh.write_text(
+        f"#!{sys.executable}\nimport json,sys\nv={json.dumps({'repo': repository, 'pull': pull})!r}\n"
+        'v=json.loads(v)\nprint(json.dumps(v["pull" if "/pulls/" in sys.argv[-1] else "repo"]))\n'
+    )
+    gh.chmod(0o700)
+    monkeypatch.setenv("PATH", str(bindir) + os.pathsep + os.environ["PATH"])
+    children = []
+    original_popen = subprocess.Popen
+
+    def capture(*args, **kwargs):
+        child = original_popen(*args, **kwargs)
+        if "specify_cli.workspace_lifecycle.worker" in args[0]:
+            children.append(child)
+        return child
+
+    monkeypatch.setattr(subprocess, "Popen", capture)
+    path = tmp_path / "automatic-job"
+    script = "import os; f=os.open(os.environ['SPEC_KITTY_LIFECYCLE_RESULT'],os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600); os.write(f,b'{\"pr\":9}'); os.close(f)"
+    result = invoke(
+        monkeypatch,
+        [
+            "managed-run",
+            "--state-dir",
+            str(store.root),
+            "--repo-root",
+            str(repo),
+            "--workspace",
+            str(path),
+            "--branch",
+            "automatic-job",
+            "--repository",
+            "crucible-energy/example",
+            "--repository-id",
+            "7",
+            "--",
+            sys.executable,
+            "-c",
+            script,
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["action"] == "released_and_queued"
+    assert len(children) == 1
+    assert children[0].wait(timeout=20) == 0
+    assert not path.exists()
+    assert git(repo, "branch", "--list", "automatic-job") == ""
+    assert LifecycleService(store).status()["pending_wakeup"] is False
+
+
+def test_blocked_worker_reconsiders_new_completion_before_releasing_lease(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+    from test_adapters import managed_owner
+    from specify_cli.workspace_lifecycle.coordinator import Coordinator
+    from specify_cli.workspace_lifecycle.worker import LifecycleService
+
+    owner, store, _, _ = managed_owner(tmp_path, monkeypatch)
+    owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
+    owner.complete(pr=9)
+    malformed = store.root / ("creator-" + "0" * 32 + ".json")
+    malformed.write_text("{}")
+    malformed.chmod(0o600)
+    service = LifecycleService(store)
+    service.queue.notify("completion")
+    original = Coordinator.reconcile
+    seen = []
+
+    def concurrent_event(self, event_id, expected, creator):
+        seen.append(event_id)
+        if len(seen) == 1:
+            service.queue.notify("completion")
+        return original(self, event_id, expected, creator)
+
+    monkeypatch.setattr(Coordinator, "reconcile", concurrent_event)
+    result = service.run()
+    assert result["worker"] == "blocked"
+    assert len(seen) == 2, "New completion must not be abandoned behind a blocked generation"
+    assert service.status()["last_worker_observation"]["generation"] == 2
+    assert service.queue.snapshot() == (2, 0)
+
+
+def test_public_worker_reports_blocked_as_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import json
+    from test_ledger_cli import invoke
+
+    store = ledger(tmp_path)
+    malformed = store.root / ("creator-" + "0" * 32 + ".json")
+    malformed.write_text("{}")
+    malformed.chmod(0o600)
+    result = invoke(monkeypatch, ["worker", "--state-dir", str(store.root)])
+    assert result.exit_code == 2
+    assert json.loads(result.output)["worker"] == "blocked"
