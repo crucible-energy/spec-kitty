@@ -25,6 +25,7 @@
         "src/kernel/git_topology.py",
         "src/specify_cli/acceptance/gates_core.py",
         "src/specify_cli/cli/commands/_organization_workspaces_doctor.py",
+        "src/specify_cli/cli/commands/agent/tasks_move_task.py",
         "src/specify_cli/cli/commands/dispatch.py",
         "src/specify_cli/cli/commands/doctor.py",
         "src/specify_cli/cli/commands/profile_invocation.py",
@@ -45,6 +46,7 @@
         "tests/integration/test_owned_analysis_implementation_cli.py",
         "tests/integration/test_owned_lifecycle_acceptance_e2e.py",
         "tests/integration/test_owned_lifecycle_acceptance_finalize.py",
+        "tests/specify_cli/cli/commands/agent/test_owned_checkout_move_task.py",
         "tests/specify_cli/cli/commands/test_doctor_cli_surface_golden.py",
         "tests/specify_cli/invocation/cli/test_owned_checkout.py",
         "tests/workspace_lifecycle/test_acceptance.py",
@@ -61,8 +63,8 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-21T06:00:29.121315+00:00",
+  "computed_at": "2026-10-21T06:24:11.287498+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [],
-  "planning_commit_sha": "8e6827ab8f55daa33dbf77241c8f0f71dd0dec1a"
+  "planning_commit_sha": "de6febc39dd60a35530f2b480a28f6b8d28fb168"
 }
