@@ -33,6 +33,7 @@
         "src/specify_cli/core/owned_mission.py",
         "src/specify_cli/invocation/checkout.py",
         "src/specify_cli/invocation/executor.py",
+        "src/specify_cli/lanes/claim_base.py",
         "src/specify_cli/workspace_lifecycle/adapters.py",
         "src/specify_cli/workspace_lifecycle/coordinator.py",
         "src/specify_cli/workspace_lifecycle/discovery.py",
@@ -47,6 +48,7 @@
         "tests/integration/test_owned_analysis_implementation_cli.py",
         "tests/integration/test_owned_lifecycle_acceptance_e2e.py",
         "tests/integration/test_owned_lifecycle_acceptance_finalize.py",
+        "tests/lanes/test_claim_base.py",
         "tests/specify_cli/cli/commands/agent/test_owned_checkout_move_task.py",
         "tests/specify_cli/cli/commands/test_doctor_cli_surface_golden.py",
         "tests/specify_cli/invocation/cli/test_owned_checkout.py",
@@ -64,8 +66,8 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-21T06:26:23.807092+00:00",
+  "computed_at": "2026-10-21T06:28:09.500533+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [],
-  "planning_commit_sha": "d9667bda321e2b39eba788dfc1a65c2d5c00b66d"
+  "planning_commit_sha": "0ba16047218ca000fffc7e4162e03e3031f5ddbc"
 }
