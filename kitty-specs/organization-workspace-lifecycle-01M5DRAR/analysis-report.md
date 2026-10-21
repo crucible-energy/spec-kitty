@@ -4,18 +4,18 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-20T23:33:33.770488+00:00'
+generated_at: '2026-10-21T05:16:39.696412+00:00'
 analyzer_agent: reviewer-renata
 input_artifacts:
   spec.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/spec.md
-    sha256: ea81c97c813cd33089a46a19f5d17d6dc430599efef8d3171a5aaf8735b14ff8
+    sha256: 86b2522bbcdda8c123aeab27223c4c2da0ffdad37b75de001c53429f2c6ee6ba
   plan.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md
-    sha256: 67780c76b760a229c0fbb3ffb1fe8f003913c94eceb5d78fdfa897e335953def
+    sha256: ca5e569c207abe558254bb983a16bc394deac85575763b947ebad58ad6d31554
   tasks.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md
-    sha256: 66fe3ab556f2a70ce59e108d445f29a7695aeaaa7c8f53894f3e7e5be5ea1e36
+    sha256: 8464ade59d644fd601350a97b46da5288a57334fde7b7c10cdd3299720773cba
   charter:
     path: .kittify/charter/charter.yaml
     sha256: 39e75cd05429257095cd1d6111fa75460e0430e5f147d3a97d8c921916bd76af
@@ -774,7 +774,7 @@ input_artifacts:
     sha256:
   material:.kittify/charter/charter.md:
     path: .kittify/charter/charter.md
-    sha256: 44997fcefdb17d88c6f79a8aa1e40a3857ec23647ed4c3b4c6218d48f07f69b5
+    sha256: d59dd63cbfc6ab75c708c31b9ff5d6da0f80e49469284f665b41285ec8ba81f4
   material:.kittify/charter/charter.yaml:
     path: .kittify/charter/charter.yaml
     sha256: 39e75cd05429257095cd1d6111fa75460e0430e5f147d3a97d8c921916bd76af
@@ -1575,7 +1575,7 @@ input_artifacts:
     sha256: adc2770b3ed085a1c537320caab6fbc5d970a148fd4b1ba11c41e477ee2fd74d
   material:docs/context/orchestration.md:
     path: docs/context/orchestration.md
-    sha256: 922d64d3da51d19404438953ea656a7aee8b19ca453a455b0b8311303bcb2252
+    sha256: ea79b01939e55b951c273c0fbba1545502c3b8e332060fb676459f85dcdad1f6
   material:docs/context/planning-and-tracking.md:
     path: docs/context/planning-and-tracking.md
     sha256: efece83a0947359594280de7111666117d03dcf807ed5d759108ee141ade5af9
@@ -1608,13 +1608,13 @@ input_artifacts:
     sha256:
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/meta.json:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/meta.json
-    sha256: 22d75d9a402377dc09baf99d1c00ee0102265f92c3b36e1b79a558ae3e68943e
+    sha256: a2aeb95ca0ec3bda36317f0cc6a3b57a7d38a0e4fd07bd82e856bbd141a57541
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md
-    sha256: 67780c76b760a229c0fbb3ffb1fe8f003913c94eceb5d78fdfa897e335953def
+    sha256: ca5e569c207abe558254bb983a16bc394deac85575763b947ebad58ad6d31554
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/spec.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/spec.md
-    sha256: ea81c97c813cd33089a46a19f5d17d6dc430599efef8d3171a5aaf8735b14ff8
+    sha256: 86b2522bbcdda8c123aeab27223c4c2da0ffdad37b75de001c53429f2c6ee6ba
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks
     sha256: directory
@@ -1627,24 +1627,72 @@ input_artifacts:
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/README.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/README.md
     sha256: 737a0f9852856fb3aeb387103eac0a9967b8c17a0776f97bfcd613bff102e3dd
+  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP01-verified-organization-discovery-and-accounting:
+    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP01-verified-organization-discovery-and-accounting
+    sha256: directory
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP01-verified-organization-discovery-and-accounting/.gitignore
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP01-verified-organization-discovery-and-accounting/.gitignore
+    sha256:
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP01-verified-organization-discovery-and-accounting/review-cycle-1.md
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP01-verified-organization-discovery-and-accounting/review-cycle-1.md
+    sha256: 99b15a1669c23f2af5074598c07042b618bb6ad0c73337fc27d676ec45880fe4
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP01-verified-organization-discovery-and-accounting.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP01-verified-organization-discovery-and-accounting.md
     sha256: 00d50ea02cb4ffb1785c5f7484c26029b1bfa4afe169a86c57b9b18a68b5f3c9
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP02-durable-lifecycle-state-and-generation-bound-recovery
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP02-durable-lifecycle-state-and-generation-bound-recovery
+    sha256: directory
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP02-durable-lifecycle-state-and-generation-bound-recovery/.gitignore
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP02-durable-lifecycle-state-and-generation-bound-recovery/.gitignore
+    sha256:
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP02-durable-lifecycle-state-and-generation-bound-recovery/review-cycle-1.md
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP02-durable-lifecycle-state-and-generation-bound-recovery/review-cycle-1.md
+    sha256: 49ce99f7231d25f6a480f17558684f4d748f17ee9ba0966d1247a731ce06ade4
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP02-durable-lifecycle-state-and-generation-bound-recovery.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP02-durable-lifecycle-state-and-generation-bound-recovery.md
     sha256: 3dfaee8536a686053c7b0785d29efa07db6e4f546dcf90d9b024ccc02b6a8a5f
+  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP03-supported-creator-adapters-and-automatic-ingress:
+    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP03-supported-creator-adapters-and-automatic-ingress
+    sha256: directory
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP03-supported-creator-adapters-and-automatic-ingress/.gitignore
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP03-supported-creator-adapters-and-automatic-ingress/.gitignore
+    sha256:
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP03-supported-creator-adapters-and-automatic-ingress/review-cycle-1.md
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP03-supported-creator-adapters-and-automatic-ingress/review-cycle-1.md
+    sha256: b455dfffb00764de821218a694a7981d59d687cac4f85935ba833785f14aed22
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP03-supported-creator-adapters-and-automatic-ingress.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP03-supported-creator-adapters-and-automatic-ingress.md
     sha256: 3f941ccc03973566ba7274b269f2b0cdb65580e8b2033026ff1d009d75843365
+  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP04-branch-first-consolidation-and-guidance:
+    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP04-branch-first-consolidation-and-guidance
+    sha256: directory
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP04-branch-first-consolidation-and-guidance/.gitignore
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP04-branch-first-consolidation-and-guidance/.gitignore
+    sha256:
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP04-branch-first-consolidation-and-guidance/review-cycle-1.md
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP04-branch-first-consolidation-and-guidance/review-cycle-1.md
+    sha256: 32b66ec45547444922adf5cc1ee8174521091a5cbded5c460bf708ead43bb29b
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP04-branch-first-consolidation-and-guidance.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP04-branch-first-consolidation-and-guidance.md
     sha256: 8cb9491d90a42e4ee5b78c607fcd7581cf7ec282ba1931274ae292b4a2cdd1e2
+  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP05-integrated-recovery-acceptance-and-adoption:
+    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP05-integrated-recovery-acceptance-and-adoption
+    sha256: directory
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP05-integrated-recovery-acceptance-and-adoption/.gitignore
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP05-integrated-recovery-acceptance-and-adoption/.gitignore
+    sha256:
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP05-integrated-recovery-acceptance-and-adoption/review-cycle-1.md
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP05-integrated-recovery-acceptance-and-adoption/review-cycle-1.md
+    sha256: 0905af16992d1b8581e1a54702a8425a4cf2aaf75fdad7ea2667ae86e1c55c22
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP05-integrated-recovery-acceptance-and-adoption.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP05-integrated-recovery-acceptance-and-adoption.md
     sha256: 1742ffcae28860f679355808e6c653a9038e214cd44367f3470de8724fced2f5
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout.md
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout.md
+    sha256: 623f88ff0cefa55505c68b8a112640f3b70b48485b01a29f2ea6ab4378e91fbb
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md
-    sha256: 66fe3ab556f2a70ce59e108d445f29a7695aeaaa7c8f53894f3e7e5be5ea1e36
+    sha256: 8464ade59d644fd601350a97b46da5288a57334fde7b7c10cdd3299720773cba
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/wps.yaml:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/wps.yaml
     sha256:
@@ -1905,94 +1953,113 @@ input_artifacts:
     sha256: 1dc0a32c705e804b87d61ff9ee21b56890a4f895c44813c6d85480bc67857333
   package:built-in:
     path:
-    sha256: ad304d4e301d6b0a20ee54c084b6bdac367d99f032cb78a5d98e96ec2a83c761
+    sha256: a3787a888f5ac58e32ac65271c57089096df5034bc57761514e34a6ee3eb46cd
   package:mission-assets:
     path:
-    sha256: c50b36df106c7e7eff3e43521ba8d7ef17b4469c81bbe311c1cb2c3ed696dc47
+    sha256: 2ee63bb0c4cc19ddb1b78ba373c5d8d2cee26f15ba316a13f3547038ff6a00e1
   template-selection:spec:
     path:
-    sha256: d73d8396faae4f00a897ba9e25ef787a6c3da7a9b993593b76b739c1e85e931f
+    sha256: 7ddb2b421a550f6b5038f74b0fe35f0e52a8524d96e6abda6818e4a6c5eef4b5
   template-selection:plan:
     path:
-    sha256: cd3ab0013ab182cc86494780a4943054352b8c8cc07996f9791d44d452cbdc2d
+    sha256: fea1875994035726a2f52b6e4ed0cec837b14452ea4dd2d85538fcb8b91c42a3
   git:source-membership:
     path:
-    sha256: 91fb953b606811a71448631ca4dd9deede3cfee044b6332a5c749109b34955e3
+    sha256: 52c42f7fc7b2a6c24d9b2b0c234fd52cd177842351ae756ef122bdbe70a593c3
 verdict: ready
 issue_counts:
   high: 0
   low: 0
-  critical: 0
   medium: 0
+  critical: 0
   info: 0
 findings: []
-report_transaction: 5395c8b682c342a5889c89d915cbd45e
+report_transaction: 45312a21c71e462e83eff518e29255cd
 material_manifest_version: 1
 ---
 
 ## Specification Analysis Report
 
-Mission: `organization-workspace-lifecycle-01M5DRAR`. Independent cross-artifact re-analysis at HEAD `b1cb42317c700141993038e4160a3999bc745f40`, incorporating remediation `632759d4ffb02437949779690cebc3877e7bf523`. The subsequent HEAD commit changes only lane metadata; the reviewed specification, plan and task remediation remains unchanged.
+Mission: `organization-workspace-lifecycle-01M5DRAR`. Independent incremental formal analysis at HEAD `5b2a305d4f0fac929128dd09c7c29ced3841299d`, adding WP06 and the lifecycle contract to the original five-package planning scope.
 
-Analysis scope is command-local `SPEC_KITTY_HOME=/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/spec-kitty-lifecycle-home`, selecting bundled software-dev templates while preserving the configured project charter and internal organization pack. The separate scope-check report documents the direct resolution comparison. Do not reuse this report under a different template/material selection.
+This report reuses the prior resolved planning assessment only for byte-identical specification and WP01–WP05 prompts. A direct comparison against `9644e30510b5ed729c0903907f88dd3f6c825ea8` verified those six artifacts unchanged. The current plan extension, tasks extension, WP06 prompt, contract and current project charter were read for this analysis. Earlier WP implementation approvals remain distinct from this planning assessment and are neither revoked nor extended by it.
 
-The canonical `agent mission check-prerequisites --json --include-tasks --mission organization-workspace-lifecycle-01M5DRAR --owned-checkout <review checkout>` ran once under this selection and returned `valid: true`, no errors/warnings, and matching planning/target/base branch `codex/organization-workspace-lifecycle-20261020`. All three core artifacts and five WP prompts are present. No tests, source/mission/status changes, runtime installation or retirement were performed by this analysis. Only external review reports were written.
+The command-local `SPEC_KITTY_HOME=/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/spec-kitty-lifecycle-home` retains the previously checked bundled template selection and project doctrine scope. Canonical `agent mission check-prerequisites --json --include-tasks --mission organization-workspace-lifecycle-01M5DRAR --owned-checkout <existing checkout>` ran once for this pass and returned `valid: true`, no errors/warnings, all required core artifacts, contracts directory and matching feature planning/base/target branch. No validation suite, source/mission/status mutation, installation or retirement was performed. Only this external analysis input was written. Canonical report persistence remains the implementer's next step; this external carrier alone does not satisfy admission.
 
 | ID | Category | Severity | Location(s) | Summary | Recommendation |
 |----|----------|----------|-------------|---------|----------------|
-| — | — | — | — | No unresolved findings in the reviewed artifacts. | Continue through canonical report recording and the owning implementation/review workflow. |
+| — | — | — | — | No unresolved cross-artifact findings within the incremental scope. | Record through canonical owned `record-analysis` with the complete current material manifest before implementation. |
 
-### Resolution of Previous Findings
+### Incremental WP06 Assessment
 
-- **C1 resolved:** Each of the five WP Validation sections now names bounded concrete test surfaces, including existing authority/architecture regressions. The cited existing test paths were checked for presence. Each section explicitly requires committed acceptance tests before implementation, red on the planning base and green through the production candidate interface. Existing WP01 red/green evidence is preserved rather than recreated by weakening behavior.
-- **A1 resolved:** NFR-002 now maps to WP03 and WP05 as well as WP01. WP03 explicitly covers hung adapters, bounded callback/worker dispatch and no synchronous scan/retirement in event enqueue. WP05 adds end-to-end process latency, hung-worker and SessionEnd checks.
-- **I1 resolved:** Story 1 and specification boundaries distinguish known failed roots/registrations, accessible unmatched repositories and unobservable scope beyond roots/credential visibility. No invented per-store gap is required.
-- **A2 resolved at planning level:** NFR-002 and the plan define the local status/enqueue interaction, start-to-exit measurement including startup, representative fixture, five fresh processes per command and every observation below two seconds. Scanning/retirement are worker operations with separate finite deadlines; foreground diagnostic duration remains separately reported. No latency result is claimed before measurement.
+The strict acceptance diagnostic supplies a concrete closeout defect rather than a new cleanup-authority requirement: the kind classifier omits the already admitted owned checkout and can inspect the primary checkout's empty/stale WP metadata. In a single-branch code mission, this can incorrectly skip matrix and negative-invariant checks as planning-only. WP06 is a necessary prerequisite to honest local acceptance under FR-005/FR-007, with custody consistent with FR-008 and the canonical-authority constraint C-001.
+
+The planned correction is narrow: pass the actual owned fact through the existing canonical normalized WP-kind query and both acceptance no-code decisions. It does not change code-kind semantics, trust inferred code defaults, weaken genuinely planning-only behavior or mint a matrix verdict. The prompt owns only `src/specify_cli/acceptance/gates_core.py` and its new dedicated regression file. The dependency WP05→WP06 preserves the previous order and approved work.
+
+Validation is concrete and charter-compatible: commit a real linked-checkout failing acceptance before the repair; contrast same-slug primary/owned metadata and an owned-only code mission; exercise the actual acceptance summary/diagnostic so absent matrix evidence blocks; retain planning-only behavior; run the full affected acceptance package, required baseline, relevant routing checks, configured lint/types and changed-statement coverage; obtain independent review. No passing implementation result is inferred by this planning assessment.
+
+The contract makes observation, events, authority, effects, recovery and acceptance boundaries explicit. It requires independent exact delivery and participating creator release/fencing; it keeps unknown/unsupported work retained; and it separates source acceptance from global hook trust, unsupported managed retirement, PR merge and cloud deployment. Its new acceptance-custody statement is consistent with the WP06 objective. Meaningful contract authoring addresses the missing contract artifact without manufacturing acceptance evidence. Canonical matrix generation still requires real evidence before strict acceptance can succeed.
 
 ### Coverage Summary Table
 
-Coverage means explicit planned task association, not implementation or runtime acceptance. One task corresponds to one WP; no parallel markers are declared.
+Coverage below means planned task association, not code coverage, runtime admission or completion. One task corresponds to one WP; no new parallel execution is declared.
 
 | Requirement Key | Has Task? | Task IDs | Notes |
 |-----------------|-----------|----------|-------|
-| FR-001 organization-discovery | Yes | T001, T005 | Accessible repository inventory and explicit configured-root scope. |
-| FR-002 durable-accounting | Yes | T001, T002, T005 | Observation precedes generation-bound durable lifecycle accounting. |
-| FR-003 creator-lifecycle | Yes | T003, T005 | Automatic supported completion/startup ingress and non-lane positive acceptance. |
-| FR-004 safe-retirement | Yes | T002, T003, T005 | Exact identity, current preservation checks and participating creator fence. |
-| FR-005 replay-and-recovery | Yes | T002, T003, T005 | Intent/replay/current observation and unknown outcomes remain distinct. |
-| FR-006 branch-first | Yes | T004, T005 | Local and remote primary changes require PR acceptance. |
-| FR-007 complete-closeout | Yes | T002, T005 | Workflow and retirement completion are separately reported. |
-| FR-008 generation-and-fencing | Yes | T002, T003, T005 | Creator and owner-lease generations, authenticated release and fencing. |
-| FR-009 branch-disposition | Yes | T003, T005 | Safe owned branch handling with protected/shared/drifted refs preserved. |
-| NFR-001 preservation | Yes | T001, T002, T003 | Negative controls carry through integrated acceptance. |
-| NFR-002 bounded-execution | Yes | T001, T003, T005 | Inventory/adapter deadlines and measured local callback/CLI budget. |
-| NFR-003 evidence-fidelity | Yes | T001, T002 | Exact identity/evidence bindings additionally specified by state semantics. |
-| NFR-004 validation | Yes | T005 | Per-publication gates also apply through plan and individual WP validation. |
+| FR-001 organization-discovery | Yes | T001, T005 | Accessible inventory and explicit bounded local scope. |
+| FR-002 durable-accounting | Yes | T001, T002, T005 | Unknown observations remain separate from authenticated creator generations. |
+| FR-003 creator-lifecycle | Yes | T003, T005 | Supported completion/startup and non-lane creator integration. |
+| FR-004 safe-retirement | Yes | T002, T003, T005 | Exact identity, creator hold and fresh preservation checks. |
+| FR-005 replay-and-recovery | Yes | T002, T003, T005, T006 | Recovery plus strict acceptance's owned-code classification prerequisite. |
+| FR-006 branch-first | Yes | T004, T005 | Feature/integration landing and PR-only primary advancement. |
+| FR-007 complete-closeout | Yes | T002, T005, T006 | Separate cleanup outcome and no silent matrix bypass for code work. |
+| FR-008 generation-and-fencing | Yes | T002, T003, T005, T006 | Existing creator generations; WP06 carries admitted checkout custody only. |
+| FR-009 branch-disposition | Yes | T003, T005 | Safe owned local branch handling; unsupported remote actions retained. |
+| NFR-001 preservation | Yes | T001, T002, T003, T005 | Negative controls and primary-checkout preservation. |
+| NFR-002 bounded-execution | Yes | T001, T003, T005 | Finite background operations and actual callback latency gate. |
+| NFR-003 evidence-fidelity | Yes | T001, T002, T006 | Exact lifecycle identities and strict acceptance input custody. |
+| NFR-004 validation | Yes | T005, T006 | Per-package unchanged required gates, coverage and independent review. |
 
-Success criteria are mapped: SC-001→T001/T002/T005; SC-002→T003/T005; SC-003→T002/T005; SC-004→T003/T005; SC-005→T004/T005. Constraints are mapped: C-001→T004 and C-002/C-003/C-004→T005, with owning-layer, preservation and scope restrictions also stated throughout the plan.
-
-Dependencies are consistent and acyclic: WP01 precedes WP02/WP04, WP02 precedes WP03, and WP01–WP04 precede WP05. No functional requirement or user story is unmapped. Planned creation paths and owning module seams align with the architecture; new files are intentional create targets, not claims that those implementations exist already.
+Success criteria remain mapped: SC-001→T001/T002/T005; SC-002→T003/T005; SC-003→T002/T005/T006; SC-004→T003/T005; SC-005→T004/T005. Constraints remain covered through the original packages; T006 explicitly reiterates C-001/C-003 and preserves prior authority boundaries. All six task IDs have corresponding WP prompts and requirement mappings. Dependencies are acyclic: WP01→WP02→WP03; WP01→WP04; WP01–WP04→WP05; WP05→WP06.
 
 ### Charter Alignment Issues
 
-None unresolved in this planning pass. Canonical Git/lock/creator authorities, acceptance-first sequencing, explicit bounded validation surfaces, coverage/type/lint/baseline gates, independent review, tracer files and preservation are represented. The existing charter's local-main merge wording is a known correction target of WP04 under the user's explicit superseding PR-only direction; it does not authorize a local-main merge in this mission. The focused latency acceptance is a future gate, not a measured success. Global runtime adoption, unsupported managed creator operations and production deployment remain separate boundaries.
+None unresolved in this planning pass. WP06 uses an existing canonical classification authority and an isolated regression rather than a duplicate parser. Its red-first sequencing, affected acceptance package, baseline, lint/type, changed coverage and independent review are explicit. The amended plan retains immutable prior source snapshots, no lenient acceptance, no invented matrix verdict and no runtime installation or deployment. The PR-only branch policy remains unchanged. A fresh analysis input is necessary because the old report's material manifest predates the planning amendment; that invalid-material admission refusal is not evidence that WP06 is implemented or accepted.
 
 ### Unmapped Tasks
 
-None. T001–T005 map to stated requirements and have corresponding owned surfaces and behavioral validation prompts.
+None. T001–T006 each map to requirements, an owned surface and concrete validation.
 
 ### Metrics
 
 - Total requirements: **13** (9 functional, 4 non-functional).
-- Total tasks: **5** (T001–T005).
-- Requirement trace coverage: **13/13 = 100%** have explicit task mappings; this is not mission completion or code coverage.
-- Ambiguity count: **0 unresolved**.
-- Duplication count: **0 findings**; repeated preservation language serves distinct acceptance/constraint roles.
+- Total tasks: **6** (T001–T006).
+- Requirement trace coverage: **13/13 = 100%** have task association; not mission completion.
+- Ambiguity count: **0 unresolved findings**.
+- Duplication count: **0 findings**.
 - Critical issues count: **0**.
 - Total unresolved findings: **0**; overflow: **0**.
-- Previous findings resolved: **4**, verified against planning artifacts rather than new executable test results.
-- Elapsed implementation time, tokens and cost: **not measured by this review**.
+- Incremental planning scope: one new WP, one plan extension, one task extension and one lifecycle contract. The specification and first five WP prompts are unchanged.
+- Implementation elapsed time, tokens and cost: not measured by this analysis.
+
+### Material Identity Snapshot
+
+The canonical recorder must resolve its own complete current manifest; this snapshot supports review reproducibility and does not replace that authority.
+
+| Material | SHA-256 |
+|----------|---------|
+| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/spec.md` | `86b2522bbcdda8c123aeab27223c4c2da0ffdad37b75de001c53429f2c6ee6ba` |
+| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md` | `ca5e569c207abe558254bb983a16bc394deac85575763b947ebad58ad6d31554` |
+| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md` | `8464ade59d644fd601350a97b46da5288a57334fde7b7c10cdd3299720773cba` |
+| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP01-verified-organization-discovery-and-accounting.md` | `4dc70e62161a40d75c546abc3a207adcab93f69ee6f32c978e4879006250c785` |
+| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP02-durable-lifecycle-state-and-generation-bound-recovery.md` | `6c1fc7da7b468c12a4789f2dff15868c407fb9ff229368b01481898e123d8555` |
+| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP03-supported-creator-adapters-and-automatic-ingress.md` | `2158e2e45517fc8585527e991647474081f7ab9f9baba3ee8bb09ceff1d1b317` |
+| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP04-branch-first-consolidation-and-guidance.md` | `26694aa068ab23ff713ad3517f1a131d78fed5637bace8d0c4e4a74a0451da83` |
+| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP05-integrated-recovery-acceptance-and-adoption.md` | `bd0559ce2968722d167705b67508492ffdf1d12369e9e01fd2f0f5d6703977cb` |
+| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout.md` | `4834aa2c629ffbc6343ae4f0ab28042ecc1c7b22aa61f3d40ba003272dbe5643` |
+| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/contracts/workspace-lifecycle.md` | `0c71b6cf9d49b6abf38ec4c113048ea07d08f436a310877ebd7cd4619aa83be4` |
+| `.kittify/charter/charter.md` | `d59dd63cbfc6ab75c708c31b9ff5d6da0f80e49469284f665b41285ec8ba81f4` |
 
 ### Next Actions
 
-Persist this carrier through canonical owned `agent mission record-analysis` under the same isolated home and pinned project/package inputs; do not write `analysis-report.md` directly. A successful recorder response is required before claiming analysis persistence/admission. Continue WP implementation and independent review in dependency order. This ready analysis verdict grants no ownership release, runtime installation, workspace retirement, production deployment or completed-WP status. The prior blocked report and its evidence remain historical artifacts, not overwritten.
+Persist this external carrier through canonical owned `agent mission record-analysis` using the current complete artifact/material selection under the same command-local home. Require its successful response before claiming implementation admission. Then perform WP06's committed red regression, bounded source correction, required validation and independent review; resolve the generated acceptance matrix with real evidence before strict local acceptance. This ready planning assessment grants no completed WP, merge, global hook trust, creator release, backlog retirement or production deployment. Preserve earlier reports and qualification failures as historical evidence.
