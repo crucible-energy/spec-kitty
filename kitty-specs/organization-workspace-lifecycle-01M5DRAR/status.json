@@ -181,6 +181,9 @@
       "last_event_id": "01M5EHFZA8S8PAA0ZDGX6DCVFT",
       "last_transition_at": "2026-10-21T06:13:35.688514+00:00",
       "model": "__resolved_model_absent__",
+      "notes": [
+        "Frozen b9aa475029 source qualification: exact1193-case aggregate1188pass5skip, required baseline2452pass5skip, unchanged architecture54pass,66/68changed97.06percent,11file staticclean,5source mypyclean plus attributed unchanged acceptance diagnostic. Immutable21-artifact receipt lifecycle-wp07-final-validation.json. Failed parallel run retained; unchanged30s producer passed isolated. Ready for full original-claim source review, not only latest planning amendment."
+      ],
       "provider": "__resolved_provider_absent__",
       "role": "implementer",
       "shell_pid": 97404,
