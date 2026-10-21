@@ -740,6 +740,7 @@ def _mt_resolve_owned_review_base(st: _MoveTaskState) -> str:
     """Resolve one immutable, suitable review base for an owned checkout."""
     from specify_cli.cli.commands.agent import tasks as _tasks
     from specify_cli.core.vcs.git import capture_branch_tip
+    from specify_cli.lanes.claim_base import read_claim_base
     from specify_cli.lanes.persistence import require_lanes_json
     from specify_cli.lanes.planning_commit_classify import PinClass, classify_recorded_pin
     from specify_cli.lanes.worktree_allocator import ORPHANED_PIN_RECOVERY_HINT
@@ -813,6 +814,22 @@ def _mt_resolve_owned_review_base(st: _MoveTaskState) -> str:
             "OWNED_REVIEW_BASE_INVALID",
             "Owned review base must be an ancestor of HEAD in the selected checkout.",
         )
+    # Re-finalizing genuine planning can advance the mission-wide pin beyond
+    # an already implemented WP. Its immutable claim ref remains the review
+    # window. Preserve the validated planning fallback for historical rebuilt
+    # missions only when Git establishes genuine absence, never a read error.
+    try:
+        claimed = read_claim_base(st.main_repo_root, st.mission_slug, st.task_id, strict=True)
+    except RuntimeError as exc:
+        raise ActionContextError("OWNED_REVIEW_BASE_INVALID", str(exc)) from exc
+    if claimed is not None:
+        claim_commit = resolve_commit(claimed)
+        if claim_commit is None or claim_commit == head_commit or git_merge_base(owned.owned_root, head_commit, claim_commit) != claim_commit:
+            raise ActionContextError(
+                "OWNED_REVIEW_BASE_INVALID",
+                "Owned claim base must resolve to a different ancestor commit of HEAD; no planning fallback is permitted.",
+            )
+        return claim_commit
     return base_commit
 
 
@@ -905,7 +922,7 @@ def _mt_require_owned_implementation(st: _MoveTaskState) -> None:
         raise ActionContextError(
             "OWNED_IMPLEMENTATION_MISSING",
             "Owned review could not read the committed change set: the merge-base diff against review base "
-            f"{st.review_base_ref} (lanes.json `planning_commit_sha`) failed in {st.owned.owned_root}. "
+            f"{st.review_base_ref} (recorded claim base or validated legacy planning base) failed in {st.owned.owned_root}. "
             "Make sure that commit is reachable in this checkout (fetch it, or recreate the local branch that carries it), "
             f"or repoint `planning_commit_sha` in {st.feature_dir / 'lanes.json'} to a commit that is an ancestor of HEAD, then retry.",
         )
