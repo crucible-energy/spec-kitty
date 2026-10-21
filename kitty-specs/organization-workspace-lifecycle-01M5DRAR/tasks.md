@@ -49,3 +49,8 @@ Depends on: WP05
 Requirement Refs: FR-005, FR-007, FR-008, SC-003, C-001, C-003
 
 - [ ] T006 Preserve the admitted checkout through code-kind acceptance, prove missing matrices cannot be silently skipped, and finish strict local acceptance without altering prior approvals or runtime admission.
+
+
+## WP07 — Typed operation custody and closeout integration
+
+- [ ] T007 Replace raw operation custody with a canonical opaque fact and repair stale strict-closeout integration fixtures. Depends on WP05. Covers FR-006/FR-007/FR-008, SC-005 and C-001/C-003; validate red-first, full owning/architecture/baseline gates and independent review.

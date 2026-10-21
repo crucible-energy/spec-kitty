@@ -13,7 +13,8 @@
         "WP03",
         "WP04",
         "WP05",
-        "WP06"
+        "WP06",
+        "WP07"
       ],
       "write_scope": [
         ".kittify/charter/charter.md",
@@ -24,8 +25,13 @@
         "src/kernel/git_topology.py",
         "src/specify_cli/acceptance/gates_core.py",
         "src/specify_cli/cli/commands/_organization_workspaces_doctor.py",
+        "src/specify_cli/cli/commands/dispatch.py",
         "src/specify_cli/cli/commands/doctor.py",
+        "src/specify_cli/cli/commands/profile_invocation.py",
         "src/specify_cli/consolidation/**",
+        "src/specify_cli/core/owned_mission.py",
+        "src/specify_cli/invocation/checkout.py",
+        "src/specify_cli/invocation/executor.py",
         "src/specify_cli/workspace_lifecycle/adapters.py",
         "src/specify_cli/workspace_lifecycle/coordinator.py",
         "src/specify_cli/workspace_lifecycle/discovery.py",
@@ -36,7 +42,10 @@
         "src/specify_cli/workspace_lifecycle/state.py",
         "tests/acceptance/test_owned_code_kind.py",
         "tests/consolidation/**",
+        "tests/integration/test_owned_lifecycle_acceptance_e2e.py",
+        "tests/integration/test_owned_lifecycle_acceptance_finalize.py",
         "tests/specify_cli/cli/commands/test_doctor_cli_surface_golden.py",
+        "tests/specify_cli/invocation/cli/test_owned_checkout.py",
         "tests/workspace_lifecycle/test_acceptance.py",
         "tests/workspace_lifecycle/test_adapters.py",
         "tests/workspace_lifecycle/test_coordinator.py",
@@ -51,8 +60,8 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-21T05:06:17.193568+00:00",
+  "computed_at": "2026-10-21T05:28:14.440929+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [],
-  "planning_commit_sha": "a090ebb98398759434b2056587810d38c8c0024e"
+  "planning_commit_sha": "7339143611c1bc566bb8b761954d55e476965d69"
 }
