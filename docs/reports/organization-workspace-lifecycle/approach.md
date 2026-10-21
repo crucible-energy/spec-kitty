@@ -85,3 +85,81 @@ under the lock. Status failure leaves an uninitialized directory admissible.
 Known retained generations count as unresolved; unknown ownership is separate.
 Both regressions were committed red before repair. Broader draft validation
 passed 1,011 tests with five skipped; final frozen qualification is external.
+
+## WP03 creator integration — active draft
+
+User Experience Findings: an initial disposable non-lane retirement case passed,
+but its in-process lease did not prove a real producer join. Independent review
+also caught missing creation intent and ambiguous duplicate authority keys.
+The existing canonical removal policy intentionally disposes of ignored build
+state; lifecycle preservation needs a stricter option at that same authority.
+
+Engineering Decisions: commit red regressions before each repair. Exact accepted
+PR delivery uses bounded authenticated repository/PR metadata and the exact source
+head; local ancestry is insufficient. A new creator owns creation, generation and
+participating producer leases. Creation custody precedes Git effects, and an
+interrupted creation remains explicit/unproven. Leaving a lease block alone never
+certifies success. The owned foreground runner waits under the same fence, and
+failure/timeout keeps the generation unreleased. Extract the existing review
+process-group signalling authority into the kernel and retain its review wrapper;
+no host-wide process scanning or killing. Canonical ignored-state preservation is
+opt-in, retaining legacy defaults. Existing unknown/managed backlogs are not adopted.
+
+Known Limitations: final creator/recovery validation, finite deadlines throughout
+canonical Git operations, durable completion/startup events, automatic worker and
+CLI/service wiring are unfinished. Cooperative foreground production is distinct
+from arbitrary detached/scheduled producers; those need their actual owner/fence.
+Only disposable fixtures are being created/retired. No WP03 approval, global hook
+trust/installation, live backlog deletion or deployment is claimed.
+
+### Completion/worker implementation and operator surface
+
+The producer runner now uses an owned process group and actual joins; canonical
+Git subprocesses honor the active finite deadline. Signalling custody ends when
+the leader is reaped. Failed/unknown producers remain fenced and unreleased.
+Retirement receives the full saved intent and binds its immutable fingerprint in
+the creator receipt. Release precedes independent accepted-PR verification.
+
+The queue persists only coalesced wakeups. Its short lock is separate from the
+ledger/effect lock. Workers serialize the idle decision and lease release with
+enqueue/dispatch so a racing callback cannot lose its wakeup. A malformed/busy
+creator produces a durable unknown result without starving healthy creators;
+failed obligations retain pending wakeups and require the next real event or
+startup/resume. There is no automatic error-spin loop. Diagnostics are observed
+state, never release authority.
+
+`worker.py` contains the service class and executable worker in one module,
+instead of a separate `service.py` shell: both the CLI and detached child use the
+same implementation. This stays within the planned lifecycle authority surface.
+The source CLI exposes:
+
+- `workspaces initialize --state-dir DIR`: explicitly admit an empty owned 0700
+  directory. Missing prior history refuses rather than silently resetting.
+- `workspaces managed-run --state-dir DIR --repo-root REPO --workspace NEW_PATH
+  --branch NEW_FEATURE --repository crucible-energy/NAME --repository-id ID
+  -- PRODUCER ARGS`: own one new linked checkout, run/join the producer, record
+  owner release and enqueue an independent worker. A PR need not exist before
+  the producer starts: write private 0600 JSON `{"pr": 123}` to the supplied
+  `SPEC_KITTY_LIFECYCLE_RESULT` path. An already allocated PR may instead be
+  supplied with `--pr`. Neither hint proves delivery.
+- `workspaces resume --state-dir DIR`: enqueue startup recovery and dispatch;
+  `workspaces worker --state-dir DIR` runs that same worker in the foreground.
+- `workspaces status --state-dir DIR`: report ledger obligations, pending wakeup
+  and last worker observation; it does not report workflow completion by guess.
+
+Unknown existing workspaces and external/managed creators are not adopted by the
+new Git creator. Source APIs are explicit integration points; installing startup
+integration, trust admission and organization-wide adoption belong to WP05.
+Remote branch retirement is unsupported and remains separately retained. The
+producer profile is bounded POSIX foreground work; arbitrary escaped/scheduled
+producers are outside its cooperative fence and never inferred safe.
+
+Review additionally caught a blocked-pass/new-event race: a callback can enqueue
+while the incumbent worker holds the lease, then its newly dispatched worker
+correctly finds the lease busy. The incumbent must process a newer generation
+before exiting, even if its earlier generation was blocked. A synchronized
+regression failed once and then passed after the correction; unchanged blocked
+generations still do not spin. Public and module workers both exit unsuccessfully
+on blocked outcomes. Accepted-PR evidence also binds the source branch name as
+well as its commit, repository and default target, so another branch sharing the
+same commit is not substituted for this creator's delivery.

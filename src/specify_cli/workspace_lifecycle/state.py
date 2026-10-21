@@ -7,6 +7,7 @@ creator authority, accepted delivery, or eligibility to remove a workspace.
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import os
 import stat
@@ -73,6 +74,14 @@ class Operation:
     creator_id: str
     release_id: str | None
     delivery_id: str | None
+
+    def authorization_fingerprint(self) -> str:
+        """Bind every immutable dispatch input; result status/reason may evolve."""
+        payload = asdict(self)
+        payload.pop("status")
+        payload.pop("reason")
+        raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        return hashlib.sha256(raw).hexdigest()  # noqa: TID251 -- lifecycle authorization integrity, not charter hashing.
 
 
 @dataclass(frozen=True)
@@ -262,23 +271,31 @@ class StateStore:
         except OSError as exc:
             raise StateError("Lifecycle state directory unavailable") from exc
 
-    def _read(self) -> State:
-        path = self.root / "state.json"
-        try:
-            fd = open_no_follow(path, os.O_RDONLY | os.O_NONBLOCK)
-        except FileNotFoundError as exc:
-            raise StateError("Lifecycle ledger missing; explicit recovery required") from exc
-        except (OSError, NoFollowPathError) as exc:
-            raise StateError("Lifecycle state unavailable") from exc
+    def read_private(self, name: str, *, limit: int = MAX_BYTES) -> bytes:
+        """Read one bounded private, single-link sidecar under the bound root."""
+        self._check_root()
+        if Path(name).name != name or name in (".", "..") or not 0 < limit <= MAX_BYTES:
+            raise StateError("Invalid private lifecycle record")
+        fd = open_no_follow(self.root / name, os.O_RDONLY | os.O_NONBLOCK)
         try:
             info = os.fstat(fd)
             if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o600 or info.st_uid != os.getuid():
                 raise StateError("Lifecycle state file must be owned and private")
             with os.fdopen(fd, "rb", closefd=False) as stream:
-                raw = stream.read(MAX_BYTES + 1)
-            return _decode(raw)
+                raw = stream.read(limit + 1)
+            if len(raw) > limit:
+                raise StateError("Lifecycle record size exceeded")
+            return raw
         finally:
             os.close(fd)
+
+    def _read(self) -> State:
+        try:
+            return _decode(self.read_private("state.json"))
+        except FileNotFoundError as exc:
+            raise StateError("Lifecycle ledger missing; explicit recovery required") from exc
+        except (OSError, NoFollowPathError) as exc:
+            raise StateError("Lifecycle state unavailable") from exc
 
     @classmethod
     def initialize(cls, root: Path, *, timeout: float = 2.0) -> StateStore:
@@ -323,6 +340,11 @@ class StateStore:
                 yield transaction
             finally:
                 transaction._active = False
+
+    def observe(self) -> State:
+        """Atomic observation only; no lock acquisition, mutation or effect authority."""
+        self._check_root()
+        return self._read()
 
     def read(self) -> State:
         with self.locked() as transaction:

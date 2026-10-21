@@ -558,7 +558,7 @@ def _write_tiny_pytest_project(base: Path, *, failing: bool) -> None:
 class _FakeProcess:
     """Small ``Popen`` double for runner lifecycle tests."""
 
-    def __init__(self, *, returncode: int = 0, stdout: str = "", stderr: str = "") -> None:
+    def __init__(self, *, returncode: int | None = 0, stdout: str = "", stderr: str = "") -> None:
         self.pid = 424242
         self.returncode = returncode
         self.stdout_text = stdout
@@ -634,7 +634,7 @@ def test_launch_uses_platform_process_group_isolation(
 def test_windows_signal_targets_owned_descendant_tree(
     force: bool,
 ) -> None:
-    process = _FakeProcess()
+    process = _FakeProcess(returncode=None)
     commands: list[tuple[str, ...]] = []
 
     def _taskkill(command: Sequence[str]) -> subprocess.CompletedProcess[str]:
@@ -666,7 +666,7 @@ def test_posix_signal_targets_owned_process_group(
     force: bool,
     expected_signal: signal.Signals,
 ) -> None:
-    process = _FakeProcess()
+    process = _FakeProcess(returncode=None)
     calls: list[tuple[int, signal.Signals]] = []
     monkeypatch.setattr(pre_review_gate.os, "killpg", lambda pid, sig: calls.append((pid, sig)))
 

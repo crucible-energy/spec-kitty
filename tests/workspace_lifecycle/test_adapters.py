@@ -30,7 +30,7 @@ def responses(monkeypatch: pytest.MonkeyPatch, *, head: str = "a" * 40, merged: 
                 "state": "closed",
                 "merged_at": "2026-10-20T00:00:00Z",
                 "merge_commit_sha": "b" * 40,
-                "head": {"sha": head, "repo": {"id": 7, "full_name": "crucible-energy/example"}},
+                "head": {"ref": "task", "sha": head, "repo": {"id": 7, "full_name": "crucible-energy/example"}},
                 "base": {"ref": base, "repo": {"id": 7, "full_name": "crucible-energy/example"}},
             }
         else:
@@ -126,7 +126,7 @@ def managed_owner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
                 "state": "closed",
                 "merged_at": "2026-10-20T00:00:00Z",
                 "merge_commit_sha": "b" * 40,
-                "head": {"sha": owner.identity.head, "repo": {"id": 7, "full_name": "crucible-energy/example"}},
+                "head": {"ref": "task", "sha": owner.identity.head, "repo": {"id": 7, "full_name": "crucible-energy/example"}},
                 "base": {"ref": "main", "repo": {"id": 7, "full_name": "crucible-energy/example"}},
             }
         else:

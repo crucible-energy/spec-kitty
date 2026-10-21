@@ -29,6 +29,8 @@ several downstream catchers whose semantics this mission does not touch
 
 from __future__ import annotations
 
+from kernel.owned_process import bounded_run, budget_active
+
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -111,7 +113,8 @@ def _run_git(
     *,
     env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    executor = bounded_run if budget_active() else subprocess.run
+    return executor(
         ["git", *args],
         cwd=str(cwd),
         capture_output=True,
@@ -162,6 +165,7 @@ def assert_worktree_clean(
     env: dict[str, str] | None = None,
     error_code: str = MERGE_UNSAFE_WORKTREE_DIRTY,
     treat_untracked_as_dirty: bool = False,
+    preserve_ignored: bool = False,
 ) -> None:
     """Raise :class:`DestructiveOpRefused` when ``worktree`` holds local state.
 
@@ -196,6 +200,7 @@ def assert_worktree_clean(
         target_paths=target_paths,
         is_residue=is_residue,
         treat_untracked_as_dirty=treat_untracked_as_dirty,
+        preserve_ignored=preserve_ignored,
     )
     if not dirty:
         return
@@ -241,6 +246,7 @@ def guarded_worktree_remove(
     retain: bool,
     is_residue: Callable[[str], bool],
     env: dict[str, str] | None = None,
+    preserve_ignored: bool = False,
 ) -> RemoveResult:
     """The shared removal chokepoint every live destroy site routes through.
 
@@ -250,6 +256,9 @@ def guarded_worktree_remove(
     (no removal) and reports ``retained_dirty`` instead of raising. This is
     NOT ``core/vcs/git.py``'s ``remove_workspace`` (dead code, zero
     production callers) — it is the new single authority.
+
+    ``preserve_ignored=True`` also refuses ignored entries, including residue.
+    Lifecycle callers use this strict option; legacy defaults stay unchanged.
 
     Both dirty scans pass ``treat_untracked_as_dirty=True`` (#4753 Finding A):
     a removal — either branch — deletes the whole worktree directory tree, so
@@ -263,6 +272,7 @@ def guarded_worktree_remove(
             is_residue=is_residue,
             env=env,
             treat_untracked_as_dirty=True,
+            preserve_ignored=preserve_ignored,
         )
         _remove_worktree_force(worktree, env)
         return RemoveResult(outcome=RemoveOutcome.REMOVED, worktree_path=worktree)
@@ -274,6 +284,7 @@ def guarded_worktree_remove(
         target_paths=frozenset(),
         is_residue=is_residue,
         treat_untracked_as_dirty=True,
+        preserve_ignored=preserve_ignored,
     )
     if dirty:
         return RemoveResult(outcome=RemoveOutcome.RETAINED_DIRTY, worktree_path=worktree)

@@ -95,7 +95,7 @@ def test_fresh_worker_process_resumes_released_owner_and_retains_unmerged_pr(tmp
         "state": "closed",
         "merged_at": "2026-10-20",
         "merge_commit_sha": "b" * 40,
-        "head": {"sha": owner.identity.head, "repo": repository},
+        "head": {"ref": "task", "sha": owner.identity.head, "repo": repository},
         "base": {"ref": "main", "repo": repository},
     }
     metadata.write_text(json.dumps({"repo": repository, "pull": pull}))
@@ -188,7 +188,7 @@ def test_managed_run_cli_joins_reports_pr_and_automatically_retires(tmp_path: Pa
         "state": "closed",
         "merged_at": "2026-10-20",
         "merge_commit_sha": "b" * 40,
-        "head": {"sha": git(repo, "rev-parse", "HEAD"), "repo": repository},
+        "head": {"ref": "automatic-job", "sha": git(repo, "rev-parse", "HEAD"), "repo": repository},
         "base": {"ref": "main", "repo": repository},
     }
     gh = bindir / "gh"

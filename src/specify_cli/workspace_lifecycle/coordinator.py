@@ -40,7 +40,7 @@ class Creator(Protocol):
 
     def hold(self, identity: Identity) -> AbstractContextManager[None]: ...
     def inspect(self, identity: Identity) -> Evidence: ...
-    def retire(self, identity: Identity, event_id: str) -> Result: ...
+    def retire(self, intent: Operation) -> Result: ...
     def recover(self, intent: Operation) -> Recovered: ...
 
 
@@ -187,7 +187,7 @@ class Coordinator:
                     tx, Operation(event_id, expected, digest, "intent", "creator_effect_pending", creator.authority_id, observed.release_id, observed.delivery_id)
                 )
                 try:
-                    result = creator.retire(expected, event_id)
+                    result = creator.retire(intent)
                 except Exception:
                     result = Result("unknown", "creator_effect_unconfirmed")
                 return _record(tx, replace(intent, status=result.status, reason=result.reason))

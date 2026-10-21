@@ -42,6 +42,8 @@ so this module never imports the consolidation layer that persists it.
 
 from __future__ import annotations
 
+from kernel.owned_process import bounded_run, budget_active
+
 import enum
 import subprocess
 from collections.abc import Callable, Collection, Iterator
@@ -265,7 +267,8 @@ def _run_git(
     *,
     env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    executor = bounded_run if budget_active() else subprocess.run
+    return executor(
         ["git", *args],
         cwd=str(cwd),
         capture_output=True,
@@ -409,6 +412,7 @@ def _dirty_entries(
     target_paths: Collection[GitPath],
     is_residue: Callable[[str], bool] | None = None,
     treat_untracked_as_dirty: bool = False,
+    preserve_ignored: bool = False,
 ) -> list[str]:
     """The display lines of :func:`_dirty_verdicts` (for messages; never decide on them)."""
     verdicts = _dirty_verdicts(
@@ -418,6 +422,7 @@ def _dirty_entries(
         target_paths=target_paths,
         is_residue=is_residue,
         treat_untracked_as_dirty=treat_untracked_as_dirty,
+        preserve_ignored=preserve_ignored,
     )
     return [line for _, line in verdicts]
 
@@ -430,6 +435,7 @@ def _dirty_verdicts(
     target_paths: Collection[GitPath],
     is_residue: Callable[[str], bool] | None = None,
     treat_untracked_as_dirty: bool = False,
+    preserve_ignored: bool = False,
 ) -> list[tuple[_DirtyReason, str]]:
     """Return typed ``(reason, display line)`` pairs for the entries that a ``reset --hard`` would destroy.
 
@@ -489,6 +495,7 @@ def _dirty_verdicts(
             target_paths=target_paths,
             is_residue=is_residue,
             treat_untracked_as_dirty=treat_untracked_as_dirty,
+            preserve_ignored=preserve_ignored,
         )
         if reason is not None:
             dirty.append(reason)
@@ -504,9 +511,12 @@ def _dirty_reason(
     target_paths: Collection[GitPath],
     is_residue: Callable[[str], bool] | None,
     treat_untracked_as_dirty: bool,
+    preserve_ignored: bool = False,
 ) -> tuple[_DirtyReason, str] | None:
     """The typed verdict and display line for *entry*, or ``None`` when a reset leaves it alone (see :func:`_dirty_verdicts`)."""
     path = str(entry.path)
+    if preserve_ignored and entry.is_ignored:
+        return _DirtyReason.REMOVAL, f"{entry.display()} ({_REMOVAL_NOTE})"
     if is_residue is not None and is_residue(path):
         return None
     if entry.is_untracked and treat_untracked_as_dirty:

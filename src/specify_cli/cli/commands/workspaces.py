@@ -8,6 +8,8 @@ from typing import Annotated, NoReturn
 
 import typer
 
+from kernel.no_follow import NoFollowPathError
+
 from specify_cli.workspace_lifecycle.coordinator import Coordinator
 from specify_cli.workspace_lifecycle.discovery import discover_workspaces
 from specify_cli.workspace_lifecycle.inventory import OrganizationInventoryUnavailable, fetch_repositories
@@ -37,8 +39,11 @@ def initialize(state_dir: _StateDirectory) -> None:
 def status(state_dir: _StateDirectory) -> None:
     """Report recorded obligations; never infer workflow completion or deletion."""
     try:
-        report = Coordinator(StateStore(state_dir)).closeout(workflow_complete=False)
-    except StateError as exc:
+        from specify_cli.workspace_lifecycle.worker import LifecycleService
+
+        store = StateStore(state_dir)
+        report = {**Coordinator(store).closeout(workflow_complete=False), **LifecycleService(store).status()}
+    except (StateError, OSError, ValueError, NoFollowPathError) as exc:
         _fail(exc)
     typer.echo(json.dumps(report))
 
@@ -77,3 +82,71 @@ def account(
         )
     )
     raise typer.Exit(0 if report["local_scan_complete"] else 1)
+
+
+@app.command()
+def resume(state_dir: _StateDirectory) -> None:
+    """Recover missed completion events through the independently verifying worker."""
+    from specify_cli.workspace_lifecycle.worker import LifecycleService
+
+    try:
+        service = LifecycleService(StateStore(state_dir))
+        service.resume()
+    except (StateError, OSError, ValueError, NoFollowPathError) as exc:
+        _fail(exc)
+    typer.echo(json.dumps({"action": "queued", "cleanup_complete": False}))
+
+
+@app.command("worker")
+def run_worker(state_dir: _StateDirectory) -> None:
+    """Drain pending hints; the creator, not event JSON, authorizes every effect."""
+    from specify_cli.workspace_lifecycle.worker import LifecycleService
+
+    try:
+        report = LifecycleService(StateStore(state_dir)).run()
+    except (StateError, OSError, ValueError, NoFollowPathError) as exc:
+        _fail(exc)
+    typer.echo(json.dumps(report))
+    if report["worker"] == "blocked":
+        raise typer.Exit(2)
+
+
+@app.command("managed-run")
+def managed_run(
+    state_dir: _StateDirectory,
+    repo_root: Annotated[Path, typer.Option(exists=True, file_okay=False)],
+    workspace: Annotated[Path, typer.Option(help="New linked checkout path; existing work cannot be adopted.")],
+    branch: Annotated[str, typer.Option(help="New feature branch.")],
+    repository: Annotated[str, typer.Option(help="Exact crucible-energy repository slug.")],
+    repository_id: Annotated[int, typer.Option(min=1)],
+    command: Annotated[list[str], typer.Argument(help="Producer argv, after --; no shell interpretation.")],
+    timeout: Annotated[float, typer.Option(min=0.01, max=30.0)] = 30.0,
+    pr: Annotated[int | None, typer.Option(min=1, help="Optional allocated PR hint; otherwise producer writes scoped result JSON.")] = None,
+) -> None:
+    """Run one joined producer in a registered checkout and enqueue closeout.
+
+    The producer receives SPEC_KITTY_LIFECYCLE_RESULT for an owned 0600 JSON
+    {"pr": number} result. No existing checkout is registered by this admission. Failed or
+    unconfirmed producers retain their workspace; main is never a merge target.
+    """
+    from specify_cli.workspace_lifecycle.adapters import GitHubDelivery, ManagedGitCreator
+    from specify_cli.workspace_lifecycle.worker import LifecycleService
+
+    try:
+        store = StateStore(state_dir)
+        service = LifecycleService(store)
+        creator = ManagedGitCreator.create(
+            store,
+            repo_root=repo_root,
+            path=workspace,
+            branch=branch,
+            repository=repository,
+            repository_id=repository_id,
+            delivery=GitHubDelivery(),
+            on_complete=service.completion,
+        )
+        creator.run_producer(command, timeout=timeout)
+        creator.complete(pr=pr)
+    except (StateError, OSError, ValueError, NoFollowPathError) as exc:
+        _fail(exc)
+    typer.echo(json.dumps({"action": "released_and_queued", "creator": creator.authority_id, "cleanup_complete": False}))
