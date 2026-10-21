@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-21T05:16:39.696412+00:00'
+generated_at: '2026-10-21T05:30:59.000501+00:00'
 analyzer_agent: reviewer-renata
 input_artifacts:
   spec.md:
@@ -12,10 +12,10 @@ input_artifacts:
     sha256: 86b2522bbcdda8c123aeab27223c4c2da0ffdad37b75de001c53429f2c6ee6ba
   plan.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md
-    sha256: ca5e569c207abe558254bb983a16bc394deac85575763b947ebad58ad6d31554
+    sha256: 1e417a68a6b150e43f723e8337abcc5db5fb6c512c75ce1c6aece16b43aaa6e5
   tasks.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md
-    sha256: 8464ade59d644fd601350a97b46da5288a57334fde7b7c10cdd3299720773cba
+    sha256: 63de531735a12eef9277bca812fda58678e88194c4291235b6ef5983b4aefc6d
   charter:
     path: .kittify/charter/charter.yaml
     sha256: 39e75cd05429257095cd1d6111fa75460e0430e5f147d3a97d8c921916bd76af
@@ -1611,7 +1611,7 @@ input_artifacts:
     sha256: a2aeb95ca0ec3bda36317f0cc6a3b57a7d38a0e4fd07bd82e856bbd141a57541
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md
-    sha256: ca5e569c207abe558254bb983a16bc394deac85575763b947ebad58ad6d31554
+    sha256: 1e417a68a6b150e43f723e8337abcc5db5fb6c512c75ce1c6aece16b43aaa6e5
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/spec.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/spec.md
     sha256: 86b2522bbcdda8c123aeab27223c4c2da0ffdad37b75de001c53429f2c6ee6ba
@@ -1690,9 +1690,12 @@ input_artifacts:
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout.md
     sha256: 623f88ff0cefa55505c68b8a112640f3b70b48485b01a29f2ea6ab4378e91fbb
+  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration.md:
+    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration.md
+    sha256: 28e583ddcf49c174ae3fc805e4ee41ceb467253b7c7e039cd6ed9c631ff35861
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md
-    sha256: 8464ade59d644fd601350a97b46da5288a57334fde7b7c10cdd3299720773cba
+    sha256: 63de531735a12eef9277bca812fda58678e88194c4291235b6ef5983b4aefc6d
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/wps.yaml:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/wps.yaml
     sha256:
@@ -1965,40 +1968,40 @@ input_artifacts:
     sha256: fea1875994035726a2f52b6e4ed0cec837b14452ea4dd2d85538fcb8b91c42a3
   git:source-membership:
     path:
-    sha256: 52c42f7fc7b2a6c24d9b2b0c234fd52cd177842351ae756ef122bdbe70a593c3
+    sha256: abd8fdd445c0b4a6edd59930915913b425b5232fa47c67fcf84bad509a8e9818
 verdict: ready
 issue_counts:
+  critical: 0
   high: 0
   low: 0
   medium: 0
-  critical: 0
   info: 0
 findings: []
-report_transaction: 45312a21c71e462e83eff518e29255cd
+report_transaction: 79a9bf322ae24fe6b7517cc607af42d6
 material_manifest_version: 1
 ---
 
 ## Specification Analysis Report
 
-Mission: `organization-workspace-lifecycle-01M5DRAR`. Independent incremental formal analysis at HEAD `5b2a305d4f0fac929128dd09c7c29ced3841299d`, adding WP06 and the lifecycle contract to the original five-package planning scope.
+Mission `organization-workspace-lifecycle-01M5DRAR`, incremental independent analysis at `60cd880290b208e6e8aa8a65108f8fe885f2ba8d` for seven work packages. This pass reviews the WP07 amendment and reuses only unchanged assessments from the prior six-package analysis. Compared with `5b2a305d4f0fac929128dd09c7c29ced3841299d`, spec.md, the original six WP prompts and the lifecycle contract are unchanged; plan.md and tasks.md append the new WP07 scope. Existing independent implementation approvals and pending WP06 qualification are separate evidence, not outcomes minted by this report.
 
-This report reuses the prior resolved planning assessment only for byte-identical specification and WP01–WP05 prompts. A direct comparison against `9644e30510b5ed729c0903907f88dd3f6c825ea8` verified those six artifacts unchanged. The current plan extension, tasks extension, WP06 prompt, contract and current project charter were read for this analysis. Earlier WP implementation approvals remain distinct from this planning assessment and are neither revoked nor extended by it.
-
-The command-local `SPEC_KITTY_HOME=/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/spec-kitty-lifecycle-home` retains the previously checked bundled template selection and project doctrine scope. Canonical `agent mission check-prerequisites --json --include-tasks --mission organization-workspace-lifecycle-01M5DRAR --owned-checkout <existing checkout>` ran once for this pass and returned `valid: true`, no errors/warnings, all required core artifacts, contracts directory and matching feature planning/base/target branch. No validation suite, source/mission/status mutation, installation or retirement was performed. Only this external analysis input was written. Canonical report persistence remains the implementer's next step; this external carrier alone does not satisfy admission.
+Canonical `check-prerequisites --include-tasks --json --mission organization-workspace-lifecycle-01M5DRAR --owned-checkout <existing checkout>` ran once under the same isolated mission-local SPEC_KITTY_HOME and returned valid=true, no errors/warnings and matching feature planning/base/target branch. Response is retained externally as lifecycle-analysis-wp07-prerequisites.json. No source/status/mission report edits, tests, process changes, installation or retirement were performed. Only this external carrier was written; canonical recording with the complete current material manifest is still required.
 
 | ID | Category | Severity | Location(s) | Summary | Recommendation |
 |----|----------|----------|-------------|---------|----------------|
-| — | — | — | — | No unresolved cross-artifact findings within the incremental scope. | Record through canonical owned `record-analysis` with the complete current material manifest before implementation. |
+| — | — | — | — | No unresolved cross-artifact findings in this incremental planning scope. | Persist canonically, then follow red-first implementation and independent validation. |
 
-### Incremental WP06 Assessment
+### Incremental WP07 Assessment
 
-The strict acceptance diagnostic supplies a concrete closeout defect rather than a new cleanup-authority requirement: the kind classifier omits the already admitted owned checkout and can inspect the primary checkout's empty/stale WP metadata. In a single-branch code mission, this can incorrectly skip matrix and negative-invariant checks as planning-only. WP06 is a necessary prerequisite to honest local acceptance under FR-005/FR-007, with custody consistent with FR-008 and the canonical-authority constraint C-001.
+WP07 addresses actual strict-closeout architecture failures in the earlier standalone operation routing: direct ownership claims outside the sole minter and raw Path custody propagated through internal APIs. Its bounded eight-file ownership map places the opaque OperationRoot fact in core/owned_mission.py, reuses the existing canonical ownership validator there and carries the fact through operation routing, payload and close-contract generation. Raw paths remain only at the documented CLI claim-input boundary. This is a substantive authority repair, not an allowlist or identifier change to evade a scan.
 
-The planned correction is narrow: pass the actual owned fact through the existing canonical normalized WP-kind query and both acceptance no-code decisions. It does not change code-kind semantics, trust inferred code defaults, weaken genuinely planning-only behavior or mint a matrix verdict. The prompt owns only `src/specify_cli/acceptance/gates_core.py` and its new dedicated regression file. The dependency WP05→WP06 preserves the previous order and approved work.
+The objective explicitly preserves read-only primary selection, protected-branch refusal, legacy flagless/non-Git error behavior, branch drift checks and primary immutability. These compatibility constraints avoid incorrectly reusing mission-create custody semantics where primary selection differs. The fact grants no mission ownership, producer release, runtime installation or cleanup authority. This aligns with the canonical-authority and branch-first doctrine and FR-006/FR-007/FR-008.
 
-Validation is concrete and charter-compatible: commit a real linked-checkout failing acceptance before the repair; contrast same-slug primary/owned metadata and an owned-only code mission; exercise the actual acceptance summary/diagnostic so absent matrix evidence blocks; retain planning-only behavior; run the full affected acceptance package, required baseline, relevant routing checks, configured lint/types and changed-statement coverage; obtain independent review. No passing implementation result is inferred by this planning assessment.
+The two integration fixtures remain bounded correction targets. Supported owned implement must reach its missing/current-analysis requirement, while owned review retains its own unsupported contract. The finalizer fixture must preserve actual posture-read accounting, no unclassified/content reads and primary snapshots. Independent source diagnosis corrected an earlier mistaken inference: the autouse drain_posture mock does not replace ledger_posture. Actual finalizer lifecycle calls pass the canonical repository root to ledger_posture; resolve_canonical_root returns directly for its plain .git directory, so those calls need not invoke get_main_repo_root. An actual delegating observer of two repository-root posture reads plus the exact remaining resolver ledger is an appropriate implementation proof. This analysis does not claim that trace/test has already run or that a changed expected count alone proves correctness.
 
-The contract makes observation, events, authority, effects, recovery and acceptance boundaries explicit. It requires independent exact delivery and participating creator release/fencing; it keeps unknown/unsupported work retained; and it separates source acceptance from global hook trust, unsupported managed retirement, PR merge and cloud deployment. Its new acceptance-custody statement is consistent with the WP06 objective. Meaningful contract authoring addresses the missing contract artifact without manufacturing acceptance evidence. Canonical matrix generation still requires real evidence before strict acceptance can succeed.
+Validation is explicit: retain preceding architectural failures, commit focused behavioral red tests for unforgeable custody and preserved read-only primary behavior before implementation, run full invocation subsystem, acceptance and affected owned integration plus baseline, relevant architecture, configured lint/type and at least90percent changed-statement coverage, and obtain independent canonical review/publication. New implementation red tests remain required; existing gate failures do not substitute for every new behavior acceptance.
+
+WP07 depends on WP05; WP06 remains separately owned. Their source scopes do not overlap: WP06 owns the acceptance-kind propagation; WP07 owns custody and the named integration fixtures. Both are prerequisites to honest final strict closeout and neither can approve or falsify the other's evidence. No new lane or parallel operation is authorized by this dependency statement.
 
 ### Coverage Summary Table
 
@@ -2011,55 +2014,56 @@ Coverage below means planned task association, not code coverage, runtime admiss
 | FR-003 creator-lifecycle | Yes | T003, T005 | Supported completion/startup and non-lane creator integration. |
 | FR-004 safe-retirement | Yes | T002, T003, T005 | Exact identity, creator hold and fresh preservation checks. |
 | FR-005 replay-and-recovery | Yes | T002, T003, T005, T006 | Recovery plus strict acceptance's owned-code classification prerequisite. |
-| FR-006 branch-first | Yes | T004, T005 | Feature/integration landing and PR-only primary advancement. |
-| FR-007 complete-closeout | Yes | T002, T005, T006 | Separate cleanup outcome and no silent matrix bypass for code work. |
-| FR-008 generation-and-fencing | Yes | T002, T003, T005, T006 | Existing creator generations; WP06 carries admitted checkout custody only. |
+| FR-006 branch-first | Yes | T004, T005, T007 | Feature/integration landing and PR-only primary advancement. |
+| FR-007 complete-closeout | Yes | T002, T005, T006, T007 | Separate cleanup outcome and no silent matrix bypass for code work. |
+| FR-008 generation-and-fencing | Yes | T002, T003, T005, T006, T007 | Existing creator generations; WP06 carries admitted checkout custody only. |
 | FR-009 branch-disposition | Yes | T003, T005 | Safe owned local branch handling; unsupported remote actions retained. |
 | NFR-001 preservation | Yes | T001, T002, T003, T005 | Negative controls and primary-checkout preservation. |
 | NFR-002 bounded-execution | Yes | T001, T003, T005 | Finite background operations and actual callback latency gate. |
 | NFR-003 evidence-fidelity | Yes | T001, T002, T006 | Exact lifecycle identities and strict acceptance input custody. |
-| NFR-004 validation | Yes | T005, T006 | Per-package unchanged required gates, coverage and independent review. |
+| NFR-004 validation | Yes | T005, T006, T007 | Per-package unchanged required gates, coverage and independent review. |
 
-Success criteria remain mapped: SC-001→T001/T002/T005; SC-002→T003/T005; SC-003→T002/T005/T006; SC-004→T003/T005; SC-005→T004/T005. Constraints remain covered through the original packages; T006 explicitly reiterates C-001/C-003 and preserves prior authority boundaries. All six task IDs have corresponding WP prompts and requirement mappings. Dependencies are acyclic: WP01→WP02→WP03; WP01→WP04; WP01–WP04→WP05; WP05→WP06.
+Success criteria remain mapped: SC-001→T001/T002/T005; SC-002→T003/T005; SC-003→T002/T005/T006; SC-004→T003/T005; SC-005→T004/T005/T007. Constraints remain covered through the original packages; T006 and T007 explicitly reiterate C-001/C-003 and preserves prior authority boundaries. All seven task IDs have corresponding WP prompts and requirement mappings. Dependencies are acyclic: WP01→WP02→WP03; WP01→WP04; WP01–WP04→WP05; WP05→WP06 and WP05→WP07.
+
 
 ### Charter Alignment Issues
 
-None unresolved in this planning pass. WP06 uses an existing canonical classification authority and an isolated regression rather than a duplicate parser. Its red-first sequencing, affected acceptance package, baseline, lint/type, changed coverage and independent review are explicit. The amended plan retains immutable prior source snapshots, no lenient acceptance, no invented matrix verdict and no runtime installation or deployment. The PR-only branch policy remains unchanged. A fresh analysis input is necessary because the old report's material manifest predates the planning amendment; that invalid-material admission refusal is not evidence that WP06 is implemented or accepted.
+None unresolved in this planning pass. Canonical authority, opaque fact transport, acceptance-first sequencing, independent reviewer, explicit owning tests and unchanged quality thresholds are represented. The plan forbids lenient acceptance, invented matrix verdicts, scan suppression or allowlist growth. Prior approved work and failed qualification evidence remain preserved. Global installation, unknown backlog retirement, unsupported managed archive, primary integration and production deployment remain outside admission.
 
 ### Unmapped Tasks
 
-None. T001–T006 each map to requirements, an owned surface and concrete validation.
+None. T001–T007 map to stated requirements and corresponding bounded work packages. No new top-level functional/non-functional requirement was introduced; WP07 is necessary authority/closeout recovery within existing scope.
 
 ### Metrics
 
-- Total requirements: **13** (9 functional, 4 non-functional).
-- Total tasks: **6** (T001–T006).
-- Requirement trace coverage: **13/13 = 100%** have task association; not mission completion.
-- Ambiguity count: **0 unresolved findings**.
-- Duplication count: **0 findings**.
-- Critical issues count: **0**.
-- Total unresolved findings: **0**; overflow: **0**.
-- Incremental planning scope: one new WP, one plan extension, one task extension and one lifecycle contract. The specification and first five WP prompts are unchanged.
-- Implementation elapsed time, tokens and cost: not measured by this analysis.
+- Requirements: **13** (9 functional,4 non-functional).
+- Tasks: **7** (T001–T007).
+- Requirement task-association coverage: **13/13=100%**, not implementation or mission completion.
+- Unresolved ambiguity findings: **0**.
+- Duplication findings: **0**.
+- Critical findings: **0**.
+- Total findings: **0**; overflow: **0**.
+- Runtime adoption, elapsed implementation time, tokens and cost: not measured by this analysis.
 
 ### Material Identity Snapshot
 
-The canonical recorder must resolve its own complete current manifest; this snapshot supports review reproducibility and does not replace that authority.
+The recorder must resolve the complete current manifest itself. These hashes support review reproducibility and cannot replace that authority.
 
 | Material | SHA-256 |
 |----------|---------|
 | `kitty-specs/organization-workspace-lifecycle-01M5DRAR/spec.md` | `86b2522bbcdda8c123aeab27223c4c2da0ffdad37b75de001c53429f2c6ee6ba` |
-| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md` | `ca5e569c207abe558254bb983a16bc394deac85575763b947ebad58ad6d31554` |
-| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md` | `8464ade59d644fd601350a97b46da5288a57334fde7b7c10cdd3299720773cba` |
+| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md` | `1e417a68a6b150e43f723e8337abcc5db5fb6c512c75ce1c6aece16b43aaa6e5` |
+| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md` | `63de531735a12eef9277bca812fda58678e88194c4291235b6ef5983b4aefc6d` |
 | `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP01-verified-organization-discovery-and-accounting.md` | `4dc70e62161a40d75c546abc3a207adcab93f69ee6f32c978e4879006250c785` |
 | `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP02-durable-lifecycle-state-and-generation-bound-recovery.md` | `6c1fc7da7b468c12a4789f2dff15868c407fb9ff229368b01481898e123d8555` |
 | `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP03-supported-creator-adapters-and-automatic-ingress.md` | `2158e2e45517fc8585527e991647474081f7ab9f9baba3ee8bb09ceff1d1b317` |
 | `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP04-branch-first-consolidation-and-guidance.md` | `26694aa068ab23ff713ad3517f1a131d78fed5637bace8d0c4e4a74a0451da83` |
 | `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP05-integrated-recovery-acceptance-and-adoption.md` | `bd0559ce2968722d167705b67508492ffdf1d12369e9e01fd2f0f5d6703977cb` |
 | `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout.md` | `4834aa2c629ffbc6343ae4f0ab28042ecc1c7b22aa61f3d40ba003272dbe5643` |
+| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration.md` | `ddf4964cefc861f19503a389d689a0e07537367c268a863f1ad8b84a0dfb5232` |
 | `kitty-specs/organization-workspace-lifecycle-01M5DRAR/contracts/workspace-lifecycle.md` | `0c71b6cf9d49b6abf38ec4c113048ea07d08f436a310877ebd7cd4619aa83be4` |
 | `.kittify/charter/charter.md` | `d59dd63cbfc6ab75c708c31b9ff5d6da0f80e49469284f665b41285ec8ba81f4` |
 
 ### Next Actions
 
-Persist this external carrier through canonical owned `agent mission record-analysis` using the current complete artifact/material selection under the same command-local home. Require its successful response before claiming implementation admission. Then perform WP06's committed red regression, bounded source correction, required validation and independent review; resolve the generated acceptance matrix with real evidence before strict local acceptance. This ready planning assessment grants no completed WP, merge, global hook trust, creator release, backlog retirement or production deployment. Preserve earlier reports and qualification failures as historical evidence.
+Record this external carrier through canonical owned record-analysis under the same isolated home and complete current material selection. Require successful persistence before implementation admission. Then implement WP07 through its committed red-first acceptance, required gates and independent review; finish the separate WP06 qualification and strict matrix evidence. No planning-ready verdict is a completed WP, PR merge, runtime installation, owner release, backlog retirement or deployment approval. Preserve prior carriers and failed receipts as history.
