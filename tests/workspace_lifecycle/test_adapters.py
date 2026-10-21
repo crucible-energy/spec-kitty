@@ -273,3 +273,15 @@ def test_timed_out_owned_producer_is_joined_without_releasing_generation(tmp_pat
         owner.complete(pr=9)
     assert events == []
     assert Path(owner.identity.path).is_dir()
+
+
+def test_reaped_producer_never_authorizes_later_process_group_signals(monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+    from specify_cli.workspace_lifecycle import adapters
+
+    signals = []
+    monkeypatch.setattr(adapters, "signal_owned_process_tree", lambda *args, **kwargs: signals.append(kwargs))
+    monkeypatch.setattr(adapters.os, "killpg", lambda *args: signals.append(args))
+    reaped = SimpleNamespace(returncode=0, pid=123456, wait=lambda **kwargs: 0)
+    adapters.ManagedGitCreator._stop_producer(reaped)
+    assert signals == [], "A reaped PID/PGID is no longer owned signalling authority"
