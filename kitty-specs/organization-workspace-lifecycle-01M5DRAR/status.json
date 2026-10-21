@@ -93,7 +93,7 @@
     },
     "WP04": {
       "actor": "reviewer-renata",
-      "agent": "codex",
+      "agent": "reviewer-renata",
       "agent_profile": "reviewer-renata",
       "agent_profile_version": "1.0",
       "force_count": 0,
@@ -103,7 +103,8 @@
       "model": "__resolved_model_absent__",
       "notes": [
         "Continue existing owned lane; bounded occurrence classification prepared; preserve inherited four checkouts, no new admission. WP03 approved/published PR115.",
-        "WP04 frozen c1ebf7456; source207e1b351 unchanged. Baseline2452/5skip; complete mapped4209-case split owning gate (functional4191pass7skip6xfail + isolated5pass), coverage164/180=91.1111percent; static/attribution retained. Exact external lifecycle-wp04-final-validation.json. Independent review required; no adoption/deployment."
+        "WP04 frozen c1ebf7456; source207e1b351 unchanged. Baseline2452/5skip; complete mapped4209-case split owning gate (functional4191pass7skip6xfail + isolated5pass), coverage164/180=91.1111percent; static/attribution retained. Exact external lifecycle-wp04-final-validation.json. Independent review required; no adoption/deployment.",
+        "Independent review claimed after verifying exact candidate c1ebf7456, unchanged source/docs/tests and hashed final qualification receipt."
       ],
       "provider": "__resolved_provider_absent__",
       "role": "reviewer"
