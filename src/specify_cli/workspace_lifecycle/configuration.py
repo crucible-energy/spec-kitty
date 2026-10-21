@@ -25,14 +25,14 @@ class OrganizationScope:
         if self.schema_version != 1 or type(self.schema_version) is not int or self.organization != "crucible-energy":
             raise StateError("Unsupported organization scope")
         if not isinstance(self.roots, tuple) or not 1 <= len(self.roots) <= 32:
-            raise StateError("One to32 explicit observation roots required")
+            raise StateError("One to 32 explicit observation roots required")
         if any(not isinstance(root, str) or not root or "\0" in root or not Path(root).is_absolute() or ".." in Path(root).parts for root in self.roots):
             raise StateError("Absolute non-traversing observation roots required")
         for value, lower, upper in [(self.max_depth, 0, 64), (self.max_directories, 1, 100000), (self.max_entries, 1, 1000000)]:
             if type(value) is not int or not lower <= value <= upper:
                 raise StateError("Invalid finite organization scan bounds")
         if type(self.worker_timeout) not in (int, float) or not math.isfinite(self.worker_timeout) or not 1 <= self.worker_timeout <= 300:
-            raise StateError("Worker timeout must be finite and between1and300seconds")
+            raise StateError("Worker timeout must be finite and between 1 and 300 seconds")
 
     def record(self) -> dict[str, object]:
         return {**asdict(self), "roots": list(self.roots)}

@@ -96,8 +96,7 @@ class Coordinator:
             binding_key: tuple[object, ...]
             for expected, creator in registered:
                 if any(
-                    op.status in ("retired", "intent", "unknown")
-                    and generation_key(op.identity, op.creator_id) == generation_key(expected, creator.authority_id)
+                    op.status in ("retired", "intent", "unknown") and generation_key(op.identity, op.creator_id) == generation_key(expected, creator.authority_id)
                     for op in tx.state.operations
                 ):
                     continue
@@ -150,7 +149,8 @@ class Coordinator:
         return (
             (row["repository_id"], row["repository"], row["common_dir"], row["path"], row["head"], row["branch"])
             == (expected.repository_id, expected.repository, expected.common_dir, expected.path, expected.head, expected.branch)
-            and row["exists"] and not row["bare"]
+            and row["exists"]
+            and not row["bare"]
         )
 
     def account_owned(self, expected: Identity, creator: Creator) -> None:

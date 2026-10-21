@@ -78,8 +78,10 @@ class LifecycleService:
         return {
             "organization_observation": organization,
             "organization_observation_current": (
-                organization is not None and (scope := OrganizationScope.read(self.store)) is not None
-                and organization.get("scope") == scope.record() and organization.get("generation") == generation
+                organization is not None
+                and (scope := OrganizationScope.read(self.store)) is not None
+                and organization.get("scope") == scope.record()
+                and organization.get("generation") == generation
             ),
             "event_generation": generation,
             "acknowledged_generation": acknowledged,
@@ -89,21 +91,32 @@ class LifecycleService:
 
     def _account_organization(self, scope: OrganizationScope, creators: list[ManagedGitCreator], generation: int) -> bool:
         report: dict[str, object] = {
-            "scope": scope.record(), "generation": generation, "observed_at": now_utc_iso(),
-            "status": "unknown", "reason": "inventory_unavailable",
+            "scope": scope.record(),
+            "generation": generation,
+            "observed_at": now_utc_iso(),
+            "status": "unknown",
+            "reason": "inventory_unavailable",
         }
         complete = False
         try:
             repositories = fetch_repositories(scope.organization, timeout=scope.worker_timeout)
             discovery = discover_workspaces(
-                repositories, [Path(root) for root in scope.roots], max_depth=scope.max_depth,
-                max_directories=scope.max_directories, max_entries=scope.max_entries,
+                repositories,
+                [Path(root) for root in scope.roots],
+                max_depth=scope.max_depth,
+                max_directories=scope.max_directories,
+                max_entries=scope.max_entries,
             )
             Coordinator(self.store).account(discovery["workspaces"], registered=[(creator.identity, creator) for creator in creators])
             complete = discovery["local_scan_complete"]
-            report.update(status="observed", reason="scope_observed" if complete else "scope_incomplete", local_scan_complete=complete,
-                          coverage_gaps=discovery["coverage_gaps"], unmatched_repositories=discovery["unmatched_repositories"],
-                          observation_scope=discovery["observation_scope"])
+            report.update(
+                status="observed",
+                reason="scope_observed" if complete else "scope_incomplete",
+                local_scan_complete=complete,
+                coverage_gaps=discovery["coverage_gaps"],
+                unmatched_repositories=discovery["unmatched_repositories"],
+                observation_scope=discovery["observation_scope"],
+            )
         except (OrganizationInventoryUnavailable, GitCommandError, StateError, OSError, ValueError, NoFollowPathError, LockNotAcquired, LockAcquireTimeout):
             # Keep existing observations; an unavailable scan cannot discharge them.
             pass
