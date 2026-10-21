@@ -852,7 +852,9 @@ _RESOLVER_ENTRY_FRAMES = (
 #                                    _compose_primary_feature_dir`` once per status transaction
 #                                    (two transactions -> +2). Same entry frame, same leaf: a
 #                                    WHERE lookup, not a content read.
-#   ledger_posture                   the fan-out drain posture read
+# The two real ledger-posture reads receive the transaction-owned P root,
+# then canonicalize configuration through R. Load and observe the real reader
+# before arming root aliases; assert its roots and all22lookups separately.
 _RESOLVER_READ_LEDGER = {
     ("mission_has_coordination_branch", "_compose_primary_feature_dir"): 18,
     ("mission_has_coordination_branch", "resolve_topology"): 2,
@@ -873,6 +875,16 @@ def test_armed_get_main_repo_root_pin_owned_finalize(
     monkeypatch.chdir(checkouts.repository_root)
     snapshotter = make_r_snapshot(checkouts)
     before_r = snapshotter.take()
+    from specify_cli.core import hosted_posture
+
+    real_ledger_posture = hosted_posture.ledger_posture
+    ledger_roots: list[Path | None] = []
+
+    def observe_ledger_posture(project_root: Path | None = None) -> hosted_posture.LedgerPosture:
+        ledger_roots.append(project_root)
+        return real_ledger_posture(project_root)
+
+    monkeypatch.setattr(hosted_posture, "ledger_posture", observe_ledger_posture)
     hits, passed_through, arm = _arm_get_main_repo_root(monkeypatch)
     real_resolve = finalize_module.resolve_owned_or_adopt
 
@@ -890,7 +902,8 @@ def test_armed_get_main_repo_root_pin_owned_finalize(
     assert hits == [], "\n".join(hits)
     # What remains reaching ``get_main_repo_root`` after the mint is bounded by an
     # exact ledger of resolver entry frames (see ``_RESOLVER_READ_LEDGER``). These
-    # are topology/placement lookups and the drain-posture read: they consult R
+    # are topology/placement lookups; real ledger-posture calls are observed
+    # separately below: they consult R
     # for WHERE the coordination branch or a directory lives. They are NOT all
     # "only which directory": a resolver read of R that supplied CONTENT (the WP
     # dependencies read by ``_declared_dependencies``) was a real leak and is
@@ -909,6 +922,7 @@ def test_armed_get_main_repo_root_pin_owned_finalize(
         else:
             counts[(entry, frames[-1])] += 1
     assert unclassified == [], "\n".join(unclassified)
+    assert ledger_roots == [checkouts.owned_root, checkouts.owned_root], f"actual ledger roots={ledger_roots}; resolver counts={dict(counts)}"
     assert dict(counts) == _RESOLVER_READ_LEDGER, (
         f"post-mint get_main_repo_root reads differ from the exact ledger (observed vs allowed): {dict(counts)} != {_RESOLVER_READ_LEDGER}"
     )
