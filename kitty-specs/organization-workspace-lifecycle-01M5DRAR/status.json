@@ -1,7 +1,7 @@
 {
-  "event_count": 41,
-  "last_event_id": "01M5EJFXS5S0EYCZQ8SXVPMYVZ",
-  "materialized_at": "2026-10-21T06:31:02.693187+00:00",
+  "event_count": 42,
+  "last_event_id": "01M5EKE2EEB4PYEATEW74K6317",
+  "materialized_at": "2026-10-21T06:47:30.510803+00:00",
   "mission_number": "",
   "mission_slug": "organization-workspace-lifecycle-01M5DRAR",
   "mission_type": "software-dev",
@@ -10,10 +10,10 @@
     "approved": 6,
     "blocked": 0,
     "canceled": 0,
-    "claimed": 1,
+    "claimed": 0,
     "done": 0,
     "for_review": 0,
-    "in_progress": 0,
+    "in_progress": 1,
     "in_review": 0,
     "planned": 0
   },
@@ -142,15 +142,15 @@
       "role": "reviewer"
     },
     "WP06": {
-      "actor": "codex",
+      "actor": "user",
       "agent": "codex",
       "agent_profile": "__resolved_profile_absent__",
       "agent_profile_version": "__resolved_profile_version_absent__",
       "force_count": 1,
       "implementer_of_record": "codex",
-      "lane": "claimed",
-      "last_event_id": "01M5EJFXS5S0EYCZQ8SXVPMYVZ",
-      "last_transition_at": "2026-10-21T06:31:02.693187+00:00",
+      "lane": "in_progress",
+      "last_event_id": "01M5EKE2EEB4PYEATEW74K6317",
+      "last_transition_at": "2026-10-21T06:47:30.510803+00:00",
       "model": "__resolved_model_absent__",
       "notes": [
         "Independent feedback: required broader gates fail; preserve committed WP06 source and requeue pending separately admitted WP07 repair and complete qualification."
