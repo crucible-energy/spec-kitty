@@ -26,6 +26,7 @@ owned_files:
 - tests/acceptance/test_owned_code_kind.py
 - src/specify_cli/cli/commands/agent/tasks_move_task.py
 - tests/specify_cli/cli/commands/agent/test_owned_checkout_move_task.py
+- tests/integration/migration/test_wp03_advance_to_approval.py
 tags: []
 task_type: implement
 tracker_refs: []
