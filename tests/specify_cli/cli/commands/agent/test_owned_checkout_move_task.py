@@ -393,6 +393,13 @@ def test_move_task_enters_review_against_selected_checkout_planning_commit(final
     )
     assert started.exit_code == 0, started.output
 
+    # The allocator's implement/claim seam records this canonical immutable ref.
+    # move-task alone changes status; it does not allocate the workspace.
+    from specify_cli.lanes.claim_base import read_claim_base, record_claim_base
+
+    claim_base = record_claim_base(primary, owned, SLUG, "WP01")
+    assert read_claim_base(primary, SLUG, "WP01") == claim_base
+
     manifest = json.loads((mission / "lanes.json").read_text(encoding="utf-8"))
     planning_commit = manifest["planning_commit_sha"]
     assert len(planning_commit) == 40
