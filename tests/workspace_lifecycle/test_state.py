@@ -9,6 +9,10 @@ from specify_cli.workspace_lifecycle.state import StateError, StateStore
 
 
 def store(tmp_path: Path) -> StateStore:
+    from kernel.no_follow import fd_relative_dir_ops_supported
+
+    if not fd_relative_dir_ops_supported():
+        pytest.skip("Strict persistence is unavailable on this platform")
     root = tmp_path / "lifecycle"
     root.mkdir(mode=0o700)
     return StateStore.initialize(root)
@@ -181,3 +185,123 @@ def test_transaction_cannot_survive_owner_process(tmp_path: Path) -> None:
         child.join(timeout=5)
         pytest.fail("Forked capability test did not terminate")
     assert child.exitcode == 0
+
+
+def test_replaced_state_directory_is_not_adopted(tmp_path: Path) -> None:
+    ledger = store(tmp_path)
+    original = ledger.root.with_name("original")
+    ledger.root.rename(original)
+    ledger.root.mkdir(mode=0o700)
+    with pytest.raises(StateError):
+        ledger.read()
+    assert not (ledger.root / "lifecycle.lock").exists()
+    assert (original / "state.json").exists()
+
+
+def test_nonempty_initialization_preserves_foreign_content(tmp_path: Path) -> None:
+    root = tmp_path / "foreign"
+    root.mkdir(mode=0o700)
+    content = root / "valuable.json"
+    content.write_text('{"preserve":true}')
+    with pytest.raises(StateError):
+        StateStore.initialize(root)
+    assert content.read_text() == '{"preserve":true}'
+    assert not (root / "lifecycle.lock").exists()
+
+
+def test_unsupported_private_state_capability_refuses_before_mutation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import specify_cli.workspace_lifecycle.state as module
+
+    root = tmp_path / "ledger"
+    root.mkdir(mode=0o700)
+    monkeypatch.setattr(module, "fd_relative_dir_ops_supported", lambda: False)
+    with pytest.raises(StateError):
+        StateStore.initialize(root)
+    assert list(root.iterdir()) == []
+
+
+def test_initialization_sync_failure_is_not_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from kernel.no_follow import fd_relative_dir_ops_supported
+
+    if not fd_relative_dir_ops_supported():
+        pytest.skip("Strict persistence is unavailable on this platform")
+    import specify_cli.workspace_lifecycle.state as module
+
+    root = tmp_path / "ledger"
+    root.mkdir(mode=0o700)
+    monkeypatch.setattr(module, "atomic_write", lambda *a, **kw: (_ for _ in ()).throw(OSError("sync failed")))
+    with pytest.raises(StateError):
+        StateStore.initialize(root)
+    with pytest.raises(StateError):
+        StateStore(root).read()
+
+
+def test_hardlinked_or_public_state_is_refused_without_changes(tmp_path: Path) -> None:
+    import os
+
+    ledger = store(tmp_path)
+    path = ledger.root / "state.json"
+    before = path.read_bytes()
+    os.link(path, tmp_path / "alias.json")
+    with pytest.raises(StateError):
+        ledger.read()
+    assert path.read_bytes() == before
+    (tmp_path / "alias.json").unlink()
+    path.chmod(0o644)
+    with pytest.raises(StateError):
+        ledger.read()
+    assert path.read_bytes() == before
+
+
+def test_state_size_and_entry_limits_are_enforced(tmp_path: Path) -> None:
+    import json
+    from specify_cli.workspace_lifecycle.state import MAX_BYTES, MAX_ENTRIES
+
+    ledger = store(tmp_path)
+    path = ledger.root / "state.json"
+    original = json.loads(path.read_text())
+    oversized = dict(original, observations=[None] * (MAX_ENTRIES + 1))
+    path.write_text(json.dumps(oversized))
+    with pytest.raises(StateError):
+        ledger.read()
+    path.write_bytes(b" " * (MAX_BYTES + 1))
+    with pytest.raises(StateError):
+        ledger.read()
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda d: d.update(revision=True),
+        lambda d: d.update(revision=-1),
+        lambda d: d.update(observations={}),
+        lambda d: d.update(operations={}),
+        lambda d: d["operations"][0].update(identity=[]),
+        lambda d: d["operations"][0]["identity"].update(repository_id=True),
+        lambda d: d["operations"][0]["identity"].update(head="not-a-commit"),
+        lambda d: d["operations"][0].update(event_id=3),
+        lambda d: d["operations"][0].update(status="done"),
+        lambda d: d["operations"][0].update(creator_id=""),
+        lambda d: d["operations"][0].update(release_id=7),
+        lambda d: d["operations"][0].update(evidence_sha256="bad"),
+        lambda d: d["operations"].append(d["operations"][0].copy()),
+    ],
+)
+def test_malformed_operation_ledger_refuses_without_reset(tmp_path: Path, change) -> None:
+    import json
+    from specify_cli.workspace_lifecycle.policy import Identity
+    from specify_cli.workspace_lifecycle.state import Operation
+
+    ledger = store(tmp_path)
+    identity = Identity(1, "crucible-energy/example", str(tmp_path / ".git"), str(tmp_path / "work"), "a" * 40, "refs/heads/feature", "workspace", "lease")
+    operation = Operation("event", identity, "a" * 64, "retained", "owner_release_missing", "creator", None, None)
+    with ledger.locked() as tx:
+        tx.commit(replace(tx.state, operations=(operation,)))
+    path = ledger.root / "state.json"
+    data = json.loads(path.read_text())
+    change(data)
+    encoded = json.dumps(data).encode()
+    path.write_bytes(encoded)
+    with pytest.raises(StateError):
+        ledger.read()
+    assert path.read_bytes() == encoded

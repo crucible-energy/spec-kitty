@@ -9,11 +9,13 @@ from pathlib import Path
 import pytest
 import typer
 from typer.testing import CliRunner
+from click.testing import Result
+from kernel.no_follow import fd_relative_dir_ops_supported
 
 from specify_cli.cli.commands import register_commands
 
 
-def invoke(monkeypatch: pytest.MonkeyPatch, args: list[str]):
+def invoke(monkeypatch: pytest.MonkeyPatch, args: list[str]) -> Result:
     monkeypatch.setattr(sys, "argv", ["spec-kitty", "workspaces", *args])
     app = typer.Typer()
     register_commands(app)
@@ -24,6 +26,10 @@ def test_initialize_then_status_through_real_registered_commands(tmp_path: Path,
     root = tmp_path / "ledger"
     root.mkdir(mode=0o700)
     result = invoke(monkeypatch, ["initialize", "--state-dir", str(root)])
+    if not fd_relative_dir_ops_supported():
+        assert result.exit_code == 2
+        assert json.loads(result.output)["error"] == "lifecycle_state_unavailable"
+        return
     assert result.exit_code == 0, result.output
     assert json.loads(result.output)["action"] == "initialized"
     result = invoke(monkeypatch, ["status", "--state-dir", str(root)])
@@ -35,6 +41,8 @@ def test_initialize_then_status_through_real_registered_commands(tmp_path: Path,
 
 
 def test_account_command_persists_real_observation_and_unknown_scope(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    if not fd_relative_dir_ops_supported():
+        pytest.skip("Strict persistence is unavailable on this platform")
     from specify_cli.cli.commands import workspaces
 
     root = tmp_path / "ledger"
@@ -74,3 +82,48 @@ def test_uninitialized_status_refuses_without_claiming_empty_success(tmp_path: P
     assert result.exit_code == 2
     assert json.loads(result.output)["error"] == "lifecycle_state_unavailable"
     assert not (root / "state.json").exists()
+
+
+def test_initialize_again_never_resets_a_ledger(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    if not fd_relative_dir_ops_supported():
+        pytest.skip("Strict persistence is unavailable on this platform")
+    root = tmp_path / "ledger"
+    root.mkdir(mode=0o700)
+    assert invoke(monkeypatch, ["initialize", "--state-dir", str(root)]).exit_code == 0
+    before = (root / "state.json").read_bytes()
+    result = invoke(monkeypatch, ["initialize", "--state-dir", str(root)])
+    assert result.exit_code == 2
+    assert json.loads(result.output)["error"] == "lifecycle_state_unavailable"
+    assert (root / "state.json").read_bytes() == before
+
+
+def test_failed_inventory_preserves_ledger(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    if not fd_relative_dir_ops_supported():
+        pytest.skip("Strict persistence is unavailable on this platform")
+    from specify_cli.cli.commands import workspaces
+    from specify_cli.workspace_lifecycle.inventory import OrganizationInventoryUnavailable
+
+    root = tmp_path / "ledger"
+    root.mkdir(mode=0o700)
+    assert invoke(monkeypatch, ["initialize", "--state-dir", str(root)]).exit_code == 0
+    before = (root / "state.json").read_bytes()
+
+    def unavailable(org: str):
+        raise OrganizationInventoryUnavailable("inventory unavailable")
+
+    monkeypatch.setattr(workspaces, "fetch_repositories", unavailable)
+    result = invoke(monkeypatch, ["account", "--state-dir", str(root), "--root", str(tmp_path)])
+    assert result.exit_code == 2
+    assert json.loads(result.output)["error"] == "lifecycle_state_unavailable"
+    assert (root / "state.json").read_bytes() == before
+
+
+def test_uninitialized_status_leaves_directory_admissible(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    if not fd_relative_dir_ops_supported():
+        pytest.skip("Strict persistence is unavailable on this platform")
+    root = tmp_path / "ledger"
+    root.mkdir(mode=0o700)
+    assert invoke(monkeypatch, ["status", "--state-dir", str(root)]).exit_code == 2
+    assert list(root.iterdir()) == []
+    result = invoke(monkeypatch, ["initialize", "--state-dir", str(root)])
+    assert result.exit_code == 0, result.output

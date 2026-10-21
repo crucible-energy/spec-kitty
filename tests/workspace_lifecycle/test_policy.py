@@ -1,6 +1,7 @@
 """Generation-bound decisions consume creator evidence, never discovery guesses."""
 
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -8,7 +9,16 @@ from specify_cli.workspace_lifecycle.policy import Evidence, Identity, decide
 
 
 def identity() -> Identity:
-    return Identity(1, "crucible-energy/example", "/store/.git", "/work/feature", "a" * 40, "refs/heads/feature", "workspace-1", "lease-1")
+    return Identity(
+        1,
+        "crucible-energy/example",
+        str(Path(Path.cwd().anchor) / "store" / ".git"),
+        str(Path(Path.cwd().anchor) / "work" / "feature"),
+        "a" * 40,
+        "refs/heads/feature",
+        "workspace-1",
+        "lease-1",
+    )
 
 
 def evidence() -> Evidence:

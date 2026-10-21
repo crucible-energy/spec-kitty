@@ -56,6 +56,10 @@ class Creator:
 
 
 def setup(tmp_path: Path) -> tuple[Coordinator, Creator, Identity]:
+    from kernel.no_follow import fd_relative_dir_ops_supported
+
+    if not fd_relative_dir_ops_supported():
+        pytest.skip("Strict persistence is unavailable on this platform")
     root = tmp_path / "ledger"
     root.mkdir(mode=0o700)
     ledger = StateStore.initialize(root)
@@ -211,3 +215,57 @@ def test_retired_generation_cannot_be_readmitted(tmp_path: Path) -> None:
     with pytest.raises(StateError):
         c.account_owned(i, a)
     assert c.closeout(workflow_complete=True)["cleanup_complete"] is True
+
+
+def test_concurrent_events_share_one_terminal_generation_receipt(tmp_path: Path) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    c, a, i = setup(tmp_path)
+    start = Barrier(2)
+
+    def run(event_id: str):
+        start.wait(timeout=5)
+        return c.reconcile(event_id, i, a)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        left = pool.submit(run, "event-left")
+        right = pool.submit(run, "event-right")
+        assert left.result(timeout=5) == right.result(timeout=5)
+    assert a.calls == 1
+    assert len(c.store.read().operations) == 1
+
+
+def test_unknown_discovery_cannot_claim_creator_binding(tmp_path: Path) -> None:
+    c, a, i = setup(tmp_path)
+    c.account_owned(i, a)
+    c.reconcile("event", i, a)
+    observation = {
+        "repository": i.repository,
+        "repository_id": i.repository_id,
+        "common_dir": i.common_dir,
+        "path": i.path,
+        "head": i.head,
+        "branch": i.branch,
+        "bare": False,
+        "exists": True,
+        "disposition": "retired",
+        "reason": "untrusted_claim",
+        "creator_id": a.authority_id,
+        "workspace_generation": i.workspace_generation,
+        "lease_generation": i.lease_generation,
+        "retirement_event_id": "event",
+    }
+    c.account([observation])
+    assert c.closeout(workflow_complete=True)["cleanup_complete"] is False
+    unbound = [row for row in c.store.read().observations if "creator_id" not in row]
+    assert len(unbound) == 1 and unbound[0]["disposition"] == "retained"
+
+
+def test_known_retained_generation_is_unresolved_without_being_unknown(tmp_path: Path) -> None:
+    coordinator, creator, identity = setup(tmp_path)
+    coordinator.account_owned(identity, creator)
+    report = coordinator.closeout(workflow_complete=True)
+    assert report["unknown_observations"] == 0
+    assert report["unresolved_observations"] == 1
+    assert report["cleanup_complete"] is False
