@@ -533,3 +533,17 @@ def test_evidence_fetch_refuses_unsafe_refspec_before_contact(world: tuple[Path,
     with pytest.raises((ValueError, GitCommandError)):
         git_remote.fetch_evidence_ref(work, "/unreachable", source, destination, timeout=1)
     assert _git(work, "rev-parse", "HEAD") == before
+
+
+@pytest.mark.parametrize("timeout", [0, -1, float("inf"), float("nan")])
+def test_evidence_fetch_requires_bounded_contact(world: tuple[Path, Path], timeout: float) -> None:
+    _, work = world
+    with pytest.raises(ValueError, match="Finite positive"):
+        git_remote.fetch_evidence_ref(work, "/unreachable", "refs/heads/main", "refs/spec-kitty/test/default", timeout=timeout)
+
+
+def test_evidence_fetch_unreachable_is_not_absence(world: tuple[Path, Path]) -> None:
+    _, work = world
+    with pytest.raises(RemoteUnreachable):
+        git_remote.fetch_evidence_ref(work, "/unreachable", "refs/heads/main", "refs/spec-kitty/test/default", timeout=1)
+    assert _git(work, "for-each-ref", "--format=%(refname)", "refs/spec-kitty/") == ""

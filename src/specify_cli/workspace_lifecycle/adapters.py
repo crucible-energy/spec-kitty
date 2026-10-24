@@ -201,6 +201,9 @@ class GitHubDelivery:
             accepted = self._accepted(expected, pr, deadline)
             if accepted is None or not re.fullmatch(r"[0-9a-f]{32}", expected.workspace_generation):
                 return None
+            grafts = Path(expected.common_dir) / "info" / "grafts"
+            if grafts.exists() or grafts.is_symlink():
+                return None
             default, merge_sha, api_receipt = accepted
             default_ref = f"refs/spec-kitty/lifecycle/{expected.repository_id}/{expected.workspace_generation}/default"
             contact_env = _git_env()
@@ -349,7 +352,7 @@ def _released(state: _OwnerState) -> bool:
 
 def _git_env() -> dict[str, str]:
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
-    env.update({"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull, "GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0"})
+    env.update({"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull, "GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_REPLACE_OBJECTS": "1"})
     return env
 
 
@@ -428,6 +431,29 @@ def _runtime_state(root: Path) -> tuple[bool, bool]:
                 continue
         return False, True
     except (OSError, psutil.Error):
+        return False, False
+
+
+def _creator_runtime_state(identity: Identity) -> tuple[bool, bool]:
+    """Include this checkout's Git administration, without blocking siblings.
+
+    Git stores linked-worktree indexes, HEAD and in-progress operations outside
+    the source directory. Holders there are dependencies of this exact creator,
+    unlike a sibling's legitimate use of shared packs or common refs.
+    """
+    root = Path(identity.path)
+    held, complete = _runtime_state(root)
+    if held or not complete:
+        return held, complete
+    try:
+        raw = run_git(root, "rev-parse", "--absolute-git-dir", env=_git_env(), timeout=5).stdout
+        metadata = Path(os.fsdecode(raw.removesuffix(b"\n")))
+        if not metadata.is_absolute() or metadata.parent != Path(identity.common_dir) / "worktrees":
+            return False, False
+        if any(path.is_symlink() for path in (metadata, *metadata.parents)) or not stat.S_ISDIR(metadata.lstat().st_mode):
+            return False, False
+        return _runtime_state(metadata)
+    except (GitCommandError, OSError, ValueError):
         return False, False
 
 
@@ -706,7 +732,7 @@ class ManagedGitCreator:
         path = Path(fresh.path)
         entries = status_entries(path, untracked="all", ignored=True, optional_locks=False, env=_git_env(), timeout=5)
         nested, complete = _nested_state(path)
-        runtime_held, runtime_complete = _runtime_state(path) if complete and not entries and not nested else (False, True)
+        runtime_held, runtime_complete = _creator_runtime_state(fresh) if complete and not entries and not nested else (False, True)
         accepted = (
             self.delivery.verify_current(fresh, state.pr)
             if state.pr and _released(state) and complete and not entries and not nested and runtime_complete and not runtime_held
@@ -767,6 +793,11 @@ class ManagedGitCreator:
             if not create:
                 receipt: object = json.loads(self.store.read_private(name, limit=65536))
                 return receipt == expected and git("rev-parse", "--verify", ref + "^{commit}").stdout.decode().strip() == identity.head
+            objects = Path(identity.common_dir) / "objects"
+            alternates = objects / "info" / "alternates"
+            partial = git("config", "--get-regexp", r"^(remote\..*\.promisor|extensions\.partialclone)$", check=False)
+            if objects.is_symlink() or alternates.exists() or alternates.is_symlink() or partial.returncode != 1 or any((objects / "pack").glob("*.promisor")):
+                return False
             if git("rev-parse", "--is-shallow-repository").stdout.strip() != b"false":
                 return False
             if path.exists() or path.is_symlink():
@@ -802,7 +833,7 @@ class ManagedGitCreator:
             or intent.status != "intent"
         ):
             return Result("retained", "authorizing_intent_changed")
-        runtime_held, runtime_complete = _runtime_state(Path(identity.path))
+        runtime_held, runtime_complete = _creator_runtime_state(identity)
         nested, nested_complete = _nested_state(Path(identity.path))
         if runtime_held or not runtime_complete or nested or not nested_complete:
             return Result("retained", "runtime_or_nested_state_changed")
@@ -810,7 +841,7 @@ class ManagedGitCreator:
             return Result("retained", "exact_source_recovery_unconfirmed")
         if self._fresh(state) != identity:
             return Result("retained", "creator_identity_changed_after_recovery")
-        runtime_held, runtime_complete = _runtime_state(Path(identity.path))
+        runtime_held, runtime_complete = _creator_runtime_state(identity)
         if runtime_held or not runtime_complete:
             return Result("retained", "runtime_changed_after_recovery")
         guarded_worktree_remove(Path(identity.path), retain=False, is_residue=lambda _: False, env=_git_env(), preserve_ignored=True)
