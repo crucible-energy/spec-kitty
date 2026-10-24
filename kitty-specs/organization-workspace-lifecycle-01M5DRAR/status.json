@@ -232,7 +232,8 @@
       "notes": [
         "Existing lane owner assigned; native finish obligations, safe persistence and no retirement authority.",
         "Native finish-store source32332053 plus final tests at f131e0df: Debug/ReleaseSafe7pass, real CLI restart/stale/missing-history/archive-restore proof, no deletion authority; independent reviewer requested.",
-        "Record independent01a13e15 reviewer changes requested on exactf131e0df: umask publication metadata and mandatory persisted envelope; no approval inferred."
+        "Record independent01a13e15 reviewer changes requested on exactf131e0df: umask publication metadata and mandatory persisted envelope; no approval inferred.",
+        "Independent r1 findings reproduced by two failing native regressions; repairing only new-file metadata and required persisted envelope."
       ],
       "provider": "__resolved_provider_absent__",
       "review": null,
