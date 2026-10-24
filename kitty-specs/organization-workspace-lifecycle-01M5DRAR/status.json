@@ -266,7 +266,7 @@
     },
     "WP11": {
       "actor": "reviewer-renata",
-      "agent": "codex",
+      "agent": "reviewer-renata",
       "agent_profile": "__resolved_profile_absent__",
       "agent_profile_version": "__resolved_profile_version_absent__",
       "assignee": "crucible-workspace-closeout",
@@ -280,6 +280,7 @@
         "Frozen source597207757:208 targeted behavior/architecture controls pass, strict mypy/Ruff pass, required changed-statement gate93.8% (exact ratio in external report), external evidence under closeout outputs/lifecycle-wp11-*-r7.*. Independent review requested; not approved, released or deployed."
       ],
       "provider": "__resolved_provider_absent__",
+      "review": null,
       "review_result": {
         "feedback_path": "/Users/sam/git/crucible/spec-kitty/.worktrees/review-thread-closure-upstream/kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP11-retirement-delivery-and-recovery-proof/review-cycle-1.md",
         "reference": "review-cycle://organization-workspace-lifecycle-01M5DRAR/WP11-retirement-delivery-and-recovery-proof/review-cycle-1.md",
@@ -287,8 +288,10 @@
         "verdict": "changes_requested"
       },
       "role": "implementer",
+      "shell_pid": null,
+      "shell_pid_created_at": null,
       "subtasks": {
-        "T011": "done"
+        "T011": "planned"
       }
     }
   }
