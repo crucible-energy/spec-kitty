@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 4.0.0rc6
 
+- **Owned analysis works on a mission's declared LANES target checkout.** `agent mission record-analysis` and `check-prerequisites` accept that target without widening implementation, finalization or merge authority. Report-only recording checks the selected checkout's Git operation state; an unrelated primary checkout's merge no longer blocks it. A merge, rebase or index lock in the selected checkout still refuses the transaction.
+
 _4.0.0rc6 candidate cycle. Entries land here until the release chore finalizes
 this section at publish._
 

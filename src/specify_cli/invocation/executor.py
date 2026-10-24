@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
+    from specify_cli.core.owned_mission import OperationCheckout
     from charter.activation.context import CharterContextResult
     from charter.profiles import AgentProfile
     from charter.model_routing import RoutingRecommendation
@@ -190,7 +191,7 @@ def build_close_contract(
     invocation_id: str,
     mode_of_work: str | None = None,
     *,
-    owned_checkout: Path | None = None,
+    owned: OperationCheckout | None = None,
 ) -> dict[str, object]:
     """Machine-readable close contract for an open Op (contracts/cli-do-output.md).
 
@@ -207,10 +208,10 @@ def build_close_contract(
         "artifact_flag": "--artifact",
         "commit_flag": "--commit",
     }
-    if owned_checkout is not None:
+    if owned is not None:
         from shlex import quote
 
-        contract["command"] = f"{contract['command']} --owned-checkout {quote(str(owned_checkout))}"
+        contract["command"] = f"{contract['command']} --owned-checkout {quote(str(owned.root))}"
     if not mode_permits_evidence(classify_mode_of_work(mode_of_work)):
         del contract["evidence_flag"]
     return contract
@@ -243,7 +244,7 @@ class InvocationPayload:
     # for this slot -- see to_dry_run_dict()'s explicit fail-fast guard below,
     # which is the real backstop at this layer.
     alternatives: list[dict[str, str]]
-    _owned_checkout: Path | None
+    _owned_checkout: OperationCheckout | None
 
     __slots__ = (
         "invocation_id",
@@ -304,7 +305,7 @@ class InvocationPayload:
         result["close_contract"] = build_close_contract(
             self.invocation_id,
             getattr(self, "mode_of_work", None),
-            owned_checkout=getattr(self, "_owned_checkout", None),
+            owned=getattr(self, "_owned_checkout", None),
         )
         return result
 

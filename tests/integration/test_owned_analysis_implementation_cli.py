@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +20,54 @@ from tests.integration.conftest import OwnedCheckouts, _git
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo, pytest.mark.real_worktree_detection, pytest.mark.real_drain_posture]
 BODY = "---\nschema: analysis-findings/v1\nfindings: []\n---\n\n# Analysis\nFR-001 is covered by WP01.\n"
+
+
+def test_source_derived_rc7_currency_and_transaction(prepared_owner: OwnedCheckouts) -> None:
+    python = os.environ.get("OWNED_ANALYSIS_RC7_PYTHON")
+    if not python:
+        pytest.skip("Requires the separately built, pinned RC7 qualification runtime")
+    checkouts = prepared_owner
+    meta_path = checkouts.mission_dir / "meta.json"
+    meta = json.loads(meta_path.read_text())
+    meta["topology"] = "lanes"
+    meta_path.write_text(json.dumps(meta))
+    _git(checkouts.owned_root, "add", ".")
+    _git(checkouts.owned_root, "commit", "-qm", "admit RC7 lanes fixture")
+    marker = checkouts.repository_root / ".git/MERGE_HEAD"
+    marker.write_text(_git(checkouts.repository_root, "rev-parse", "HEAD") + "\n")
+    before = primary_state(checkouts)
+    probe = """
+import json, sys
+from pathlib import Path
+from typer.testing import CliRunner
+from specify_cli.cli.commands.agent.mission import app
+from specify_cli.cli.commands.next_cmd import analysis_currency_for
+from specify_cli.core.owned_mission import resolve_owned_mission, NEXT_OWNED_TOPOLOGIES
+root, owned_root, slug = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
+owned = resolve_owned_mission(root, owned_root, slug, allowed_topologies=NEXT_OWNED_TOPOLOGIES)
+result = CliRunner().invoke(app, ["record-analysis", "--mission", slug, "--owned-checkout", str(owned_root), "--report-only", "--json"], input=sys.argv[4])
+assert result.exit_code == 0, result.output
+assert json.loads(result.output)["success"]
+currency = analysis_currency_for(slug, root, owned=owned)
+assert currency().status == "current", currency()
+spec = owned.mission_dir / "spec.md"
+spec.write_text(spec.read_text() + "\\nChanged requirement.\\n")
+assert currency().status == "stale", currency()
+print("actual RC7 recorder/currency: current then stale; unrelated primary merge preserved")
+"""
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+    result = subprocess.run(
+        [python, "-c", probe, str(checkouts.repository_root), str(checkouts.owned_root), checkouts.mission_slug, BODY],
+        cwd=checkouts.owned_root,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert primary_state(checkouts) == before
+    assert marker.exists()
 
 
 @pytest.fixture
@@ -57,6 +107,55 @@ def record(checkouts: OwnedCheckouts, *, report_only: bool = False) -> Any:
     if report_only:
         args.append("--report-only")
     return CliRunner().invoke(mission_app, args, input=BODY)
+
+
+@pytest.mark.parametrize("report_only", [False, True])
+def test_lanes_analysis_uses_owned_root(prepared_owner: OwnedCheckouts, report_only: bool) -> None:
+    checkouts = prepared_owner
+    meta_path = checkouts.mission_dir / "meta.json"
+    meta = json.loads(meta_path.read_text())
+    meta["topology"] = "lanes"
+    meta_path.write_text(json.dumps(meta))
+    _git(checkouts.owned_root, "add", ".")
+    _git(checkouts.owned_root, "commit", "-qm", "admit lanes planning fixture")
+    before = primary_state(checkouts)
+    result = record(checkouts, report_only=report_only)
+    assert result.exit_code == 0, result.output
+    from specify_cli.analysis_report import check_analysis_report_current
+    from specify_cli.core.owned_mission import NEXT_OWNED_TOPOLOGIES
+
+    owned = resolve_owned_or_adopt(
+        checkouts.repository_root, checkouts.owned_root, checkouts.mission_slug, cwd=checkouts.owned_root, allowed_topologies=NEXT_OWNED_TOPOLOGIES
+    )
+    freshness = check_analysis_report_current(checkouts.mission_dir, checkouts.owned_root, owned=owned)
+    assert freshness.ok, freshness
+    from specify_cli.cli.commands.agent.workflow import _require_current_analysis_report
+
+    # Runtime coordination may retain the common repository root; the actual
+    # freshness gate must consume the canonical owned fact instead.
+    _require_current_analysis_report(checkouts.mission_dir, checkouts.repository_root, checkouts.mission_slug, owned=owned)
+    result = CliRunner().invoke(mission_app, ["check-prerequisites", "--mission", checkouts.mission_slug, "--owned-checkout", str(checkouts.owned_root), "--json"])
+    assert result.exit_code == 0, result.output
+    assert primary_state(checkouts) == before
+
+
+def test_owned_report_ignores_primary_merge_preserves_actual_target_guard(prepared_owner: OwnedCheckouts) -> None:
+    checkouts = prepared_owner
+    primary_marker = checkouts.repository_root / ".git/MERGE_HEAD"
+    primary_marker.write_text(_git(checkouts.repository_root, "rev-parse", "HEAD") + "\n")
+    before = primary_state(checkouts)
+    result = record(checkouts, report_only=True)
+    assert result.exit_code == 0, result.output
+    assert primary_state(checkouts) == before
+    assert primary_marker.exists()
+    owned_git = Path(_git(checkouts.owned_root, "rev-parse", "--absolute-git-dir"))
+    (owned_git / "MERGE_HEAD").write_bytes(primary_marker.read_bytes())
+    head = _git(checkouts.owned_root, "rev-parse", "HEAD")
+    result = record(checkouts, report_only=True)
+    assert result.exit_code != 0
+    assert "Active Git operation" in result.output, result.output
+    assert _git(checkouts.owned_root, "rev-parse", "HEAD") == head
+    assert primary_state(checkouts) == before
 
 
 def implement(checkouts: OwnedCheckouts, *extra: str) -> Any:
@@ -245,14 +344,14 @@ def test_owned_dependency_and_dispatch_guards_remain(prepared_owner: OwnedChecko
     assert primary_state(checkouts) == before
 
 
-def test_owned_dispatch_requires_correlated_model(prepared_owner: OwnedCheckouts) -> None:
+def test_owned_dispatch_refuses_unproved_actual_model(prepared_owner: OwnedCheckouts) -> None:
     checkouts = prepared_owner
     assert record(checkouts, report_only=True).exit_code == 0
     before = primary_state(checkouts)
     events = (checkouts.mission_dir / "status.events.jsonl").read_bytes()
     result = implement(checkouts, "--model", "invented-model")
     assert result.exit_code == 1, result.output
-    assert "--invocation-id" in result.output
+    assert "--model cannot be recorded as resolved actual without model execution evidence" in result.output
     assert (checkouts.mission_dir / "status.events.jsonl").read_bytes() == events
     assert primary_state(checkouts) == before
 

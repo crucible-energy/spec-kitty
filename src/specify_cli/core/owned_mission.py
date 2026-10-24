@@ -48,6 +48,62 @@ MISSION_CONTEXT_CONFLICT: Final = "MISSION_CONTEXT_CONFLICT"  # pre-existing wir
 _FEATURE_CONTEXT_UNRESOLVED = FEATURE_CONTEXT_UNRESOLVED
 _MISSION_CONTEXT_CONFLICT = MISSION_CONTEXT_CONFLICT
 
+
+@dataclass(frozen=True)
+class OperationCheckout:
+    """Validated standalone Op custody, without claiming mission ownership.
+
+    Ops need not have a mission. Their raw selection is validated by this sole
+    ownership minter; consumers carry this value instead of an unverified path.
+    This admission check is not a lease over future Git state.
+    """
+
+    root: Path
+
+
+def resolve_operation_checkout(
+    primary: Path,
+    owned_claim: Path | None,
+    *,
+    writing: bool,
+) -> OperationCheckout:
+    """Validate explicit custody and refuse unsafe branches before construction.
+
+    Without opt-in, retain canonical-primary discovery. Non-Git legacy callers
+    still reach the existing context-resolution error. An explicit ownership
+    claim always requires a verified checkout and an attached writable branch.
+    Read-only routing can inspect protected branches without opening an Op.
+    """
+    from kernel.git_topology import NotAGitRepositoryError, git_toplevel
+    from specify_cli.core.checkout_ownership import error_for_claim, resolve_ownership_claim
+    from specify_cli.core.git_ops import resolve_primary_branch
+
+    checkout = primary
+    if owned_claim is not None:
+        claim = resolve_ownership_claim(owned_claim, resolved_primary=primary)
+        error = error_for_claim(claim)
+        if error is not None:
+            raise error
+        checkout = claim.claimed_checkout
+    if writing:
+        try:
+            git_toplevel(checkout)
+        except NotAGitRepositoryError:
+            # Existing uninitialized-project callers get their established
+            # actionable context error; explicit claims already failed above.
+            return OperationCheckout(checkout)
+        branch = get_current_branch(checkout)
+        if branch is None:
+            raise ValueError("Operation records require an attached feature branch; detached HEAD is read-only.")
+        # Check before registry construction, including a repository that has
+        # not created .kittify yet. A feature's config cannot weaken the
+        # primary checkout's protection policy.
+        primary_branch = resolve_primary_branch(primary, bias=False)
+        if any(ProtectionPolicy.resolve(root).is_protected_target(branch, primary_branch=primary_branch, allow_bypass=False) for root in {primary, checkout}):
+            raise ValueError(f"Refusing operation writes on protected branch '{branch}'; use --owned-checkout on a feature branch.")
+    return OperationCheckout(checkout)
+
+
 # owned-checkout-lifecycle-authority WP02 (FR-023, research R-02): the two
 # allowed-topology sets a call site chooses from. LANES is deliberately absent
 # from LIFECYCLE_OWNED_TOPOLOGIES (today's lifecycle commands only support
@@ -55,6 +111,10 @@ _MISSION_CONTEXT_CONFLICT = MISSION_CONTEXT_CONFLICT
 # `next --owned-checkout` applies no topology check at all and must keep
 # accepting a plain lanes-without-coordination owned mission.
 LIFECYCLE_OWNED_TOPOLOGIES: Final[frozenset[MissionTopology]] = frozenset({MissionTopology.SINGLE_BRANCH})
+# Planning evidence belongs to the declared target checkout even when code
+# implementation uses lanes. This does not admit lane/coordination worktrees or
+# widen implementation, finalization, or merge commands.
+ANALYSIS_OWNED_TOPOLOGIES: Final[frozenset[MissionTopology]] = frozenset({MissionTopology.SINGLE_BRANCH, MissionTopology.LANES})
 NEXT_OWNED_TOPOLOGIES: Final[frozenset[MissionTopology]] = frozenset(
     {
         MissionTopology.SINGLE_BRANCH,
