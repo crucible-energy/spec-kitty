@@ -276,7 +276,8 @@
       "last_transition_at": "2026-10-24T22:31:32.591192+00:00",
       "model": "__resolved_model_absent__",
       "notes": [
-        "Independent retained-runtime safety repair: fresh delivery/recovery/runtime preservation before rollout; WP08 review proceeds separately."
+        "Independent retained-runtime safety repair: fresh delivery/recovery/runtime preservation before rollout; WP08 review proceeds separately.",
+        "Frozen source597207757:208 targeted behavior/architecture controls pass, strict mypy/Ruff pass, required changed-statement gate93.8% (exact ratio in external report), external evidence under closeout outputs/lifecycle-wp11-*-r7.*. Independent review requested; not approved, released or deployed."
       ],
       "provider": "__resolved_provider_absent__",
       "role": "implementer",
