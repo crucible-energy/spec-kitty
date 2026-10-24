@@ -16,6 +16,13 @@ separate real-checkout regression found report-only recording blocked by a
 merge marker in the shared primary checkout even though its selected target
 checkout was idle.
 
+Hosted CI subsequently found two pre-existing formatting failures outside the
+initial changed-file check: the sampler frame helper and the doctor CLI golden
+option table. CI's pinned formatter corrected both. Complete syntax-tree
+comparison proves no semantic change; focused frame and golden-surface checks
+cover their contracts. The full-tree formatter check now passes with that
+same pinned formatter, rather than relying only on local changed-file checks.
+
 ## Engineering Decisions
 
 Analysis and prerequisite inspection explicitly admit `single_branch` and
