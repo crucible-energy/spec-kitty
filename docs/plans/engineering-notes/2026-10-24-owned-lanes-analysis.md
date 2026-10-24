@@ -49,7 +49,7 @@ existing protected-branch and detached-HEAD refusals. Raw paths remain only at
 the explicit CLI claim boundary. The stale model test now asserts the actual
 execution-evidence refusal instead of expecting an older invocation-ID hint.
 
-The separate [RC7 qualification recipe](../../tools/qualification/README.md)
+The separate [RC7 qualification recipe](../../../tools/qualification/README.md)
 starts from the exact published sdist. It applies a checked patch to the actual
 RC7 currency callback rather than substituting the older integration runtime,
 whose `next` implementation predates that callback. This preserves RC7's report
