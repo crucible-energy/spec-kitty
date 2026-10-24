@@ -34,7 +34,17 @@ const Obligation = struct {
     evidence: []const []const u8,
 };
 const Event = struct { sequence: u64, obligation_id: []const u8, obligation: Obligation };
-const State = struct { schema_version: u8 = 1, revision: u64 = 0, events: []const Event = &.{} };
+const State = struct {
+    // Persisted fields are mandatory. Convenience defaults must never decode
+    // truncated history into a valid initial state.
+    schema_version: u8,
+    revision: u64,
+    events: []const Event,
+
+    fn initial() State {
+        return .{ .schema_version = 1, .revision = 0, .events = &.{} };
+    }
+};
 const Request = struct {
     operation: enum { initialize, record, status },
     expected_revision: ?u64 = null,
@@ -93,7 +103,7 @@ fn append(allocator: Allocator, state: State, expected: u64, obligation: Obligat
     const events = try allocator.alloc(Event, state.events.len + 1);
     @memcpy(events[0..state.events.len], state.events);
     events[state.events.len] = .{ .sequence = expected + 1, .obligation_id = try identity(allocator, obligation.source), .obligation = obligation };
-    return .{ .revision = expected + 1, .events = events };
+    return .{ .schema_version = 1, .revision = expected + 1, .events = events };
 }
 
 fn parse(comptime T: type, allocator: Allocator, bytes: []const u8) !std.json.Parsed(T) {
@@ -165,6 +175,10 @@ fn persist(allocator: Allocator, root: c_int, state: State, initialize: bool) !v
         _ = c.close(fd);
         if (!published) _ = c.unlinkat(root, name, 0);
     }
+    // Only this exclusively created descriptor is ours to normalize. Umask
+    // must not turn a successful publication into unreadable incumbent state.
+    if (c.fchmod(fd, 0o600) != 0) return error.PrivateFileRequired;
+    try privateFile(fd);
     var offset: usize = 0;
     while (offset < bytes.len) {
         const count = c.write(fd, bytes[offset..].ptr, bytes.len - offset);
@@ -198,6 +212,7 @@ fn process(allocator: Allocator, root_path: []const u8, request: Request) !State
         return error.LockUnavailable;
     }
     defer _ = c.close(lock);
+    if (request.operation == .initialize and c.fchmod(lock, 0o600) != 0) return error.PrivateFileRequired;
     try privateFile(lock);
     if (c.flock(lock, c.LOCK_EX | c.LOCK_NB) != 0) return error.LockBusy;
     defer _ = c.flock(lock, c.LOCK_UN);
@@ -210,8 +225,8 @@ fn process(allocator: Allocator, root_path: []const u8, request: Request) !State
     switch (request.operation) {
         .initialize => {
             if (request.obligation != null or request.expected_revision != null) return error.InvalidRequest;
-            try persist(allocator, root, .{}, true);
-            return .{};
+            try persist(allocator, root, State.initial(), true);
+            return State.initial();
         },
         .status => {
             if (request.obligation != null or request.expected_revision != null) return error.InvalidRequest;
@@ -247,7 +262,7 @@ test "append retains prior source and owner history; stale revisions cannot repl
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
-    const first = try append(a, .{}, 0, example());
+    const first = try append(a, State.initial(), 0, example());
     var change = example();
     change.owner = "review-owner";
     change.stage = .review;
@@ -284,7 +299,7 @@ test "replacement source generation remains a separate obligation and history is
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
-    const first = try append(a, .{}, 0, example());
+    const first = try append(a, State.initial(), 0, example());
     var replacement = example();
     replacement.source.head = "b" ** 40;
     var second = try append(a, first, 1, replacement);
@@ -361,4 +376,35 @@ test "another writer hold and non-private directory refuse without advancing sta
     try std.testing.expectError(error.PrivateDirectoryRequired, process(a, path, .{ .operation = .status }));
     try tmp.dir.setPermissions(std.testing.io, .fromMode(0o700));
     try std.testing.expectEqual(@as(u64, 0), (try process(a, path, .{ .operation = .status })).revision);
+}
+
+test "restrictive umask cannot publish unreadable replacement history" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const path = try temporaryPath(a, tmp.dir);
+    _ = try process(a, path, .{ .operation = .initialize });
+    const previous_mask = c.umask(0o200);
+    defer _ = c.umask(previous_mask);
+    _ = try process(a, path, .{ .operation = .record, .expected_revision = 0, .obligation = example() });
+    try std.testing.expectEqual(@as(u64, 1), (try process(a, path, .{ .operation = .status })).revision);
+}
+
+test "incomplete persisted envelope cannot reset prior history to defaults" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const path = try temporaryPath(a, tmp.dir);
+    _ = try process(a, path, .{ .operation = .initialize });
+    _ = try process(a, path, .{ .operation = .record, .expected_revision = 0, .obligation = example() });
+    const corrupted = try tmp.dir.createFile(std.testing.io, "finish.json", .{ .permissions = .fromMode(0o600) });
+    try corrupted.writeStreamingAll(std.testing.io, "{}");
+    corrupted.close(std.testing.io);
+    try std.testing.expectError(error.MissingField, process(a, path, .{ .operation = .status }));
+    try std.testing.expectError(error.MissingField, process(a, path, .{ .operation = .record, .expected_revision = 0, .obligation = example() }));
+    try std.testing.expectEqualStrings("{}", try tmp.dir.readFileAlloc(std.testing.io, "finish.json", a, .limited(100)));
 }
