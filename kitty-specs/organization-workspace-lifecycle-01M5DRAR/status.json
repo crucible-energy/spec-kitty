@@ -220,7 +220,7 @@
     },
     "WP08": {
       "actor": "reviewer-renata",
-      "agent": "codex",
+      "agent": "reviewer-renata",
       "agent_profile": "__resolved_profile_absent__",
       "agent_profile_version": "__resolved_profile_version_absent__",
       "assignee": "crucible-workspace-closeout",
@@ -231,9 +231,11 @@
       "model": "__resolved_model_absent__",
       "notes": [
         "Existing lane owner assigned; native finish obligations, safe persistence and no retirement authority.",
-        "Native finish-store source32332053 plus final tests at f131e0df: Debug/ReleaseSafe7pass, real CLI restart/stale/missing-history/archive-restore proof, no deletion authority; independent reviewer requested."
+        "Native finish-store source32332053 plus final tests at f131e0df: Debug/ReleaseSafe7pass, real CLI restart/stale/missing-history/archive-restore proof, no deletion authority; independent reviewer requested.",
+        "Record independent01a13e15 reviewer changes requested on exactf131e0df: umask publication metadata and mandatory persisted envelope; no approval inferred."
       ],
       "provider": "__resolved_provider_absent__",
+      "review": null,
       "review_result": {
         "feedback_path": "/Users/sam/git/crucible/spec-kitty/.worktrees/review-thread-closure-upstream/kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP08-native-durable-useful-work-finish-obligations/review-cycle-1.md",
         "reference": "review-cycle://organization-workspace-lifecycle-01M5DRAR/WP08-native-durable-useful-work-finish-obligations/review-cycle-1.md",
@@ -241,8 +243,10 @@
         "verdict": "changes_requested"
       },
       "role": "implementer",
+      "shell_pid": null,
+      "shell_pid_created_at": null,
       "subtasks": {
-        "T008": "done"
+        "T008": "planned"
       }
     },
     "WP09": {
