@@ -1,7 +1,7 @@
 {
-  "event_count": 62,
-  "last_event_id": "01M5R0WKRTPRW3482YJ8GHJXAR",
-  "materialized_at": "2026-10-24T22:35:48.378609+00:00",
+  "event_count": 63,
+  "last_event_id": "01M5R0WRVJF4R3QGVNDPKQA3DQ",
+  "materialized_at": "2026-10-24T22:35:53.586228+00:00",
   "mission_number": "",
   "mission_slug": "organization-workspace-lifecycle-01M5DRAR",
   "mission_type": "software-dev",
@@ -10,12 +10,12 @@
     "approved": 8,
     "blocked": 0,
     "canceled": 0,
-    "claimed": 0,
+    "claimed": 1,
     "done": 0,
     "for_review": 0,
     "in_progress": 0,
     "in_review": 0,
-    "planned": 3
+    "planned": 2
   },
   "work_packages": {
     "WP01": {
@@ -265,15 +265,15 @@
       "last_transition_at": "2026-10-24T20:58:48.978709+00:00"
     },
     "WP11": {
-      "actor": "reviewer-renata",
-      "agent": "reviewer-renata",
+      "actor": "codex",
+      "agent": "codex",
       "agent_profile": "__resolved_profile_absent__",
       "agent_profile_version": "__resolved_profile_version_absent__",
       "assignee": "crucible-workspace-closeout",
       "force_count": 1,
-      "lane": "planned",
-      "last_event_id": "01M5R0WKRTPRW3482YJ8GHJXAR",
-      "last_transition_at": "2026-10-24T22:35:48.378609+00:00",
+      "lane": "claimed",
+      "last_event_id": "01M5R0WRVJF4R3QGVNDPKQA3DQ",
+      "last_transition_at": "2026-10-24T22:35:53.586228+00:00",
       "model": "__resolved_model_absent__",
       "notes": [
         "Independent retained-runtime safety repair: fresh delivery/recovery/runtime preservation before rollout; WP08 review proceeds separately.",
