@@ -89,3 +89,7 @@ The expanded architecture gate exposed standalone Op routing that bypasses the s
 ### WP06 retained claim-base recovery
 
 Re-finalization advances the mission-wide planning pin but does not erase completed WP source. WP06 additionally owns the existing tasks_move_task review-base adapter and its complete owned-checkout test module. Consume the immutable per-WP claim base already recorded by canonical claim; retain the mission pin as planning evidence and all existing reachability, ancestry and owned-file refusal checks. This amendment adds no worktree, runtime authority, guard bypass, or competing work package.
+
+## October 24 continuation
+
+Reuse the owner-released lane; preserve primary dirty source and migration receipts. Add native Zig durable finish obligations under private no-follow state with revision checks; obligations confer no deletion capability. Integrate through the existing creator and worker boundaries. Package explicit runtime identity, satisfy review and publication gates, and verify per-repository startup/completion plus actual eligible cleanup. Unknown/unsupported creators remain retained with accountable follow-through. External receipts keep validated candidates frozen.

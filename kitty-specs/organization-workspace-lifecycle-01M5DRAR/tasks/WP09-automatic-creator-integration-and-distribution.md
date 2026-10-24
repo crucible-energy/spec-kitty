@@ -22,6 +22,9 @@ create_intent:
 - tools/zig/workspace_ingress.zig
 execution_mode: code_change
 owned_files:
+- src/specify_cli/workspace_lifecycle/adapters.py
+- tests/workspace_lifecycle/test_adapters.py
+- tests/workspace_lifecycle/test_acceptance.py
 - src/specify_cli/workspace_lifecycle/worker.py
 - src/specify_cli/workspace_lifecycle/configuration.py
 - src/specify_cli/cli/commands/workspaces.py
@@ -44,3 +47,7 @@ Follow the October 24 amendment, current language policy and existing creator cu
 ## Validation
 
 Integrate native obligations into supported creator startup/completion/recovery. Python edits are bounded migration glue; new implementation/tests use Zig. Package exact artifacts, refuse unsupported creators, and prove actual asynchronous cleanup plus preservation/interruption. No broad prune or trust bypass.
+
+## Production correctness findings to reproduce before repair
+
+The current API-only delivery verifier accepts arbitrary merge SHA with a nonexistent local source path. Before automatic retirement, fetch actual default, establish merge ancestry and exact delivered tree/PR identity, inspect review-thread disposition, and preserve exact unique source ancestry through a named recovery anchor or verified restorable snapshot. Shallow bundles require their exact boundary/prerequisites; bundle verify alone is insufficient. Keep unavailable checks and uncertain effects retained with reasons. Validate against real local Git fixtures plus bounded API fixtures, retaining counterexamples first.

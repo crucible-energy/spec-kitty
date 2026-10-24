@@ -113,3 +113,14 @@ imports, CLI identities, schema keys and telemetry names remain unchanged;
 negative tests may keep primary-branch literals. Live guidance and behavioural
 fixtures are reviewed individually. Existing user authority explicitly requires
 PR-only advancement of local and remote primary branches.
+
+## October 24 owner amendment: automatic organization adoption
+
+Sam directs completing implementation, validation and rollout across every crucible-energy repository, with witnessed automatic eligible cleanup. This supersedes C-003 only for local runtime/creator installation and trust needed for lifecycle rollout. Unrelated host, Docker, cloud, service, credential and data-store actions remain outside scope. There is no numerical worktree/workstream cap. Each retained workspace needs an owner, purpose, next action and review/completion event. Historical uncertainty remains a recovery obligation. Prior approvals do not cover this extension. Current default-branch Zig policy governs new implementation; retained Python remains the behavior/release reference with bounded migration glue only.
+
+| ID | Requirement | Acceptance |
+|---|---|---|
+| FR-010 | Durable useful-work finish obligations bind exact observed repository/path/source, owner, purpose, next action and review event; partial scans or age never erase history. | Restart preserves obligations; stale writes and unsupported transitions refuse; no record grants retirement authority. |
+| FR-011 | Supported producer startup/completion triggers guarded closeout using packaged, explicitly bound artifacts. | Actual delivered/released worktree and branch disappear once without another model prompt; preservation controls refuse. |
+| FR-012 | Every authenticated repository has proven runtime/ingress adoption or an explicit failing obligation. | Exact IDs match inventory; source/install/enabled ingress/execution remain separate facts. |
+| SC-006 | Cleanup proof binds before/after state, creator receipt, preservation and attributable resource changes. | Independent current evidence review; no metadata-only pass or inference from age/count. |
