@@ -10,7 +10,9 @@ import re
 import secrets
 import stat
 import subprocess
+import sys
 import threading
+import tempfile
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
@@ -18,18 +20,21 @@ from dataclasses import asdict, dataclass, fields, replace
 from pathlib import Path
 from typing import cast
 
+import psutil
+
 from kernel.atomic import atomic_write
-from kernel.git import run_git
+from kernel.git import GitCommandError, GitResult, run_git
+from kernel.git.remote import RemoteUnreachable, fetch_evidence_ref
 from kernel.git.listing import status_entries
 from kernel.git.worktree_registry import parse_worktree_records
 from kernel.git_topology import inspect_git_common_dir
 from kernel.locks import machine_file_lock
 from kernel.no_follow import NoFollowPathError
-from kernel.owned_process import bounded_run, budget_active, process_budget, signal_owned_process_tree
+from kernel.owned_process import bounded_run, budget_active, process_budget, process_deadline, signal_owned_process_tree
 from specify_cli.core.git_ops import resolve_primary_branch
 from specify_cli.git.destructive_guard import guarded_worktree_remove
 from specify_cli.git.protection_policy import ProtectionPolicy
-from specify_cli.git.ref_advance import RefDeleteError, delete_branch_ref
+from specify_cli.git.ref_advance import RefAdvanceError, RefDeleteError, advance_branch_ref, delete_branch_ref
 from specify_cli.workspace_lifecycle.coordinator import Recovered, Result
 from specify_cli.workspace_lifecycle.discovery import discover_workspaces
 from specify_cli.workspace_lifecycle.events import Completion
@@ -51,7 +56,7 @@ class GitHubDelivery:
         self.timeout = timeout
 
     @staticmethod
-    def _get(path: str, deadline: float) -> dict[str, object]:
+    def _get(path: str, deadline: float, *, query: str | None = None) -> dict[str, object]:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise StateError("Delivery authority unavailable")
@@ -59,8 +64,11 @@ class GitHubDelivery:
         env["GH_PROMPT_DISABLED"] = "1"
         try:
             executor = bounded_run if budget_active() else subprocess.run
+            argv = ["gh", "api", "--hostname", "github.com", "--method", "POST" if query else "GET"]
+            if query is not None:
+                argv.extend(["-f", "query=" + query])
             result = executor(
-                ["gh", "api", "--hostname", "github.com", "--method", "GET", path],
+                [*argv, path],
                 capture_output=True,
                 check=False,
                 timeout=remaining,
@@ -85,11 +93,9 @@ class GitHubDelivery:
             and value["full_name"].lower() == expected.repository
         )
 
-    def verify(self, expected: Identity, pr: int) -> str | None:
-        """Return an exact accepted-PR identity or no delivery; fail on unavailable authority."""
+    def _accepted(self, expected: Identity, pr: int, deadline: float) -> tuple[str, str, str] | None:
         if type(pr) is not int or pr <= 0:
             raise ValueError("Positive PR number required")
-        deadline = time.monotonic() + self.timeout
         repository = self._get(f"repos/{expected.repository}", deadline)
         if not self._same_repository(repository, expected):
             return None
@@ -118,7 +124,130 @@ class GitHubDelivery:
             or not self._same_repository(base.get("repo"), expected)
         ):
             return None
-        return f"github:{expected.repository_id}:pr:{pr}:merge:{merge_sha}"
+        return default_branch, merge_sha, f"github:{expected.repository_id}:pr:{pr}:merge:{merge_sha}"
+
+    def verify(self, expected: Identity, pr: int) -> str | None:
+        """Read accepted API identity only; creator retirement needs verify_current."""
+        accepted = self._accepted(expected, pr, time.monotonic() + self.timeout)
+        return accepted[2] if accepted else None
+
+    def _reviews(self, expected: Identity, pr: int, merge_sha: str, deadline: float) -> list[dict[str, object]] | None:
+        cursor: str | None = None
+        seen: set[str] = set()
+        threads: list[dict[str, object]] = []
+        for _ in range(10):
+            query = (
+                'query { repository(owner:"crucible-energy",name:'
+                + json.dumps(expected.repository.split("/", 1)[1])
+                + ") { databaseId pullRequest(number:"
+                + str(pr)
+                + ") { headRefOid headRef { target { oid } } mergeCommit { oid } reviewThreads(first:100,after:"
+                + json.dumps(cursor)
+                + ") { nodes { id isResolved } pageInfo { hasNextPage endCursor } } } } }"
+            )
+            response = self._get("graphql", deadline, query=query)
+            data = response.get("data")
+            repository = data.get("repository") if isinstance(data, dict) else None
+            pull = repository.get("pullRequest") if isinstance(repository, dict) else None
+            merge = pull.get("mergeCommit") if isinstance(pull, dict) else None
+            if (
+                response.get("errors")
+                or not isinstance(repository, dict)
+                or type(repository.get("databaseId")) is not int
+                or repository["databaseId"] != expected.repository_id
+            ):
+                return None
+            if not isinstance(pull, dict) or pull.get("headRefOid") != expected.head or not isinstance(merge, dict) or merge.get("oid") != merge_sha:
+                return None
+            if "headRef" not in pull:
+                return None
+            head_ref = pull["headRef"]
+            if head_ref is not None:
+                target = head_ref.get("target") if isinstance(head_ref, dict) else None
+                if not isinstance(target, dict) or target.get("oid") != expected.head:
+                    return None
+            page = pull.get("reviewThreads")
+            if not isinstance(page, dict) or not isinstance(page.get("nodes"), list) or not isinstance(page.get("pageInfo"), dict):
+                return None
+            for thread in page["nodes"]:
+                if not isinstance(thread, dict) or not isinstance(thread.get("id"), str) or not thread["id"] or thread.get("isResolved") is not True:
+                    return None
+                threads.append({"id": thread["id"], "isResolved": True})
+            info = page["pageInfo"]
+            if info.get("hasNextPage") is False:
+                return threads
+            cursor = info.get("endCursor")
+            if info.get("hasNextPage") is not True or not isinstance(cursor, str) or not cursor or cursor in seen:
+                return None
+            seen.add(cursor)
+        return None
+
+    def verify_current(self, expected: Identity, pr: int) -> tuple[str, dict[str, object]] | None:
+        """Bind current fetched default, exact accepted content and review disposition.
+
+        Only a private creator-generation ref advances. Canonical local/default
+        branches and configured remotes are unchanged; credential reuse stays
+        inside GitHub's standard credential helper and is never printed.
+        """
+        deadline = time.monotonic() + self.timeout
+
+        def git(*args: str, check: bool = True) -> GitResult:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise StateError("Delivery authority unavailable")
+            return run_git(Path(expected.path), *args, check=check, env=_git_env(), timeout=remaining)
+
+        try:
+            accepted = self._accepted(expected, pr, deadline)
+            if accepted is None or not re.fullmatch(r"[0-9a-f]{32}", expected.workspace_generation):
+                return None
+            default, merge_sha, api_receipt = accepted
+            default_ref = f"refs/spec-kitty/lifecycle/{expected.repository_id}/{expected.workspace_generation}/default"
+            contact_env = _git_env()
+            contact_env.update(
+                {
+                    "GIT_CONFIG_COUNT": "2",
+                    "GIT_CONFIG_KEY_0": "credential.helper",
+                    "GIT_CONFIG_VALUE_0": "",
+                    "GIT_CONFIG_KEY_1": "credential.https://github.com.helper",
+                    "GIT_CONFIG_VALUE_1": "!gh auth git-credential",
+                }
+            )
+            fetch_evidence_ref(
+                Path(expected.path),
+                f"https://github.com/{expected.repository}.git",
+                f"refs/heads/{default}",
+                default_ref,
+                timeout=max(0.001, deadline - time.monotonic()),
+                env=contact_env,
+            )
+            tip = git("rev-parse", "--verify", default_ref + "^{commit}").stdout.decode().strip()
+            if git("merge-base", "--is-ancestor", merge_sha, tip, check=False).returncode != 0:
+                return None
+            source_tree = git("rev-parse", "--verify", expected.head + "^{tree}").stdout.decode().strip()
+            merge_tree = git("rev-parse", "--verify", merge_sha + "^{tree}").stdout.decode().strip()
+            ancestry = git("merge-base", "--is-ancestor", expected.head, tip, check=False).returncode
+            if ancestry not in (0, 1) or (ancestry == 1 and source_tree != merge_tree):
+                return None
+            threads = self._reviews(expected, pr, merge_sha, deadline)
+            if threads is None:
+                return None
+            proof: dict[str, object] = {
+                "repository_id": expected.repository_id,
+                "source": expected.head,
+                "source_tree": source_tree,
+                "merge": merge_sha,
+                "merge_tree": merge_tree,
+                "default_branch": default,
+                "default_ref": default_ref,
+                "default_head": tip,
+                "source_ancestral": ancestry == 0,
+                "resolved_review_threads": threads,
+            }
+            digest = hashlib.sha256(json.dumps(proof, sort_keys=True, separators=(",", ":")).encode()).hexdigest()  # noqa: TID251 -- delivery integrity, not charter hashing.
+            return api_receipt + ":proof:" + digest, proof
+        except (StateError, GitCommandError, RemoteUnreachable, OSError, ValueError):
+            return None
 
 
 @dataclass(frozen=True)
@@ -220,8 +349,18 @@ def _released(state: _OwnerState) -> bool:
 
 def _git_env() -> dict[str, str]:
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
-    env.update({"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull, "GIT_OPTIONAL_LOCKS": "0"})
+    env.update({"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull, "GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0"})
     return env
+
+
+def _ref_env() -> dict[str, str]:
+    """Bind the Git ref owner's Python child to this loaded distribution.
+
+    The producer environment remains caller-owned. Only our internal ref
+    transaction receives this source path, independent of the foreground cwd
+    or a project-supplied PYTHONPATH.
+    """
+    return {**_git_env(), "PYTHONPATH": str(Path(__file__).resolve().parents[2]), "PYTHONSAFEPATH": "1"}
 
 
 def _nested_state(root: Path) -> tuple[bool, bool]:
@@ -243,6 +382,53 @@ def _nested_state(root: Path) -> tuple[bool, bool]:
                 if entry.is_dir(follow_symlinks=False):
                     pending.append(Path(entry.path))
     return False, True
+
+
+def _runtime_state(root: Path) -> tuple[bool, bool]:
+    """Observe current holders in addition to the authenticated producer fence.
+
+    A negative snapshot never replaces owner release or excludes future
+    producers. Unavailable visibility refuses this creator operation. Darwin's
+    system lsof can inspect descriptors of protected user agents that psutil
+    cannot; query only this bounded, already inspected workspace.
+    """
+    if sys.platform == "darwin":
+        try:
+            result = bounded_run(
+                ["/usr/sbin/lsof", "-nP", "+D", str(root), "-F0pfnt"],
+                capture_output=True,
+                check=False,
+                timeout=5,
+                env=_git_env(),
+            )
+            if result.stderr or len(result.stdout) > 1024 * 1024:
+                return False, False
+            if result.returncode == 1 and not result.stdout:
+                return False, True  # lsof's documented no-matching-files outcome.
+            if result.returncode == 0 and re.search(rb"(?:^|\n)p[0-9]+\0", result.stdout):
+                return True, True
+            return False, False
+        except (OSError, subprocess.SubprocessError):
+            return False, False
+    if sys.platform != "linux":
+        return False, False
+    inherited = process_deadline()
+    deadline = min(time.monotonic() + 5, inherited if inherited is not None else float("inf"))
+    try:
+        for index, process in enumerate(psutil.process_iter()):
+            if index >= 10000 or time.monotonic() >= deadline:
+                return False, False
+            try:
+                if process.uids().real != os.getuid():
+                    continue
+                paths = [process.cwd(), process.exe(), *(entry.path for entry in process.open_files())]
+                if any(path and (Path(path) == root or root in Path(path).parents) for path in paths):
+                    return True, True
+            except psutil.NoSuchProcess:
+                continue
+        return False, True
+    except (OSError, psutil.Error):
+        return False, False
 
 
 class ManagedGitCreator:
@@ -276,13 +462,14 @@ class ManagedGitCreator:
         self._unconfirmed_producer = False
         self._held: tuple[int, int] | None = None
         self._last_delivery: str | None = None
+        self._last_delivery_proof: dict[str, object] | None = None
         info = store.root.lstat()
         self._root_identity = (info.st_dev, info.st_ino)
         self.authority_id = "registered-git:" + token
 
     @property
     def _path(self) -> Path:
-        return self.store.root / f"creator-{self.token}.json"
+        return Path(self.store.root) / f"creator-{self.token}.json"
 
     def _check_root(self) -> None:
         root = self.store.root
@@ -498,11 +685,13 @@ class ManagedGitCreator:
                 raise StateError("Creator hold identity changed")
             self._held = (os.getpid(), threading.get_ident())
             self._last_delivery = None
+            self._last_delivery_proof = None
             try:
                 yield
             finally:
                 self._held = None
                 self._last_delivery = None
+                self._last_delivery_proof = None
 
     def _require_hold(self) -> None:
         if self._held != (os.getpid(), threading.get_ident()):
@@ -517,7 +706,14 @@ class ManagedGitCreator:
         path = Path(fresh.path)
         entries = status_entries(path, untracked="all", ignored=True, optional_locks=False, env=_git_env(), timeout=5)
         nested, complete = _nested_state(path)
-        receipt = self.delivery.verify(fresh, state.pr) if state.pr and _released(state) else None
+        runtime_held, runtime_complete = _runtime_state(path) if complete and not entries and not nested else (False, True)
+        accepted = (
+            self.delivery.verify_current(fresh, state.pr)
+            if state.pr and _released(state) and complete and not entries and not nested and runtime_complete and not runtime_held
+            else None
+        )
+        receipt = accepted[0] if accepted else None
+        self._last_delivery_proof = accepted[1] if accepted else None
         if receipt is not None and receipt != state.delivery_id:
             self._write(replace(state, delivery_id=receipt))
         self._last_delivery = receipt
@@ -527,13 +723,67 @@ class ManagedGitCreator:
             not entries,
             any(row.is_ignored for row in entries),
             nested,
-            state.status == "active",
+            state.status == "active" or runtime_held,
             state.status == "released",
             state.release_id if _released(state) else None,
             receipt,
             fresh.head if receipt else None,
-            complete,
+            complete and runtime_complete,
         )
+
+    def _recovery(self, state: _OwnerState, intent: Operation, *, create: bool) -> bool:
+        """Pin exact source and restore its index in the preserved canonical store.
+
+        No duplicate object pack is needed. This is explicitly a local-store
+        recovery proof, not an off-host backup. Shallow stores stay retained
+        until a separate workflow proves their boundary/prerequisite recovery.
+        """
+        self._check_root()
+        root = Path(state.repo_root)
+        identity = intent.identity
+        name = f"recovery-{self.token}-{intent.authorization_fingerprint()}.json"
+        path = self.store.root / name
+        branch = f"codex/lifecycle-recovery/{self.token}/{identity.head}"
+        ref = "refs/heads/" + branch
+
+        def git(*args: str, env: dict[str, str] | None = None, check: bool = True) -> GitResult:
+            return run_git(root, *args, env=env or _git_env(), check=check, timeout=5)
+
+        try:
+            tree = git("rev-parse", "--verify", identity.head + "^{tree}").stdout.decode().strip()
+            expected = {
+                "schema_version": 1,
+                "source": asdict(identity),
+                "source_tree": tree,
+                "authorization": intent.authorization_fingerprint(),
+                "recovery_ref": ref,
+                "scope": "exact commit ancestry and index restored inside preserved canonical object store; not an off-host backup",
+                "restore_verified": True,
+                "owner": self.authority_id,
+                "purpose": "preserve exact delivered source ancestry",
+                "next_action": "retain canonical object-store custody; verify restoration before backup or compaction",
+                "review_event": "owning mission closeout or explicit recovery-store custody transfer",
+            }
+            if not create:
+                receipt: object = json.loads(self.store.read_private(name, limit=65536))
+                return receipt == expected and git("rev-parse", "--verify", ref + "^{commit}").stdout.decode().strip() == identity.head
+            if git("rev-parse", "--is-shallow-repository").stdout.strip() != b"false":
+                return False
+            if path.exists() or path.is_symlink():
+                # Never overwrite a prior conflicting or incomplete recovery.
+                return self._recovery(state, intent, create=False)
+            atomic_write(path, json.dumps({**expected, "restore_verified": False}, sort_keys=True).encode(), durable=True, expected_parent=self._root_identity)
+            advance_branch_ref(root, branch, identity.head, expected_old_sha="0" * len(identity.head), env=_ref_env())
+            git("fsck", "--connectivity-only", "--no-reflogs", "--no-dangling", identity.head)
+            with tempfile.TemporaryDirectory(prefix=f"restore-{self.token}-", dir=self.store.root) as temporary:
+                env = {**_git_env(), "GIT_INDEX_FILE": str(Path(temporary) / "index")}
+                git("read-tree", ref, env=env)
+                if git("write-tree", env=env).stdout.decode().strip() != tree:
+                    return False
+            atomic_write(path, json.dumps(expected, sort_keys=True).encode(), durable=True, expected_parent=self._root_identity)
+            return self._recovery(state, intent, create=False)
+        except (StateError, GitCommandError, RefAdvanceError, OSError, ValueError):
+            return False
 
     def retire(self, intent: Operation) -> Result:
         self._require_hold()
@@ -552,6 +802,17 @@ class ManagedGitCreator:
             or intent.status != "intent"
         ):
             return Result("retained", "authorizing_intent_changed")
+        runtime_held, runtime_complete = _runtime_state(Path(identity.path))
+        nested, nested_complete = _nested_state(Path(identity.path))
+        if runtime_held or not runtime_complete or nested or not nested_complete:
+            return Result("retained", "runtime_or_nested_state_changed")
+        if self._last_delivery_proof is None or not self._recovery(state, intent, create=True):
+            return Result("retained", "exact_source_recovery_unconfirmed")
+        if self._fresh(state) != identity:
+            return Result("retained", "creator_identity_changed_after_recovery")
+        runtime_held, runtime_complete = _runtime_state(Path(identity.path))
+        if runtime_held or not runtime_complete:
+            return Result("retained", "runtime_changed_after_recovery")
         guarded_worktree_remove(Path(identity.path), retain=False, is_residue=lambda _: False, env=_git_env(), preserve_ignored=True)
         disposition = "local_retained;remote_retained"
         try:
@@ -559,7 +820,7 @@ class ManagedGitCreator:
             if not ProtectionPolicy.resolve(Path(state.repo_root)).is_protected_target(
                 branch, primary_branch=resolve_primary_branch(Path(state.repo_root), bias=False), allow_bypass=False
             ):
-                delete_branch_ref(Path(state.repo_root), branch, identity.head, env=_git_env())
+                delete_branch_ref(Path(state.repo_root), branch, identity.head, env=_ref_env())
                 disposition = "local_retired;remote_retained"
         except (RefDeleteError, OSError):
             pass
@@ -593,6 +854,6 @@ class ManagedGitCreator:
         except FileNotFoundError:
             pass
         raw = run_git(Path(state.repo_root), "worktree", "list", "--porcelain", "-z", env=_git_env(), timeout=5).stdout
-        if not any(str(row.path) == intent.identity.path for row in parse_worktree_records(raw)):
+        if not any(str(row.path) == intent.identity.path for row in parse_worktree_records(raw)) and self._recovery(state, intent, create=False):
             result = Result("retired", "creator_receipt_confirmed;" + state.branch_disposition)
         return Recovered(intent, result)

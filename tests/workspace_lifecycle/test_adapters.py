@@ -100,6 +100,9 @@ def managed_owner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     git(repo, "commit", "--allow-empty", "-m", "base")
     git(repo, "remote", "add", "origin", "https://github.com/crucible-energy/example.git")
     git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+    mirror = tmp_path / "origin.git"
+    git(repo, "clone", "--bare", str(repo), str(mirror))
+    git(repo, "config", f"url.{mirror.as_uri()}.insteadOf", "https://github.com/crucible-energy/example.git")
     root = tmp_path / "ledger"
     root.mkdir(mode=0o700)
     ledger = StateStore.initialize(root)
@@ -119,13 +122,28 @@ def managed_owner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     def transport(argv, **kwargs):
         if argv[0] != "gh":
             return original_run(argv, **kwargs)
-        if argv[-1].endswith("/pulls/9"):
+        merge = git(mirror, "rev-parse", "refs/heads/main")
+        if argv[-1] == "graphql":
+            value = {
+                "data": {
+                    "repository": {
+                        "databaseId": 7,
+                        "pullRequest": {
+                            "headRefOid": owner.identity.head,
+                            "headRef": None,
+                            "mergeCommit": {"oid": merge},
+                            "reviewThreads": {"nodes": [], "pageInfo": {"hasNextPage": False, "endCursor": None}},
+                        },
+                    }
+                }
+            }
+        elif argv[-1].endswith("/pulls/9"):
             value = {
                 "number": 9,
                 "merged": True,
                 "state": "closed",
                 "merged_at": "2026-10-20T00:00:00Z",
-                "merge_commit_sha": "b" * 40,
+                "merge_commit_sha": merge,
                 "head": {"ref": "task", "sha": owner.identity.head, "repo": {"id": 7, "full_name": "crucible-energy/example"}},
                 "base": {"ref": "main", "repo": {"id": 7, "full_name": "crucible-energy/example"}},
             }
@@ -150,6 +168,7 @@ def test_owned_non_lane_producer_releases_then_real_worktree_retires(tmp_path: P
         "subprocess.run(['git','add','result.md'],check=True); subprocess.run(['git','commit','-m','result'],check=True)"
     )
     owner.run_producer([sys.executable, "-c", script], timeout=5)
+    git(path, "push", str(tmp_path / "origin.git"), "HEAD:refs/heads/main")
     owner.complete(pr=9)
     assert len(events) == 1
     assert path.exists(), "Completion callback must not retire inline"
@@ -159,6 +178,98 @@ def test_owned_non_lane_producer_releases_then_real_worktree_retires(tmp_path: P
     assert not path.exists()
     assert git(repo, "branch", "--list", "task") == ""
     assert owner.branch_disposition == "local_retired;remote_retained"
+
+
+def test_old_merged_api_response_without_current_default_delivery_preserves_creator(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.workspace_lifecycle.coordinator import Coordinator
+
+    owner, ledger, events, repo = managed_owner(tmp_path, monkeypatch)
+    owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
+    owner.complete(pr=9)
+    tree = git(repo, "rev-parse", "HEAD^{tree}")
+    unrelated = git(repo, "commit-tree", tree, "-m", "replacement default history")
+    git(repo, "update-ref", "refs/heads/main", unrelated)
+    git(repo, "push", "--force", str(tmp_path / "origin.git"), "main:refs/heads/main")
+    from specify_cli.workspace_lifecycle.adapters import GitHubDelivery
+
+    original_accepted = GitHubDelivery._accepted
+
+    def old_accepted(self, expected, pr, deadline):
+        value = original_accepted(self, expected, pr, deadline)
+        return (value[0], owner.identity.head, value[2]) if value else None
+
+    monkeypatch.setattr(GitHubDelivery, "_accepted", old_accepted)
+    result = Coordinator(ledger).reconcile(events[0].event_id, owner.identity, owner)
+    assert result.status == "retained", "An old merged API response is not current default-branch delivery."
+    assert Path(owner.identity.path).exists()
+    assert git(repo, "rev-parse", "refs/heads/task") == owner.identity.head
+
+
+@pytest.mark.parametrize("holder", ["cwd", "open_file"])
+def test_released_creator_preserves_another_live_runtime_holder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, holder: str) -> None:
+    import select
+    from specify_cli.workspace_lifecycle.coordinator import Coordinator
+
+    owner, ledger, events, _ = managed_owner(tmp_path, monkeypatch)
+    owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
+    owner.complete(pr=9)
+    path = Path(owner.identity.path)
+    script = "import time; print('ready',flush=True); time.sleep(30)"
+    if holder == "open_file":
+        script = f"import time; f=open({str(path / '.git')!r}); print('ready',flush=True); time.sleep(30)"
+    child = subprocess.Popen([sys.executable, "-c", script], cwd=path if holder == "cwd" else tmp_path, stdout=subprocess.PIPE, text=True)
+    try:
+        assert child.stdout is not None
+        readable, _, _ = select.select([child.stdout], [], [], 3)
+        assert readable and child.stdout.readline().strip() == "ready", "Owned fixture runtime did not become ready."
+        result = Coordinator(ledger).reconcile(events[0].event_id, owner.identity, owner)
+        assert result.status == "retained", "A creator release cannot erase another live cwd/open-file dependency."
+        assert path.exists()
+        assert child.poll() is None
+    finally:
+        child.terminate()
+        child.communicate(timeout=5)
+    assert owner.branch_disposition == "local_retained;remote_retained"
+
+
+@pytest.mark.parametrize(
+    "code,stdout,stderr,expected",
+    [
+        (1, b"", b"", (False, True)),
+        (0, b"p123\0\nfcwd\0n/private/task\0", b"", (True, True)),
+        (0, b"unrecognized output", b"", (False, False)),
+        (0, b"p123\0", b"visibility incomplete", (False, False)),
+        (2, b"", b"", (False, False)),
+    ],
+)
+def test_runtime_observation_distinguishes_no_holders_from_unavailable_visibility(
+    monkeypatch: pytest.MonkeyPatch, code: int, stdout: bytes, stderr: bytes, expected: tuple[bool, bool]
+) -> None:
+    from specify_cli.workspace_lifecycle import adapters
+
+    def observe(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        assert argv == ["/usr/sbin/lsof", "-nP", "+D", "/private/task", "-F0pfnt"]
+        assert kwargs["timeout"] == 5
+        return subprocess.CompletedProcess(argv, code, stdout, stderr)
+
+    monkeypatch.setattr(adapters.sys, "platform", "darwin")
+    monkeypatch.setattr(adapters, "bounded_run", observe)
+    assert adapters._runtime_state(Path("/private/task")) == expected
+
+
+def test_unavailable_runtime_visibility_preserves_released_creator(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.workspace_lifecycle import adapters
+    from specify_cli.workspace_lifecycle.coordinator import Coordinator
+
+    owner, ledger, events, repo = managed_owner(tmp_path, monkeypatch)
+    owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
+    owner.complete(pr=9)
+    monkeypatch.setattr(adapters, "_runtime_state", lambda path: (False, False))
+    result = Coordinator(ledger).reconcile(events[0].event_id, owner.identity, owner)
+    assert result.status == "retained"
+    assert result.reason == "creator_operation_unsupported"
+    assert Path(owner.identity.path).exists()
+    assert git(repo, "rev-parse", "refs/heads/task") == owner.identity.head
 
 
 @pytest.mark.parametrize("kind", ["dirty", "ignored", "nested"])
@@ -349,7 +460,7 @@ def test_joined_owner_release_does_not_wait_for_delivery_or_run_network_inline(t
     def forbidden(*args, **kwargs):
         pytest.fail("Completion must persist release/enqueue; delivery belongs to worker")
 
-    monkeypatch.setattr(owner.delivery, "verify", forbidden)
+    monkeypatch.setattr(owner.delivery, "verify_current", forbidden)
     owner.complete(pr=9)
     assert len(events) == 1
     assert Path(owner.identity.path).exists()
@@ -360,14 +471,14 @@ def test_released_owner_waits_safely_for_accepted_delivery(tmp_path: Path, monke
 
     owner, ledger, events, _ = managed_owner(tmp_path, monkeypatch)
     owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
-    original = owner.delivery.verify
-    monkeypatch.setattr(owner.delivery, "verify", lambda *args: None)
+    original = owner.delivery.verify_current
+    monkeypatch.setattr(owner.delivery, "verify_current", lambda *args: None)
     owner.complete(pr=9)
     coordinator = Coordinator(ledger)
     result = coordinator.reconcile(events[0].event_id, owner.identity, owner)
     assert result.status == "retained" and result.reason == "delivery_missing"
     assert Path(owner.identity.path).exists()
-    monkeypatch.setattr(owner.delivery, "verify", original)
+    monkeypatch.setattr(owner.delivery, "verify_current", original)
     assert coordinator.reconcile("accepted-later", owner.identity, owner).status == "retired"
 
 
@@ -461,3 +572,90 @@ def test_malformed_creator_fields_never_establish_owner_authority(tmp_path: Path
     owner._path.write_text(json.dumps(data))
     with pytest.raises(StateError, match="history"):
         _ = owner.identity
+
+
+def test_squash_retirement_restores_exact_unique_source_after_local_branch_removal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.workspace_lifecycle.coordinator import Coordinator
+
+    owner, ledger, events, repo = managed_owner(tmp_path, monkeypatch)
+    path = Path(owner.identity.path)
+    base = git(repo, "rev-parse", "main")
+    script = (
+        "from pathlib import Path; import subprocess; Path('useful.md').write_text('unique useful result'); "
+        "subprocess.run(['git','add','useful.md'],check=True); subprocess.run(['git','commit','-m','unique source'],check=True)"
+    )
+    owner.run_producer([sys.executable, "-c", script], timeout=5)
+    source = git(path, "rev-parse", "HEAD")
+    source_tree = git(path, "rev-parse", "HEAD^{tree}")
+    squash = git(repo, "commit-tree", source_tree, "-p", base, "-m", "accepted squash delivery")
+    assert squash != source
+    git(repo, "push", str(tmp_path / "origin.git"), squash + ":refs/heads/main")
+    owner.complete(pr=9)
+    result = Coordinator(ledger).reconcile(events[0].event_id, owner.identity, owner)
+    assert result.status == "retired"
+    assert not path.exists() and not git(repo, "branch", "--list", "task")
+    manifests = list(ledger.root.glob("recovery-*.json"))
+    assert len(manifests) == 1
+    proof = json.loads(manifests[0].read_text())
+    assert proof["restore_verified"] is True
+    assert proof["source"]["head"] == source and proof["source_tree"] == source_tree
+    assert git(repo, "rev-parse", proof["recovery_ref"]) == source
+    # A clean consumer can independently restore the retained source, not just
+    # read an API response or locally verify a bundle prerequisite header.
+    restored = tmp_path / "restored"
+    git(repo, "clone", "--no-local", "--single-branch", "--branch", proof["recovery_ref"].removeprefix("refs/heads/"), str(repo), str(restored))
+    assert git(restored, "rev-parse", "HEAD") == source
+    assert git(restored, "rev-parse", "HEAD^{tree}") == source_tree
+    assert (restored / "useful.md").read_text() == "unique useful result"
+    assert git(repo, "rev-parse", "main") == base
+
+
+@pytest.mark.parametrize("disposition", ["unresolved", "unavailable", "advanced_source", "missing_source_observation"])
+def test_current_review_and_remote_source_disposition_is_required(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, disposition: str) -> None:
+    from specify_cli.workspace_lifecycle.coordinator import Coordinator
+    from specify_cli.workspace_lifecycle.adapters import GitHubDelivery
+
+    owner, ledger, events, _ = managed_owner(tmp_path, monkeypatch)
+    owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
+    owner.complete(pr=9)
+    original = GitHubDelivery._get
+
+    def response(endpoint, deadline, *, query=None):
+        data = original(endpoint, deadline, query=query)
+        if endpoint == "graphql":
+            pull = data["data"]["repository"]["pullRequest"]
+            if disposition == "unresolved":
+                pull["reviewThreads"]["nodes"] = [{"id": "thread1", "isResolved": False}]
+            elif disposition == "unavailable":
+                data["errors"] = [{"message": "read refused"}]
+            elif disposition == "advanced_source":
+                pull["headRef"] = {"target": {"oid": "c" * 40}}
+            else:
+                pull.pop("headRef")
+        return data
+
+    monkeypatch.setattr(GitHubDelivery, "_get", staticmethod(response))
+    result = Coordinator(ledger).reconcile(events[0].event_id, owner.identity, owner)
+    assert result.status == "retained" and result.reason == "delivery_missing"
+    assert Path(owner.identity.path).exists()
+    assert not list(ledger.root.glob("recovery-*.json"))
+
+
+def test_failed_source_recovery_never_removes_checkout_or_branch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.workspace_lifecycle.coordinator import Coordinator
+    from specify_cli.workspace_lifecycle import adapters
+    from specify_cli.git.ref_advance import RefAdvanceError
+
+    owner, ledger, events, repo = managed_owner(tmp_path, monkeypatch)
+    owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
+    owner.complete(pr=9)
+
+    def refuse(*args, **kwargs):
+        raise RefAdvanceError("injected exact ref persistence failure")
+
+    monkeypatch.setattr(adapters, "advance_branch_ref", refuse)
+    result = Coordinator(ledger).reconcile(events[0].event_id, owner.identity, owner)
+    assert result.status == "retained" and result.reason == "exact_source_recovery_unconfirmed"
+    assert Path(owner.identity.path).exists()
+    assert git(repo, "rev-parse", "task") == owner.identity.head
+    assert json.loads(next(ledger.root.glob("recovery-*.json")).read_text())["restore_verified"] is False
