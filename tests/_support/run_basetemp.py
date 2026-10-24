@@ -101,7 +101,7 @@ def mark_session_outcome(config: pytest.Config, *, succeeded: bool) -> None:
     Call from ``pytest_sessionfinish`` with ``succeeded=exitstatus ==
     pytest.ExitCode.OK``. A no-op if :func:`install_run_basetemp` never
     installed a reaper against *config* (xdist worker, or an explicit
-    ``--basetemp``) — there is nothing to tell.
+    ``--basetemp``) — there is no installed outcome record.
     """
     outcome = getattr(config, _OUTCOME_CONFIG_ATTR, None)
     if outcome is not None:

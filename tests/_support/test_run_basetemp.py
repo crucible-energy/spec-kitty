@@ -1,8 +1,8 @@
 """Tests for the per-run pytest temp root (#63).
 
-Pure-logic limbs are ``fast``; the one subprocess probe that proves the wiring
-end-to-end (an actual pytest invocation lands under the private root and leaves
-its outcome retained at exit) carries ``integration``, matching its real cost.
+Pure-logic limbs are ``fast``; the subprocess probes prove actual pytest
+invocations land under the private root and retain their outcome at exit.
+They carry ``integration``, matching their real cost.
 """
 
 from __future__ import annotations
@@ -339,10 +339,10 @@ def test_install_records_outcome_without_inventing_runtime_release(
     monkeypatch.setattr(atexit, "register", _capture)
     config = _fake_config()
     install_run_basetemp(config, now=10**9)
-    assert len(handlers) == 1  # exactly one reaper, never two
+    assert len(handlers) == 1  # exactly one outcome recorder, never two
 
     # Simulate a successful session — pytest_sessionfinish marks this BEFORE
-    # atexit callbacks run (#76: reap only follows a recorded success).
+    # atexit callbacks run; success still cannot establish runtime release.
     mark_session_outcome(config, succeeded=True)
 
     # Simulate interpreter exit with residue left under the run dir.
