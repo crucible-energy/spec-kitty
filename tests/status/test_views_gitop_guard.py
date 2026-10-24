@@ -151,6 +151,24 @@ def test_marker_in_common_gitdir_detected_from_worktree(tmp_path: Path) -> None:
     assert git_operation_in_progress(worktree) is False
 
 
+@pytest.mark.parametrize("marker", _GIT_OP_MARKERS)
+def test_worktree_only_guard_preserves_target_operation_boundary(tmp_path: Path, marker: str) -> None:
+    repo_root = tmp_path / "repo"
+    _init_repo(repo_root)
+    (repo_root / "f").write_text("x")
+    _git(["add", "."], repo_root)
+    _git(["commit", "-m", "init"], repo_root)
+    worktree = tmp_path / "owned"
+    _git(["worktree", "add", "-b", "owned", str(worktree)], repo_root)
+    owned_gitdir, primary_gitdir = _resolve_git_dirs(worktree)
+    (primary_gitdir / marker).touch()
+    assert git_operation_in_progress(repo_root, worktree_only=True)
+    assert git_operation_in_progress(worktree)
+    assert not git_operation_in_progress(worktree, worktree_only=True)
+    (owned_gitdir / marker).touch()
+    assert git_operation_in_progress(worktree, worktree_only=True)
+
+
 # ---------------------------------------------------------------------------
 # T024 — context-aware staleness key (FR-012)
 # ---------------------------------------------------------------------------

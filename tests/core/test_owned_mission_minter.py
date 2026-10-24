@@ -16,6 +16,7 @@ import pytest
 
 from mission_runtime import ActionContextError, MissionTopology, OwnedCheckout
 from specify_cli.core.owned_mission import (
+    ANALYSIS_OWNED_TOPOLOGIES,
     LIFECYCLE_OWNED_TOPOLOGIES,
     NEXT_OWNED_TOPOLOGIES,
     OwnedCreateRoot,
@@ -126,6 +127,21 @@ def test_lifecycle_default_refuses_lanes(tmp_path: Path) -> None:
     r_root, p_root = _owned_pair(tmp_path, topology="lanes")
     with pytest.raises(ActionContextError) as excinfo:
         resolve_owned_mission(r_root, p_root, SLUG)
+    assert excinfo.value.code == "OWNED_TOPOLOGY_UNSUPPORTED"
+
+
+def test_analysis_accepts_lanes_target(tmp_path: Path) -> None:
+    r_root, p_root = _owned_pair(tmp_path, topology="lanes")
+    fact = resolve_owned_mission(r_root, p_root, SLUG, allowed_topologies=ANALYSIS_OWNED_TOPOLOGIES)
+    assert fact.topology is MissionTopology.LANES
+    assert fact.owned_root == p_root.resolve()
+    assert fact.write_branch == TARGET
+
+
+def test_analysis_does_not_admit_coordination_topology(tmp_path: Path) -> None:
+    r_root, p_root = _owned_pair(tmp_path, topology="lanes_with_coord", coordination_branch=f"{TARGET}-coord")
+    with pytest.raises(ActionContextError) as excinfo:
+        resolve_owned_mission(r_root, p_root, SLUG, allowed_topologies=ANALYSIS_OWNED_TOPOLOGIES)
     assert excinfo.value.code == "OWNED_TOPOLOGY_UNSUPPORTED"
 
 

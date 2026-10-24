@@ -1,0 +1,43 @@
+--- a/src/specify_cli/core/owned_mission.py
++++ b/src/specify_cli/core/owned_mission.py
+@@ -57,0 +58,3 @@
++# Planning admission is narrower than general next-query topology support.
++# It never widens implementation, finalization or merge authority.
++ANALYSIS_OWNED_TOPOLOGIES: Final[frozenset[MissionTopology]] = frozenset({MissionTopology.SINGLE_BRANCH, MissionTopology.LANES})
+--- a/src/specify_cli/cli/commands/agent/mission_record_analysis.py
++++ b/src/specify_cli/cli/commands/agent/mission_record_analysis.py
+@@ -414 +414 @@
+-        from specify_cli.core.owned_mission import LIFECYCLE_OWNED_TOPOLOGIES
++        from specify_cli.core.owned_mission import ANALYSIS_OWNED_TOPOLOGIES
+@@ -421 +421 @@
+-            allowed_topologies=LIFECYCLE_OWNED_TOPOLOGIES,
++            allowed_topologies=ANALYSIS_OWNED_TOPOLOGIES,
+--- a/src/specify_cli/cli/commands/agent/mission_check_prerequisites.py
++++ b/src/specify_cli/cli/commands/agent/mission_check_prerequisites.py
+@@ -38 +38 @@
+-from specify_cli.core.owned_mission import LIFECYCLE_OWNED_TOPOLOGIES
++from specify_cli.core.owned_mission import ANALYSIS_OWNED_TOPOLOGIES
+@@ -660 +660 @@
+-                allowed_topologies=LIFECYCLE_OWNED_TOPOLOGIES,
++                allowed_topologies=ANALYSIS_OWNED_TOPOLOGIES,
+--- a/src/specify_cli/cli/commands/next_cmd.py
++++ b/src/specify_cli/cli/commands/next_cmd.py
+@@ -117 +117 @@
+-        return _analysis_verdict(check_analysis_report_current(feature_dir, repo_root))
++        return _analysis_verdict(check_analysis_report_current(feature_dir, owned.owned_root if owned is not None else repo_root))
+--- a/src/specify_cli/status/views.py
++++ b/src/specify_cli/status/views.py
+@@ -211 +211 @@
+-def git_operation_in_progress(repo_root: Path) -> bool:
++def git_operation_in_progress(repo_root: Path, *, worktree_only: bool = False) -> bool:
+@@ -231 +231,4 @@
+-    for git_dir in _resolve_git_dirs(repo_root):
++    # Report transactions touch their own index/HEAD, not the primary index.
++    # Other status callers keep the conservative common-directory default.
++    git_dirs = _resolve_git_dirs(repo_root)
++    for git_dir in git_dirs[:1] if worktree_only else git_dirs:
+--- a/src/specify_cli/git/report_transaction.py
++++ b/src/specify_cli/git/report_transaction.py
+@@ -115 +115 @@
+-    if git_operation_in_progress(root):
++    if git_operation_in_progress(root, worktree_only=True):

@@ -207,7 +207,7 @@ def _resolve_git_dirs(repo_root: Path) -> tuple[Path, ...]:
     return tuple(dirs)
 
 
-def git_operation_in_progress(repo_root: Path) -> bool:
+def git_operation_in_progress(repo_root: Path, *, worktree_only: bool = False) -> bool:
     """Return ``True`` when a git operation is in progress for ``repo_root``.
 
     Detects rebase (merge- or apply-backend), merge, cherry-pick, revert, and a
@@ -227,7 +227,12 @@ def git_operation_in_progress(repo_root: Path) -> bool:
     detection so reads and the dashboard share one source of truth (IC-12 /
     FR-014(a)).
     """
-    for git_dir in _resolve_git_dirs(repo_root):
+    # A report transaction writes only the selected worktree's index and HEAD.
+    # Its common gitdir contains the PRIMARY checkout's operation markers, not
+    # a linked checkout's merge/rebase state. Other status callers retain the
+    # conservative shared-directory guard by default.
+    git_dirs = _resolve_git_dirs(repo_root)
+    for git_dir in git_dirs[:1] if worktree_only else git_dirs:
         for marker in _GIT_OP_MARKERS:
             if (git_dir / marker).exists():
                 return True

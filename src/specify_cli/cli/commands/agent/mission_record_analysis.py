@@ -365,14 +365,14 @@ def record_analysis(
             raise typer.Exit(1)
         cwd_repo_root = repo_root  # preserve CWD root for branch-protection check
         repo_root = get_main_repo_root(repo_root)
-        from specify_cli.core.owned_mission import LIFECYCLE_OWNED_TOPOLOGIES
+        from specify_cli.core.owned_mission import ANALYSIS_OWNED_TOPOLOGIES
 
         owned = resolve_owned_or_refuse(
             repo_root,
             owned_checkout,
             feature,
             cwd=Path.cwd().resolve(),
-            allowed_topologies=LIFECYCLE_OWNED_TOPOLOGIES,
+            allowed_topologies=ANALYSIS_OWNED_TOPOLOGIES,
             json_output=json_output,
             envelope=success_false_envelope,
         )

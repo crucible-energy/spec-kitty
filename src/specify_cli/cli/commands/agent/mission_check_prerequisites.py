@@ -35,7 +35,7 @@ from specify_cli.cli.commands._owned_checkout import (
     flat_error_envelope,
     resolve_owned_or_refuse,
 )
-from specify_cli.core.owned_mission import LIFECYCLE_OWNED_TOPOLOGIES
+from specify_cli.core.owned_mission import ANALYSIS_OWNED_TOPOLOGIES
 
 from specify_cli.cli.commands.agent.mission_branch_context import (
     _inject_branch_contract,
@@ -662,7 +662,7 @@ def check_prerequisites(
                 owned_checkout,
                 feature,
                 cwd=Path.cwd(),
-                allowed_topologies=LIFECYCLE_OWNED_TOPOLOGIES,
+                allowed_topologies=ANALYSIS_OWNED_TOPOLOGIES,
                 json_output=json_output,
                 envelope=_refusal_envelope,
             )
