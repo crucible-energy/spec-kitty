@@ -17,11 +17,11 @@ history: []
 agent_profile: implementer-ivan
 authoritative_surface: docs/guides/how-to/workspace-lifecycle.md
 create_intent:
-- docs/implementation-logs/organization-lifecycle-rollout-20261024.md
+- docs/plans/engineering-notes/2026-10-24-organization-lifecycle-rollout.md
 execution_mode: planning_artifact
 owned_files:
 - docs/guides/how-to/workspace-lifecycle.md
-- docs/implementation-logs/organization-lifecycle-rollout-20261024.md
+- docs/plans/engineering-notes/2026-10-24-organization-lifecycle-rollout.md
 tags: []
 task_type: implement
 tracker_refs: []

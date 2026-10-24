@@ -24,7 +24,7 @@
         ".kittify/charter/charter.md",
         "AGENTS.md",
         "docs/guides/how-to/workspace-lifecycle.md",
-        "docs/implementation-logs/organization-lifecycle-rollout-20261024.md",
+        "docs/plans/engineering-notes/2026-10-24-organization-lifecycle-rollout.md",
         "docs/reports/organization-workspace-lifecycle/**",
         "packs/built-in/missions/mission-steps/**",
         "src/kernel/git/remote.py",
@@ -78,10 +78,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-24T21:59:57.564537+00:00",
+  "computed_at": "2026-10-24T22:23:18.900803+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "858043b2eb8de78d7783dd4b876a615568aa3215"
+  "planning_commit_sha": "e1dc28a29d74e67dbe48bec33e79b2bb36cae53b"
 }
