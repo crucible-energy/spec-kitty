@@ -12,6 +12,9 @@
 @@ -421 +421 @@
 -            allowed_topologies=LIFECYCLE_OWNED_TOPOLOGIES,
 +            allowed_topologies=ANALYSIS_OWNED_TOPOLOGIES,
+@@ -484 +484 @@
+-        if report_only:
++        if report_only or owned is not None:
 --- a/src/specify_cli/cli/commands/agent/mission_check_prerequisites.py
 +++ b/src/specify_cli/cli/commands/agent/mission_check_prerequisites.py
 @@ -38 +38 @@

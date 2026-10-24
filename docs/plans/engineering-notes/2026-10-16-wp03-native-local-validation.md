@@ -19,7 +19,7 @@ owned-worker protocol refusal and sampler-evidence custody controls. WP03
 acceptance remains gated by qualified native statement coverage and independent
 review.
 This log continues the history in
-[`2026-10-12-native-local-validation.md`](../plans/engineering-notes/2026-10-12-native-local-validation.md),
+[`2026-10-12-native-local-validation.md`](2026-10-12-native-local-validation.md),
 including its WP03 sampler-lifetime scope coordination.
 
 The PDB 178-row/16-original checkpoint-source-release-r1 notice is pending

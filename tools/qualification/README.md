@@ -7,7 +7,8 @@ It does not replace PATH, a shared environment or installed package files.
 
 The patch admits only planning/analysis on `single_branch` and `lanes`, binds
 the actual RC7 `next` currency callback to the existing canonical owned root,
-and makes report transactions check their own worktree's Git operations.
+routes both owned recording modes through the same canonical-policy dirty-input
+guard, and makes report transactions check their own worktree's Git operations.
 Implementation/finalization/merge topology restrictions are unchanged. General
 status guards keep their shared-directory default. There are no borrowed
 RC6 runtime files or hidden source dependency commits: the complete six-file
@@ -23,7 +24,7 @@ OWNED_ANALYSIS_RC7_PYTHON="$OUTPUT/venv/bin/python" \
   -k source_derived_rc7
 ```
 
-The result reports `4.0.0rc7+crucible.ownedanalysis.1`, an honest local identity.
+The result reports `4.0.0rc7+crucible.ownedanalysis.2`, an honest local identity.
 Its receipts bind the published source, complete patch, constraints, resulting
 project metadata, installed dependency versions and executable version. Also
 retain the owning Git commit/tree and wheel/install output. Reusing an output

@@ -2006,10 +2006,11 @@ class TestIsTransientGitWorktreeContention:
         "stderr",
         [
             "fatal: failed to read /repo/.git/worktrees/sibling/commondir: Success",
+            "fatal: failed to read /repo/.git/worktrees/sibling/commondir: Undefined error: 0",
             "fatal: Invalid path '/repo/.git/worktrees/sibling': No such file or directory",
             "fatal: failed to read C:\\repo\\.git\\worktrees\\sibling\\commondir: Success",
         ],
-        ids=["empty-commondir-mid-add", "entry-vanished-mid-remove", "windows-separators"],
+        ids=["empty-commondir-mid-add", "darwin-zero-errno", "entry-vanished-mid-remove", "windows-separators"],
     )
     def test_sibling_registry_entry_in_flight_is_transient(self, stderr: str) -> None:
         """#5894: ``git worktree list`` reads every registered entry; a
@@ -2029,6 +2030,7 @@ class TestIsTransientGitWorktreeContention:
             "fatal: Invalid path '/repo/src/module.py': No such file or directory",
             "fatal: Invalid path '/repo/.worktrees/x-lane-a'",
             "fatal: failed to read /repo/.git/worktrees/s/commondir: Permission denied",
+            "fatal: failed to read /repo/.git/worktrees/s/commondir: Undefined error: 1",
             "fatal: Invalid path '/repo/src/a.py'\nnote: see /repo/.git/worktrees/s",
         ],
         ids=[
@@ -2036,6 +2038,7 @@ class TestIsTransientGitWorktreeContention:
             "invalid-path-outside-registry",
             "dot-worktrees-checkout-is-not-the-registry",
             "commondir-read-failure-is-not-in-flight",
+            "nonzero-errno-is-not-in-flight",
             "invalid-path-and-registry-mention-on-different-lines",
         ],
     )

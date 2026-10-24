@@ -22,7 +22,52 @@ pytestmark = [pytest.mark.integration, pytest.mark.git_repo, pytest.mark.real_wo
 BODY = "---\nschema: analysis-findings/v1\nfindings: []\n---\n\n# Analysis\nFR-001 is covered by WP01.\n"
 
 
-def test_source_derived_rc7_currency_and_transaction(prepared_owner: OwnedCheckouts) -> None:
+@pytest.mark.parametrize("report_only", [False, True])
+def test_source_derived_rc7_refuses_dirty_canonical_policy(prepared_owner: OwnedCheckouts, report_only: bool) -> None:
+    python = os.environ.get("OWNED_ANALYSIS_RC7_PYTHON")
+    if not python:
+        pytest.skip("Requires the separately built, pinned RC7 qualification runtime")
+    checkouts = prepared_owner
+    policy = checkouts.repository_root / ".kittify/charter/charter.yaml"
+    policy.parent.mkdir(parents=True, exist_ok=True)
+    policy.write_text("mission_type_activations: [software-dev]\n")
+    _git(checkouts.repository_root, "add", str(policy))
+    _git(checkouts.repository_root, "commit", "--only", "-qm", "canonical policy fixture", "--", str(policy))
+    policy.write_text(policy.read_text() + "review_status: pending\n")
+    policy_bytes = policy.read_bytes()
+    before = primary_state(checkouts)
+    owned_head = _git(checkouts.owned_root, "rev-parse", "HEAD")
+    probe = """
+import json, sys
+from typer.testing import CliRunner
+from specify_cli.cli.commands.agent.mission import app
+args = ["record-analysis", "--mission", sys.argv[1], "--owned-checkout", sys.argv[2], "--json"]
+if sys.argv[3] == "report-only": args.append("--report-only")
+result = CliRunner().invoke(app, args, input=sys.argv[4])
+assert result.exit_code != 0, result.output
+payload = json.loads(result.output)
+assert payload["error_code"] == "DIRTY_ANALYSIS_INPUT", payload
+assert payload["commit_status"] == "failed_before_write", payload
+"""
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+    result = subprocess.run(
+        [python, "-c", probe, checkouts.mission_slug, str(checkouts.owned_root), "report-only" if report_only else "normal", BODY],
+        cwd=checkouts.owned_root,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert _git(checkouts.owned_root, "rev-parse", "HEAD") == owned_head
+    assert not (checkouts.mission_dir / "analysis-report.md").exists()
+    assert policy.read_bytes() == policy_bytes
+    assert primary_state(checkouts) == before
+
+
+@pytest.mark.parametrize("report_only", [False, True])
+def test_source_derived_rc7_currency_and_transaction(prepared_owner: OwnedCheckouts, report_only: bool) -> None:
     python = os.environ.get("OWNED_ANALYSIS_RC7_PYTHON")
     if not python:
         pytest.skip("Requires the separately built, pinned RC7 qualification runtime")
@@ -45,7 +90,9 @@ from specify_cli.cli.commands.next_cmd import analysis_currency_for
 from specify_cli.core.owned_mission import resolve_owned_mission, NEXT_OWNED_TOPOLOGIES
 root, owned_root, slug = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
 owned = resolve_owned_mission(root, owned_root, slug, allowed_topologies=NEXT_OWNED_TOPOLOGIES)
-result = CliRunner().invoke(app, ["record-analysis", "--mission", slug, "--owned-checkout", str(owned_root), "--report-only", "--json"], input=sys.argv[4])
+args = ["record-analysis", "--mission", slug, "--owned-checkout", str(owned_root), "--json"]
+if sys.argv[5] == "report-only": args.append("--report-only")
+result = CliRunner().invoke(app, args, input=sys.argv[4])
 assert result.exit_code == 0, result.output
 assert json.loads(result.output)["success"]
 currency = analysis_currency_for(slug, root, owned=owned)
@@ -58,7 +105,7 @@ print("actual RC7 recorder/currency: current then stale; unrelated primary merge
     env = dict(os.environ)
     env.pop("PYTHONPATH", None)
     result = subprocess.run(
-        [python, "-c", probe, str(checkouts.repository_root), str(checkouts.owned_root), checkouts.mission_slug, BODY],
+        [python, "-c", probe, str(checkouts.repository_root), str(checkouts.owned_root), checkouts.mission_slug, BODY, "report-only" if report_only else "normal"],
         cwd=checkouts.owned_root,
         env=env,
         capture_output=True,

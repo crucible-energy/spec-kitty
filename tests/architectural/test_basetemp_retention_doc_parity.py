@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import ast
 from pathlib import Path
 from typing import NamedTuple
 
@@ -16,20 +17,20 @@ _DOC_PATH = _REPO_ROOT / "docs/development/testing/testing-parallel.md"
 _SUPPORT_PATH = _REPO_ROOT / "tests/_support/run_basetemp.py"
 
 _DOC_RETENTION_BULLET = re.compile(
-    r"^- Retention is outcome-gated \(#76\): (?P<body>.*?)^## ",
+    r"^- Retention requires owner/runtime release: (?P<body>.*?)^## ",
     re.MULTILINE | re.DOTALL,
 )
 _SUPPORT_RETENTION_BULLET = re.compile(
-    r"^\* \*\*Reaped on success, retained on failure\*\* — (?P<body>.*?)^\* \*\*",
+    r"^\* \*\*Retained until owner/runtime release\*\* — (?P<body>.*?)^\* \*\*",
     re.MULTILINE | re.DOTALL,
 )
 
 _RETENTION_CONTRACT_CLAUSES = (
     "ExitCode.OK",
-    "removes the run's dir",
+    "does not release",
     "failures, errors, or an interruption",
-    "keeps its",
-    "tree",
+    "retains",
+    "owner/runtime release",
 )
 
 
@@ -73,19 +74,23 @@ def test_retention_rationale_matches_support_contract() -> None:
         assert missing == [], f"{source} retention rationale is missing: {missing}"
 
 
-def test_stale_sweep_is_documented_inline_and_implemented() -> None:
+def test_startup_never_sweeps_unreleased_sibling_runs() -> None:
     doc_source = _normalize(_DOC_PATH.read_text(encoding="utf-8"))
-    assert "stale-crash sweep below" not in doc_source, "testing-parallel.md must not point at a nonexistent sweep section"
-    assert "24 h stale-crash sweep the next run performs at controller startup" in doc_source, "the doc must state when the stale-crash sweep runs"
-    assert "`STALE_RUN_MAX_AGE_S`" in doc_source and "`install_run_basetemp`" in doc_source
-
-    support_source = _SUPPORT_PATH.read_text(encoding="utf-8")
-    assert "STALE_RUN_MAX_AGE_S = 24 * 60 * 60" in support_source
-    assert "remove_run_dirs(stale_run_dirs(root, now=now))" in support_source
+    assert "never performs a sibling age sweep" in doc_source
+    assert "`STALE_RUN_MAX_AGE_S` is observational only" in doc_source
+    module = ast.parse(_SUPPORT_PATH.read_text(encoding="utf-8"))
+    startup = next(node for node in module.body if isinstance(node, ast.FunctionDef) and node.name == "install_run_basetemp")
+    calls = {node.func.id for node in ast.walk(startup) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
+    assert "remove_run_dirs" not in calls
+    assert "stale_run_dirs" not in calls
+    callback = next(node for node in module.body if isinstance(node, ast.FunctionDef) and node.name == "_record_session_outcome")
+    assert not any(
+        isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in {"rmtree", "unlink", "rmdir"} for node in ast.walk(callback)
+    ), "test outcome cannot authorize deletion of a runtime-held leaf"
 
 
 def test_retention_guard_detects_reap_drift() -> None:
     support_body = _retention_texts().support_body
-    drifted_body = support_body.replace("removes the run's dir", "deletes every run's dir", 1)
+    drifted_body = support_body.replace("does not release", "releases", 1)
     assert drifted_body != support_body, "mutation did not change the support rationale"
-    assert _missing_clauses(drifted_body) == ["removes the run's dir"]
+    assert _missing_clauses(drifted_body) == ["does not release"]

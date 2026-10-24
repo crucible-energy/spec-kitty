@@ -262,7 +262,7 @@ def pytest_configure(config: pytest.Config) -> None:
     # the same mapping per test for call-time reads.
     _apply_home_env(_worker_home_base(config))
 
-    # Give this run its own private, wiped-per-run pytest temp root instead of
+    # Give this run its own exclusively reserved pytest temp root instead of
     # the shared platform-temp `pytest-of-<user>` numbered tree, which never
     # shrinks except through its own locked, timeout-gated pruning and
     # accumulates stale roots on a long-lived box. See run_basetemp.py's

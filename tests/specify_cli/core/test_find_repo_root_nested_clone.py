@@ -104,3 +104,25 @@ def test_standalone_clone_resolves_to_self_control(tmp_path: Path) -> None:
 
     assert resolve_canonical_root(standalone) == standalone
     assert find_repo_root(standalone) == standalone
+
+
+@pytest.mark.parametrize("primary_has_governance", [False, True])
+def test_registered_worktree_stops_before_unrelated_ancestor_governance(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, primary_has_governance: bool) -> None:
+    """A registered Git identity wins over an unrelated home-level marker."""
+    monkeypatch.delenv("SPECIFY_REPO_ROOT", raising=False)
+    ambient = tmp_path / "home"
+    (ambient / ".kittify").mkdir(parents=True)
+    primary = _init_repo(ambient / "projects" / "repo")
+    if primary_has_governance:
+        (primary / ".kittify").mkdir()
+    mission = primary / "terminus-01M5001A"
+    mission.mkdir()
+    (mission / "meta.json").write_text('{"mission_id":"01M5001A"}\n')
+    linked = ambient / "work" / "integration"
+    linked.parent.mkdir()
+    _git(primary, "worktree", "add", "-b", "integration", str(linked))
+    child = linked / "nested"
+    child.mkdir()
+
+    assert find_repo_root(child, stop=ambient) == primary
+    assert resolve_canonical_root(child) == primary

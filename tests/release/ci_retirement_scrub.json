@@ -188,7 +188,8 @@
         "src/specify_cli/doctrine_synthesizer/**",
         "src/specify_cli/status/**",
         "src/specify_cli/tool_surface/**",
-        "src/specify_cli/zeitgeist_client/**"
+        "src/specify_cli/zeitgeist_client/**",
+        "src/specify_cli/workspace_lifecycle/**"
       ],
       "cov_targets": [
         "specify_cli",

@@ -2,12 +2,13 @@
 
 Pure-logic limbs are ``fast``; the one subprocess probe that proves the wiring
 end-to-end (an actual pytest invocation lands under the private root and leaves
-it reaped at exit) carries ``integration``, matching its real cost.
+its outcome retained at exit) carries ``integration``, matching its real cost.
 """
 
 from __future__ import annotations
 
 import atexit
+import json
 import os
 import stat
 import subprocess
@@ -52,10 +53,10 @@ def _fake_config(basetemp: str | None = None, *, worker: bool = False) -> Simple
 
 def test_run_basetemp_dir_is_unique_per_controller_process() -> None:
     assert run_basetemp_dir(pid=100) != run_basetemp_dir(pid=200)
-    # Deterministic per controller PID: two calls with the same pid agree.
+    # Recycled PIDs must not select and erase a retained earlier run.
     same_pid_first = run_basetemp_dir(pid=100)
     same_pid_second = run_basetemp_dir(pid=100)
-    assert same_pid_first == same_pid_second
+    assert same_pid_first != same_pid_second
     assert run_basetemp_dir(pid=100).parent == run_tmp_root()
 
 
@@ -121,6 +122,28 @@ def test_validate_existing_root_repairs_world_readable_mode(tmp_path: Path) -> N
     _validate_existing_root(root)
 
     assert stat.S_IMODE(root.stat().st_mode) & 0o077 == 0
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits")
+def test_private_creator_preserves_owner_access_under_restrictive_umask(tmp_path: Path) -> None:
+    script = """
+import os,stat,sys
+from pathlib import Path
+from types import SimpleNamespace
+from tests._support.run_basetemp import install_run_basetemp
+os.environ["PYTEST_DEBUG_TEMPROOT"] = sys.argv[1]
+os.umask(0o777)
+config = SimpleNamespace(option=SimpleNamespace(basetemp=None))
+install_run_basetemp(config, now=1)
+path = Path(config.option.basetemp)
+assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
+assert stat.S_IMODE(path.stat().st_mode) == 0o700
+manifest = path.with_name(path.name + ".owner.json")
+assert stat.S_IMODE(manifest.stat().st_mode) == 0o600
+assert manifest.read_bytes()
+"""
+    result = subprocess.run([sys.executable, "-c", script, str(tmp_path)], cwd=REPO_ROOT, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_validate_existing_root_rejects_a_symlinked_root(tmp_path: Path) -> None:
@@ -193,9 +216,29 @@ def test_install_points_config_at_a_fresh_private_root(
     assert chosen.parent == tmp_path / RUN_TMP_ROOT_NAME
     assert chosen.name.startswith("run-")
     assert chosen.parent.is_dir(), "root pre-created: pytest mkdirs the basetemp without parents"
+    assert chosen.is_dir(), "the creator exclusively reserves its own empty leaf"
 
 
-def test_install_reaps_crash_leftovers_but_leaves_concurrent_runs(
+def test_install_refuses_an_existing_candidate_without_erasing_evidence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PYTEST_DEBUG_TEMPROOT", str(tmp_path))
+    root = tmp_path / RUN_TMP_ROOT_NAME
+    root.mkdir(mode=0o700)
+    retained = root / "run-recycled"
+    retained.mkdir()
+    evidence = retained / "retained.json"
+    evidence.write_text('{"preserve":true}\n')
+    monkeypatch.setattr(run_basetemp_module, "run_basetemp_dir", lambda: retained)
+    handlers: list = []
+    monkeypatch.setattr(atexit, "register", handlers.append)
+    config = _fake_config()
+    with pytest.raises(FileExistsError):
+        install_run_basetemp(config, now=10**9)
+    assert evidence.read_text() == '{"preserve":true}\n'
+    assert config.option.basetemp is None
+    assert handlers == []
+
+
+def test_install_retains_aged_unknown_and_concurrent_runs(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -208,9 +251,47 @@ def test_install_reaps_crash_leftovers_but_leaves_concurrent_runs(
 
     install_run_basetemp(config := _fake_config(), now=now)
 
-    assert not crashed.exists()
+    assert crashed.is_dir(), "age is not owner release or evidence-retention authority"
     assert concurrent.is_dir()
     assert Path(config.option.basetemp) not in (crashed, concurrent)
+
+
+def test_install_never_selects_another_aged_live_run_for_removal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PYTEST_DEBUG_TEMPROOT", str(tmp_path))
+    now = 5_000_000.0
+    root = tmp_path / RUN_TMP_ROOT_NAME
+    root.mkdir(mode=0o700)
+    held = _make_dir(root, "run-live-held", mtime=now - STALE_RUN_MAX_AGE_S - 60)
+    evidence = held / "retained.json"
+    evidence.write_text('{"retain":true}\n')
+    os.utime(held, (now - STALE_RUN_MAX_AGE_S - 60,) * 2)
+    selected: list[Path] = []
+    handlers: list = []
+    # Observe the old unsafe selection without actually deleting evidence.
+    monkeypatch.setattr(run_basetemp_module, "remove_run_dirs", lambda paths: selected.extend(paths) or [])
+    monkeypatch.setattr(atexit, "register", handlers.append)
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import os,sys; print(os.getcwd(),flush=True); sys.stdin.buffer.read()"],
+        cwd=held,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        assert child.stdout is not None
+        assert Path(child.stdout.readline().decode().strip()).resolve() == held.resolve()
+        assert child.poll() is None
+        config = _fake_config()
+        install_run_basetemp(config, now=now)
+        assert selected == [], "another producer's aged live/unknown path is not ours to remove"
+        mark_session_outcome(config, succeeded=True)
+        Path(config.option.basetemp).mkdir(parents=True, exist_ok=True)
+        handlers[0]()
+        assert held.is_dir() and evidence.read_text() == '{"retain":true}\n'
+        assert child.poll() is None
+    finally:
+        child.communicate(timeout=10)
+    assert child.returncode == 0
 
 
 def test_install_respects_an_explicit_basetemp(
@@ -245,7 +326,7 @@ def test_install_never_touches_an_xdist_worker_config(
     assert not (tmp_path / RUN_TMP_ROOT_NAME).exists()
 
 
-def test_install_registers_an_atexit_reaper_for_this_run_only(
+def test_install_records_outcome_without_inventing_runtime_release(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -269,8 +350,13 @@ def test_install_registers_an_atexit_reaper_for_this_run_only(
     residue.mkdir(parents=True)
     (residue / "leftover").write_text("x")
     handlers[0]()
-    assert not Path(config.option.basetemp).exists()
-    assert (tmp_path / RUN_TMP_ROOT_NAME).is_dir(), "the shared root itself stays"
+    held = Path(config.option.basetemp)
+    assert held.is_dir()
+    assert (residue / "leftover").read_text() == "x"
+    terminal = json.loads(held.with_name(held.name + ".terminal.json").read_text())
+    assert terminal["pytest_outcome"] == "passed"
+    assert terminal["runtime_release"] == "unobserved"
+    assert terminal["cleanup"] == "retained_pending_owner_runtime_release"
 
 
 def test_install_retains_the_run_dir_when_the_session_did_not_succeed(
@@ -287,7 +373,7 @@ def test_install_retains_the_run_dir_when_the_session_did_not_succeed(
     install_run_basetemp(config, now=10**9)
 
     basetemp = Path(config.option.basetemp)
-    basetemp.mkdir(parents=True)
+    basetemp.mkdir(parents=True, exist_ok=True)
     forensic_evidence = basetemp / "leftover.txt"
     forensic_evidence.write_text("post-mortem state")
 
@@ -297,6 +383,27 @@ def test_install_retains_the_run_dir_when_the_session_did_not_succeed(
 
     assert basetemp.is_dir()
     assert forensic_evidence.read_text() == "post-mortem state"
+    assert basetemp.with_name(basetemp.name + ".owner.json").is_file()
+
+
+@pytest.mark.parametrize("change", ["owner", "manifest"])
+def test_success_does_not_reap_from_another_process_or_changed_owner_record(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: str) -> None:
+    monkeypatch.setenv("PYTEST_DEBUG_TEMPROOT", str(tmp_path))
+    handlers: list = []
+    monkeypatch.setattr(atexit, "register", handlers.append)
+    config = _fake_config()
+    install_run_basetemp(config, now=10**9)
+    path = Path(config.option.basetemp)
+    manifest = path.with_name(path.name + ".owner.json")
+    mark_session_outcome(config, succeeded=True)
+    if change == "owner":
+        pid = os.getpid()
+        monkeypatch.setattr(run_basetemp_module.os, "getpid", lambda: pid + 1)
+    else:
+        manifest.write_bytes(b"changed ownership\n")
+    handlers[0]()
+    assert path.is_dir()
+    assert manifest.is_file()
 
 
 def test_mark_session_outcome_is_a_noop_without_an_installed_reaper() -> None:
@@ -321,7 +428,7 @@ def test_inner_tmp_path_lands_under_the_private_run_root(tmp_path: Path) -> None
 
 
 @pytest.mark.integration
-def test_subprocess_run_uses_the_private_root_and_reaps_it(
+def test_subprocess_success_retains_private_root_until_runtime_release(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -358,7 +465,11 @@ def test_subprocess_run_uses_the_private_root_and_reaps_it(
 
     private_root = scratch / RUN_TMP_ROOT_NAME
     assert private_root.is_dir(), f"the run never created its private root:\n{output}"
-    assert not any(private_root.iterdir()), "the run's own dir survived its own exit"
+    runs = [entry for entry in private_root.iterdir() if entry.is_dir()]
+    assert len(runs) == 1, output
+    terminal = json.loads(runs[0].with_name(runs[0].name + ".terminal.json").read_text())
+    assert terminal["pytest_outcome"] == "passed"
+    assert terminal["runtime_release"] == "unobserved"
 
 
 _PROBE_FAIL_ENV = "SPEC_KITTY_RUN_BASETEMP_PROBE_FAIL"
@@ -417,8 +528,39 @@ def test_subprocess_failed_run_retains_the_private_root(
     assert result.returncode != 0, f"the inner probe was supposed to fail:\n{output}"
 
     private_root = scratch / RUN_TMP_ROOT_NAME
-    run_dirs = list(private_root.iterdir())
+    run_dirs = [entry for entry in private_root.iterdir() if entry.is_dir()]
     assert len(run_dirs) == 1, f"expected exactly the retained run dir:\n{output}"
+    manifest = run_dirs[0].with_name(run_dirs[0].name + ".owner.json")
+    assert manifest.is_file(), "retained evidence needs its durable owner-closeout obligation"
     markers = list(run_dirs[0].rglob("marker.txt"))
     assert markers, f"forensic marker did not survive the failed session:\n{output}"
     assert markers[0].read_text() == "post-mortem evidence"
+
+
+def test_success_retains_exact_leaf_while_another_process_holds_it(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PYTEST_DEBUG_TEMPROOT", str(tmp_path))
+    handlers: list = []
+    monkeypatch.setattr(atexit, "register", handlers.append)
+    config = _fake_config()
+    install_run_basetemp(config, now=1)
+    held = Path(config.option.basetemp)
+    evidence = held / "evidence.json"
+    evidence.write_text('{"preserve":true}\n')
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import os,sys; print(os.getcwd(),flush=True); sys.stdin.buffer.read()"],
+        cwd=held,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        assert child.stdout is not None
+        assert Path(child.stdout.readline().decode().strip()).resolve() == held.resolve()
+        mark_session_outcome(config, succeeded=True)
+        handlers[0]()
+        assert held.is_dir(), "test success alone does not release another runtime's custody"
+        assert evidence.read_text() == '{"preserve":true}\n'
+        assert child.poll() is None
+    finally:
+        child.communicate(timeout=10)
+    assert child.returncode == 0

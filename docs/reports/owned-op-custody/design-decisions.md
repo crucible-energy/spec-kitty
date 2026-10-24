@@ -1,3 +1,10 @@
+---
+title: Engineering decisions
+description: Retained design decisions for owned op custody.
+doc_status: active
+updated: '2026-10-24'
+---
+
 # Engineering decisions
 
 - Canonical discovery remains the repository-identity authority. An explicit

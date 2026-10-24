@@ -1,3 +1,10 @@
+---
+title: Organization Workspace Lifecycle
+description: Read-only discovery and separate owner-authorized retirement boundaries.
+doc_status: active
+updated: '2026-10-24'
+---
+
 # Organization workspace lifecycle
 
 ## Discovery and accounting

@@ -21,9 +21,9 @@ mkdir "$output/source"
 tar -xzf "$archive" -C "$output/source" --strip-components=1
 patch --batch --fuzz=0 -p1 -d "$output/source" < "$recipe/owned-analysis-rc7.patch"
 # This local identity explicitly distinguishes the result from published RC7.
-sed 's/^version = "4.0.0rc7"$/version = "4.0.0rc7+crucible.ownedanalysis.1"/' \
+sed 's/^version = "4.0.0rc7"$/version = "4.0.0rc7+crucible.ownedanalysis.2"/' \
     "$output/source/pyproject.toml" > "$output/source/pyproject.toml.local"
-grep -q '^version = "4.0.0rc7+crucible.ownedanalysis.1"$' "$output/source/pyproject.toml.local"
+grep -q '^version = "4.0.0rc7+crucible.ownedanalysis.2"$' "$output/source/pyproject.toml.local"
 mv "$output/source/pyproject.toml.local" "$output/source/pyproject.toml"
 uv venv "$output/venv"
 uv pip install --python "$output/venv/bin/python" --constraint "$constraints" "$output/source"
