@@ -220,7 +220,7 @@
     },
     "WP08": {
       "actor": "reviewer-renata",
-      "agent": "codex",
+      "agent": "reviewer-renata",
       "agent_profile": "__resolved_profile_absent__",
       "agent_profile_version": "__resolved_profile_version_absent__",
       "assignee": "crucible-workspace-closeout",
@@ -233,7 +233,8 @@
         "Existing lane owner assigned; native finish obligations, safe persistence and no retirement authority.",
         "Native finish-store source32332053 plus final tests at f131e0df: Debug/ReleaseSafe7pass, real CLI restart/stale/missing-history/archive-restore proof, no deletion authority; independent reviewer requested.",
         "Record independent01a13e15 reviewer changes requested on exactf131e0df: umask publication metadata and mandatory persisted envelope; no approval inferred.",
-        "Independent r1 findings reproduced by two failing native regressions; repairing only new-file metadata and required persisted envelope."
+        "Independent r1 findings reproduced by two failing native regressions; repairing only new-file metadata and required persisted envelope.",
+        "Independent coordinator Reviewer Renata R2 approved exact native source SHA256 587936899f3bb3912701ae5b4f41d872bff1193e0da688656e3c674fe3252ad1; both reproduced R1 defects replayed fixed; external receipt /Users/sam/Documents/Codex/2026-10-15/we-re-x20/outputs/lifecycle-wp08-independent-review-r2.json. Bounded source only, not retirement or rollout approval."
       ],
       "provider": "__resolved_provider_absent__",
       "review": null,
