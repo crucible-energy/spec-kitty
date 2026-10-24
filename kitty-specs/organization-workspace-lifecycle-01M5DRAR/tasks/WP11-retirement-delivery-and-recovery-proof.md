@@ -27,6 +27,8 @@ owned_files:
 - src/specify_cli/workspace_lifecycle/adapters.py
 - tests/workspace_lifecycle/test_adapters.py
 - tests/workspace_lifecycle/test_acceptance.py
+- src/kernel/git/remote.py
+- tests/kernel/test_git_remote.py
 tags: []
 task_type: implement
 tracker_refs: []
@@ -45,3 +47,5 @@ This is a bounded correctness repair to retained Python, permitted by current de
 ## Validation
 
 Reproduce unsafe actual removal with an old merged-PR API response whose merge is absent from the current default branch, then prove refusal through real Git fixtures. Prove normal merge and squash controls, unresolved/unavailable reviews, source recovery/restore and changed branch/owner refusal. Run focused retained-runtime subsystem checks, ruff/mypy and changed-statement coverage required by project policy. Independent review and source publication are separate from local passes.
+
+Remote contact stays in kernel.git.remote: extend its bounded fetch seam for a creator-generation evidence ref instead of constructing remote argv in the adapter. Recovery ref advancement uses the existing guarded CAS ref owner.
