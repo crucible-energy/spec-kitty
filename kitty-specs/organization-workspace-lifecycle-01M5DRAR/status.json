@@ -223,11 +223,15 @@
       "agent": "codex",
       "agent_profile": "__resolved_profile_absent__",
       "agent_profile_version": "__resolved_profile_version_absent__",
+      "assignee": "crucible-workspace-closeout",
       "force_count": 0,
       "lane": "in_progress",
       "last_event_id": "01M5QVF5Z60WRJD293GGBXH58A",
       "last_transition_at": "2026-10-24T21:01:05.382592+00:00",
       "model": "__resolved_model_absent__",
+      "notes": [
+        "Existing lane owner assigned; native finish obligations, safe persistence and no retirement authority."
+      ],
       "provider": "__resolved_provider_absent__",
       "role": "implementer"
     },
