@@ -95,6 +95,10 @@ def build_dependent_edit_mission(
     mid8 = mid8.upper()
     slug = f"terminus-{mid8}"
     mission = _init_fixture_repo(tmp_path, mid8=mid8, slug=slug, target_branch=target_branch, extra_base_files={SHARED_PATH: SHARED_V0})
+    if target_branch.startswith("feature/"):
+        from tests._support.feature_landing import pin_primary
+
+        pin_primary(mission.repo)
     (mission.feature_dir / "tasks").mkdir(parents=True)
     _write_meta(mission)
     manifest = _manifest(mission, depends=True)

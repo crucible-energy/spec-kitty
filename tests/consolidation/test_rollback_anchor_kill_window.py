@@ -47,7 +47,7 @@ import typer
 from specify_cli.consolidation import executor
 from specify_cli.consolidation.state import get_state_path, load_state
 from tests.terminus.conftest import _SRC, CoordMission, _bootstrapped_home_template, run_terminus
-from tests.terminus.lanes_fixture import build_lanes_mission
+from tests._support.feature_landing import build_feature_lanes_mission as build_lanes_mission
 from tests.terminus.rollback_harness import flat, ref_shas
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
@@ -123,7 +123,7 @@ specify_cli.main()
 
 def _lanes_mission(tmp_path: Path, mid8: str, *, wps: Sequence[str] = ("WP01",)) -> CoordMission:
     """The ONE fixture builder of every scenario and of the positive control (LANES, target ``develop``)."""
-    mission = build_lanes_mission(tmp_path, wps=wps, target_branch="develop", mid8=mid8)
+    mission = build_lanes_mission(tmp_path, wps=wps, mid8=mid8)
     shutil.copytree(_bootstrapped_home_template(), mission.home, dirs_exist_ok=True)
     return mission
 

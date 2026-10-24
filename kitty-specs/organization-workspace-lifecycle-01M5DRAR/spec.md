@@ -101,3 +101,15 @@ Missing remote permission, stale inventory, malformed/truncated state, symlinked
 ## Assumptions and Boundaries
 
 Authenticated visibility does not prove membership in inaccessible repositories. Local root discovery is configured and bounded. Known failed roots and registrations are enumerable coverage gaps; accessible repositories with no local match are reported separately. Entirely undiscovered stores outside configured roots, and repositories outside credential visibility, are unobservable scope with an explicit unknown declaration, not invented per-store gaps. Existing unregistered owners cannot be invented. A managed creator may require a supported connection not available to a local hook; retain and retry through that creator. The first custody repair is PR112 and remains independently reviewable. Historical Op records and evidence are preserved.
+
+
+## WP04 occurrence classification
+
+The live workflow phrase `local main` is replaced, where it instructs direct
+consolidation before a PR, with feature/integration consolidation followed by PR
+acceptance. This is semantic review, not a repository-wide rename of `main`.
+`occurrence_map.yaml` classifies all eight risk surfaces. Historical records,
+imports, CLI identities, schema keys and telemetry names remain unchanged;
+negative tests may keep primary-branch literals. Live guidance and behavioural
+fixtures are reviewed individually. Existing user authority explicitly requires
+PR-only advancement of local and remote primary branches.

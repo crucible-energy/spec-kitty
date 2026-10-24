@@ -568,7 +568,7 @@ Mission topology terms (the four topologies, write checkout, repo-root lane, cod
 
 | | |
 |---|---|
-| **Definition** | The `spec-kitty consolidate` operation (renamed from `spec-kitty merge` by #3080): LOCAL consolidation of completed lane branches into the mission branch, with **no** push to any remote. Realized by the internal helper `consolidate_lane_into_mission`. This is `merge` **Sense 1** — the first of three distinct "merge" operations. It stops at local main; it never publishes. |
+| **Definition** | The `spec-kitty consolidate` operation (renamed from `spec-kitty merge` by #3080): LOCAL consolidation of completed lane branches into the mission branch, with **no** push to any remote. Realized by the internal helper `consolidate_lane_into_mission`. This is `merge` **Sense 1** — the first of three distinct "merge" operations. Its target is a feature/integration branch; primary advancement requires PR acceptance. |
 | **Context** | Orchestration |
 | **Status** | canonical |
 | **Applicable to** | `3.x` |

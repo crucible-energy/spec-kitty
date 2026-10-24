@@ -369,7 +369,8 @@ def test_claim_start_with_pid_and_repeated_start_refused(finalized_checkouts):
     assert (snapshot(primary), snapshot(sibling)) == before
 
 
-def test_move_task_enters_review_against_selected_checkout_planning_commit(finalized_checkouts, monkeypatch):
+@pytest.mark.parametrize("advance_planning", [False, True])
+def test_move_task_enters_review_against_selected_checkout_planning_commit(finalized_checkouts, monkeypatch, advance_planning):
     primary, owned, sibling = finalized_checkouts
     other_before = snapshot(primary), snapshot(sibling)
     mission = owned / "kitty-specs" / SLUG
@@ -392,6 +393,13 @@ def test_move_task_enters_review_against_selected_checkout_planning_commit(final
     )
     assert started.exit_code == 0, started.output
 
+    # The allocator's implement/claim seam records this canonical immutable ref.
+    # move-task alone changes status; it does not allocate the workspace.
+    from specify_cli.lanes.claim_base import read_claim_base, record_claim_base
+
+    claim_base = record_claim_base(primary, owned, SLUG, "WP01")
+    assert read_claim_base(primary, SLUG, "WP01") == claim_base
+
     manifest = json.loads((mission / "lanes.json").read_text(encoding="utf-8"))
     planning_commit = manifest["planning_commit_sha"]
     assert len(planning_commit) == 40
@@ -403,6 +411,17 @@ def test_move_task_enters_review_against_selected_checkout_planning_commit(final
     implementation_commit = git(owned, "rev-parse", "HEAD")
     assert implementation_commit != planning_commit
     assert git(owned, "merge-base", planning_commit, implementation_commit) == planning_commit
+
+    if advance_planning:
+        plan = mission / "plan.md"
+        plan.write_text(plan.read_text(encoding="utf-8") + "\nGenuine later planning amendment.\n", encoding="utf-8")
+        git(owned, "add", str(plan.relative_to(owned)))
+        git(owned, "commit", "-qm", "test: amend planning after implementation")
+        refreshed = invoke("finalize-tasks", owned)
+        assert refreshed.exit_code == 0, refreshed.output
+        latest = json.loads((mission / "lanes.json").read_text(encoding="utf-8"))["planning_commit_sha"]
+        assert latest != planning_commit
+        assert git(owned, "diff", "--name-only", f"{latest}..HEAD", "--", "app.py") == ""
 
     monkeypatch.chdir(primary)
     monkeypatch.setenv("SPECIFY_REPO_ROOT", str(primary))
@@ -1189,3 +1208,34 @@ def test_owned_move_task_threads_the_fact_and_never_consults_get_main_repo_root(
         assert isinstance(kwargs["owned"], OwnedCheckout)
         assert kwargs["owned"].owned_root == owned.resolve()
         assert "effective_root" not in kwargs
+
+
+@pytest.mark.parametrize("invalid_claim", ["head", "orphan", "blob", "broken"])
+def test_owned_review_refuses_invalid_claim_base_without_planning_fallback(finalized_checkouts, invalid_claim):
+    primary, owned, sibling = finalized_checkouts
+    args = ["move-task", "WP01", "--agent", "codex", "--mission", SLUG, "--owned-checkout", str(owned), "--json"]
+    started = CliRunner().invoke(tasks_app, [*args, "--to", "doing"])
+    assert started.exit_code == 0, started.output
+    (owned / "app.py").write_text("VALUE = 73\n", encoding="utf-8")
+    git(owned, "add", "app.py")
+    git(owned, "commit", "-qm", "test: real owned implementation")
+    ref = f"refs/spec-kitty/wp-base/{SLUG}/WP01"
+    if invalid_claim == "head":
+        value = git(owned, "rev-parse", "HEAD")
+    elif invalid_claim == "orphan":
+        value = git(owned, "commit-tree", "HEAD^{tree}", "-m", "unrelated claim")
+    elif invalid_claim == "blob":
+        value = git(owned, "rev-parse", "HEAD:app.py")
+    else:
+        common = Path(git(owned, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+        path = common / ref
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("malformed claim ref\n", encoding="utf-8")
+        value = None
+    if value is not None:
+        git(owned, "update-ref", ref, value)
+    before = tuple(snapshot(root) for root in (primary, owned, sibling))
+    result = CliRunner().invoke(tasks_app, [*args, "--to", "for_review"])
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.output)["error_code"] == "OWNED_REVIEW_BASE_INVALID"
+    assert tuple(snapshot(root) for root in (primary, owned, sibling)) == before

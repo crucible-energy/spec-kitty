@@ -25,6 +25,9 @@ deliberately NOT mocked).
 
 from __future__ import annotations
 
+# Current full consolidation targets feature/integration; historical issue prose
+# below describes the original main-target reproduction. Primary stays separate.
+
 import contextlib
 import json
 import subprocess
@@ -71,13 +74,16 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 def _init_git_repo(repo: Path) -> None:
     repo.mkdir(parents=True, exist_ok=True)
-    _run(["git", "init", "-qb", "main", str(repo)])
+    _run(["git", "init", "-qb", "feature/integration", str(repo)])
     _git(repo, "config", "user.email", "test@test.com")
     _git(repo, "config", "user.name", "Test")
     _git(repo, "config", "commit.gpgsign", "false")
     (repo / _README).write_text("init\n")
     _git(repo, "add", ".")
     _git(repo, "commit", "-m", "init")
+    from tests._support.feature_landing import pin_primary
+
+    pin_primary(repo)
 
 
 def _write_meta(feature_dir: Path, slug: str) -> None:
@@ -86,7 +92,7 @@ def _write_meta(feature_dir: Path, slug: str) -> None:
         "mission_slug": slug,
         "mission_number": None,
         "mission_type": "software-dev",
-        "target_branch": "main",
+        "target_branch": "feature/integration",
         "purpose_tldr": "user meta.json dirty-tree safety regression (#4933)",
         "purpose_context": "user meta.json regression fixture",
     }
@@ -99,7 +105,7 @@ def _write_lanes_manifest(feature_dir: Path, slug: str) -> LanesManifest:
         mission_slug=slug,
         mission_id=None,
         mission_branch=f"kitty/mission-{slug}",
-        target_branch="main",
+        target_branch="feature/integration",
         lanes=[
             ExecutionLane(
                 lane_id="lane-a",
@@ -203,10 +209,10 @@ def _bootstrap_mission(tmp_path: Path, slug: str) -> Path:
     _git(tmp_path, "commit", "-m", f"chore({slug}): bootstrap mission fixture")
 
     mission_branch = f"kitty/mission-{slug}"
-    _git(tmp_path, "branch", mission_branch, "main")
+    _git(tmp_path, "branch", mission_branch, "feature/integration")
 
-    lane_branch = lane_branch_name(slug, "lane-a", target_branch="main")
-    _git(tmp_path, "branch", lane_branch, "main")
+    lane_branch = lane_branch_name(slug, "lane-a", target_branch="feature/integration")
+    _git(tmp_path, "branch", lane_branch, "feature/integration")
     _commit_file(
         tmp_path,
         branch=lane_branch,
@@ -296,7 +302,7 @@ class TestPrimaryCheckoutUserMetaJsonSafety:
         slug = "test-user-meta-json-primary-dirty"
         _bootstrap_mission(tmp_path, slug)
 
-        _git(tmp_path, "checkout", "main")
+        _git(tmp_path, "checkout", "feature/integration")
         (tmp_path / "src" / "app").mkdir(parents=True)
         (tmp_path / _USER_META).write_text('{"v": 1}\n', encoding="utf-8")
         _git(tmp_path, "add", _USER_META)
@@ -338,7 +344,7 @@ class TestPrimaryCheckoutUserMetaJsonSafety:
         slug = "test-user-meta-json-aggregation"
         _bootstrap_mission(tmp_path, slug)
 
-        _git(tmp_path, "checkout", "main")
+        _git(tmp_path, "checkout", "feature/integration")
         (tmp_path / "src" / "app").mkdir(parents=True)
         (tmp_path / _USER_META).write_text('{"v": 1}\n', encoding="utf-8")
         _git(tmp_path, "add", _USER_META)
@@ -364,14 +370,14 @@ class TestPrimaryCheckoutUserMetaJsonSafety:
         slug = "test-owned-meta-json-control"
         feature_dir = _bootstrap_mission(tmp_path, slug)
 
-        _git(tmp_path, "checkout", "main")
+        _git(tmp_path, "checkout", "feature/integration")
         (feature_dir / "meta.json").write_text(
             json.dumps(
                 {
                     "mission_slug": slug,
                     "mission_number": None,
                     "mission_type": "software-dev",
-                    "target_branch": "main",
+                    "target_branch": "feature/integration",
                     "purpose_tldr": "dirtied for control",
                     "purpose_context": "owned meta.json control",
                 },
@@ -397,7 +403,7 @@ class TestLaneWorktreeUserMetaJsonSafety:
         monkeypatch.setenv("COLUMNS", "400")
         slug = "test-user-meta-json-worktree-dirty"
         _bootstrap_mission(tmp_path, slug)
-        lane_branch = lane_branch_name(slug, "lane-a", target_branch="main")
+        lane_branch = lane_branch_name(slug, "lane-a", target_branch="feature/integration")
 
         # Track src/app/meta.json ON THE LANE BRANCH so it is a tracked file
         # inside the worktree.
@@ -408,7 +414,7 @@ class TestLaneWorktreeUserMetaJsonSafety:
             content='{"v": 1}\n',
             message="track user meta.json on lane branch",
         )
-        _git(tmp_path, "checkout", "main")
+        _git(tmp_path, "checkout", "feature/integration")
 
         wt_path = _add_lane_worktree(tmp_path, slug, lane_branch)
         (wt_path / _USER_META).write_text('{"v": 2, "dirty": true}\n', encoding="utf-8")
@@ -434,8 +440,8 @@ class TestLaneWorktreeUserMetaJsonSafety:
         exempt; the worktree is still removed."""
         slug = "test-owned-meta-json-worktree-control"
         feature_dir = _bootstrap_mission(tmp_path, slug)
-        lane_branch = lane_branch_name(slug, "lane-a", target_branch="main")
-        _git(tmp_path, "checkout", "main")
+        lane_branch = lane_branch_name(slug, "lane-a", target_branch="feature/integration")
+        _git(tmp_path, "checkout", "feature/integration")
 
         wt_path = _add_lane_worktree(tmp_path, slug, lane_branch)
         (wt_path / "kitty-specs" / slug / "meta.json").write_text('{"purpose_tldr": "dirtied inside worktree"}\n', encoding="utf-8")
@@ -476,15 +482,15 @@ class TestReportPreMutationRefusalBehindHeadGuidance:
         a_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
 
         lane_branch = "kitty/lane-a"
-        _git(repo, "branch", lane_branch, "main")
+        _git(repo, "branch", lane_branch, "feature/integration")
         _commit_file(repo, branch=lane_branch, relpath="f.txt", content="hi\n", message="add f.txt")
         b_sha = _git(repo, "rev-parse", lane_branch).stdout.strip()
 
-        _git(repo, "checkout", "main")
+        _git(repo, "checkout", "feature/integration")
         # Advance main's ref to B WITHOUT resetting the checkout -- the pure
         # behind-own-HEAD lag: HEAD/main now names B's tree, but the working
         # tree and index still hold A's (f.txt reads as a staged deletion).
-        _git(repo, "update-ref", "refs/heads/main", b_sha)
+        _git(repo, "update-ref", "refs/heads/feature/integration", b_sha)
 
         return repo, lane_branch, a_sha, b_sha
 

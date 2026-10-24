@@ -1105,7 +1105,8 @@ class TestIntegrationBranchGuard:
 
         merged = " ".join(result.instructions + result.cleanup_instructions)
         assert "spec-kitty consolidate --mission" in merged, f"Feature branch should get consolidation guidance. instructions={result.instructions}"
-        assert "git branch -d kitty/mission-054-my-feature-lane-a" in merged, f"Feature branch should get cleanup guidance. cleanup={result.cleanup_instructions}"
+        assert "through its creator lifecycle" in merged, f"Mission branch should get creator cleanup guidance. cleanup={result.cleanup_instructions}"
+        assert "git branch -d" not in merged
 
     def test_minted_single_branch_mission_says_consolidate_lands_and_removes_it(self, tmp_path: Path) -> None:
         """A protected single_branch Mission's minted branch is landed AND deleted by consolidate (#5100).
@@ -1132,7 +1133,8 @@ class TestIntegrationBranchGuard:
         result = perform_acceptance(summary, mode="local", actor="tester", auto_commit=False)
 
         cleanup = " ".join(result.cleanup_instructions)
-        assert "Delete the Mission branch when done" in cleanup
+        assert "through its creator lifecycle" in cleanup
+        assert "git branch -d" not in cleanup
         assert "feature branch" not in cleanup.lower()
 
     def test_well_known_branch_without_meta_target(self, tmp_path: Path) -> None:

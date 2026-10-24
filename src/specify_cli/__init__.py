@@ -137,7 +137,8 @@ def main_callback(
     next_fast_path = _is_next_invocation(sys.argv)
     live_work_hook_path = _is_live_work_hook_invocation(sys.argv)
     session_start_path = _is_session_start_invocation(sys.argv)
-    if not next_fast_path and not live_work_hook_path and not session_start_path:
+    workspace_observation_path = _is_workspace_observation_invocation(sys.argv)
+    if not next_fast_path and not live_work_hook_path and not session_start_path and not workspace_observation_path:
         root_callback(ctx)
 
         # FR-002: Ensure global runtime (~/.kittify/) is populated and current.
@@ -151,7 +152,7 @@ def main_callback(
         if not _is_doctor_skills_invocation(sys.argv):
             ensure_global_agent_commands()
 
-    if not live_work_hook_path and not session_start_path:
+    if not live_work_hook_path and not session_start_path and not workspace_observation_path:
         # The live-work hook is passive capture on the harness's per-tool-call
         # path, not a project command: the schema gate may SystemExit on a stale
         # project (breaking the hook's own always-exit-0 contract) and its import
@@ -255,6 +256,16 @@ def _is_live_work_hook_invocation(argv: list[str]) -> bool:
     """
     args = [arg for arg in argv[1:] if not arg.startswith("-")]
     return len(args) >= 2 and args[0] == "live-work" and args[1] == "hook"
+
+
+def _is_workspace_observation_invocation(argv: list[str]) -> bool:
+    """Private-ledger status/event commands need no project or runtime repair.
+
+    These commands validate their explicitly scoped private ledger themselves.
+    Avoid global asset writes and project-dependent gates in a bounded session
+    callback. Configuration, production and worker commands keep normal startup.
+    """
+    return len(argv) >= 3 and argv[1] == "workspaces" and argv[2] in ("status", "event")
 
 
 def _is_session_start_invocation(argv: list[str]) -> bool:

@@ -16,13 +16,13 @@ related:
 
 Use this guide to land a Mission's approved work packages on its target branch with `spec-kitty consolidate`.
 
-`consolidate` lands the lane branches on the mission branch, then lands the mission branch on the **local** target branch. It never publishes to origin unless you pass `--push`. Publish through a topic branch and a pull request.
+`consolidate` lands the lane branches on the mission branch, then lands the mission branch on an existing **feature/integration** target branch. Local and remote primary branches require PR acceptance; local `main` is refused even under the protected-write escape hatch. It never publishes to origin unless you pass `--push`. Publish through a topic branch and a pull request.
 
 ## Prerequisites
 
 - Every WP is `approved` or `done`.
 - You ran acceptance. See [Accept and Merge](accept-and-merge.md).
-- The repository root checkout is on the target branch and has no uncommitted changes. Lane worktrees have no uncommitted changes either, unless you keep them with `--keep-worktree`.
+- The repository root checkout is on the existing feature/integration target branch and has no uncommitted changes. Lane worktrees have no uncommitted changes either, unless you keep them with `--keep-worktree`.
 
 ## Quick Start
 
@@ -37,7 +37,7 @@ In your agent:
 In your terminal:
 
 ```bash
-spec-kitty consolidate --mission 015-user-authentication
+spec-kitty consolidate --mission 015-user-authentication --target integration/user-authentication
 ```
 
 `--mission` names the Mission; it accepts the slug, the `mid8` or the Mission ID. The command was renamed from `spec-kitty merge`, and the old name now exits with an error. Replace it in scripts and notes.
@@ -84,7 +84,7 @@ The order is: `--strategy`, then `merge.strategy`, then `squash`. A value outsid
 By default `consolidate` lands on the Mission's recorded target branch. Override it only when you intend a different destination:
 
 ```bash
-spec-kitty consolidate --mission 015-user-authentication --target develop
+spec-kitty consolidate --mission 015-user-authentication --target integration/user-authentication
 ```
 
 ## Cleanup Options
@@ -130,7 +130,7 @@ spec-kitty agent mission create "<slug>" --retain-branches --retain-worktrees ..
 
 ## Publish the Result
 
-`consolidate` lands on the local target branch only. Publish through a topic branch and a pull request. See [When Local `main` Is Not Publishable](accept-and-merge.md#when-local-main-is-not-publishable) and [Run an Autonomous Mission](../collaboration/run-an-autonomous-mission.md).
+`consolidate` lands on a feature/integration branch. Publish that branch through a pull request; do not first integrate it into local `main`. See [When Local `main` Is Not Publishable](accept-and-merge.md#when-local-main-is-not-publishable) and [Run an Autonomous Mission](../collaboration/run-an-autonomous-mission.md).
 
 `--push` publishes to origin after the local landing. Use it only where your repository's workflow allows direct pushes to the target branch. With `--push`, a local target branch that is ahead of, behind or diverged from its tracking branch is refused with `TARGET_BRANCH_NOT_SYNCHRONIZED`. See [How to Troubleshoot Merge Issues](../recovery/troubleshoot-merge.md#not-synchronized-with-origin-only-with---push).
 

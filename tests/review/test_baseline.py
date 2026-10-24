@@ -425,7 +425,7 @@ class TestRunCommandForBaselineProcessGroupSafety:
         """Minimal ``Popen`` double: enough surface for ``_observe_process``/
         ``_terminate_and_reap`` to drive without a real subprocess."""
 
-        def __init__(self, *, returncode: int = 0, stderr: str = "") -> None:
+        def __init__(self, *, returncode: int | None = 0, stderr: str = "") -> None:
             self.pid = 424242
             self.returncode = returncode
             self.stderr_text = stderr
@@ -490,7 +490,7 @@ class TestRunCommandForBaselineProcessGroupSafety:
         (and its ``os.killpg`` call) fires immediately -- zero real sleeping,
         zero timing sensitivity.
         """
-        process = TestRunCommandForBaselineProcessGroupSafety._FakeProcess(stderr="timed out")
+        process = TestRunCommandForBaselineProcessGroupSafety._FakeProcess(returncode=None, stderr="timed out")
         killpg_calls: list[tuple[int, int]] = []
         monotonic_calls = {"n": 0}
 

@@ -33,7 +33,7 @@ from specify_cli.lanes.worktree_allocator import allocate_lane_worktree
 from specify_cli.status.emit import emit_status_transition
 from specify_cli.status.models import ReviewResult, TransitionRequest
 
-_TARGET_BRANCH = "main"
+_TARGET_BRANCH = "feature/integration"
 _APPROVE_LANES: tuple[str, ...] = ("claimed", "in_progress", "for_review", "in_review")
 
 
@@ -88,6 +88,9 @@ def _init_repo(tmp_path: Path) -> Path:
     (repo / "README.md").write_text("init\n", encoding="utf-8")
     _git(repo, "add", ".")
     _git(repo, "commit", "-qm", "init")
+    from tests._support.feature_landing import pin_primary
+
+    pin_primary(repo)
     return repo
 
 

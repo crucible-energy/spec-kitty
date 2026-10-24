@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
+import os
 from pathlib import Path
 from typing import Any
 
@@ -70,45 +70,6 @@ print("actual RC7 recorder/currency: current then stale; unrelated primary merge
     assert marker.exists()
 
 
-@pytest.fixture
-def prepared_owner(owned_checkouts: OwnedCheckouts, monkeypatch: pytest.MonkeyPatch, canonical_home: None) -> OwnedCheckouts:
-    checkouts = owned_checkouts
-    root = checkouts.owned_root
-    monkeypatch.delenv("SPECIFY_REPO_ROOT", raising=False)
-    monkeypatch.delenv("SPEC_KITTY_PACKS_ROOT", raising=False)
-    monkeypatch.delenv("SPEC_KITTY_TEMPLATE_ROOT", raising=False)
-    monkeypatch.chdir(root)
-    charter = root / ".kittify/charter"
-    charter.mkdir()
-    (charter / "charter.yaml").write_text("mission_type_activations: [software-dev]\n")
-    (charter / "charter.md").write_text("# Owner charter\nImplement FR-001 in this checkout.\n")
-    (root / ".kittify/config.yaml").write_text("agents:\n  available: [codex]\nmission_type_activations: [software-dev]\n")
-    (checkouts.mission_dir / "tasks.md").write_text("# Tasks\n\n## WP01\n- [ ] T001 Implement FR-001 in app.py\n\n## WP02\n- [ ] T002 Verify FR-001\n")
-    for wp_id in ("WP01", "WP02"):
-        path = checkouts.mission_dir / "tasks" / f"{wp_id}-owned.md"
-        path.write_text(path.read_text().replace("owned_files: []", "owned_files: [app.py]") + "\nImplement and verify the owner-local FR-001 contract.\n")
-    owned = resolve_owned_or_adopt(checkouts.repository_root, root, checkouts.mission_slug, cwd=root, allowed_topologies=LIFECYCLE_OWNED_TOPOLOGIES)
-    assert owned is not None
-    seeded = bootstrap_canonical_state(checkouts.mission_dir, checkouts.mission_slug, repo_root=checkouts.repository_root, owned=owned)
-    assert seeded.newly_seeded == 2
-    _git(root, "add", ".")
-    _git(root, "commit", "-qm", "prepare substantive owner planning and status")
-    # Partially staged, unstaged and untracked primary work must survive every command.
-    primary = checkouts.repository_root
-    (primary / "README.md").write_text("staged\n")
-    _git(primary, "add", "README.md")
-    (primary / "README.md").write_text("staged\nunstaged\n")
-    (primary / "untracked-sentinel").write_bytes(b"untracked\x00sentinel")
-    return checkouts
-
-
-def record(checkouts: OwnedCheckouts, *, report_only: bool = False) -> Any:
-    args = ["record-analysis", "--mission", checkouts.mission_slug, "--owned-checkout", str(checkouts.owned_root), "--json"]
-    if report_only:
-        args.append("--report-only")
-    return CliRunner().invoke(mission_app, args, input=BODY)
-
-
 @pytest.mark.parametrize("report_only", [False, True])
 def test_lanes_analysis_uses_owned_root(prepared_owner: OwnedCheckouts, report_only: bool) -> None:
     checkouts = prepared_owner
@@ -156,6 +117,45 @@ def test_owned_report_ignores_primary_merge_preserves_actual_target_guard(prepar
     assert "Active Git operation" in result.output, result.output
     assert _git(checkouts.owned_root, "rev-parse", "HEAD") == head
     assert primary_state(checkouts) == before
+
+
+@pytest.fixture
+def prepared_owner(owned_checkouts: OwnedCheckouts, monkeypatch: pytest.MonkeyPatch, canonical_home: None) -> OwnedCheckouts:
+    checkouts = owned_checkouts
+    root = checkouts.owned_root
+    monkeypatch.delenv("SPECIFY_REPO_ROOT", raising=False)
+    monkeypatch.delenv("SPEC_KITTY_PACKS_ROOT", raising=False)
+    monkeypatch.delenv("SPEC_KITTY_TEMPLATE_ROOT", raising=False)
+    monkeypatch.chdir(root)
+    charter = root / ".kittify/charter"
+    charter.mkdir()
+    (charter / "charter.yaml").write_text("mission_type_activations: [software-dev]\n")
+    (charter / "charter.md").write_text("# Owner charter\nImplement FR-001 in this checkout.\n")
+    (root / ".kittify/config.yaml").write_text("agents:\n  available: [codex]\nmission_type_activations: [software-dev]\n")
+    (checkouts.mission_dir / "tasks.md").write_text("# Tasks\n\n## WP01\n- [ ] T001 Implement FR-001 in app.py\n\n## WP02\n- [ ] T002 Verify FR-001\n")
+    for wp_id in ("WP01", "WP02"):
+        path = checkouts.mission_dir / "tasks" / f"{wp_id}-owned.md"
+        path.write_text(path.read_text().replace("owned_files: []", "owned_files: [app.py]") + "\nImplement and verify the owner-local FR-001 contract.\n")
+    owned = resolve_owned_or_adopt(checkouts.repository_root, root, checkouts.mission_slug, cwd=root, allowed_topologies=LIFECYCLE_OWNED_TOPOLOGIES)
+    assert owned is not None
+    seeded = bootstrap_canonical_state(checkouts.mission_dir, checkouts.mission_slug, repo_root=checkouts.repository_root, owned=owned)
+    assert seeded.newly_seeded == 2
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "prepare substantive owner planning and status")
+    # Partially staged, unstaged and untracked primary work must survive every command.
+    primary = checkouts.repository_root
+    (primary / "README.md").write_text("staged\n")
+    _git(primary, "add", "README.md")
+    (primary / "README.md").write_text("staged\nunstaged\n")
+    (primary / "untracked-sentinel").write_bytes(b"untracked\x00sentinel")
+    return checkouts
+
+
+def record(checkouts: OwnedCheckouts, *, report_only: bool = False) -> Any:
+    args = ["record-analysis", "--mission", checkouts.mission_slug, "--owned-checkout", str(checkouts.owned_root), "--json"]
+    if report_only:
+        args.append("--report-only")
+    return CliRunner().invoke(mission_app, args, input=BODY)
 
 
 def implement(checkouts: OwnedCheckouts, *extra: str) -> Any:
@@ -344,14 +344,15 @@ def test_owned_dependency_and_dispatch_guards_remain(prepared_owner: OwnedChecko
     assert primary_state(checkouts) == before
 
 
-def test_owned_dispatch_refuses_unproved_actual_model(prepared_owner: OwnedCheckouts) -> None:
+def test_owned_dispatch_refuses_unverified_model_execution(prepared_owner: OwnedCheckouts) -> None:
     checkouts = prepared_owner
     assert record(checkouts, report_only=True).exit_code == 0
     before = primary_state(checkouts)
     events = (checkouts.mission_dir / "status.events.jsonl").read_bytes()
     result = implement(checkouts, "--model", "invented-model")
     assert result.exit_code == 1, result.output
-    assert "--model cannot be recorded as resolved actual without model execution evidence" in result.output
+    assert "--model cannot be recorded as resolved actual" in result.output
+    assert "model execution evidence" in result.output
     assert (checkouts.mission_dir / "status.events.jsonl").read_bytes() == events
     assert primary_state(checkouts) == before
 

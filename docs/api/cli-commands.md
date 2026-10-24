@@ -6013,3 +6013,14 @@ _Manage mission workflow definitions_
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 <!-- END GENERATED -->
+
+### Workspace ledger
+
+`spec-kitty workspaces initialize --state-dir PATH` admits an existing empty,
+private owner directory as a workspace ledger. It refuses existing contents.
+`spec-kitty workspaces status --state-dir PATH` reports recorded obligations.
+`spec-kitty workspaces account --state-dir PATH --root ROOT` merges a bounded,
+foreground Crucible organization inventory; repeat `--root` as needed. Discovery
+limits are `--max-depth`, `--max-directories` and `--max-entries`. Failed or partial
+scans never discharge prior work. No command here authorizes retirement. See the
+[workspace lifecycle guide](../guides/how-to/workspace-lifecycle.md).

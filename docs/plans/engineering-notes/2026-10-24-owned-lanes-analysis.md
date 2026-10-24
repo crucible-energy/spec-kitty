@@ -41,13 +41,14 @@ work and merge markers while exercising the actual recorder. Target operation
 markers still refuse. The owned-root freshness regression exercises the
 existing owned-aware workflow gate with a distinct common repository root.
 
-The broader review exposed pre-existing invocation violations of the same
-ownership architecture. Standalone Ops now resolve their claim in the sole
-canonical minter and carry `OperationCheckout` through dispatch and the close
-contract. That value represents Op custody, not a mission, and preserves the
-existing protected-branch and detached-HEAD refusals. Raw paths remain only at
-the explicit CLI claim boundary. The stale model test now asserts the actual
-execution-evidence refusal instead of expecting an older invocation-ID hint.
+The broader review exposed invocation violations in the older published
+integration baseline. The target owner subsequently published the accepted
+sealed `OperationRoot` implementation at `fda26ce35`. Reconciliation preserves
+that existing canonical minter, checkout/branch/writing binding, close-contract
+type refusal and negative tests. The earlier local `OperationCheckout` port
+is superseded and removed; it must not become a second custody authority.
+Old-head test results do not qualify this reconciled candidate. The target's
+current execution-evidence refusal remains intact.
 
 The separate [RC7 qualification recipe](../../../tools/qualification/README.md)
 starts from the exact published sdist. It applies a checked patch to the actual

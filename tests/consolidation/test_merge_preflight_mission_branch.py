@@ -599,6 +599,11 @@ class TestMergeDryRunMissingBranch:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """Real merge is blocked before irreversible git operations."""
+        # Exercise the following preflight from a real, eligible feature target.
+        from tests._support.feature_landing import init_feature_repo
+
+        init_feature_repo(tmp_path)
+        setattr_executor_family(monkeypatch, "_resolve_target_branch", lambda *_args, **_kwargs: ("feature/integration", "flag"))
         setattr_executor_family(monkeypatch, "get_main_repo_root", lambda repo_root: repo_root)
         monkeypatch.setattr("specify_cli.consolidation.executor.require_no_sparse_checkout", lambda *_args, **_kwargs: None)
         monkeypatch.setattr("specify_cli.consolidation.entry_preflight.require_lanes_json", lambda _feature_dir: _manifest())
@@ -635,6 +640,11 @@ class TestMergeDryRunMissingBranch:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Retrying an interrupted --push merge must still run push preflight."""
+        # Exercise the following preflight from a real, eligible feature target.
+        from tests._support.feature_landing import init_feature_repo
+
+        init_feature_repo(tmp_path)
+        setattr_executor_family(monkeypatch, "_resolve_target_branch", lambda *_args, **_kwargs: ("feature/integration", "flag"))
         state = SimpleNamespace(push_requested=True)
         preflight_calls: list[dict[str, object]] = []
 
@@ -670,7 +680,7 @@ class TestMergeDryRunMissingBranch:
 
         assert preflight_calls == [
             {
-                "target_branch": "main",
+                "target_branch": "feature/integration",
                 "mission_slug": MISSION_SLUG,
                 "mission_branch": f"kitty/mission-{MISSION_SLUG}",
                 # #1978: mission_id is now threaded through to the preflight so

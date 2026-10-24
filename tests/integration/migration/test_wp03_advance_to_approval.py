@@ -251,6 +251,8 @@ def test_owned_review_base_refuses_on_none_and_succeeds_on_captured_sha(tmp_path
         feature_dir=feature_dir,
         main_repo_root=repo,
         target_branch="main",
+        task_id="WP01",
+        mission_slug=_MISSION_SLUG,
     )
 
     # Post-fix: a captured sha resolves cleanly -- no refusal.
@@ -341,6 +343,8 @@ def test_owned_review_base_refuses_on_orphaned_pin(tmp_path: Path) -> None:
         feature_dir=feature_dir,
         main_repo_root=repo,
         target_branch="main",
+        task_id="WP01",
+        mission_slug=_MISSION_SLUG,
     )
 
     with pytest.raises(ActionContextError) as excinfo:

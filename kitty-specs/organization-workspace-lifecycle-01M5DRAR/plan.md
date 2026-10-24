@@ -76,3 +76,16 @@ Automatic coverage depends on accessible organization inventory and configured l
 - Bind creator workspace and owner lease generations to every evidence record; old same-path/same-HEAD receipts cannot be reused. Release authority is verified at creator ingress, never inferred from a local JSON field. The retirement hold must fence participating producer lease acquisition through adapter completion. Unknown producers retain the workspace.
 - Minimum automatic closeout acceptance includes Spec Kitty completion and a registered non-lane Git creator with a running reconciler; event logging alone is insufficient. Codex-managed archive remains an explicitly incomplete adapter until the supported creator operation is demonstrated.
 - Account for local and remote branch disposition separately; preserve primary/shared/checked-out/drifted refs. Never automatically retire a canonical primary. Independent clones require explicit supported owner retirement.
+
+## Closeout prerequisite discovered by strict acceptance
+
+The supported accept diagnostic observed all five packages approved but wrongly skipped acceptance-matrix checks as planning-only. Every package explicitly declares code_change. The gate's WP-kind query drops the admitted OwnedCheckout argument while its other artifact reads carry it; the normalized metadata lookup then reads the primary checkout and returns an empty index for this owned-only mission. Preserve that refusal evidence and repair the read-side ownership propagation through the existing canonical classifier, not its no-code rule. WP06 owns that bounded acceptance adapter and regression tests. Existing source snapshots and approved work remain frozen. Author the meaningful lifecycle contract during this planning update; use canonical finalization and matrix writers for generated acceptance artifacts. No lenient acceptance, inferred code-kind override, invented matrix verdict or deployment.
+
+
+### Additional strict-closeout findings
+
+The expanded architecture gate exposed standalone Op routing that bypasses the sole ownership minter and propagates unvalidated Path claims internally. WP07 centralizes that validation and carries an opaque operation fact; it does not weaken the scan. Two existing owned lifecycle fixtures also encode stale supported-action/posture expectations; align their exact assertions with the actual contract while preserving no-effect and primary-content protections. Preserve the failed gates and validate the complete repaired candidate.
+
+### WP06 retained claim-base recovery
+
+Re-finalization advances the mission-wide planning pin but does not erase completed WP source. WP06 additionally owns the existing tasks_move_task review-base adapter and its complete owned-checkout test module. Consume the immutable per-WP claim base already recorded by canonical claim; retain the mission pin as planning evidence and all existing reachability, ancestry and owned-file refusal checks. This amendment adds no worktree, runtime authority, guard bypass, or competing work package.

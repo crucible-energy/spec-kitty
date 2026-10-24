@@ -297,7 +297,7 @@ def test_lanes_claim_commits_the_stamped_wp_prompt_and_leaves_a_clean_tree(repo:
 def test_a_concurrent_edit_to_the_wp_prompt_during_allocation_is_not_taken_for_the_stamp(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The stamp flag comes from the writer, never from comparing the prompt's bytes around allocation.
 
-    WP02 joins WP01's existing lane (a reuse: nothing is stamped). An allocator that also sees a concurrent
+    WP02 joins WP01's settled existing lane (a reuse: nothing is stamped). An allocator that also sees a concurrent
     edit to the prompt (the allocation runs outside the Mission write lock) must not get that edit committed.
     """
     from specify_cli.cli.commands import implement_phases
@@ -307,6 +307,14 @@ def test_a_concurrent_edit_to_the_wp_prompt_during_allocation_is_not_taken_for_t
         repo, SLUG, MISSION_ID, wps={"WP01": ("code_change", []), "WP02": ("code_change", [])}, layout=(("lane-a", ("WP01", "WP02"), ()),), spec_text="# Spec\n"
     )
     assert implement_cli("WP01", "--mission", SLUG, "--actor", "tester", "--auto-commit").exit_code == 0
+    from tests.utils import _seed_canonical_wp_state
+
+    # Explicit fixture review settlement: the real allocator must refuse a
+    # second claim while the first one is still outstanding.
+    for lane in ("for_review", "approved"):
+        _seed_canonical_wp_state(repo, SLUG, "WP01", lane, actor="reviewer", assignee="Owner", shell_pid="1", timestamp="2099-01-01T00:00:00Z")
+    git_out(repo, "add", f"kitty-specs/{SLUG}/status.events.jsonl", f"kitty-specs/{SLUG}/status.json")
+    git_out(repo, "commit", "-m", "fixture: settle first lane claim")
     prompt = mission.feature_dir / "tasks" / "WP02-test.md"
     real = implement_phases.create_lane_workspace
 

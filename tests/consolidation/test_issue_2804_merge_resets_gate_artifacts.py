@@ -77,6 +77,9 @@ mission->target squash merge) entirely real.
 
 from __future__ import annotations
 
+# Current full consolidation targets feature/integration; historical issue prose
+# below describes the original main-target reproduction. Primary stays separate.
+
 import json
 import subprocess
 from contextlib import ExitStack
@@ -224,13 +227,16 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 def _init_git_repo(repo: Path) -> None:
     repo.mkdir(parents=True, exist_ok=True)
-    _run(["git", "init", "-qb", "main", str(repo)], cwd=repo)
+    _run(["git", "init", "-qb", "feature/integration", str(repo)], cwd=repo)
     _git(repo, "config", "user.email", "test@test.com")
     _git(repo, "config", "user.name", "Test")
     _git(repo, "config", "commit.gpgsign", "false")
     (repo / "README.md").write_text("init\n", encoding="utf-8")
     _git(repo, "add", ".")
     _git(repo, "commit", "-m", "init")
+    from tests._support.feature_landing import pin_primary
+
+    pin_primary(repo)
 
 
 def _write_meta(feature_dir: Path) -> None:
@@ -240,7 +246,7 @@ def _write_meta(feature_dir: Path) -> None:
         "mid8": MID8,
         "mission_number": None,
         "mission_type": "software-dev",
-        "target_branch": "main",
+        "target_branch": "feature/integration",
         "purpose_tldr": "dead-code burndown + #2373/#1914 no-op-stability",
         "purpose_context": "regression fixture for #2804",
     }
@@ -262,7 +268,7 @@ def _write_manifest(feature_dir: Path) -> LanesManifest:
         mission_slug=MISSION_SLUG,
         mission_id=MISSION_ID,
         mission_branch=MISSION_BRANCH,
-        target_branch="main",
+        target_branch="feature/integration",
         lanes=[
             ExecutionLane(
                 lane_id=LANE_ID,
@@ -363,7 +369,7 @@ def _bootstrap_mission(repo: Path) -> Path:
     code_path.write_text("# generator module removed by WP01\n", encoding="utf-8")
     _git(repo, "add", LANE_CODE)
     _git(repo, "commit", "-m", f"feat({MISSION_SLUG}): {WP_ID} retire charter.generator")
-    _git(repo, "checkout", "main")
+    _git(repo, "checkout", "feature/integration")
     restamp_log_at_lane_tips(repo, feature_dir)
 
     # --- primary checkout (still on target_branch) authors + accepts the
