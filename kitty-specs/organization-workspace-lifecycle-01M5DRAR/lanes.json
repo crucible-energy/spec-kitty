@@ -16,6 +16,7 @@
         "WP06",
         "WP07",
         "WP08",
+        "WP11",
         "WP09",
         "WP10"
       ],
@@ -75,10 +76,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-24T20:58:49.296696+00:00",
+  "computed_at": "2026-10-24T21:20:03.516057+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "9ae4db50465668a0c1055b6de6618711f9eee489"
+  "planning_commit_sha": "5b460895514dfdeea238c7a9cfa0665dd8184490"
 }

@@ -65,7 +65,7 @@ T008 Exact owner/purpose/next/review obligations and revisioned history in Zig. 
 
 ## Work Package WP09: Automatic creator integration and distribution
 
-**Dependencies**: WP08
+**Dependencies**: WP08, WP11
 
 **Requirement Refs**: FR-011, FR-003, FR-004, FR-005, NFR-001
 
@@ -78,3 +78,11 @@ T009 Integrate native obligations into supported creator startup/completion/reco
 **Requirement Refs**: FR-012, SC-006, FR-007
 
 T010 Deliver source chain and runtime, admit every authenticated repo by exact ID, record runtime/creator/ingress/execution receipts. Preserve useful historical state with accountable follow-through. No metadata-only pass, concurrent-capacity attribution or protection bypass.
+
+## Work Package WP11: Retirement delivery and recovery proof
+
+**Dependencies**: WP07
+
+**Requirement Refs**: FR-004, FR-005, FR-008, FR-009, FR-011, SC-006, NFR-001, NFR-003
+
+T011 Repair retained creator delivery/recovery safety with real Git counterexamples and independent review. WP09 depends on this safety gate as well as WP08.

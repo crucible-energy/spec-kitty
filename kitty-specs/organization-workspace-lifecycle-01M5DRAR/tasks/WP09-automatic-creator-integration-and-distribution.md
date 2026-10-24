@@ -3,6 +3,7 @@ work_package_id: WP09
 title: Automatic creator integration and distribution
 dependencies:
 - WP08
+- WP11
 requirement_refs:
 - FR-011
 - FR-003
@@ -11,7 +12,10 @@ requirement_refs:
 - NFR-001
 planning_base_branch: codex/organization-workspace-lifecycle-20261020
 merge_target_branch: codex/organization-workspace-lifecycle-20261020
-branch_strategy: Planning artifacts for this mission were generated on codex/organization-workspace-lifecycle-20261020. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into codex/organization-workspace-lifecycle-20261020 unless the human explicitly redirects the landing branch.
+branch_strategy: Planning artifacts for this mission were generated on codex/organization-workspace-lifecycle-20261020.
+  During /spec-kitty.implement this WP may branch from a dependency-specific base,
+  but completed changes must merge back into codex/organization-workspace-lifecycle-20261020
+  unless the human explicitly redirects the landing branch.
 subtasks:
 - T009
 phase: Lifecycle productionization
@@ -22,9 +26,6 @@ create_intent:
 - tools/zig/workspace_ingress.zig
 execution_mode: code_change
 owned_files:
-- src/specify_cli/workspace_lifecycle/adapters.py
-- tests/workspace_lifecycle/test_adapters.py
-- tests/workspace_lifecycle/test_acceptance.py
 - src/specify_cli/workspace_lifecycle/worker.py
 - src/specify_cli/workspace_lifecycle/configuration.py
 - src/specify_cli/cli/commands/workspaces.py
