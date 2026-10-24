@@ -435,7 +435,7 @@ def test_unresolvable_target_never_short_circuits(tmp_path: Path) -> None:
 
 def test_persisted_post_tips_equal_live_tips_after_every_real_phase(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Drive a REAL coordination consolidation in-process; after each mutating phase the persisted tips are the live tips."""
-    from tests.terminus.conftest import build_coord_mission
+    from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
 
     mission = build_coord_mission(tmp_path, wps=("WP01", "WP02"), mid8="01M5318W")
     monkeypatch.setenv("HOME", str(mission.home))
@@ -479,9 +479,9 @@ def test_record_post_mutation_tips_import_is_the_authority_function() -> None:
 
 
 def _door_mission(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mid8: str) -> Any:
-    from tests.terminus.lanes_fixture import build_lanes_mission
+    from tests._support.feature_landing import build_feature_lanes_mission as build_lanes_mission
 
-    mission = build_lanes_mission(tmp_path, wps=("WP01",), target_branch="develop", mid8=mid8)
+    mission = build_lanes_mission(tmp_path, wps=("WP01",), mid8=mid8)
     monkeypatch.setenv("HOME", str(mission.home))
     monkeypatch.chdir(mission.repo)
     return mission
@@ -936,11 +936,11 @@ def test_a_foreign_move_on_another_branch_in_the_attestation_window_stays_unexpl
 @pytest.mark.parametrize("topology", ["lanes", "coord"])
 def test_the_attestation_status_branch_is_the_status_surface(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, topology: str) -> None:
     """LANES: the attestation status commit lands on the target; coordination topology: on the coordination branch."""
-    from tests.terminus.conftest import build_coord_mission
-    from tests.terminus.lanes_fixture import build_lanes_mission
+    from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
+    from tests._support.feature_landing import build_feature_lanes_mission as build_lanes_mission
 
     if topology == "lanes":
-        mission = build_lanes_mission(tmp_path, wps=("WP01",), target_branch="develop", mid8="01M5686B")
+        mission = build_lanes_mission(tmp_path, wps=("WP01",), mid8="01M5686B")
         expected = mission.target_branch
     else:
         mission = build_coord_mission(tmp_path, wps=("WP01",), mid8="01M5686D")

@@ -1,0 +1,113 @@
+{
+  "mission_slug": "organization-workspace-lifecycle-01M5DRAR",
+  "mission_number": "",
+  "mission_type": "software-dev",
+  "overall_verdict": "pass",
+  "criteria": [
+    {
+      "criterion_id": "FR-001",
+      "description": "Observe accessible organization repositories and bounded local stores/workspaces with explicit unmatched/gap/unobservable scope.",
+      "proof_type": "automated_test",
+      "evidence": "{\"fresh_requirement_log\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-acceptance-selectors.log\", \"fresh_requirement_log_sha256\": \"14d20c8cc2a247f41341e7a753ce87c5610f01405116940e61805f63df4b7794\", \"latest_qualification\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-wp06-claim-final-validation.json\", \"qualified_case_mapping\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-wp07-complete-case-mapping.json\", \"reviewed_packages\": [\"WP01\", \"WP05\"], \"selectors\": [\"tests/workspace_lifecycle/test_discovery.py::test_accounts_for_external_worktree_and_independent_clone\", \"tests/workspace_lifecycle/test_discovery.py::test_foreign_name_and_credentialed_origin_do_not_establish_identity\", \"tests/workspace_lifecycle/test_inventory_cli.py::test_inventory_paginates_and_uses_scoped_host_without_debug_credentials\", \"tests/workspace_lifecycle/test_inventory_cli.py::test_report_distinguishes_observed_coverage_from_unobservable_scope\"]}",
+      "pass_fail": "pass",
+      "verified_by": "codex",
+      "verified_at": "2026-10-21T06:54:17.081875+00:00",
+      "notes": "Accessible GitHub fixture inventory and actual disposable Git; not inaccessible repositories, remote machines or unconfigured roots. Source qualification only; no global installation, unknown-workspace retirement, production admission or deployment."
+    },
+    {
+      "criterion_id": "FR-002",
+      "description": "Persist observations without inventing ownership or erasing prior obligations when a scan is incomplete.",
+      "proof_type": "automated_test",
+      "evidence": "{\"fresh_requirement_log\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-acceptance-selectors.log\", \"fresh_requirement_log_sha256\": \"14d20c8cc2a247f41341e7a753ce87c5610f01405116940e61805f63df4b7794\", \"latest_qualification\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-wp06-claim-final-validation.json\", \"qualified_case_mapping\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-wp07-complete-case-mapping.json\", \"reviewed_packages\": [\"WP02\", \"WP05\"], \"selectors\": [\"tests/workspace_lifecycle/test_coordinator.py::test_partial_inventory_never_discharges_prior_unknown_workspace\", \"tests/workspace_lifecycle/test_coordinator.py::test_unknown_discovery_cannot_claim_creator_binding\", \"tests/workspace_lifecycle/test_acceptance.py::test_current_registered_observation_binds_only_through_real_creator_hold\", \"tests/workspace_lifecycle/test_acceptance.py::test_account_preserves_historical_unknown_and_refuses_changed_identity\"]}",
+      "pass_fail": "pass",
+      "verified_by": "codex",
+      "verified_at": "2026-10-21T06:54:17.081875+00:00",
+      "notes": "Private local ledger; historical unknown rows remain unresolved, including when a newly authenticated generation has the same path. Source qualification only; no global installation, unknown-workspace retirement, production admission or deployment."
+    },
+    {
+      "criterion_id": "FR-003",
+      "description": "Connect supported joined creator completion/startup to automatic independently verified retirement without requiring lane membership.",
+      "proof_type": "automated_test",
+      "evidence": "{\"fresh_requirement_log\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-acceptance-selectors.log\", \"fresh_requirement_log_sha256\": \"14d20c8cc2a247f41341e7a753ce87c5610f01405116940e61805f63df4b7794\", \"latest_qualification\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-wp06-claim-final-validation.json\", \"qualified_case_mapping\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-wp07-complete-case-mapping.json\", \"reviewed_packages\": [\"WP03\", \"WP05\"], \"selectors\": [\"tests/workspace_lifecycle/test_events.py::test_managed_run_cli_joins_reports_pr_and_automatically_retires\", \"tests/workspace_lifecycle/test_acceptance.py::test_real_spec_kitty_consolidation_is_joined_before_creator_completion_and_cleanup\", \"tests/workspace_lifecycle/test_acceptance.py::test_startup_accounts_non_lane_work_and_retires_released_delivered_creator_once\"]}",
+      "pass_fail": "pass",
+      "verified_by": "codex",
+      "verified_at": "2026-10-21T06:54:17.081875+00:00",
+      "notes": "Actual owned children and disposable Git; fixture GitHub transport. Finite POSIX producer profile only; emitted hooks are not installed/trusted globally. Source qualification only; no global installation, unknown-workspace retirement, production admission or deployment."
+    },
+    {
+      "criterion_id": "FR-004",
+      "description": "Recheck exact identity and preservation under the participating creator hold before any supported retirement.",
+      "proof_type": "automated_test",
+      "evidence": "{\"fresh_requirement_log\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-acceptance-selectors.log\", \"fresh_requirement_log_sha256\": \"14d20c8cc2a247f41341e7a753ce87c5610f01405116940e61805f63df4b7794\", \"latest_qualification\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-wp06-claim-final-validation.json\", \"qualified_case_mapping\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-wp07-complete-case-mapping.json\", \"reviewed_packages\": [\"WP03\", \"WP05\"], \"selectors\": [\"tests/workspace_lifecycle/test_adapters.py::test_completed_creator_preserves_late_local_state\", \"tests/workspace_lifecycle/test_adapters.py::test_failed_producer_is_not_implicitly_released\", \"tests/workspace_lifecycle/test_adapters.py::test_creator_never_admits_primary_even_with_empty_protection_config\", \"tests/workspace_lifecycle/test_adapters.py::test_new_producer_cannot_reacquire_released_generation\"]}",
+      "pass_fail": "pass",
+      "verified_by": "codex",
+      "verified_at": "2026-10-21T06:54:17.081875+00:00",
+      "notes": "Actual dirty/ignored/nested/failed-producer/primary controls; no arbitrary detached producer sandbox or authorization for existing unknown managed work. Source qualification only; no global installation, unknown-workspace retirement, production admission or deployment."
+    },
+    {
+      "criterion_id": "FR-005",
+      "description": "Recover missed callbacks and uncertain durable intents without duplicate or blind retirement.",
+      "proof_type": "automated_test",
+      "evidence": "{\"fresh_requirement_log\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-acceptance-selectors.log\", \"fresh_requirement_log_sha256\": \"14d20c8cc2a247f41341e7a753ce87c5610f01405116940e61805f63df4b7794\", \"latest_qualification\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-wp06-claim-final-validation.json\", \"qualified_case_mapping\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-wp07-complete-case-mapping.json\", \"reviewed_packages\": [\"WP02\", \"WP03\", \"WP05\"], \"selectors\": [\"tests/workspace_lifecycle/test_coordinator.py::test_interruption_recovers_without_blind_retirement_retry\", \"tests/workspace_lifecycle/test_coordinator.py::test_recovery_receives_exact_retained_intent\", \"tests/workspace_lifecycle/test_coordinator.py::test_uncertain_intent_must_recover_before_another_event_effect\", \"tests/workspace_lifecycle/test_events.py::test_fresh_worker_process_resumes_released_owner_and_retains_unmerged_pr\"]}",
+      "pass_fail": "pass",
+      "verified_by": "codex",
+      "verified_at": "2026-10-21T06:54:17.081875+00:00",
+      "notes": "Protocol fault tests plus actual fresh-worker recovery. Not a machine-wide power-loss or application-data restore drill. New owned-kind WP06 qualification is separate and pending. Source qualification only; no global installation, unknown-workspace retirement, production admission or deployment."
+    },
+    {
+      "criterion_id": "FR-006",
+      "description": "Refuse primary consolidation before writes while allowing real nonempty feature/integration landing; bind direct refs under native lock.",
+      "proof_type": "automated_test",
+      "evidence": "{\"fresh_requirement_log\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-acceptance-selectors.log\", \"fresh_requirement_log_sha256\": \"14d20c8cc2a247f41341e7a753ce87c5610f01405116940e61805f63df4b7794\", \"latest_qualification\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-wp06-claim-final-validation.json\", \"qualified_case_mapping\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-wp07-complete-case-mapping.json\", \"reviewed_packages\": [\"WP04\"], \"selectors\": [\"tests/consolidation/test_branch_first_landing.py::test_consolidation_preserves_primary_and_lands_only_on_feature\", \"tests/consolidation/test_branch_first_landing.py::test_symbolic_feature_alias_cannot_land_on_primary\", \"tests/consolidation/test_branch_first_landing.py::test_custom_primary_stays_pr_only_with_empty_config_and_operator_hatch\", \"tests/git/test_ref_symbolic_swap.py::test_late_symbolic_swap_refuses_without_advancing_or_deleting_primary\", \"tests/git/test_ref_symbolic_swap.py::test_bookkeeping_namespace_cannot_follow_an_alias_into_primary\"]}",
+      "pass_fail": "pass",
+      "verified_by": "codex",
+      "verified_at": "2026-10-21T06:54:17.081875+00:00",
+      "notes": "Real local Git and complete CLI harness. Primary advancement remains through separately accepted PR; no PR merge or org runtime admission is proven. Source qualification only; no global installation, unknown-workspace retirement, production admission or deployment."
+    },
+    {
+      "criterion_id": "FR-007",
+      "description": "Report workflow completion separately from unresolved cleanup obligations and preserve blocked wakeups honestly.",
+      "proof_type": "automated_test",
+      "evidence": "{\"fresh_requirement_log\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-acceptance-selectors.log\", \"fresh_requirement_log_sha256\": \"14d20c8cc2a247f41341e7a753ce87c5610f01405116940e61805f63df4b7794\", \"latest_qualification\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-wp06-claim-final-validation.json\", \"qualified_case_mapping\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-wp07-complete-case-mapping.json\", \"reviewed_packages\": [\"WP02\", \"WP05\"], \"selectors\": [\"tests/workspace_lifecycle/test_coordinator.py::test_known_retained_generation_is_unresolved_without_being_unknown\", \"tests/workspace_lifecycle/test_coordinator.py::test_owned_accounting_settles_exact_generation_at_closeout\", \"tests/workspace_lifecycle/test_events.py::test_public_worker_reports_blocked_as_failure\", \"tests/workspace_lifecycle/test_acceptance.py::test_reconfiguration_and_new_hint_mark_previous_scope_observation_stale\"]}",
+      "pass_fail": "pass",
+      "verified_by": "codex",
+      "verified_at": "2026-10-21T06:54:17.081875+00:00",
+      "notes": "Source/local-state status only; observed or empty scope cannot certify all-org cleanup. Strict code-matrix classifier correction is pending WP06. Source qualification only; no global installation, unknown-workspace retirement, production admission or deployment."
+    },
+    {
+      "criterion_id": "FR-008",
+      "description": "Bind exact creator/workspace and owner-lease generations to authorizing intent, release, recovery receipt and terminal disposition.",
+      "proof_type": "automated_test",
+      "evidence": "{\"fresh_requirement_log\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-acceptance-selectors.log\", \"fresh_requirement_log_sha256\": \"14d20c8cc2a247f41341e7a753ce87c5610f01405116940e61805f63df4b7794\", \"latest_qualification\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-wp06-claim-final-validation.json\", \"qualified_case_mapping\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-wp07-complete-case-mapping.json\", \"reviewed_packages\": [\"WP02\", \"WP03\", \"WP05\"], \"selectors\": [\"tests/workspace_lifecycle/test_coordinator.py::test_replacement_generation_cannot_discharge_prior_accounting\", \"tests/workspace_lifecycle/test_coordinator.py::test_concurrent_events_share_one_terminal_generation_receipt\", \"tests/workspace_lifecycle/test_coordinator.py::test_creator_effect_receives_the_exact_durable_authorizing_intent\", \"tests/workspace_lifecycle/test_adapters.py::test_recovery_requires_original_creator_receipt_fields\", \"tests/workspace_lifecycle/test_adapters.py::test_same_commit_on_another_pr_branch_is_not_creator_delivery\"]}",
+      "pass_fail": "pass",
+      "verified_by": "codex",
+      "verified_at": "2026-10-21T06:54:17.081875+00:00",
+      "notes": "Real creator/delivery negatives plus protocol concurrency tests; no imported JSON boolean or process absence grants authority. Source qualification only; no global installation, unknown-workspace retirement, production admission or deployment."
+    },
+    {
+      "criterion_id": "FR-009",
+      "description": "Retire exclusively owned delivered local branches through canonical guarded operations and retain unsupported remote disposition.",
+      "proof_type": "automated_test",
+      "evidence": "{\"fresh_requirement_log\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-acceptance-selectors.log\", \"fresh_requirement_log_sha256\": \"14d20c8cc2a247f41341e7a753ce87c5610f01405116940e61805f63df4b7794\", \"latest_qualification\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-wp06-claim-final-validation.json\", \"qualified_case_mapping\": \"/Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/lifecycle-wp07-complete-case-mapping.json\", \"reviewed_packages\": [\"WP03\", \"WP04\", \"WP05\"], \"selectors\": [\"tests/workspace_lifecycle/test_adapters.py::test_owned_non_lane_producer_releases_then_real_worktree_retires\", \"tests/workspace_lifecycle/test_acceptance.py::test_startup_accounts_non_lane_work_and_retires_released_delivered_creator_once\", \"tests/git/test_ref_symbolic_swap.py::test_late_symbolic_swap_refuses_without_advancing_or_deleting_primary\"]}",
+      "pass_fail": "pass",
+      "verified_by": "codex",
+      "verified_at": "2026-10-21T06:54:17.081875+00:00",
+      "notes": "Positive explicitly asserts local_retired;remote_retained. No remote branch deletion, independent clone retirement or arbitrary Codex archive capability claimed. Source qualification only; no global installation, unknown-workspace retirement, production admission or deployment."
+    }
+  ],
+  "negative_invariants": [
+    {
+      "invariant_id": "NI-001",
+      "description": "Closeout must not bypass owned code matrix checks, destroy dirty/ignored/nested/active/primary state, or advance primary directly; genuine feature landing remains usable.",
+      "verification_method": "custom_command",
+      "verification_command": "/Users/sam/git/crucible/spec-kitty/.worktrees/review-thread-closure-upstream/.venv/bin/python /Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host/structured-test-proof.py /Users/sam/Documents/Codex/2026-10-15/i/work/lynn-host /Users/sam/git/crucible/spec-kitty/.worktrees/review-thread-closure-upstream/.venv/bin/python -m pytest -n0 -q tests/acceptance/test_owned_code_kind.py::test_owned_code_missing_matrix_is_blocked tests/workspace_lifecycle/test_adapters.py::test_completed_creator_preserves_late_local_state tests/workspace_lifecycle/test_adapters.py::test_failed_producer_is_not_implicitly_released tests/workspace_lifecycle/test_adapters.py::test_creator_never_admits_primary_even_with_empty_protection_config tests/consolidation/test_branch_first_landing.py::test_consolidation_preserves_primary_and_lands_only_on_feature tests/consolidation/test_branch_first_landing.py::test_symbolic_feature_alias_cannot_land_on_primary tests/consolidation/test_branch_first_landing.py::test_custom_primary_stays_pr_only_with_empty_config_and_operator_hatch",
+      "result": "confirmed_absent",
+      "evidence": "Command exited 0: {\"exit_code\": 0, \"argv\": [\"/Users/sam/git/crucible/spec-kitty/.worktrees/review-thread-closure-upstream/.venv/bin/python\", \"-m\", \"pytest\", \"-n0\", \"-q\", \"tests/acceptance/test_owned_code_kind.py::test_",
+      "verified_ref": "codex/organization-workspace-lifecycle-20261020",
+      "verified_surface_kind": "primary",
+      "provenance_origin": "recorded",
+      "reporting_contract": "Raw pytest output retained in hashed .log; structured JSON preserves exact argv, return code, adapter digest and checkout commit. No filter, threshold, assertion or exit status changed.",
+      "report_adapter_sha256": "fad3c263b538bd7abd95e593c67615454e5e7c303277c024e9af00a97866a335"
+    }
+  ]
+}

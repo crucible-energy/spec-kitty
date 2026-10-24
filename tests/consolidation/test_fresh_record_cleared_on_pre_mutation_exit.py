@@ -137,7 +137,7 @@ def test_interrupt_before_mutation_also_clears_the_fresh_record(approved_repo: P
 
 def test_gate_failure_on_resume_preserves_the_resume_record(approved_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Only a FRESH run's own record is cleared; a pre-existing resume record survives a gate failure."""
-    resume_state = ConsolidationState(mission_id=MISSION_ID, mission_slug=MISSION_SLUG, target_branch="main", wp_order=["WP01"])
+    resume_state = ConsolidationState(mission_id=MISSION_ID, mission_slug=MISSION_SLUG, target_branch="feature/integration", wp_order=["WP01"])
     resume_state.current_wp = "WP01"
     write_post_fix_marker(approved_repo, MISSION_ID)
     save_state(resume_state, approved_repo)
@@ -178,7 +178,7 @@ def test_fresh_state_is_never_on_disk_without_its_marker(tmp_path: Path) -> None
         main_repo=tmp_path,
         mission_slug=MISSION_SLUG,
         canonical_id=MISSION_ID,
-        target_branch="main",
+        target_branch="feature/integration",
         wp_order=["WP01"],
         push_requested=False,
     )
@@ -191,13 +191,13 @@ def test_fresh_state_is_never_on_disk_without_its_marker(tmp_path: Path) -> None
 
 def test_genuinely_pre_fix_state_is_still_refused(tmp_path: Path) -> None:
     """FR-003: a LOADED marker-less state is never stamped by the loader; FR-012 still refuses it."""
-    save_state(ConsolidationState(mission_id=MISSION_ID, mission_slug=MISSION_SLUG, target_branch="main", wp_order=["WP01"]), tmp_path)
+    save_state(ConsolidationState(mission_id=MISSION_ID, mission_slug=MISSION_SLUG, target_branch="feature/integration", wp_order=["WP01"]), tmp_path)
 
     _state, is_resume = _load_or_create_merge_state(
         main_repo=tmp_path,
         mission_slug=MISSION_SLUG,
         canonical_id=MISSION_ID,
-        target_branch="main",
+        target_branch="feature/integration",
         wp_order=["WP01"],
         push_requested=False,
     )
@@ -210,7 +210,7 @@ def test_genuinely_pre_fix_state_is_still_refused(tmp_path: Path) -> None:
 def test_legacy_migration_drops_an_orphan_canonical_marker(tmp_path: Path) -> None:
     """A migrated (pre-fix) state must not inherit a stale marker sitting in the canonical dir."""
     legacy_key = MISSION_SLUG
-    save_state(ConsolidationState(mission_id=legacy_key, mission_slug=MISSION_SLUG, target_branch="main", wp_order=["WP01"]), tmp_path)
+    save_state(ConsolidationState(mission_id=legacy_key, mission_slug=MISSION_SLUG, target_branch="feature/integration", wp_order=["WP01"]), tmp_path)
     orphan = _marker_path(tmp_path)
     orphan.parent.mkdir(parents=True, exist_ok=True)
     orphan.write_text("left behind by an older --abort\n", encoding="utf-8")
@@ -219,7 +219,7 @@ def test_legacy_migration_drops_an_orphan_canonical_marker(tmp_path: Path) -> No
         main_repo=tmp_path,
         mission_slug=MISSION_SLUG,
         canonical_id=MISSION_ID,
-        target_branch="main",
+        target_branch="feature/integration",
         wp_order=["WP01"],
         push_requested=False,
     )
@@ -236,7 +236,7 @@ def test_abort_clears_state_and_marker(approved_repo: Path, monkeypatch: pytest.
         main_repo=approved_repo,
         mission_slug=MISSION_SLUG,
         canonical_id=MISSION_ID,
-        target_branch="main",
+        target_branch="feature/integration",
         wp_order=["WP01"],
         push_requested=False,
     )

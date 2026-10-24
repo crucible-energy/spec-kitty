@@ -79,11 +79,12 @@ from specify_cli.consolidation.preflight import (
     _check_mission_branch,
     _effective_push_requested,
     _enforce_planning_artifact_target_branch,
+    _enforce_pr_only_target,
     _enforce_review_artifact_consistency,
 )
 from specify_cli.consolidation import rollback
 from specify_cli.consolidation.push_preflight import _enforce_target_branch_sync_preflight
-from specify_cli.consolidation.resolve import _load_or_create_merge_state
+from specify_cli.consolidation.resolve import _load_merge_state_for_mission, _load_or_create_merge_state, _resolve_target_branch
 from specify_cli.consolidation.state import (
     MergeLockError,
     ConsolidationState,
@@ -376,6 +377,9 @@ def _run_lane_based_consolidation_locked(
     The #1827 ordering (INV-5) and the snapshot-restore-on-exception sites (INV-6)
     are preserved exactly within and across the phase boundaries.
     """
+    persisted = _load_merge_state_for_mission(main_repo, mission_slug)
+    locked_target = persisted.target_branch if persisted is not None else lanes_manifest.target_branch
+    _enforce_pr_only_target(main_repo, locked_target)
     from specify_cli.lanes.compute import is_planning_artifact_only
     from specify_cli.lanes.single_branch_landing import lands_mission_branch
 
@@ -448,7 +452,7 @@ def _run_lane_based_consolidation_locked(
     # CONSUME it — until WP09 lands, ``state.target_branch`` equals the value
     # passed in above, so this reseed is an identity no-op (proven safe for
     # NFR-004) that establishes the consumption seam. Flagged to WP09.
-    lanes_manifest.target_branch = state.target_branch
+    lanes_manifest.target_branch = _enforce_pr_only_target(main_repo, state.target_branch)
 
     run = _MergeRunState(
         main_repo=main_repo,
@@ -711,6 +715,10 @@ def _run_lane_based_consolidation(
             unconditionally on this path (no bypass of FR-001/002).
     """
     main_repo = get_main_repo_root(repo_root)
+    resolved_target, _target_source = _resolve_target_branch(main_repo, mission_slug, target_override)
+    validated_target = _enforce_pr_only_target(main_repo, resolved_target)
+    # The validated concrete branch, not a revision alias, feeds every phase.
+    target_override = validated_target
     # STATUS leg (C-001 / KEEP): ``feature_dir`` is threaded into
     # ``_run_lane_based_consolidation_locked`` as ``run.feature_dir`` and feeds the
     # coord-aware STATUS legs (``status_feature_dir``). Its location comes from the

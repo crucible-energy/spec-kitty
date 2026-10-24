@@ -648,6 +648,7 @@ def test_render_no_snapshot_and_kept_lane(tmp_path: Path) -> None:
 # ------------------------------------------------------------------- NFR-001
 
 
+@pytest.mark.timing
 def test_four_lane_rollback_is_fast(tmp_path: Path) -> None:
     """NFR-001: a 4-lane rollback (3 restores with checkout resync, 4 report-only lanes) completes in < 2 s.
 

@@ -523,15 +523,22 @@ def test_walk_detects_seam_ignoring_owned(site: _Site, monkeypatch: pytest.Monke
         _drive(site, stale=False, where="P", monkeypatch=monkeypatch)
 
 
-def test_action_commands_refuse_owned_checkout_without_touching_r(site: _Site, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tail of the quickstart: ``agent action implement|review --owned-checkout`` is a typed refusal."""
+def test_owned_action_analysis_and_review_refusals_preserve_both_checkouts(site: _Site, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Owned implement requires current analysis; owned review remains unsupported."""
     walk = _drive(site, stale=False, where="R", monkeypatch=monkeypatch)
     snapshotter = RSnapshotter(site.r, site.p, site.home)
     before = snapshotter.take()
-    for command in ("implement", "review"):
-        result = runner.invoke(action_app, [command, "WP01", "--owned-checkout", str(site.p), "--mission", walk.slug])
-        assert result.exit_code != 0, result.output
-        assert "OWNED_ACTION_UNSUPPORTED" in result.output, result.output
+    owned_head = _git(site.p, "rev-parse", "HEAD")
+    owned_status = _git(site.p, "status", "--porcelain")
+    result = runner.invoke(action_app, ["implement", "WP01", "--owned-checkout", str(site.p), "--mission", walk.slug])
+    assert result.exit_code != 0, result.output
+    assert "analysis_report_required" in result.output, result.output
+    assert str((site.p / "kitty-specs" / walk.slug / "analysis-report.md").resolve()) in result.output
+    result = runner.invoke(action_app, ["review", "WP01", "--owned-checkout", str(site.p), "--mission", walk.slug])
+    assert result.exit_code != 0, result.output
+    assert "OWNED_ACTION_UNSUPPORTED" in result.output, result.output
+    assert _git(site.p, "rev-parse", "HEAD") == owned_head
+    assert _git(site.p, "status", "--porcelain") == owned_status
     snapshotter.assert_unchanged(before, snapshotter.take(), tolerate_status_mutex_for=walk.slug)
 
 

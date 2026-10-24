@@ -99,10 +99,12 @@ For each blocker reported:
 
 ### 5. Proceed to Consolidate
 
-Only after the acceptance gate passes:
+Only after the acceptance gate passes, select an existing owned feature/integration
+branch as the consolidation target. Do not consolidate into a local primary
+branch before opening the PR; protected-write escape hatches do not authorize it.
 
 ```bash
-spec-kitty consolidate --mission <handle>
+spec-kitty consolidate --mission <handle> --target <feature-or-integration-branch>
 ```
 
 Follow the consolidate instructions printed by the acceptance command (and any
@@ -117,4 +119,4 @@ After completing this step:
 - Consolidate instructions have been surfaced to the operator.
 
 **Next step**: `spec-kitty next --agent <name>` will advance to consolidate, or run
-`spec-kitty consolidate --mission <handle>` directly.
+`spec-kitty consolidate --mission <handle> --target <feature-or-integration-branch>` directly.

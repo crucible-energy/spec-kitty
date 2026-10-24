@@ -50,23 +50,25 @@ _WRITTEN_AFTER_THE_SEED = {"traces/written-during-the-mission.md": "a trace the 
 @_STRATEGIES
 def test_a_seed_carried_coordination_file_is_folded_into_the_primary_directory(tmp_path: Path, strategy_args: list[str]) -> None:
     """The seed copies the primary directory's coordination files under the composed name; the fold removes the copies, not the originals."""
-    slug, mission_branch, pre_run_event_ids = _build_bare_slug_coord_mission(tmp_path, primary_dir_files=_CARRIED)
+    slug, mission_branch, pre_run_event_ids = _build_bare_slug_coord_mission(tmp_path, target_branch="feature/integration", primary_dir_files=_CARRIED)
 
     result = _invoke_merge_cli(tmp_path, ["--mission", slug, "--yes", "--allow-sparse-checkout", *strategy_args])
 
     output = getattr(result, "output", None)
     assert getattr(result, "exit_code", None) == 0, f"output: {output!r}, exception: {getattr(result, 'exception', None)!r}"
-    _assert_bare_slug_end_state(tmp_path, slug, mission_branch, pre_run_event_ids)
+    _assert_bare_slug_end_state(tmp_path, slug, mission_branch, pre_run_event_ids, target_branch="feature/integration")
     for relpath, content in _CARRIED.items():
-        assert _git(tmp_path, "show", f"main:kitty-specs/{slug}/{relpath}").stdout == content, relpath
+        assert _git(tmp_path, "show", f"feature/integration:kitty-specs/{slug}/{relpath}").stdout == content, relpath
     assert not (tmp_path / "kitty-specs" / f"{slug}-{_RETENTION_MID8}").exists(), "no composed directory, empty or not, on the target checkout"
 
 
 @_STRATEGIES
 def test_a_coordination_file_the_primary_directory_lacks_is_a_rendered_refusal_and_nothing_is_deleted(tmp_path: Path, strategy_args: list[str]) -> None:
     """A coordination file written under the composed name that the primary directory does not hold is never deleted: the run is refused and rolled back."""
-    slug, mission_branch, _pre_run_event_ids = _build_bare_slug_coord_mission(tmp_path, alias_dir_files=_WRITTEN_AFTER_THE_SEED)
-    target_before = _git(tmp_path, "rev-parse", "main").stdout.strip()
+    slug, mission_branch, _pre_run_event_ids = _build_bare_slug_coord_mission(
+        tmp_path, target_branch="feature/integration", alias_dir_files=_WRITTEN_AFTER_THE_SEED
+    )
+    target_before = _git(tmp_path, "rev-parse", "feature/integration").stdout.strip()
 
     result = _invoke_merge_cli(tmp_path, ["--mission", slug, "--yes", "--allow-sparse-checkout", *strategy_args])
 
@@ -78,7 +80,7 @@ def test_a_coordination_file_the_primary_directory_lacks_is_a_rendered_refusal_a
     assert "traces/written-during-the-mission.md" in flat, output
     assert "Nothing was deleted and the run was rolled back." in flat, output
     assert flat.endswith("Error code: ALIAS_FILE_NOT_PRESERVED."), output
-    assert _git(tmp_path, "rev-parse", "main").stdout.strip() == target_before, "the target must be rolled back"
+    assert _git(tmp_path, "rev-parse", "feature/integration").stdout.strip() == target_before, "the target must be rolled back"
     assert _branch_exists(tmp_path, mission_branch), "nothing may be torn down"
     composed_path = f"kitty-specs/{slug}-{_RETENTION_MID8}/traces/written-during-the-mission.md"
     assert _git(tmp_path, "show", f"{mission_branch}:{composed_path}").stdout == _WRITTEN_AFTER_THE_SEED["traces/written-during-the-mission.md"]

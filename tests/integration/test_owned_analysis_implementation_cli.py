@@ -245,14 +245,15 @@ def test_owned_dependency_and_dispatch_guards_remain(prepared_owner: OwnedChecko
     assert primary_state(checkouts) == before
 
 
-def test_owned_dispatch_requires_correlated_model(prepared_owner: OwnedCheckouts) -> None:
+def test_owned_dispatch_refuses_unverified_model_execution(prepared_owner: OwnedCheckouts) -> None:
     checkouts = prepared_owner
     assert record(checkouts, report_only=True).exit_code == 0
     before = primary_state(checkouts)
     events = (checkouts.mission_dir / "status.events.jsonl").read_bytes()
     result = implement(checkouts, "--model", "invented-model")
     assert result.exit_code == 1, result.output
-    assert "--invocation-id" in result.output
+    assert "--model cannot be recorded as resolved actual" in result.output
+    assert "model execution evidence" in result.output
     assert (checkouts.mission_dir / "status.events.jsonl").read_bytes() == events
     assert primary_state(checkouts) == before
 

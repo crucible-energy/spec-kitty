@@ -56,10 +56,10 @@ def _stamp_every_call_at_its_own_date(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_a_foreign_event_in_the_composed_log_is_a_rendered_refusal_with_its_code_and_exit_1(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _stamp_every_call_at_its_own_date(monkeypatch)
-    slug, mission_branch, _pre_run_event_ids = _build_bare_slug_coord_mission(tmp_path, alias_pair_on_target=True)
+    slug, mission_branch, _pre_run_event_ids = _build_bare_slug_coord_mission(tmp_path, target_branch="feature/integration", alias_pair_on_target=True)
     composed_log = tmp_path / "kitty-specs" / f"{slug}-{_RETENTION_MID8}" / "status.events.jsonl"
-    stamped_on_target = _git(tmp_path, "show", f"main:kitty-specs/{slug}-{_RETENTION_MID8}/status.events.jsonl").stdout
-    merge_base = _git(tmp_path, "merge-base", "main", mission_branch).stdout.strip()
+    stamped_on_target = _git(tmp_path, "show", f"feature/integration:kitty-specs/{slug}-{_RETENTION_MID8}/status.events.jsonl").stdout
+    merge_base = _git(tmp_path, "merge-base", "feature/integration", mission_branch).stdout.strip()
     assert '"lane_head"' in stamped_on_target, "the fixture must stamp the target's composed log"
     assert _git(tmp_path, "show", f"{merge_base}:kitty-specs/{slug}-{_RETENTION_MID8}/status.events.jsonl").stdout == stamped_on_target, (
         "the merge base must carry the target's stamped composed log"
@@ -70,7 +70,7 @@ def test_a_foreign_event_in_the_composed_log_is_a_rendered_refusal_with_its_code
     composed_log.write_text(json.dumps(foreign, sort_keys=True) + "\n" + composed_log.read_text(encoding="utf-8"), encoding="utf-8")
     _git(tmp_path, "add", "-f", str(composed_log))
     _git(tmp_path, "commit", "-m", "chore: the target gains an event in the composed log")
-    target_before = _git(tmp_path, "rev-parse", "main").stdout.strip()
+    target_before = _git(tmp_path, "rev-parse", "feature/integration").stdout.strip()
 
     result = _invoke_merge_cli(tmp_path, ["--mission", slug, "--yes", "--allow-sparse-checkout"])
 
@@ -82,6 +82,6 @@ def test_a_foreign_event_in_the_composed_log_is_a_rendered_refusal_with_its_code
     assert f"the primary Mission directory's event log lacks: {_FOREIGN_EVENT_ID}" in flat, output
     assert "merged primary log" not in flat
     assert flat.endswith("Error code: ALIAS_STATUS_EVENTS_NOT_PRESERVED."), output
-    assert _git(tmp_path, "rev-parse", "main").stdout.strip() == target_before, "the target must be rolled back"
+    assert _git(tmp_path, "rev-parse", "feature/integration").stdout.strip() == target_before, "the target must be rolled back"
     assert _branch_exists(tmp_path, mission_branch), "nothing may be torn down"
     assert composed_log.exists(), "the composed directory's status files must not be deleted"

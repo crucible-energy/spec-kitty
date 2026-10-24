@@ -96,12 +96,20 @@ FROZEN_SUBCOMMANDS: frozenset[str] = frozenset(
         "bytecode",
         "decisions",
         "run-index",
+        "organization-workspaces",
     }
 )
 
 # Frozen option contract per subcommand: name -> {flag: ("flag" | "value" | "multi")}.
 # "flag" = boolean switch (is_flag), "value" = takes one value, "multi" = repeatable.
 EXPECTED_OPTIONS: dict[str, dict[str, str]] = {
+    "organization-workspaces": {
+        "--root": "multi",
+        "--organization": "value",
+        "--max-depth": "value",
+        "--max-directories": "value",
+        "--max-entries": "value",
+    },
     "command-files": {"--json": "flag"},
     "skills": {"--fix": "flag", "--json": "flag"},
     "tool-surfaces": {
@@ -151,6 +159,17 @@ EXPECTED_OPTIONS: dict[str, dict[str, str]] = {
 
 # Golden ``--help`` snapshots (whitespace-normalized) per subcommand.
 EXPECTED_HELP: dict[str, list[str]] = {
+    "organization-workspaces": [
+        "Usage: doctor organization-workspaces [OPTIONS]",
+        "Account for accessible organization workspaces as JSON; never remove them.",
+        "Options",
+        "* --root PATH Bounded local discovery root; repeat for independent stores. [required]",
+        "--organization TEXT [default: crucible-energy]",
+        "--max-depth INTEGER RANGE [x>=0] [default: 6]",
+        "--max-directories INTEGER RANGE [x>=1] [default: 10000]",
+        "--max-entries INTEGER RANGE [x>=1] [default: 100000]",
+        "--help -h Show this message and exit.",
+    ],
     "command-files": [
         "Usage: doctor command-files [OPTIONS]",
         "Check all agent command files for correctness.",

@@ -1,0 +1,39 @@
+target:
+  term: local main
+  replacement: feature/integration consolidation followed by PR acceptance
+  operation: rename
+categories:
+  code_symbols:
+    action: manual_review
+  import_paths:
+    action: do_not_change
+  filesystem_paths:
+    action: manual_review
+  serialized_keys:
+    action: do_not_change
+  cli_commands:
+    action: do_not_change
+  user_facing_strings:
+    action: manual_review
+  tests_fixtures:
+    action: manual_review
+  logs_telemetry:
+    action: do_not_change
+exceptions:
+- path: docs/adr/**
+  action: do_not_change
+  reason: Historical architectural decisions retain their original facts.
+- path: docs/archive/**
+  action: do_not_change
+  reason: Historical workflow records are not current instructions.
+- path: CHANGELOG.md
+  action: do_not_change
+  reason: Historical release descriptions are preserved.
+- path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/meta.json
+  action: manual_review
+  reason: Canonical set_change_mode records this classification; no external serialized
+    contract changes.
+- path: packs/internal/procedures/issue-to-mission-delivery.procedure.yaml
+  action: manual_review
+  reason: Inspect live branch-first prose only; preserve doctrine identities, schema
+    keys and operator ownership.

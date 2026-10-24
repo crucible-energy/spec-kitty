@@ -38,6 +38,9 @@ edited in place" convention (also followed by
 
 from __future__ import annotations
 
+# Current full consolidation targets feature/integration; historical issue prose
+# below describes the original main-target reproduction. Primary stays separate.
+
 import contextlib
 import json
 import subprocess
@@ -104,13 +107,16 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 def _init_git_repo(repo: Path) -> None:
     repo.mkdir(parents=True, exist_ok=True)
-    _run(["git", "init", "-qb", "main", str(repo)])
+    _run(["git", "init", "-qb", "feature/integration", str(repo)])
     _git(repo, "config", "user.email", "test@test.com")
     _git(repo, "config", "user.name", "Test")
     _git(repo, "config", "commit.gpgsign", "false")
     (repo / "README.md").write_text("init\n", encoding="utf-8")
     _git(repo, "add", ".")
     _git(repo, "commit", "-m", "init")
+    from tests._support.feature_landing import pin_primary
+
+    pin_primary(repo)
 
 
 def _branch_tip(repo: Path, branch: str) -> str:
@@ -154,7 +160,7 @@ def _write_meta(feature_dir: Path) -> None:
         "mid8": MID8,
         "mission_number": None,
         "mission_type": "software-dev",
-        "target_branch": "main",
+        "target_branch": "feature/integration",
         "coordination_branch": COORD_BRANCH,
         "purpose_tldr": "#4764 FOLD-A orphan primary-tree bake on done-bookkeeping failure",
         "purpose_context": ("a real primary-tree bake commit on target must be reverted when the LATER pre-target done-bookkeeping step fails"),
@@ -168,7 +174,7 @@ def _write_manifest(feature_dir: Path) -> LanesManifest:
         mission_slug=MISSION_SLUG,
         mission_id=MISSION_SLUG,
         mission_branch=COORD_BRANCH,
-        target_branch="main",
+        target_branch="feature/integration",
         lanes=[
             ExecutionLane(
                 lane_id=LANE_ID,
@@ -241,7 +247,7 @@ def _bootstrap_primary_tree_bake_mission(repo: Path) -> Path:
     _git(repo, "add", LANE_CODE)
     _git(repo, "commit", "-m", f"feat({MISSION_SLUG}): lane code for {WP_ID}")
     lane_tip = _git(repo, "rev-parse", "HEAD").stdout.strip()
-    _git(repo, "checkout", "main")
+    _git(repo, "checkout", "feature/integration")
 
     # Coordination branch is lifecycle-only: status.events.jsonl lives there,
     # committed AFTER the primary-tree commit above so the coord branch's
@@ -252,7 +258,7 @@ def _bootstrap_primary_tree_bake_mission(repo: Path) -> Path:
     (coord_feature_dir / "status.events.jsonl").write_text(json.dumps(with_lane_head(_approved_event(), lane_tip), sort_keys=True) + "\n", encoding="utf-8")
     _git(repo, "add", str(coord_feature_dir / "status.events.jsonl"))
     _git(repo, "commit", "-m", f"chore({MISSION_SLUG}): coord status events")
-    _git(repo, "checkout", "main")
+    _git(repo, "checkout", "feature/integration")
 
     CoordinationWorkspace.resolve(repo, MISSION_SLUG, MID8)
     return feature_dir
@@ -319,8 +325,8 @@ def test_done_bookkeeping_failure_after_primary_tree_bake_reverts_orphan_commit(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     feature_dir = _bootstrap_primary_tree_bake_mission(repo)
-    pre_merge_main_tree = _branch_tree(repo, "main")
-    pre_merge_main_tip = _branch_tip(repo, "main")
+    pre_merge_main_tree = _branch_tree(repo, "feature/integration")
+    pre_merge_main_tip = _branch_tip(repo, "feature/integration")
 
     with (
         _external_mocks(),
@@ -341,13 +347,13 @@ def test_done_bookkeeping_failure_after_primary_tree_bake_reverts_orphan_commit(
     #     primary-tree bake commit must be undone, not stranded. #5385: the
     #     single rollback door CAS-restores the pre-run tip itself (no forward
     #     ``git revert`` commit), so both the tree and the SHA match.
-    assert _branch_tree(repo, "main") == pre_merge_main_tree, (
+    assert _branch_tree(repo, "feature/integration") == pre_merge_main_tree, (
         "the orphan primary-tree mission_number bake commit must be undone when the later done-bookkeeping step fails"
     )
-    assert _branch_tip(repo, "main") == pre_merge_main_tip, "#5385: the rollback door restores the pre-run target tip"
+    assert _branch_tip(repo, "feature/integration") == pre_merge_main_tip, "#5385: the rollback door restores the pre-run target tip"
 
     # (b) primary meta.json must show NO mission_number for the un-merged
-    #     mission (HEAD stays on 'main' throughout).
+    #     mission (HEAD stays on 'feature/integration' throughout).
     persisted_meta = json.loads((feature_dir / "meta.json").read_text(encoding="utf-8"))
     assert persisted_meta.get("mission_number") is None, "primary meta.json must not carry a mission_number for a mission that never merged"
 

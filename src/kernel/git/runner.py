@@ -14,6 +14,8 @@ emits UTF-8 path bytes under ``-z``.
 
 from __future__ import annotations
 
+from kernel.owned_process import bounded_run, budget_active
+
 import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -87,7 +89,8 @@ def run_git(
             executed, or timed out.
     """
     try:
-        completed = subprocess.run(
+        executor = bounded_run if budget_active() else subprocess.run
+        completed = executor(
             ["git", *args],
             cwd=str(cwd),
             env=dict(env) if env is not None else None,

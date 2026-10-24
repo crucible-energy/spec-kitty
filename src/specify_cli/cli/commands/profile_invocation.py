@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 import typer
 from specify_cli.cli.console import console
 
 from specify_cli.cli.commands.dispatch import _build_executor, _operation_checkout
+from specify_cli.cli.commands._owned_checkout import owned_checkout_option
 from specify_cli.invocation.errors import (
     AlreadyClosedError,
     ContextUnavailableError,  # noqa: F401 — re-exported for callers/tests
@@ -25,7 +26,6 @@ from specify_cli.task_utils import find_repo_root
 # ---------------------------------------------------------------------------
 # Shared utilities
 # ---------------------------------------------------------------------------
-
 
 
 def _get_repo_root() -> Path:
@@ -40,10 +40,7 @@ def _get_repo_root() -> Path:
 # *epilog*, never in ``help=``: the shell-completion manifest schema is
 # ``{help, hidden, deprecated, commands}``, so an epilog carries the guidance
 # without regenerating ``_completion_manifest.json``.
-_OPENER_EPILOG = (
-    'Open:  spec-kitty dispatch "<request>"\n\n'
-    "Close: spec-kitty profile-invocation complete --invocation-id <id> --outcome <outcome>"
-)
+_OPENER_EPILOG = 'Open:  spec-kitty dispatch "<request>"\n\nClose: spec-kitty profile-invocation complete --invocation-id <id> --outcome <outcome>'
 
 profile_invocation_app = typer.Typer(
     name="profile-invocation",
@@ -113,9 +110,7 @@ def complete_invocation(
         help="Git commit SHA most directly produced by this invocation. Singular.",
     ),
     json_output: bool = typer.Option(False, "--json", help="Output JSON payload"),
-    owned_checkout: Path | None = typer.Option(
-        None, "--owned-checkout", help="Verified checkout holding the operation opened by dispatch.",
-    ),
+    owned_checkout: Annotated[Path | None, owned_checkout_option(help="Verified checkout holding the operation opened by dispatch.")] = None,
 ) -> None:
     """Close an open invocation record. --invocation-id and --outcome are required.
 
@@ -139,7 +134,8 @@ def complete_invocation(
         )
 
     primary = find_repo_root(owned_checkout) if owned_checkout is not None else _get_repo_root()
-    repo_root = _operation_checkout(primary, owned_checkout, writing=True)
+    custody = _operation_checkout(primary, owned_checkout, writing=True)
+    repo_root = custody.checkout
     executor = _build_executor(repo_root)
     try:
         completed = executor.complete_invocation(

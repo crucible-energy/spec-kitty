@@ -27,14 +27,13 @@ from typing import Any
 import pytest
 
 from tests.consolidation.approval_stamps import approved_lane_tips, with_lane_head
+from tests._support.feature_landing import init_feature_repo as _init_git_repo, write_feature_lanes_manifest as _write_lanes_manifest
 from tests.integration.test_merge_lane_planning_data_loss import (
     _commit_file,
     _git,
-    _init_git_repo,
     _invoke_merge_cli,
     _seed_wp_approved,
     _write_coord_retaining_meta,
-    _write_lanes_manifest,
     _write_wp_file,
 )
 
@@ -106,7 +105,7 @@ class _Fixture:
         return _git(self.repo, "rev-parse", ref).stdout.strip()
 
     def refs(self) -> dict[str, str]:
-        return {ref: self.head(ref) for ref in ("main", _MISSION_BRANCH, f"kitty/mission-{_SLUG}-lane-a")}
+        return {ref: self.head(ref) for ref in ("feature/integration", _MISSION_BRANCH, f"kitty/mission-{_SLUG}-lane-a")}
 
 
 def _build_fixture(tmp_path: Path) -> _Fixture:
@@ -119,13 +118,14 @@ def _build_fixture(tmp_path: Path) -> _Fixture:
     """
     repo = tmp_path / "repo"
     _init_git_repo(repo)
-    _git(repo, "branch", _MISSION_BRANCH, "main")
+    _git(repo, "branch", _MISSION_BRANCH, "feature/integration")
 
     feature_dir = repo / "kitty-specs" / _SLUG
     (feature_dir / "tasks").mkdir(parents=True)
     _write_coord_retaining_meta(feature_dir, _SLUG)
     meta_path = feature_dir / "meta.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta["target_branch"] = "feature/integration"
     meta["mission_id"] = _MISSION_ID
     meta["mid8"] = _MID8
     meta["coordination_branch"] = _MISSION_BRANCH
@@ -146,7 +146,7 @@ def _build_fixture(tmp_path: Path) -> _Fixture:
     _git(repo, "worktree", "add", "-q", str(coord_worktree), _MISSION_BRANCH)
 
     lane_a_branch = f"kitty/mission-{_SLUG}-lane-a"
-    _git(repo, "branch", lane_a_branch, "main")
+    _git(repo, "branch", lane_a_branch, "feature/integration")
     _commit_file(
         repo,
         branch=lane_a_branch,
@@ -154,7 +154,7 @@ def _build_fixture(tmp_path: Path) -> _Fixture:
         content="def foo():\n    return 1\n",
         message=f"feat({_SLUG}): add foo function (WP01)",
     )
-    _git(repo, "checkout", "main")
+    _git(repo, "checkout", "feature/integration")
     _stamp_untracked_approval_at_lane_tips(repo, feature_dir)
     from specify_cli.lanes.worktree_allocator import predict_lane_worktree
 
@@ -212,7 +212,7 @@ class TestRefusedSeedCommitBackstop:
         assert second.exit_code == 0, second.output
         assert _REFUSED_CODE not in second.output
         for rel in _SEEDED_STATUS_FILES:
-            assert _is_tracked_on_branch(fixture, "main", rel), rel
+            assert _is_tracked_on_branch(fixture, "feature/integration", rel), rel
 
     def test_refused_twice_still_names_both_files(self, fixture: _Fixture) -> None:
         fixture.install_hook()

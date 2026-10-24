@@ -96,7 +96,7 @@ live** against the working tree at accept time — it does not trust a stored
   asserts a state that only exists **once the mission is consolidated** — for example,
   "`shell: bash` is present in `ci-quality.yml`" when that line is added by the
   consolidation — it cannot pass while the mission still lives on its lane branch. For
-  such missions, run `spec-kitty consolidate` (into **local** `main`) **before**
+  such missions, run `spec-kitty consolidate` (on a feature/integration branch) **before**
   `spec-kitty accept`, so the working tree accept inspects already carries the
   consolidated post-state:
 
@@ -170,7 +170,7 @@ For detailed consolidation options including dry-run, strategies, and cleanup fl
 
 ### When Local `main` Is Not Publishable
 
-Autonomous local runs can leave `main` ahead of or diverged from `origin/main`
+Older workflows predating the PR-only consolidation guard could leave `main` ahead of or diverged from `origin/main`
 with planning, status, review, and orchestration commits. If consolidation refuses with
 `TARGET_BRANCH_NOT_SYNCHRONIZED`, do not reset, rebase, force-push, or push
 local `main` only to satisfy the pre-flight.

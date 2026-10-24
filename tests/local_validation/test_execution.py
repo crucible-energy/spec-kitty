@@ -2037,15 +2037,18 @@ def run_owned_sampler_worker_protocol(
 
 def sampler_start_frame(owner_pid: int, deadline_ns: int | None = None) -> bytes:
     clock = getattr(time, "CLOCK_MONOTONIC_RAW" if sys.platform == "darwin" else "CLOCK_BOOTTIME")
-    return json.dumps(
-        {
-            "schema_version": 1,
-            "command": "start",
-            "owner_pid": owner_pid,
-            "deadline_boot_ns": str(deadline_ns if deadline_ns is not None else time.clock_gettime_ns(clock) + 10_000_000_000),
-        },
-        separators=(",", ":"),
-    ).encode() + b"\n"
+    return (
+        json.dumps(
+            {
+                "schema_version": 1,
+                "command": "start",
+                "owner_pid": owner_pid,
+                "deadline_boot_ns": str(deadline_ns if deadline_ns is not None else time.clock_gettime_ns(clock) + 10_000_000_000),
+            },
+            separators=(",", ":"),
+        ).encode()
+        + b"\n"
+    )
 
 
 @pytest.mark.parametrize("middle", ["ordinary", "nonzero"])

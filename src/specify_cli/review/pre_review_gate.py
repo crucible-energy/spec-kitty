@@ -38,7 +38,6 @@ from __future__ import annotations
 
 import contextlib
 import os
-import signal
 import subprocess
 import tempfile
 import time
@@ -49,6 +48,7 @@ from pathlib import Path
 from typing import Protocol
 
 from kernel.locks import LockAcquireTimeout, LockNotAcquired, machine_file_lock
+from kernel.owned_process import signal_owned_process_tree
 from kernel.paths import is_windows, to_posix
 from specify_cli.paths import get_runtime_root
 from specify_cli.review._interpreter import resolve_pytest_command
@@ -303,25 +303,8 @@ def _signal_owned_process_tree(
     platform: str | None = None,
     windows_tree_kill: Callable[[Sequence[str]], subprocess.CompletedProcess[str]] = (_run_windows_taskkill),
 ) -> None:
-    """Signal only the process group created for this runner-owned child."""
-    platform = platform or os.name
-    if platform == "nt":
-        command = ["taskkill", "/PID", str(process.pid), "/T"]
-        if force:
-            command.append("/F")
-        result = windows_tree_kill(command)
-        if result.returncode != 0 and process.poll() is None:
-            # The tree-aware authority can race a naturally exiting child. If
-            # it genuinely fails while the parent is still alive, ensure at
-            # least that direct child receives the requested signal; the
-            # non-zero taskkill diagnostic remains captured by the caller's
-            # process output rather than widening to unrelated host PIDs.
-            (process.kill if force else process.terminate)()
-        return
-    try:
-        os.killpg(process.pid, signal.SIGKILL if force else signal.SIGTERM)
-    except (OSError, ProcessLookupError):
-        (process.kill if force else process.terminate)()
+    """Delegate to the shared owned-group signal authority; keep the review seam."""
+    signal_owned_process_tree(process, force=force, platform=platform, windows_tree_kill=windows_tree_kill)
 
 
 def _terminate_and_reap(

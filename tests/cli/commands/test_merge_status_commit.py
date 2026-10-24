@@ -19,9 +19,9 @@ import typer
 from specify_cli.cli.commands.consolidate import _record_baseline_merge_commit
 from specify_cli.consolidation.config import MergeStrategy
 from specify_cli.coordination.workspace import CoordinationWorkspace
-from tests.terminus.conftest import CoordMission, build_coord_mission, run_terminus, sha_reachable
+from tests.terminus.conftest import CoordMission, run_terminus, sha_reachable
 from tests._support.git_cli import git_out
-from tests.terminus.lanes_fixture import build_lanes_mission
+from tests._support.feature_landing import TARGET, build_feature_coord_mission, build_feature_lanes_mission, pin_primary
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
 
@@ -150,9 +150,11 @@ def real_merge(tmp_path_factory: pytest.TempPathFactory) -> _RealMerge:
     ``commit_merge_bookkeeping``, real coordination teardown. Replaces the three
     ~25-patch mock harnesses that stubbed those gates to keep the tests green.
     """
-    mission = build_coord_mission(tmp_path_factory.mktemp("real_merge"))
+    mission = build_feature_coord_mission(tmp_path_factory.mktemp("real_merge"))
+    primary_before = mission.rev("main")
     target_tip_before = mission.rev(mission.target_branch)
     result = run_terminus(mission, ["consolidate", "--mission", mission.slug, "--yes"])
+    assert mission.rev("main") == primary_before
     return _RealMerge(mission=mission, result=result, target_tip_before=target_tip_before)
 
 
@@ -241,16 +243,18 @@ class TestLanesConsolidateRecordsDoneForEveryWp:
 
     Replaces the 17-patch ``_run_lane_based_consolidation`` harness that stubbed the
     lane merge, reconciliation, gates and state store. Nothing is stubbed here; the
-    target defaults to ``develop`` (a protected ``main`` target crashes, #5385).
+    target is an explicit feature branch with a separate real primary.
     """
 
     def test_every_wp_has_done_event_and_snapshot_on_target(self, tmp_path: Path) -> None:
         wps = ("WP01", "WP02")
-        mission = build_lanes_mission(tmp_path, wps=wps)
+        mission = build_feature_lanes_mission(tmp_path, wps=wps)
+        primary_before = mission.rev("main")
 
         result = run_terminus(mission, ["consolidate", "--mission", mission.slug, "--yes"])
         assert result.returncode == 0, f"the real LANES consolidate must succeed\nstdout={result.stdout}\nstderr={result.stderr}"
 
+        assert mission.rev("main") == primary_before
         # Read from the target branch's git history, never from the working tree.
         prefix = f"{mission.target_branch}:kitty-specs/{mission.slug}"
         events = [json.loads(line) for line in git_out(mission.repo, "show", f"{prefix}/status.events.jsonl").splitlines() if line.strip()]
@@ -276,7 +280,8 @@ def _build_declared_coord_mission(tmp_path: Path, label: str) -> tuple[str, str,
     mission_id = f"{mid8}0000000000000000"
     coord_branch = f"kitty/mission-{mission_slug}"
 
-    _init_git_repo(tmp_path)
+    _init_git_repo(tmp_path, branch=TARGET)
+    pin_primary(tmp_path)
 
     feature_dir = tmp_path / "kitty-specs" / mission_slug
     feature_dir.mkdir(parents=True)
@@ -286,6 +291,7 @@ def _build_declared_coord_mission(tmp_path: Path, label: str) -> tuple[str, str,
         mission_id=mission_id,
         mid8=mid8,
         coordination_branch=coord_branch,
+        target_branch=TARGET,
     )
     _write_wp_file(feature_dir / "tasks", "WP01")
 

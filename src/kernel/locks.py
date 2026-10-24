@@ -64,6 +64,7 @@ import errno
 import json
 import os
 import socket
+import stat
 import sys
 import threading
 import time
@@ -446,9 +447,10 @@ class _LockCore:
     ``time.sleep``) differs, in :func:`_async_acquire`/:func:`_sync_acquire`.
     """
 
-    __slots__ = ("lock_path", "fd", "record")
+    __slots__ = ("lock_path", "fd", "record", "private")
 
-    def __init__(self, lock_path: Path) -> None:
+    def __init__(self, lock_path: Path, *, private: bool = False) -> None:
+        self.private = private
         self.lock_path = lock_path
         self.fd: int | None = None
         self.record: LockRecord | None = None
@@ -466,7 +468,24 @@ class _LockCore:
         # ``O_EXCL`` -- lock files are re-opened by every later acquirer
         # (release truncates, never unlinks, per G3); ``O_EXCL`` would make
         # every re-acquisition after the first fail (C-003).
-        return open_no_follow(self.lock_path, flags, 0o600)
+        if self.private:
+            flags |= getattr(os, "O_NONBLOCK", 0)
+        fd = open_no_follow(self.lock_path, flags, 0o600)
+        try:
+            self.validate_private_fd(fd)
+        except BaseException:
+            os.close(fd)
+            raise
+        return fd
+
+    def validate_private_fd(self, fd: int) -> None:
+        """Opt-in lifecycle lock admission, before any record write/truncation."""
+        if self.private:
+            info = os.fstat(fd)
+            if is_windows() or not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o600:
+                raise OSError("Private lock must be a single-link owned regular file")
+            if info.st_uid != os.getuid():
+                raise OSError("Private lock owner does not match current user")
 
     def try_lock_once(self, fd: int) -> bool:
         """Attempt one non-blocking OS-level lock. ``True``=acquired, ``False``=contended."""
@@ -482,6 +501,7 @@ class _LockCore:
         """Write a fresh :class:`LockRecord` to the just-locked ``fd`` and bind state."""
         record = _build_record()
         try:
+            self.validate_private_fd(fd)
             _atomic_write_under_lock(fd, _record_to_json(record).encode("utf-8"))
         except BaseException:
             # Roll back the OS lock so we never leave it held without content.
@@ -691,11 +711,15 @@ class SyncMachineFileLock:
         blocking: bool = False,
         timeout_s: float | None = None,
         reentrant: bool = False,
+        private: bool = False,
     ) -> None:
         self.lock_path = lock_path
         self.blocking = blocking
         self.timeout_s = timeout_s
         self.reentrant = reentrant
+        if private and reentrant:
+            raise ValueError("Private lock admission requires a non-reentrant hold")
+        self.private = private
         self._core: _LockCore | None = None
         self._key: str | None = None
 
@@ -704,7 +728,7 @@ class SyncMachineFileLock:
 
     def __enter__(self) -> LockRecord:
         if not self.reentrant:
-            core = _LockCore(self.lock_path)
+            core = _LockCore(self.lock_path, private=True) if self.private else _LockCore(self.lock_path)
             record = _sync_acquire(core, blocking=self.blocking, timeout_s=self.timeout_s)
             self._core = core
             return record
@@ -716,7 +740,7 @@ class SyncMachineFileLock:
             existing.depth += 1
             return existing.record
 
-        core = _LockCore(self.lock_path)
+        core = _LockCore(self.lock_path, private=True) if self.private else _LockCore(self.lock_path)
         record = _sync_acquire(core, blocking=self.blocking, timeout_s=self.timeout_s)
         _reentrancy_state.holdings[key] = _ReentrantHolding(core=core, record=record)
         return record
@@ -751,6 +775,7 @@ def machine_file_lock(
     blocking: bool = False,
     timeout_s: float | None = None,
     reentrant: bool = False,
+    private: bool = False,
 ) -> SyncMachineFileLock:
     """Construct the canonical sync lock context manager (G6 test-double seam).
 
@@ -764,4 +789,6 @@ def machine_file_lock(
     ``review/verdict_commit_queue.py`` relies on today against the concrete
     ``filelock.FileLock`` type.
     """
+    if private:
+        return SyncMachineFileLock(lock_path, blocking=blocking, timeout_s=timeout_s, reentrant=reentrant, private=True)
     return SyncMachineFileLock(lock_path, blocking=blocking, timeout_s=timeout_s, reentrant=reentrant)

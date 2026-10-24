@@ -37,6 +37,8 @@ returns ``False`` for every ref.
 
 from __future__ import annotations
 
+from kernel.owned_process import bounded_run, budget_active
+
 import logging
 import os
 from collections.abc import Mapping
@@ -451,7 +453,8 @@ def _remote_default_branch(repo_root: Path) -> str | None:
     import subprocess  # local import keeps module-level deps minimal
 
     def _run(args: list[str]) -> str | None:
-        result = subprocess.run(
+        executor = bounded_run if budget_active() else subprocess.run
+        result = executor(
             ["git", *args],
             cwd=repo_root,
             capture_output=True,

@@ -44,7 +44,7 @@ from specify_cli.consolidation.rollback import (
 )
 from specify_cli.consolidation.state import ConsolidationState
 from specify_cli.lanes.models import ExecutionLane, LanesManifest
-from tests.terminus.lanes_fixture import build_lanes_mission
+from tests._support.feature_landing import build_feature_lanes_mission as build_lanes_mission
 
 pytestmark = [pytest.mark.git_repo]
 
@@ -158,7 +158,7 @@ def test_failed_reconciliation_rollback_keeps_a_concurrent_target_commit(
     The rollback may refuse, but the concurrent commit must stay reachable from
     the target and the door must say why it kept it.
     """
-    mission = build_lanes_mission(tmp_path, wps=("WP01",), target_branch="develop", mid8="01M5666F")
+    mission = build_lanes_mission(tmp_path, wps=("WP01",), mid8="01M5666F")
     target = mission.target_branch
     original_gate = executor._phase_reconcile_before_teardown
     foreign: list[str] = []

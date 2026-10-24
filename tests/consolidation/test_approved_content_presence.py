@@ -539,7 +539,7 @@ _AUTHORED = {"delete": ADDED_PATH, "rename": ADDED_PATH, "revert": SHARED_PATH}
 @pytest.mark.integration
 @pytest.mark.git_repo
 def test_claim_records_each_approved_code_lane_in_dependency_order(tmp_path: Path) -> None:
-    built = build_dependent_edit_mission(tmp_path, edit="rename")
+    built = build_dependent_edit_mission(tmp_path, target_branch="feature/integration", edit="rename")
     claim = _claim_for(built)
 
     assert [c.lane_id for c in claim.approved_lane_content] == ["lane-a", "lane-b"]
@@ -555,7 +555,7 @@ def test_claim_records_each_approved_code_lane_in_dependency_order(tmp_path: Pat
 @pytest.mark.git_repo
 def test_claim_records_each_lanes_tip_own_base_and_dependency_fork(tmp_path: Path) -> None:
     """What the net-change rule reads: the lane tip, the commit the lane was cut from and where it left its dependency."""
-    built = build_dependent_edit_mission(tmp_path, edit="rename")
+    built = build_dependent_edit_mission(tmp_path, target_branch="feature/integration", edit="rename")
     mission = built.mission
     lane_a, lane_b = _claim_for(built).approved_lane_content
     cut_from = git(mission.repo, "merge-base", built.lane_a_branch, mission.target_branch).stdout.strip()
@@ -571,7 +571,7 @@ def test_claim_records_each_lanes_tip_own_base_and_dependency_fork(tmp_path: Pat
 @pytest.mark.git_repo
 def test_claim_leaves_a_canceled_or_unapproved_lane_out_of_the_content(tmp_path: Path) -> None:
     for final in ("canceled", "in_progress"):
-        built = build_dependent_edit_mission(tmp_path / final, edit="delete", wp02_final=final)
+        built = build_dependent_edit_mission(tmp_path / final, target_branch="feature/integration", edit="delete", wp02_final=final)
         assert [c.lane_id for c in _claim_for(built).approved_lane_content] == ["lane-a"], final
 
 
@@ -584,7 +584,7 @@ def test_claim_leaves_a_canceled_or_unapproved_lane_out_of_the_content(tmp_path:
 )
 def test_twin_a_later_wp_that_is_not_approved_supersedes_nothing(tmp_path: Path, edit: Edit, strategy: str, final: Wp02Final) -> None:
     """Same fixture, same landed target; only WP02's approval differs, and WP01's content is now missing."""
-    built = build_dependent_edit_mission(tmp_path, edit=edit, wp02_final=final)
+    built = build_dependent_edit_mission(tmp_path, target_branch="feature/integration", edit=edit, wp02_final=final)
 
     result = _verify(built, strategy, "landed")
 
@@ -599,7 +599,7 @@ def test_twin_a_later_wp_that_is_not_approved_supersedes_nothing(tmp_path: Path,
 @pytest.mark.git_repo
 def test_the_ancestry_skip_still_fires_for_a_lane_whose_content_is_gone(tmp_path: Path) -> None:
     """The fix is the presence axis: a lane merged into the mission branch and then reverted there still reads as integrated."""
-    built = build_dependent_edit_mission(tmp_path, edit="none")
+    built = build_dependent_edit_mission(tmp_path, target_branch="feature/integration", edit="none")
     repo = built.mission.repo
     git(repo, "branch", "mission-tip", built.mission.coord_branch)
     git(repo, "checkout", "-q", "mission-tip")
@@ -622,7 +622,7 @@ def test_the_ancestry_skip_still_fires_for_a_lane_whose_content_is_gone(tmp_path
 @pytest.mark.parametrize("strategy", _STRATEGIES)
 @pytest.mark.parametrize("edit", _EDITS)
 def test_consolidate_cli_passes_when_a_later_approved_wp_edits_earlier_content(tmp_path: Path, edit: Edit, strategy: str) -> None:
-    built = build_dependent_edit_mission(tmp_path, edit=edit, mid8="01M55713")
+    built = build_dependent_edit_mission(tmp_path, target_branch="feature/integration", edit=edit, mid8="01M55713")
     mission = built.mission
 
     result = run_terminus(mission, ["consolidate", "--mission", mission.slug, "--strategy", strategy, "--yes"])
@@ -644,7 +644,7 @@ def test_consolidate_cli_passes_when_a_later_approved_wp_edits_earlier_content(t
 @pytest.mark.parametrize("strategy", _STRATEGIES)
 def test_consolidate_cli_lands_both_wps_when_the_later_wp_adds_its_own_file(tmp_path: Path, strategy: str) -> None:
     """Control for the control: nothing is edited, every approved file lands."""
-    built = build_dependent_edit_mission(tmp_path, edit="none", mid8="01M55714")
+    built = build_dependent_edit_mission(tmp_path, target_branch="feature/integration", edit="none", mid8="01M55714")
     mission = built.mission
 
     result = run_terminus(mission, ["consolidate", "--mission", mission.slug, "--strategy", strategy, "--yes"])
@@ -665,7 +665,7 @@ def test_consolidate_cli_passes_when_the_lanes_net_no_op_meets_a_concurrent_targ
     The mission leaves the file as it found it, so the target's own change is all
     that lands: nothing approved was dropped.
     """
-    built = build_dependent_edit_mission(tmp_path, edit="revert", mid8="01M55715")
+    built = build_dependent_edit_mission(tmp_path, target_branch="feature/integration", edit="revert", mid8="01M55715")
     mission = built.mission
     _commit_in(mission.repo, SHARED_PATH, MAIN_SIDE, "feat: unrelated target-side change to the same file")
 
@@ -687,7 +687,7 @@ def test_consolidate_cli_does_not_report_missing_content_when_the_target_renamed
     refuses the renamed blob (unchanged from before the presence axis existed), so
     only the absence of this axis's verdict is pinned there.
     """
-    built = build_dependent_edit_mission(tmp_path, edit="modify", mid8="01M55716")
+    built = build_dependent_edit_mission(tmp_path, target_branch="feature/integration", edit="modify", mid8="01M55716")
     mission = built.mission
     moved = "src/pkg/shared_moved.py"
     git(mission.repo, "mv", SHARED_PATH, moved)

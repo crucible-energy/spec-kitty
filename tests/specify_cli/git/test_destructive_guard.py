@@ -462,3 +462,16 @@ def test_module_imports_zero_specify_cli_application_modules() -> None:
         ):
             offenders.append(node.module)
     assert not offenders, f"destructive_guard.py must stay git-plumbing pure; found: {offenders!r}"
+
+
+def test_lifecycle_removal_preserves_ignored_data_when_requested(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    (repo / ".gitignore").write_text("valuable.bin\n")
+    _commit_all(repo, "base")
+    path = tmp_path / "released"
+    _git(repo, "worktree", "add", "-b", "released", str(path))
+    (path / "valuable.bin").write_bytes(b"retained operator data")
+    with pytest.raises(DestructiveOpRefused):
+        guarded_worktree_remove(path, retain=False, is_residue=_never_residue, preserve_ignored=True)
+    assert (path / "valuable.bin").read_bytes() == b"retained operator data"
