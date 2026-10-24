@@ -911,3 +911,63 @@ def test_current_source_branch_is_retained_remotely_after_local_retirement(tmp_p
     assert result.status == "retired" and not Path(owner.identity.path).exists()
     assert git(tmp_path / "origin.git", "rev-parse", "task") == owner.identity.head
     assert not git(repo, "branch", "--list", "task")
+
+
+@pytest.mark.parametrize("shape", ["pack_directory", "pack_file", "pack_index", "loose_object", "info_directory"])
+def test_nested_external_object_storage_is_not_retained_by_a_local_ref(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, shape: str) -> None:
+    from specify_cli.workspace_lifecycle.coordinator import Coordinator
+
+    owner, ledger, events, repo = managed_owner(tmp_path, monkeypatch)
+    owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
+    owner.complete(pr=9)
+    objects = repo / ".git" / "objects"
+    external = tmp_path / "separate-object-storage"
+    if shape.startswith("pack_"):
+        git(repo, "repack", "-ad")
+        pack = objects / "pack"
+        if shape == "pack_directory":
+            pack.rename(external)
+            pack.symlink_to(external, target_is_directory=True)
+        else:
+            external.mkdir()
+            suffix = ".pack" if shape == "pack_file" else ".idx"
+            original = next(pack.glob("*" + suffix))
+            target = external / original.name
+            original.rename(target)
+            original.symlink_to(target)
+    elif shape == "loose_object":
+        original = objects / owner.identity.head[:2] / owner.identity.head[2:]
+        original.rename(external)
+        original.symlink_to(external)
+    else:
+        original = objects / "info"
+        original.rename(external)
+        original.symlink_to(external, target_is_directory=True)
+    assert git(repo, "cat-file", "-t", owner.identity.head) == "commit"
+    result = Coordinator(ledger).reconcile(events[0].event_id, owner.identity, owner)
+    assert result.status == "retained" and Path(owner.identity.path).exists()
+    assert git(repo, "rev-parse", "task") == owner.identity.head
+    assert external.exists()
+    assert not list(ledger.root.glob("recovery-*.json"))
+
+
+def test_regular_hardlinked_packs_retain_their_own_inode_after_retirement(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import os
+    from specify_cli.workspace_lifecycle.coordinator import Coordinator
+
+    owner, ledger, events, repo = managed_owner(tmp_path, monkeypatch)
+    owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
+    owner.complete(pr=9)
+    git(repo, "repack", "-ad")
+    external = tmp_path / "other-link"
+    external.mkdir()
+    for file in (repo / ".git" / "objects" / "pack").iterdir():
+        os.link(file, external / file.name)
+        assert file.stat().st_nlink >= 2
+    result = Coordinator(ledger).reconcile(events[0].event_id, owner.identity, owner)
+    assert result.status == "retired" and not Path(owner.identity.path).exists()
+    for file in external.iterdir():
+        file.unlink()
+    proof = json.loads(next(ledger.root.glob("recovery-*.json")).read_text())
+    assert git(repo, "cat-file", "-t", proof["recovery_ref"]) == "commit"
+    assert git(repo, "rev-parse", proof["recovery_ref"]) == owner.identity.head

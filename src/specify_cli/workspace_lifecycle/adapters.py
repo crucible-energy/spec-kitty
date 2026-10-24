@@ -29,7 +29,7 @@ from kernel.git.listing import status_entries
 from kernel.git.worktree_registry import parse_worktree_records
 from kernel.git_topology import inspect_git_common_dir
 from kernel.locks import machine_file_lock
-from kernel.no_follow import NoFollowPathError
+from kernel.no_follow import NoFollowPathError, fd_relative_dir_ops_supported, open_no_follow
 from kernel.owned_process import bounded_run, budget_active, process_budget, process_deadline, signal_owned_process_tree
 from specify_cli.core.git_ops import resolve_primary_branch
 from specify_cli.git.destructive_guard import guarded_worktree_remove
@@ -457,6 +457,60 @@ def _creator_runtime_state(identity: Identity) -> tuple[bool, bool]:
         return False, False
 
 
+def _object_custody(identity: Identity) -> bool:
+    """Inspect object storage by descriptors, never following external links.
+
+    A local ref retains a regular local inode, including hard links. It cannot
+    retain a borrowed object directory, loose object, pack or index reached by
+    a symlink. Unknown/oversized/unsupported storage is a recovery obligation.
+    """
+    if not fd_relative_dir_ops_supported():
+        return False
+    inherited = process_deadline()
+    deadline = min(time.monotonic() + 5, inherited if inherited is not None else float("inf"))
+    seen = 0
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+
+    def inspect(directory: int, relative: tuple[str, ...]) -> bool:
+        nonlocal seen
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                seen += 1
+                if seen > 100000 or len(relative) > 32 or time.monotonic() >= deadline:
+                    return False
+                info = entry.stat(follow_symlinks=False)
+                if stat.S_ISDIR(info.st_mode):
+                    child = os.open(entry.name, flags, dir_fd=directory)
+                    try:
+                        actual = os.fstat(child)
+                        if (actual.st_dev, actual.st_ino) != (info.st_dev, info.st_ino) or not inspect(child, (*relative, entry.name)):
+                            return False
+                    finally:
+                        os.close(child)
+                elif (
+                    not stat.S_ISREG(info.st_mode)
+                    or relative == ("info",)
+                    and entry.name in {"alternates", "http-alternates"}
+                    or relative == ("pack",)
+                    and entry.name.endswith(".promisor")
+                ):
+                    return False
+        return True
+
+    try:
+        common = open_no_follow(Path(identity.common_dir), flags)
+        try:
+            objects = os.open("objects", flags, dir_fd=common)
+            try:
+                return inspect(objects, ())
+            finally:
+                os.close(objects)
+        finally:
+            os.close(common)
+    except (NoFollowPathError, OSError, ValueError):
+        return False
+
+
 class ManagedGitCreator:
     """Creator-owned linked checkout with serialized, explicitly released leases.
 
@@ -776,6 +830,11 @@ class ManagedGitCreator:
             return run_git(root, *args, env=env or _git_env(), check=check, timeout=5)
 
         try:
+            partial = git("config", "--get-regexp", r"^(remote\..*\.promisor|extensions\.partialclone)$", check=False)
+            if partial.returncode != 1 or not _object_custody(identity):
+                return False
+            if git("rev-parse", "--is-shallow-repository").stdout.strip() != b"false":
+                return False
             tree = git("rev-parse", "--verify", identity.head + "^{tree}").stdout.decode().strip()
             expected = {
                 "schema_version": 1,
@@ -793,13 +852,6 @@ class ManagedGitCreator:
             if not create:
                 receipt: object = json.loads(self.store.read_private(name, limit=65536))
                 return receipt == expected and git("rev-parse", "--verify", ref + "^{commit}").stdout.decode().strip() == identity.head
-            objects = Path(identity.common_dir) / "objects"
-            alternates = objects / "info" / "alternates"
-            partial = git("config", "--get-regexp", r"^(remote\..*\.promisor|extensions\.partialclone)$", check=False)
-            if objects.is_symlink() or alternates.exists() or alternates.is_symlink() or partial.returncode != 1 or any((objects / "pack").glob("*.promisor")):
-                return False
-            if git("rev-parse", "--is-shallow-repository").stdout.strip() != b"false":
-                return False
             if path.exists() or path.is_symlink():
                 # Never overwrite a prior conflicting or incomplete recovery.
                 return self._recovery(state, intent, create=False)
