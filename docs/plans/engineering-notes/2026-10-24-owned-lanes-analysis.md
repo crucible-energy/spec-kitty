@@ -219,3 +219,35 @@ source and changed-workflow refusal controls remain intact. JSON ordering is
 retained for review without changing the extractor's computed object. The full
 failed run classifies exactly six envelope failures, 29 missing-dependency
 failures and six source-epoch failures; none are silently relabeled as passes.
+
+## 2026-10-25 — Provision the hosted native-validation compiler
+
+### User Experience Findings
+
+The actual CI module failed before native validation because its Linux runner
+had no `zig` executable. Local compiler-backed results and a successful source
+merge do not establish that the hosted environment can execute the same suite.
+The lifecycle owner's interruption and recovery fixture corrections are joined
+in this lane; their distinct frozen checkout and all PDB HELD/v5 state remain
+preserved.
+
+### Engineering Decisions
+
+Under the delegated owner's exact workflow approval, the existing CI module
+job alone obtains official Zig 0.16.0 for Linux x86_64 in a private runner-owned
+temporary directory. The pinned SHA-256 must pass before extraction, and the
+executable version must pass before PATH publication. No missing-tool skip,
+new job, changed status, timeout budget or test filter is introduced. Canonical
+workflow contracts and inventory are rederived from that exact reviewed source;
+router source and changed-source refusal remain unchanged. A focused wiring
+regression protects the condition, target, checksum and verification order.
+
+### Known Limitations
+
+The wiring regression checks the provisioning contract; it does not execute a
+Linux compiler on macOS. Actual hosted CI-module execution and the full owning
+consolidation/terminus checks still gate merge. Runner resource disposal is owned
+by the hosted job lifecycle; this step does not prune shared caches. Local test
+resources and raw failures remain in the external recovery bundle. This source
+fix grants no runtime admission, production authority, PDB source access, fit or
+unhold.

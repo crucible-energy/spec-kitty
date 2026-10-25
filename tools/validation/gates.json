@@ -3174,7 +3174,7 @@
     {
       "path": ".github/workflows/module-tests.yml",
       "role": "migration-baseline",
-      "sha256": "1cc5eba4efe959e01d3e7bd2879154d20ebbb13c8d3e7238f4e0d2d4cbc02898"
+      "sha256": "ae482d667b61b67ec38ec3167ffc26958d84257308c338b1f4a1c32738206baa"
     },
     {
       "path": ".github/workflows/packs.yml",
@@ -9889,7 +9889,7 @@
       "id": "module-tests",
       "source": {
         "path": ".github/workflows/module-tests.yml",
-        "sha256": "1cc5eba4efe959e01d3e7bd2879154d20ebbb13c8d3e7238f4e0d2d4cbc02898",
+        "sha256": "ae482d667b61b67ec38ec3167ffc26958d84257308c338b1f4a1c32738206baa",
         "role": "migration-baseline"
       },
       "definition": {
@@ -9996,6 +9996,12 @@
                 "with": {
                   "mode": "${{ inputs.mode }}"
                 }
+              },
+              {
+                "name": "Provision pinned native validation compiler",
+                "shell": "bash",
+                "run": "set -euo pipefail\ntest \"$(uname -s)\" = Linux\ntest \"$(uname -m)\" = x86_64\numask 077\ncompiler_root=\"$(mktemp -d \"${RUNNER_TEMP}/validation-compiler.XXXXXX\")\"\ncurl --fail --location --silent --show-error --max-time 180 \\\n  'https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz' --output \"$compiler_root/compiler.tar.xz\"\nprintf '%s  %s\\n' '70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00' \"$compiler_root/compiler.tar.xz\" | sha256sum --check\ntar -xJf \"$compiler_root/compiler.tar.xz\" -C \"$compiler_root\" --strip-components=1\ntest \"$(\"$compiler_root/zig\" version)\" = 0.16.0\nprintf '%s\\n' \"$compiler_root\" >> \"$GITHUB_PATH\"\n# Runner-owned temporary toolchain ends with this hosted job; no shared cache pruning.\n",
+                "if": "inputs.module == 'ci'"
               },
               {
                 "name": "Compute shard identifiers",
@@ -10106,9 +10112,10 @@
               2,
               3,
               4,
-              6,
-              8,
-              9
+              5,
+              7,
+              9,
+              10
             ],
             "reason": "unsupported-shell-or-command-control",
             "context_required": true
