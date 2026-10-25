@@ -921,6 +921,95 @@ def test_denied_process_observation_never_grants_visibility(tmp_path: Path, monk
         adapters._runtime_diagnostic.reset(token)
 
 
+@pytest.mark.parametrize("case", ["owner", "root", "foreign", "unavailable", "gone", "deadline", "no_context", "invalid_pid", "timed_probe", "state_deadline"])
+def test_denied_process_directory_observation_is_bounded_and_non_authoritative(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str) -> None:
+    from types import SimpleNamespace
+
+    import psutil
+
+    from specify_cli.workspace_lifecycle import adapters
+
+    clock = [10.0]
+    probes: list[int] = []
+
+    class Process:
+        pid = True if case == "invalid_pid" else 321
+
+        def uids(self) -> SimpleNamespace:
+            return SimpleNamespace(real=1000, effective=1000, saved=1000)
+
+        def cwd(self) -> NoReturn:
+            if case == "deadline":
+                clock[0] = 16.0
+            raise psutil.AccessDenied(321, name=str(tmp_path))
+
+        def status(self) -> str:
+            if case == "gone":
+                raise psutil.NoSuchProcess(321)
+            if case == "state_deadline":
+                clock[0] = 16.0
+            return "sleeping"
+
+    def process_directory_owner(pid: int) -> int:
+        probes.append(pid)
+        if case == "unavailable":
+            raise PermissionError(str(tmp_path))
+        if case == "timed_probe":
+            clock[0] = 12.5
+        return 0 if case == "root" else 2000 if case == "foreign" else 1000
+
+    monkeypatch.setattr(adapters, "sys", SimpleNamespace(platform="linux"))
+    monkeypatch.setattr(os, "getuid", lambda: 1000, raising=False)
+    monkeypatch.setattr(time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(psutil, "process_iter", lambda: iter([Process()]))
+    monkeypatch.setattr(adapters, "_process_directory_owner", process_directory_owner, raising=False)
+    diagnostic: dict[str, object] = {}
+    token = adapters._runtime_diagnostic.set(None if case == "no_context" else diagnostic)
+    try:
+        assert adapters._runtime_state(tmp_path) == (False, False)
+        if case == "no_context":
+            assert not diagnostic and not probes
+            return
+        directory = object_at(object_at(diagnostic, "denied_process_observation"), "process_directory")
+        if case in {"deadline", "state_deadline", "gone", "invalid_pid"}:
+            assert not probes
+            assert directory == {"observation": "process_unavailable" if case == "gone" else "invalid_pid" if case == "invalid_pid" else "deadline"}
+        else:
+            assert probes == [321]
+            if case == "unavailable":
+                assert directory == {"observation": "unavailable", "error_type": "PermissionError"}
+            else:
+                assert directory == {"observation": "observed", "owner_uid_matches": case != "root" and case != "foreign", "root_uid_matches": case == "root"}
+        if case == "timed_probe":
+            assert diagnostic["elapsed_seconds"] == 2.5
+        assert str(tmp_path) not in json.dumps(diagnostic)
+        monkeypatch.setattr(psutil, "process_iter", lambda: iter([]))
+        assert adapters._runtime_state(tmp_path) == (False, True)
+        assert "denied_process_observation" not in diagnostic
+    finally:
+        adapters._runtime_diagnostic.reset(token)
+
+
+def test_process_directory_owner_observes_only_a_real_pid_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import psutil
+
+    from specify_cli.workspace_lifecycle import adapters
+
+    process_directory = tmp_path / "321"
+    process_directory.mkdir()
+    (tmp_path / "322").symlink_to(process_directory, target_is_directory=True)
+    monkeypatch.setattr(psutil, "PROCFS_PATH", str(tmp_path), raising=False)
+    assert adapters._process_directory_owner(321) == process_directory.lstat().st_uid
+    for invalid_pid in (True, 0, -1):
+        with pytest.raises(ValueError):
+            adapters._process_directory_owner(invalid_pid)
+    with pytest.raises(ValueError):
+        adapters._process_directory_owner(322)
+    monkeypatch.setattr(psutil, "PROCFS_PATH", "relative/proc")
+    with pytest.raises(ValueError):
+        adapters._process_directory_owner(321)
+
+
 @pytest.mark.parametrize("previous", ["exited", "other_user"])
 def test_enumeration_failure_does_not_attribute_the_previous_process(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, previous: str) -> None:
     from collections.abc import Iterator
