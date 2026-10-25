@@ -191,112 +191,162 @@ Stable codes that appear in the output. Match on the code, not on the surroundin
  Validate mission readiness before merging to main.
 
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --mission                                        TEXT  Mission slug to       │
-│                                                        accept                │
-│ --mode                                           TEXT  Acceptance mode:      │
-│                                                        auto, pr, local, or   │
-│                                                        checklist             │
-│                                                        [default: auto]       │
-│ --actor                                          TEXT  Name to record as the │
-│                                                        acceptance actor      │
-│ --test                                           TEXT  Validation command    │
-│                                                        executed (repeatable) │
-│ --json                                                 Emit JSON instead of  │
-│                                                        formatted text        │
-│ --lenient                                              Skip strict metadata  │
-│                                                        validation and        │
-│                                                        downgrade missing     │
-│                                                        path-convention       │
-│                                                        checks to warnings    │
-│ --no-commit                                            Report acceptance     │
-│                                                        readiness without     │
-│                                                        writing metadata or   │
-│                                                        status changes        │
-│ --diagnose                                             Diagnose acceptance   │
-│                                                        blockers without      │
-│                                                        writing metadata or   │
-│                                                        matrix artifacts      │
-│ --allow-fail                                           Return checklist even │
-│                                                        when issues remain    │
-│ --normalize-encoding      --no-normalize-enc…          Repair                │
-│                                                        acceptance-artifact   │
-│                                                        encoding              │
-│                                                        (Windows-1252/Latin-1 │
-│                                                        -> UTF-8) before      │
-│                                                        validating.           │
-│                                                        [default:             │
-│                                                        no-normalize-encodin… │
-│ --owned-checkout                                 PATH  Run against an owned  │
-│                                                        checkout: a linked    │
-│                                                        checkout that owns    │
-│                                                        this mission. Refuses │
-│                                                        the repository root   │
-│                                                        checkout, lane        │
-│                                                        worktrees and         │
-│                                                        coordination          │
-│                                                        worktrees.            │
-│ --merge-commit                                   SHA   With --mode pr:       │
-│                                                        record this PR merge  │
-│                                                        commit as the         │
-│                                                        mission's post-merge  │
-│                                                        review baseline. The  │
-│                                                        commit is verified    │
-│                                                        against git before    │
-│                                                        anything is written — │
-│                                                        it must carry         │
-│                                                        kitty-specs/<slug>/m… │
-│                                                        its first parent must │
-│                                                        not, and it must have │
-│                                                        landed on the target  │
-│                                                        branch. Every landing │
-│                                                        shape additionally    │
-│                                                        needs                 │
-│                                                        --attest-first-landi… │
-│ --target-branch                                  TEXT  With --merge-commit:  │
-│                                                        the branch the PR     │
-│                                                        merged into (the PR's │
-│                                                        base branch).         │
-│                                                        Defaults to the       │
-│                                                        mission's declared    │
-│                                                        target_branch, else   │
-│                                                        the repository's      │
-│                                                        primary branch.       │
-│ --attest-first-land…                                   With --merge-commit:  │
-│                                                        attest that the       │
-│                                                        supplied commit's     │
-│                                                        first parent is the   │
-│                                                        pre-landing target    │
-│                                                        tip — for a           │
-│                                                        two-parent merge      │
-│                                                        commit, that the      │
-│                                                        merge was performed   │
-│                                                        ON the target branch  │
-│                                                        (an internal merge    │
-│                                                        fast-forwarded onto   │
-│                                                        the target is         │
-│                                                        graph-identical, and  │
-│                                                        its first parent is   │
-│                                                        an implementation     │
-│                                                        commit); for a        │
-│                                                        single-parent landing │
-│                                                        (squash or            │
-│                                                        corpus-first stack),  │
-│                                                        that it was the first │
-│                                                        commit of the         │
-│                                                        landing. Required for │
-│                                                        every landing shape:  │
-│                                                        git cannot prove      │
-│                                                        either, and a wrong   │
-│                                                        anchor silently       │
-│                                                        under-scans the       │
-│                                                        dead-code gate. The   │
-│                                                        attestation is        │
-│                                                        recorded in           │
-│                                                        pr_merge_evidence,    │
-│                                                        never presented as a  │
-│                                                        git proof.            │
-│ --help                -h                               Show this message and │
-│                                                        exit.                 │
+│ --mission                                 TEXT              Mission slug to  │
+│                                                             accept           │
+│ --mode                                    TEXT              Acceptance mode: │
+│                                                             auto, pr, local, │
+│                                                             or checklist     │
+│                                                             [default: auto]  │
+│ --actor                                   TEXT              Name to record   │
+│                                                             as the           │
+│                                                             acceptance actor │
+│ --test                                    TEXT              Validation       │
+│                                                             command executed │
+│                                                             (repeatable)     │
+│ --json                                                      Emit JSON        │
+│                                                             instead of       │
+│                                                             formatted text   │
+│ --lenient                                                   Skip strict      │
+│                                                             metadata         │
+│                                                             validation and   │
+│                                                             downgrade        │
+│                                                             missing          │
+│                                                             path-convention  │
+│                                                             checks to        │
+│                                                             warnings         │
+│ --no-commit                                                 Report           │
+│                                                             acceptance       │
+│                                                             readiness        │
+│                                                             without writing  │
+│                                                             metadata or      │
+│                                                             status changes   │
+│ --diagnose                                                  Diagnose         │
+│                                                             acceptance       │
+│                                                             blockers without │
+│                                                             writing metadata │
+│                                                             or matrix        │
+│                                                             artifacts        │
+│ --allow-fail                                                Return checklist │
+│                                                             even when issues │
+│                                                             remain           │
+│ --normalize-enco…      --no-normalize…                      Repair           │
+│                                                             acceptance-arti… │
+│                                                             encoding         │
+│                                                             (Windows-1252/L… │
+│                                                             -> UTF-8) before │
+│                                                             validating.      │
+│                                                             [default:        │
+│                                                             no-normalize-en… │
+│ --owned-checkout                          PATH              Run against an   │
+│                                                             owned checkout:  │
+│                                                             a linked         │
+│                                                             checkout that    │
+│                                                             owns this        │
+│                                                             mission. Refuses │
+│                                                             the repository   │
+│                                                             root checkout,   │
+│                                                             lane worktrees   │
+│                                                             and coordination │
+│                                                             worktrees.       │
+│ --origin-check                            [enforce|warn|of  Refuse (enforce, │
+│                                           f]                the default) or  │
+│                                                             only warn (warn) │
+│                                                             when the         │
+│                                                             mission's status │
+│                                                             evidence is      │
+│                                                             behind or        │
+│                                                             unreachable on   │
+│                                                             its remote; off  │
+│                                                             contacts nothing │
+│                                                             and accepts      │
+│                                                             stale evidence.  │
+│                                                             Overrides        │
+│                                                             SPEC_KITTY_ORIG… │
+│                                                             --no-commit and  │
+│                                                             --diagnose       │
+│                                                             always warn.     │
+│ --merge-commit                            SHA               With --mode pr:  │
+│                                                             record this PR   │
+│                                                             merge commit as  │
+│                                                             the mission's    │
+│                                                             post-merge       │
+│                                                             review baseline. │
+│                                                             The commit is    │
+│                                                             verified against │
+│                                                             git before       │
+│                                                             anything is      │
+│                                                             written — it     │
+│                                                             must carry       │
+│                                                             kitty-specs/<sl… │
+│                                                             its first parent │
+│                                                             must not, and it │
+│                                                             must have landed │
+│                                                             on the target    │
+│                                                             branch. Every    │
+│                                                             landing shape    │
+│                                                             additionally     │
+│                                                             needs            │
+│                                                             --attest-first-… │
+│ --target-branch                           TEXT              With             │
+│                                                             --merge-commit:  │
+│                                                             the branch the   │
+│                                                             PR merged into   │
+│                                                             (the PR's base   │
+│                                                             branch).         │
+│                                                             Defaults to the  │
+│                                                             mission's        │
+│                                                             declared         │
+│                                                             target_branch,   │
+│                                                             else the         │
+│                                                             repository's     │
+│                                                             primary branch.  │
+│ --attest-first-l…                                           With             │
+│                                                             --merge-commit:  │
+│                                                             attest that the  │
+│                                                             supplied         │
+│                                                             commit's first   │
+│                                                             parent is the    │
+│                                                             pre-landing      │
+│                                                             target tip — for │
+│                                                             a two-parent     │
+│                                                             merge commit,    │
+│                                                             that the merge   │
+│                                                             was performed ON │
+│                                                             the target       │
+│                                                             branch (an       │
+│                                                             internal merge   │
+│                                                             fast-forwarded   │
+│                                                             onto the target  │
+│                                                             is               │
+│                                                             graph-identical, │
+│                                                             and its first    │
+│                                                             parent is an     │
+│                                                             implementation   │
+│                                                             commit); for a   │
+│                                                             single-parent    │
+│                                                             landing (squash  │
+│                                                             or corpus-first  │
+│                                                             stack), that it  │
+│                                                             was the first    │
+│                                                             commit of the    │
+│                                                             landing.         │
+│                                                             Required for     │
+│                                                             every landing    │
+│                                                             shape: git       │
+│                                                             cannot prove     │
+│                                                             either, and a    │
+│                                                             wrong anchor     │
+│                                                             silently         │
+│                                                             under-scans the  │
+│                                                             dead-code gate.  │
+│                                                             The attestation  │
+│                                                             is recorded in   │
+│                                                             pr_merge_eviden… │
+│                                                             never presented  │
+│                                                             as a git proof.  │
+│ --help             -h                                       Show this        │
+│                                                             message and      │
+│                                                             exit.            │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -773,30 +823,7 @@ _Mission type commands (activated types only)._
 ## spec-kitty charter new
 
 ```
- Usage: spec-kitty charter new [OPTIONS] KIND ID
 
- Scaffold a stub doctrine artifact YAML (FR-016).
-
- The scaffolder pre-fills the canonical schema's required fields with
- ``TODO …`` placeholders so the file passes ``charter validate`` on
- first emit.  Refuses to overwrite an existing file.
-
-╭─ Arguments ──────────────────────────────────────────────────────────────────╮
-│ *    kind             TEXT  Artifact kind (singular): one of agent_profile,  │
-│                             asset, directive, mission_step_contract,         │
-│                             paradigm, procedure, styleguide, tactic,         │
-│                             toolguide.                                       │
-│                             [required]                                       │
-│ *    artifact_id      ID    Artifact identifier (kebab-case for most kinds;  │
-│                             SCREAMING_SNAKE for directives).                 │
-│                             [required]                                       │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --pack          PATH  Scaffold inside a doctrine pack directory instead of   │
-│                       the project layer. When omitted, the stub lands under  │
-│                       .kittify/doctrine/.                                    │
-│ --help  -h            Show this message and exit.                            │
-╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## spec-kitty charter org
@@ -1460,6 +1487,27 @@ _Charter pack management commands._
 │                                                            report (required  │
 │                                                            with              │
 │                                                            --release-branch… │
+│ --origin-check                            [enforce|warn|o  Origin freshness  │
+│                                           ff]              check before      │
+│                                                            anything lands:   │
+│                                                            enforce (the      │
+│                                                            default) refuses  │
+│                                                            when the remote's │
+│                                                            status log or an  │
+│                                                            approved lane     │
+│                                                            branch of this    │
+│                                                            Mission is ahead  │
+│                                                            of this clone, or │
+│                                                            the remote cannot │
+│                                                            be reached; warn  │
+│                                                            reports the same  │
+│                                                            findings and      │
+│                                                            continues; off    │
+│                                                            contacts nothing  │
+│                                                            and accepts stale │
+│                                                            evidence.         │
+│                                                            Overrides         │
+│                                                            SPEC_KITTY_ORIGI… │
 │ --help             -h                                      Show this message │
 │                                                            and exit.         │
 ╰──────────────────────────────────────────────────────────────────────────────╯
@@ -1644,12 +1692,15 @@ _Dispatch a request to a governed Op (canonical surface)._
 │                         [required]                                           │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --profile          TEXT  Optional profile ID. Bypasses the router — use when │
-│                          the request is ambiguous.                           │
-│ --json                   Output JSON payload                                 │
-│ --dry-run                Route the request and return the routing signal     │
-│                          without opening an Op or writing anything.          │
-│ --help     -h            Show this message and exit.                         │
+│ --profile                 TEXT  Optional profile ID. Bypasses the router —   │
+│                                 use when the request is ambiguous.           │
+│ --json                          Output JSON payload                          │
+│ --dry-run                       Route the request and return the routing     │
+│                                 signal without opening an Op or writing      │
+│                                 anything.                                    │
+│ --owned-checkout          PATH  Verified checkout that owns this operation's │
+│                                 records and commits.                         │
+│ --help            -h            Show this message and exit.                  │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -1706,56 +1757,58 @@ _Project health diagnostics_
 │ --help  -h        Show this message and exit.                                │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Commands ───────────────────────────────────────────────────────────────────╮
-│ bytecode                Flag a corrupt installed-package .pyc before it      │
-│                         bites (#4124, #4130).                                │
-│ channel                 Report the active release channel (stable vs.        │
-│                         prerelease-opt-in).                                  │
-│ env-file                Report ``.kitty.env`` operator env-file health       │
-│                         (presence/tier/ignore).                              │
-│ provenance              Flag committed absolute built-in-pack leaks and      │
-│                         ambiguous template sources (C-PRV-5).                │
-│ run-index               Flag absolute run_dir paths in the run index that    │
-│                         break on copy/move (#5390).                          │
-│ command-files           Check all agent command files for correctness.       │
-│ skills                  Check command-skill manifest drift for Codex, Vibe,  │
-│                         Pi, and Letta.                                       │
-│ tool-surfaces           Audit (and optionally repair) every configured tool  │
-│                         surface.                                             │
-│ state-roots             Show state roots, surface classification, and safety │
-│                         warnings.                                            │
-│ workspaces              Report .worktrees/ husk directories (entries lacking │
-│                         a .git entry).                                       │
-│ identity                Report mission-identity health across kitty-specs/.  │
-│ topology                Report each mission's STORED topology across         │
-│                         kitty-specs/.                                        │
-│ mission-type            Report mission-type resolution health across         │
-│                         kitty-specs/.                                        │
-│ sparse-checkout         Detect and optionally remediate legacy               │
-│                         sparse-checkout state.                               │
-│ shim-registry           Check for overdue compatibility shims in the shim    │
-│                         registry.                                            │
-│ contracts               Validate the Contract Registry for well-formedness.  │
-│ invocation-pairing      List orphan profile-invocation lifecycle records.    │
-│ ops                     List orphan Op records; --close-stale sweeps stale   │
-│                         ones closed as abandoned.                            │
-│ mission-state           Audit, repair, or TeamSpace-validate mission-state   │
-│                         shapes.                                              │
-│ doctrine                Check org doctrine snapshot status and list          │
-│                         installed pack artifacts.                            │
-│ coordination            Run the WP04 #1348 coordination + sparse-checkout    │
-│                         health checks.                                       │
-│ cutover                 Audit every mission's cut-over status outside CI     │
-│                         (FR-007).                                            │
-│ review-cycle-reconcile  Find review-cycle / arbiter-override records         │
-│                         stranded under a retired                             │
-│                         resolver path, ahead of WP13's consumer-unification  │
-│                         (FR-008).                                            │
-│ decisions               Diagnose or repair divergence between                │
-│                         ``decisions/index.json`` and the                     │
-│                         authoritative                                        │
-│                         ``DecisionPointOpened``/``DecisionPointResolved``    │
-│                         event log                                            │
-│                         (#4919).                                             │
+│ bytecode                 Flag a corrupt installed-package .pyc before it     │
+│                          bites (#4124, #4130).                               │
+│ channel                  Report the active release channel (stable vs.       │
+│                          prerelease-opt-in).                                 │
+│ env-file                 Report ``.kitty.env`` operator env-file health      │
+│                          (presence/tier/ignore).                             │
+│ provenance               Flag committed absolute built-in-pack leaks and     │
+│                          ambiguous template sources (C-PRV-5).               │
+│ run-index                Flag absolute run_dir paths in the run index that   │
+│                          break on copy/move (#5390).                         │
+│ command-files            Check all agent command files for correctness.      │
+│ skills                   Check command-skill manifest drift for Codex, Vibe, │
+│                          Pi, and Letta.                                      │
+│ tool-surfaces            Audit (and optionally repair) every configured tool │
+│                          surface.                                            │
+│ state-roots              Show state roots, surface classification, and       │
+│                          safety warnings.                                    │
+│ workspaces               Report .worktrees/ husk directories (entries        │
+│                          lacking a .git entry).                              │
+│ organization-workspaces  Account for accessible organization workspaces as   │
+│                          JSON; never remove them.                            │
+│ identity                 Report mission-identity health across kitty-specs/. │
+│ topology                 Report each mission's STORED topology across        │
+│                          kitty-specs/.                                       │
+│ mission-type             Report mission-type resolution health across        │
+│                          kitty-specs/.                                       │
+│ sparse-checkout          Detect and optionally remediate legacy              │
+│                          sparse-checkout state.                              │
+│ shim-registry            Check for overdue compatibility shims in the shim   │
+│                          registry.                                           │
+│ contracts                Validate the Contract Registry for well-formedness. │
+│ invocation-pairing       List orphan profile-invocation lifecycle records.   │
+│ ops                      List orphan Op records; --close-stale sweeps stale  │
+│                          ones closed as abandoned.                           │
+│ mission-state            Audit, repair, or TeamSpace-validate mission-state  │
+│                          shapes.                                             │
+│ doctrine                 Check org doctrine snapshot status and list         │
+│                          installed pack artifacts.                           │
+│ coordination             Run the WP04 #1348 coordination + sparse-checkout   │
+│                          health checks.                                      │
+│ cutover                  Audit every mission's cut-over status outside CI    │
+│                          (FR-007).                                           │
+│ review-cycle-reconcile   Find review-cycle / arbiter-override records        │
+│                          stranded under a retired                            │
+│                          resolver path, ahead of WP13's consumer-unification │
+│                          (FR-008).                                           │
+│ decisions                Diagnose or repair divergence between               │
+│                          ``decisions/index.json`` and the                    │
+│                          authoritative                                       │
+│                          ``DecisionPointOpened``/``DecisionPointResolved``   │
+│                          event log                                           │
+│                          (#4919).                                            │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -2196,13 +2249,25 @@ _Project health diagnostics_
 
 ## spec-kitty doctor organization-workspaces
 
-Read-only JSON accounting of accessible organization repositories and bounded local roots. Includes non-lane registered worktrees and independent stores; ownership remains unknown and retained. No cleanup is performed.
-
-```sh
-spec-kitty doctor organization-workspaces --root /absolute/local/root
 ```
+ Usage: spec-kitty doctor organization-workspaces [OPTIONS]
 
-Repeat `--root`; optional `--organization` defaults to `crucible-energy`. Bounds: `--max-depth 6`, `--max-directories 10000`, `--max-entries 100000`. Exit0 means only the configured local scan completed; exit1 reports local coverage gaps, exit2 unavailable/invalid organization inventory. Unmatched accessible repositories remain explicit. See [organization workspace lifecycle](../guides/how-to/workspace-lifecycle.md).
+ Account for accessible organization workspaces as JSON; never remove them.
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --root                     PATH                  Bounded local discovery  │
+│                                                     root; repeat for         │
+│                                                     independent stores.      │
+│                                                     [required]               │
+│    --organization             TEXT                  [default:                │
+│                                                     crucible-energy]         │
+│    --max-depth                INTEGER RANGE [x>=0]  [default: 6]             │
+│    --max-directories          INTEGER RANGE [x>=1]  [default: 10000]         │
+│    --max-entries              INTEGER RANGE [x>=1]  [default: 100000]        │
+│    --help             -h                            Show this message and    │
+│                                                     exit.                    │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
 
 ## spec-kitty doctor provenance
 
@@ -3486,32 +3551,6 @@ _Migration commands: update .kittify/ layout and backfill identity fields in leg
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
-## spec-kitty migrate rebaseline-dossier-hashes
-
-```
- Usage: spec-kitty migrate rebaseline-dossier-hashes [OPTIONS]
-
- One-time re-baseline of recorded dossier snapshot hashes (FR-009, WP05).
-
- Recomputes every recorded ``.kittify/dossiers/<slug>/snapshot-latest.json``
- hash under the canonical definition (WP01/WP02) so content that did not
- change is not flagged divergent after the cutover. Idempotent (snapshots
- already in canonical ``sha256:`` form are skipped) and read-only over source
- artifacts — only the recorded snapshot cache files are written (#2263).
-
- Exit codes:
-
- - ``0`` — completed (some snapshots may be reported as errors and skipped)
- - ``1`` — project root could not be located
-
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --json               Emit a structured per-mission re-baseline report        │
-│ --dry-run            Preview which recorded snapshot hashes would be         │
-│                      re-baselined, without writing                           │
-│ --help     -h        Show this message and exit.                             │
-╰──────────────────────────────────────────────────────────────────────────────╯
-```
-
 ## spec-kitty migrate owned-single-branch
 
 ```
@@ -3537,6 +3576,32 @@ _Migration commands: update .kittify/ layout and backfill identity fields in leg
 │    --json                          Emit conversion or refusal evidence as    │
 │                                    JSON.                                     │
 │    --help            -h            Show this message and exit.               │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+## spec-kitty migrate rebaseline-dossier-hashes
+
+```
+ Usage: spec-kitty migrate rebaseline-dossier-hashes [OPTIONS]
+
+ One-time re-baseline of recorded dossier snapshot hashes (FR-009, WP05).
+
+ Recomputes every recorded ``.kittify/dossiers/<slug>/snapshot-latest.json``
+ hash under the canonical definition (WP01/WP02) so content that did not
+ change is not flagged divergent after the cutover. Idempotent (snapshots
+ already in canonical ``sha256:`` form are skipped) and read-only over source
+ artifacts — only the recorded snapshot cache files are written (#2263).
+
+ Exit codes:
+
+ - ``0`` — completed (some snapshots may be reported as errors and skipped)
+ - ``1`` — project root could not be located
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --json               Emit a structured per-mission re-baseline report        │
+│ --dry-run            Preview which recorded snapshot hashes would be         │
+│                      re-baselined, without writing                           │
+│ --help     -h        Show this message and exit.                             │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -3738,14 +3803,7 @@ _Inspect mission types for this project._
 ## spec-kitty mission current
 
 ```
- Usage: spec-kitty mission current [OPTIONS]
 
- Show currently active mission for a mission (auto-detects mission from cwd).
-
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --mission          TEXT  Mission slug                                        │
-│ --help     -h            Show this message and exit.                         │
-╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## spec-kitty mission follow-up
@@ -4229,17 +4287,7 @@ _Inspect mission types for this project._
 _Operation history (git reflog)_
 
 ```
- Usage: spec-kitty ops [OPTIONS] COMMAND [ARGS]...
 
- Operation history (git reflog)
-
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --help  -h        Show this message and exit.                                │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Commands ───────────────────────────────────────────────────────────────────╮
-│ log   Show operation history.                                                │
-│ undo  Undo is not supported for git.                                         │
-╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## spec-kitty ops log
@@ -4300,70 +4348,74 @@ _Machine-contract API for external orchestrators (JSON-first)_
 │ --help  -h        Show this message and exit.                                │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Commands ───────────────────────────────────────────────────────────────────╮
-│ contract-version      Return the current API contract version.               │
-│ mission-state         Return the full state of a mission (all WPs, lanes,    │
-│                       dependencies).                                         │
-│ list-ready            List WPs that are ready to start (planned and all deps │
-│                       approved or done).                                     │
-│ resolve-workspace     Read-only: resolve a WP's lane workspace_path +        │
-│                       prompt_path (+ lane fields).                           │
-│ start-implementation  Composite transition: planned->claimed->in_progress    │
-│                       (idempotent).                                          │
-│ start-review          Transition a WP from for_review to in_review (reviewer │
-│                       claims review).                                        │
-│ transition            Emit a single lane transition for a WP.                │
-│ append-history        Append a history entry via an ``InnerStateChanged``    │
-│                       ``note`` annotation.                                   │
-│ accept-mission        Accept a mission after all WPs are approved or done.   │
-│ consolidate-mission   Consolidate a lane-based mission into target.          │
-│ specify               Create a mission scaffold, matching the host CLI's     │
-│                       enriched ``specify --json`` contract.                  │
-│ plan                  Scaffold plan.md for a mission -- an unenriched        │
-│                       pass-through of ``setup_plan``.                        │
-│ tasks                 Finalize WP task metadata -- an unenriched             │
-│                       pass-through of ``finalize_tasks``.                    │
-│ check-prerequisites   Read-only mission-prerequisite context for             │
-│                       ``/spec-kitty.analyze`` (FR-004).                      │
-│ record-analysis       Persist an ``/spec-kitty.analyze`` report, verified    │
-│                       against disk (FR-005).                                 │
-│ open-decision         Open a new Decision Moment ledger entry, or return     │
-│                       idempotently if one                                    │
-│                       already exists (FR-006). Wraps                         │
-│                       ``decisions/service.py.open_decision`` 1:1.            │
-│ resolve-decision      Resolve a decision with a concrete final answer        │
-│                       (FR-007). Wraps                                        │
-│                       ``decisions/service.py.resolve_decision`` 1:1.         │
-│ defer-decision        Defer a decision for later resolution (FR-008). Wraps  │
-│                       ``decisions/service.py.defer_decision`` 1:1.           │
-│ cancel-decision       Cancel a decision (deemed no longer relevant)          │
-│                       (FR-009). Wraps                                        │
-│                       ``decisions/service.py.cancel_decision`` 1:1.          │
-│ answer-decision       Resolve a ``spec-kitty next`` ``decision_required``    │
-│                       moment (FR-013,                                        │
-│                       Mechanism B) with full CLI event/lifecycle-log parity  │
-│                       (FR-014, operator                                      │
-│                       ruling SPEC-FRESH2-001). See the module comment block  │
-│                       above this                                             │
-│                       function for the full five-step composite and the      │
-│                       response-shape                                         │
-│                       contract.                                              │
-│ design-status         Read-only design-phase status query (FR-010) --        │
-│                       mirrors ``list-ready``'s                               │
-│                       no-state-transition, no-event-emission,                │
-│                       no-``--policy`` contract for the                       │
-│                       design pipeline instead of the WP loop.                │
-│ artifact-read         Read bounded canonical content and its exact revision  │
-│                       (absent is explicit).                                  │
-│ artifact-submit       Submit design content through host placement,          │
-│                       validators and commit authority.                       │
-│ design-validate       Check current canonical prerequisites without          │
-│                       completing a lifecycle step.                           │
-│ design-context        Read bounded resolved templates, governance and        │
-│                       required interview slots.                              │
-│ interview-record      Record incremental interview answers through the       │
-│                       existing decision service.                             │
-│ next                  Query or advance exactly the same authority and        │
-│                       lifecycle as native next.                              │
+│ contract-version          Return the current API contract version.           │
+│ mission-state             Return the full state of a mission (all WPs,       │
+│                           lanes, dependencies).                              │
+│ list-ready                List WPs that are ready to start (planned and all  │
+│                           deps approved or done).                            │
+│ resolve-workspace         Read-only: resolve a WP's lane workspace_path +    │
+│                           prompt_path (+ lane fields).                       │
+│ preflight-implementation  Read normal LANES allocation prerequisites without │
+│                           allocating or claiming.                            │
+│ start-implementation      Composite transition:                              │
+│                           planned->claimed->in_progress (idempotent).        │
+│ start-review              Transition a WP from for_review to in_review       │
+│                           (reviewer claims review).                          │
+│ transition                Emit a single lane transition for a WP.            │
+│ append-history            Append a history entry via an                      │
+│                           ``InnerStateChanged`` ``note`` annotation.         │
+│ accept-mission            Accept a mission after all WPs are approved or     │
+│                           done.                                              │
+│ consolidate-mission       Consolidate a lane-based mission into target.      │
+│ specify                   Create a mission scaffold, matching the host CLI's │
+│                           enriched ``specify --json`` contract.              │
+│ plan                      Scaffold plan.md for a mission -- an unenriched    │
+│                           pass-through of ``setup_plan``.                    │
+│ tasks                     Finalize WP task metadata -- an unenriched         │
+│                           pass-through of ``finalize_tasks``.                │
+│ check-prerequisites       Read-only mission-prerequisite context for         │
+│                           ``/spec-kitty.analyze`` (FR-004).                  │
+│ record-analysis           Persist an ``/spec-kitty.analyze`` report,         │
+│                           verified against disk (FR-005).                    │
+│ open-decision             Open a new Decision Moment ledger entry, or return │
+│                           idempotently if one                                │
+│                           already exists (FR-006). Wraps                     │
+│                           ``decisions/service.py.open_decision`` 1:1.        │
+│ resolve-decision          Resolve a decision with a concrete final answer    │
+│                           (FR-007). Wraps                                    │
+│                           ``decisions/service.py.resolve_decision`` 1:1.     │
+│ defer-decision            Defer a decision for later resolution (FR-008).    │
+│                           Wraps                                              │
+│                           ``decisions/service.py.defer_decision`` 1:1.       │
+│ cancel-decision           Cancel a decision (deemed no longer relevant)      │
+│                           (FR-009). Wraps                                    │
+│                           ``decisions/service.py.cancel_decision`` 1:1.      │
+│ answer-decision           Resolve a ``spec-kitty next``                      │
+│                           ``decision_required`` moment (FR-013,              │
+│                           Mechanism B) with full CLI event/lifecycle-log     │
+│                           parity (FR-014, operator                           │
+│                           ruling SPEC-FRESH2-001). See the module comment    │
+│                           block above this                                   │
+│                           function for the full five-step composite and the  │
+│                           response-shape                                     │
+│                           contract.                                          │
+│ design-status             Read-only design-phase status query (FR-010) --    │
+│                           mirrors ``list-ready``'s                           │
+│                           no-state-transition, no-event-emission,            │
+│                           no-``--policy`` contract for the                   │
+│                           design pipeline instead of the WP loop.            │
+│ artifact-read             Read bounded canonical content and its exact       │
+│                           revision (absent is explicit).                     │
+│ artifact-submit           Submit design content through host placement,      │
+│                           validators and commit authority.                   │
+│ design-validate           Check current canonical prerequisites without      │
+│                           completing a lifecycle step.                       │
+│ design-context            Read bounded resolved templates, governance and    │
+│                           required interview slots.                          │
+│ interview-record          Record incremental interview answers through the   │
+│                           existing decision service.                         │
+│ next                      Query or advance exactly the same authority and    │
+│                           lifecycle as native next.                          │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -4375,9 +4427,18 @@ _Machine-contract API for external orchestrators (JSON-first)_
  Accept a mission after all WPs are approved or done.
 
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ *  --mission          TEXT  Mission slug [required]                          │
-│ *  --actor            TEXT  Actor identity [required]                        │
-│    --help     -h            Show this message and exit.                      │
+│ *  --mission               TEXT                Mission slug [required]       │
+│ *  --actor                 TEXT                Actor identity [required]     │
+│    --origin-check          [enforce|warn|off]  Refuse (enforce, the default) │
+│                                                or only warn (warn) when the  │
+│                                                mission's status evidence or  │
+│                                                approved lanes are behind or  │
+│                                                unreachable on their remote;  │
+│                                                off contacts nothing and      │
+│                                                accepts stale evidence.       │
+│                                                Overrides                     │
+│                                                SPEC_KITTY_ORIGIN_CHECK.      │
+│    --help          -h                          Show this message and exit.   │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -4525,19 +4586,7 @@ _Machine-contract API for external orchestrators (JSON-first)_
 ## spec-kitty orchestrator-api consolidate-mission
 
 ```
- Usage: spec-kitty orchestrator-api consolidate-mission [OPTIONS]
 
- Consolidate a lane-based mission into target.
-
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ *  --mission           TEXT  Mission slug [required]                         │
-│    --target            TEXT  Target branch to merge into (auto-detected from │
-│                              meta.json)                                      │
-│    --strategy          TEXT  Merge strategy: merge, squash, or rebase        │
-│                              [default: merge]                                │
-│    --push                    Push target branch after merge                  │
-│    --help      -h            Show this message and exit.                     │
-╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## spec-kitty orchestrator-api contract-version
@@ -4735,6 +4784,24 @@ _Machine-contract API for external orchestrators (JSON-first)_
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
+## spec-kitty orchestrator-api preflight-implementation
+
+```
+ Usage: spec-kitty orchestrator-api preflight-implementation
+            [OPTIONS]
+
+ Read normal LANES allocation prerequisites without allocating or claiming.
+
+ Example: preflight-implementation --mission <mission> --wp WP01.
+ A successful observation is not a reservation or proof of merge/claim success.
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --mission          TEXT  Mission slug [required]                          │
+│ *  --wp               TEXT  Work package ID [required]                       │
+│    --help     -h            Show this message and exit.                      │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
 ## spec-kitty orchestrator-api record-analysis
 
 ```
@@ -4807,23 +4874,6 @@ _Machine-contract API for external orchestrators (JSON-first)_
 │ *  --actor                 TEXT  Actor identity [required]                   │
 │    --policy                TEXT  Policy metadata JSON (required)             │
 │    --help          -h            Show this message and exit.                 │
-╰──────────────────────────────────────────────────────────────────────────────╯
-```
-
-## spec-kitty orchestrator-api preflight-implementation
-
-```
- Usage: spec-kitty orchestrator-api preflight-implementation [OPTIONS]
-
- Read normal LANES allocation prerequisites without allocating or claiming.
-
- Example: preflight-implementation --mission <mission> --wp WP01.
- A successful observation is not a reservation or proof of merge/claim success.
-
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ *  --mission          TEXT  Mission slug [required]                          │
-│ *  --wp               TEXT  Work package ID [required]                       │
-│    --help     -h            Show this message and exit.                      │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -4946,7 +4996,9 @@ _Machine-contract API for external orchestrators (JSON-first)_
 │ *  --to                                  TEXT  Target lane [required]        │
 │ *  --actor                               TEXT  Actor identity [required]     │
 │    --note                                TEXT  Reason/note for the           │
-│                                                transition                    │
+│                                                transition (required with     │
+│                                                --force out of in_review or   │
+│                                                approved)                     │
 │    --policy                              TEXT  Policy metadata JSON          │
 │                                                (required for run-affecting   │
 │                                                lanes)                        │
@@ -5061,16 +5113,18 @@ _Manage invocation records._
  Note: --evidence is rejected for records that are not execution records.
 
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ *  --invocation-id  -i      TEXT  Invocation ULID to close [required]        │
-│ *  --outcome                TEXT  done | failed | abandoned [required]       │
-│    --evidence               TEXT  Path to evidence file (Tier 2 promotion)   │
-│    --artifact               TEXT  Path (repo-relative or absolute) or URL of │
-│                                   an artifact produced by this invocation.   │
-│                                   Repeatable.                                │
-│    --commit                 TEXT  Git commit SHA most directly produced by   │
-│                                   this invocation. Singular.                 │
-│    --json                         Output JSON payload                        │
-│    --help           -h            Show this message and exit.                │
+│ *  --invocation-id   -i      TEXT  Invocation ULID to close [required]       │
+│ *  --outcome                 TEXT  done | failed | abandoned [required]      │
+│    --evidence                TEXT  Path to evidence file (Tier 2 promotion)  │
+│    --artifact                TEXT  Path (repo-relative or absolute) or URL   │
+│                                    of an artifact produced by this           │
+│                                    invocation. Repeatable.                   │
+│    --commit                  TEXT  Git commit SHA most directly produced by  │
+│                                    this invocation. Singular.                │
+│    --json                          Output JSON payload                       │
+│    --owned-checkout          PATH  Verified checkout holding the operation   │
+│                                    opened by dispatch.                       │
+│    --help            -h            Show this message and exit.               │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -5870,7 +5924,9 @@ _Tracker synchronization commands_
 │ --project                     Restrict to current-project compat +           │
 │                               migrations (FR-015)                            │
 │ --yes           -y            Non-interactive confirmation; alias for        │
-│                               --force (FR-017).                              │
+│                               --force (FR-017). Upgrade never runs the       │
+│                               mission-state repair; use `spec-kitty doctor   │
+│                               mission-state --fix`.                          │
 │ --no-nag                      Suppress upgrade-nag output explicitly         │
 │ --help                        Show this message and exit.                    │
 ╰──────────────────────────────────────────────────────────────────────────────╯
@@ -6010,6 +6066,236 @@ _Manage mission workflow definitions_
 │                               discovery.                                     │
 │                               [default: .]                                   │
 │ --help          -h            Show this message and exit.                    │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+## spec-kitty workspaces
+
+_Durable workspace accounting and status_
+
+```
+ Usage: spec-kitty workspaces [OPTIONS] COMMAND [ARGS]...
+
+ Durable workspace accounting and status
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --help  -h        Show this message and exit.                                │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Commands ───────────────────────────────────────────────────────────────────╮
+│ initialize       Initialize an explicitly admitted empty private directory;  │
+│                  refuse existing contents.                                   │
+│ status           Report recorded obligations; never infer workflow           │
+│                  completion or deletion.                                     │
+│ account          Run foreground inventory and durably merge observations     │
+│                  without cleanup.                                            │
+│ resume           Recover missed completion events through the independently  │
+│                  verifying worker.                                           │
+│ worker           Drain pending hints; the creator, not event JSON,           │
+│                  authorizes every effect.                                    │
+│ managed-run      Run one joined producer in a registered checkout and        │
+│                  enqueue closeout.                                           │
+│ configure        Admit background observation scope; never install hooks or  │
+│                  adopt creators.                                             │
+│ event            Queue a hint, never owner release. SessionEnd does not      │
+│                  dispatch a worker.                                          │
+│ hook-definition  Print exact reviewable hooks. Installation and platform     │
+│                  trust are separate.                                         │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+## spec-kitty workspaces account
+
+```
+ Usage: spec-kitty workspaces account [OPTIONS]
+
+ Run foreground inventory and durably merge observations without cleanup.
+
+ This explicit diagnostic scan is not an event callback or automatic worker.
+ Incomplete scans retain previous obligations; they never erase missing work.
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --state-dir                DIRECTORY             Existing private, owned  │
+│                                                     workspace-ledger         │
+│                                                     directory.               │
+│                                                     [required]               │
+│ *  --root                     PATH                  Bounded local discovery  │
+│                                                     root; repeat for         │
+│                                                     additional roots.        │
+│                                                     [required]               │
+│    --max-depth                INTEGER RANGE [x>=0]  [default: 6]             │
+│    --max-directories          INTEGER RANGE [x>=1]  [default: 10000]         │
+│    --max-entries              INTEGER RANGE [x>=1]  [default: 100000]        │
+│    --help             -h                            Show this message and    │
+│                                                     exit.                    │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+## spec-kitty workspaces configure
+
+```
+ Usage: spec-kitty workspaces configure [OPTIONS]
+
+ Admit background observation scope; never install hooks or adopt creators.
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --state-dir                DIRECTORY              Existing private, owned │
+│                                                      workspace-ledger        │
+│                                                      directory.              │
+│                                                      [required]              │
+│ *  --root                     PATH                   Explicit bounded        │
+│                                                      observation roots,      │
+│                                                      including independent   │
+│                                                      stores.                 │
+│                                                      [required]              │
+│    --max-depth                INTEGER RANGE          [default: 6]            │
+│                               [0<=x<=64]                                     │
+│    --max-directories          INTEGER RANGE          [default: 10000]        │
+│                               [1<=x<=100000]                                 │
+│    --max-entries              INTEGER RANGE          [default: 100000]       │
+│                               [1<=x<=1000000]                                │
+│    --worker-timeout           FLOAT RANGE            [default: 60]           │
+│                               [1<=x<=300]                                    │
+│    --help             -h                             Show this message and   │
+│                                                      exit.                   │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+## spec-kitty workspaces event
+
+```
+ Usage: spec-kitty workspaces event [OPTIONS]
+
+ Queue a hint, never owner release. SessionEnd does not dispatch a worker.
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --state-dir          DIRECTORY                 Existing private, owned    │
+│                                                   workspace-ledger           │
+│                                                   directory.                 │
+│                                                   [required]                 │
+│ *  --kind               [session-start|session-e  [required]                 │
+│                         nd|delivery]                                         │
+│    --help       -h                                Show this message and      │
+│                                                   exit.                      │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+## spec-kitty workspaces hook-definition
+
+```
+ Usage: spec-kitty workspaces hook-definition [OPTIONS]
+
+ Print exact reviewable hooks. Installation and platform trust are separate.
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --state-dir          DIRECTORY  Existing private, owned workspace-ledger  │
+│                                    directory.                                │
+│                                    [required]                                │
+│    --help       -h                 Show this message and exit.               │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+## spec-kitty workspaces initialize
+
+```
+ Usage: spec-kitty workspaces initialize [OPTIONS]
+
+ Initialize an explicitly admitted empty private directory; refuse existing
+ contents.
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --state-dir          DIRECTORY  Existing private, owned workspace-ledger  │
+│                                    directory.                                │
+│                                    [required]                                │
+│    --help       -h                 Show this message and exit.               │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+## spec-kitty workspaces managed-run
+
+```
+ Usage: spec-kitty workspaces managed-run [OPTIONS] COMMAND...
+
+ Run one joined producer in a registered checkout and enqueue closeout.
+
+ The producer receives SPEC_KITTY_LIFECYCLE_RESULT for an owned 0600 JSON
+ {"pr": number} result. No existing checkout is registered by this admission.
+ Failed or
+ unconfirmed producers retain their workspace; main is never a merge target.
+
+╭─ Arguments ──────────────────────────────────────────────────────────────────╮
+│ *    command      COMMAND...  Producer argv, after --; no shell              │
+│                               interpretation.                                │
+│                               [required]                                     │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --state-dir              DIRECTORY                Existing private, owned │
+│                                                      workspace-ledger        │
+│                                                      directory.              │
+│                                                      [required]              │
+│ *  --repo-root              DIRECTORY                [required]              │
+│ *  --workspace              PATH                     New linked checkout     │
+│                                                      path; existing work     │
+│                                                      cannot be adopted.      │
+│                                                      [required]              │
+│ *  --branch                 TEXT                     New feature branch.     │
+│                                                      [required]              │
+│ *  --repository             TEXT                     Exact crucible-energy   │
+│                                                      repository slug.        │
+│                                                      [required]              │
+│ *  --repository-id          INTEGER RANGE [x>=1]     [required]              │
+│    --timeout                FLOAT RANGE              [default: 30.0]         │
+│                             [0.01<=x<=30.0]                                  │
+│    --pr                     INTEGER RANGE [x>=1]     Optional allocated PR   │
+│                                                      hint; otherwise         │
+│                                                      producer writes scoped  │
+│                                                      result JSON.            │
+│    --help           -h                               Show this message and   │
+│                                                      exit.                   │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+## spec-kitty workspaces resume
+
+```
+ Usage: spec-kitty workspaces resume [OPTIONS]
+
+ Recover missed completion events through the independently verifying worker.
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --state-dir          DIRECTORY  Existing private, owned workspace-ledger  │
+│                                    directory.                                │
+│                                    [required]                                │
+│    --help       -h                 Show this message and exit.               │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+## spec-kitty workspaces status
+
+```
+ Usage: spec-kitty workspaces status [OPTIONS]
+
+ Report recorded obligations; never infer workflow completion or deletion.
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --state-dir          DIRECTORY  Existing private, owned workspace-ledger  │
+│                                    directory.                                │
+│                                    [required]                                │
+│    --help       -h                 Show this message and exit.               │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+## spec-kitty workspaces worker
+
+```
+ Usage: spec-kitty workspaces worker [OPTIONS]
+
+ Drain pending hints; the creator, not event JSON, authorizes every effect.
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --state-dir          DIRECTORY  Existing private, owned workspace-ledger  │
+│                                    directory.                                │
+│                                    [required]                                │
+│    --help       -h                 Show this message and exit.               │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 <!-- END GENERATED -->

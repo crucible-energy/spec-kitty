@@ -254,10 +254,11 @@ _Mission action commands that display prompts and instructions for agents_
 │                                            --force, name the agent that will │
 │                                            implement: it is recorded as the  │
 │                                            implementer of record.            │
-│ --model                              TEXT  Dispatch-resolved model asserted  │
-│                                            against the correlated Op record  │
-│                                            (requires --invocation-id; never  │
-│                                            the frontmatter recommendation)   │
+│ --model                              TEXT  Execution model assertion;        │
+│                                            refused until actual execution    │
+│                                            evidence exists (dispatch         │
+│                                            recommendations do not prove      │
+│                                            execution)                        │
 │ --profile                            TEXT  Agent profile id — a dispatch     │
 │                                            registry / Op record profile or a │
 │                                            local charter profile (the same   │
@@ -266,8 +267,9 @@ _Mission action commands that display prompts and instructions for agents_
 │                                            package's frontmatter             │
 │                                            agent_profile is used.            │
 │ --invocation-id                      TEXT  Correlated Op record ULID whose   │
-│                                            mission, WP, action, profile, and │
-│                                            model are authoritative           │
+│                                            mission, WP, action and profile   │
+│                                            prove dispatch identity; model    │
+│                                            recommendations are advisory      │
 │ --force                                    Operator override: take a WP out  │
 │                                            of for_review, in_review or       │
 │                                            approved. Requires --note.        │
@@ -285,11 +287,9 @@ _Mission action commands that display prompts and instructions for agents_
 │                                            warning when spec language        │
 │                                            resembles a bulk edit but the     │
 │                                            mission is not one.               │
-│ --owned-checkout                     PATH  Not yet supported. Refused: owned │
-│                                            checkouts use 'spec-kitty next    │
-│                                            --owned-checkout' and 'spec-kitty │
-│                                            agent tasks move-task             │
-│                                            --owned-checkout' instead.        │
+│ --owned-checkout                     PATH  Reuse the validated owned         │
+│                                            single_branch checkout and its    │
+│                                            write branch.                     │
 │ --help                       -h            Show this message and exit.       │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
@@ -321,17 +321,17 @@ _Mission action commands that display prompts and instructions for agents_
 │ --mission                 TEXT  Mission slug                                 │
 │ --agent                   TEXT  Agent name (required for auto-move to        │
 │                                 in_progress)                                 │
-│ --model                   TEXT  Dispatch-resolved model asserted against the │
-│                                 correlated Op record (requires               │
-│                                 --invocation-id; never the frontmatter       │
-│                                 recommendation)                              │
+│ --model                   TEXT  Execution model assertion; refused until     │
+│                                 actual execution evidence exists (dispatch   │
+│                                 recommendations do not prove execution)      │
 │ --profile                 TEXT  Agent profile id — a dispatch registry / Op  │
 │                                 record profile or a local charter profile    │
 │                                 (the same ids `agent profile show`           │
 │                                 resolves). When omitted, the work package's  │
 │                                 frontmatter agent_profile is used.           │
 │ --invocation-id           TEXT  Correlated Op record ULID whose mission, WP, │
-│                                 action, profile, and model are authoritative │
+│                                 action and profile prove dispatch identity;  │
+│                                 model recommendations are advisory           │
 │ --owned-checkout          PATH  Not yet supported. Refused: owned checkouts  │
 │                                 use 'spec-kitty next --owned-checkout' and   │
 │                                 'spec-kitty agent tasks move-task            │
@@ -683,23 +683,7 @@ _Decision Moment ledger for interview questions._
 ## spec-kitty agent decision verify
 
 ```
- Usage: spec-kitty agent decision verify [OPTIONS]
 
- Cross-check deferred decisions against inline sentinel markers.
-
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ *  --mission                                  TEXT  Mission handle           │
-│                                                     [required]               │
-│    --fail-on-stale      --no-fail-on-stale          Exit non-zero when       │
-│                                                     findings are present     │
-│                                                     (default true)           │
-│                                                     [default: fail-on-stale] │
-│    --json               --no-json                   Output JSON (default     │
-│                                                     true)                    │
-│                                                     [default: json]          │
-│    --help           -h                              Show this message and    │
-│                                                     exit.                    │
-╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## spec-kitty agent issue-verdict
@@ -739,37 +723,7 @@ _Decision Moment ledger for interview questions._
 _Mission lifecycle commands for AI agents_
 
 ```
- Usage: spec-kitty agent mission [OPTIONS] COMMAND [ARGS]...
 
- Mission lifecycle commands for AI agents
-
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --help  -h        Show this message and exit.                                │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Commands ───────────────────────────────────────────────────────────────────╮
-│ record-analysis      Persist `/spec-kitty.analyze` output as                 │
-│                      `analysis-report.md`.                                   │
-│ acceptance-verdict   Record an acceptance-criterion verdict, or              │
-│                      register/execute a negative                             │
-│                      invariant (FR-007/FR-008) — exactly one of              │
-│                      ``--criterion``/                                        │
-│                      ``--negative-invariant``, both routed through the WP03  │
-│                      write seam.                                             │
-│ branch-context       Return deterministic branch contract for planning-stage │
-│                      prompts.                                                │
-│ create               Create new mission directory structure in the project   │
-│                      root checkout.                                          │
-│ check-prerequisites  Validate mission structure and prerequisites.           │
-│ setup-plan           Scaffold an implementation plan template in the         │
-│                      repository root checkout or an owned checkout.          │
-│ accept               Perform mission acceptance workflow.                    │
-│ merge                Merge mission branch into target branch.                │
-│ finalize-tasks       Parse dependencies from tasks.md and update WP          │
-│                      frontmatter, then commit to target branch.              │
-│ repair               Detect and forward-only repair a pre-existing           │
-│                      cross-partition content                                 │
-│                      split-brain for one mission (FR-005, NFR-005).          │
-╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## spec-kitty agent mission accept
@@ -1312,15 +1266,20 @@ _Mission lifecycle commands for AI agents_
  Persist `/spec-kitty.analyze` output as `analysis-report.md`.
 
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --mission              TEXT  Mission slug (e.g., '020-my-mission')           │
-│ --input-file           TEXT  Markdown report path, or '-' to read report     │
-│                              from stdin                                      │
-│                              [default: -]                                    │
-│ --agent                TEXT  Agent name that produced the analysis report    │
-│ --json                       Output JSON format                              │
-│ --report-only                Commit only the report while preserving         │
-│                              unrelated work; require clean material inputs   │
-│ --help         -h            Show this message and exit.                     │
+│ --mission                 TEXT  Mission slug (e.g., '020-my-mission')        │
+│ --input-file              TEXT  Markdown report path, or '-' to read report  │
+│                                 from stdin                                   │
+│                                 [default: -]                                 │
+│ --agent                   TEXT  Agent name that produced the analysis report │
+│ --json                          Output JSON format                           │
+│ --report-only                   Commit only the report while preserving      │
+│                                 unrelated work; require clean material       │
+│                                 inputs                                       │
+│ --owned-checkout          PATH  Run against an owned checkout: a linked      │
+│                                 checkout that owns this mission. Refuses the │
+│                                 repository root checkout, lane worktrees and │
+│                                 coordination worktrees.                      │
+│ --help            -h            Show this message and exit.                  │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
