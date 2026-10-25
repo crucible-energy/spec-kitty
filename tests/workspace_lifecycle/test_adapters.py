@@ -1011,9 +1011,92 @@ def test_process_directory_owner_observes_only_a_real_pid_directory(tmp_path: Pa
         adapters._process_directory_owner(321)
 
 
+def _read_owned_control_frame(fd: int, *, timeout: float = 3.0) -> dict[str, Any]:
+    import select
+
+    with os.fdopen(os.dup(fd), "rb") as stream:
+        assert select.select([stream], [], [], timeout)[0], "Owned control did not reach its bounded handshake."
+        return object_at(json.loads(stream.readline()))
+
+
+@pytest.mark.parametrize("case", ["ready", "eof", "unterminated", "oversize", "trickle"])
+def test_owned_control_frame_has_one_bounded_deadline(tmp_path: Path, case: str) -> None:
+    import inspect
+
+    from kernel.owned_process import bounded_run
+
+    if os.name != "posix":
+        pytest.skip("This Linux-control pipe transport requires POSIX descriptors")
+    program = (
+        "from __future__ import annotations\nimport os,json,signal,sys,threading\n"
+        + inspect.getsource(object_at)
+        + "\n"
+        + inspect.getsource(_read_owned_control_frame)
+        + """
+signal.signal(signal.SIGALRM,signal.SIG_DFL)
+signal.alarm(4)
+case=sys.argv[1]
+reader,writer=os.pipe()
+stop=threading.Event()
+thread=None
+if case=='trickle':
+    def drip():
+        try:
+            for part in (b'{',b'"ready":',b'true',b'}\\n'):
+                if stop.wait(0.06):
+                    break
+                os.write(writer,part)
+        finally:
+            os.close(writer)
+    thread=threading.Thread(target=drip)
+    thread.start()
+elif case=='eof':
+    os.close(writer)
+else:
+    payload=b'{"ready":true}'+(b'\\n' if case=='ready' else b'')
+    if case=='oversize':
+        payload=b'{"padding":"'+b'x'*2048+b'"}\\n'
+    os.write(writer,payload)
+try:
+    try:
+        value=_read_owned_control_frame(reader,timeout=0.1)
+        outcome='accepted'
+    except (TimeoutError,EOFError,ValueError) as error:
+        outcome=type(error).__name__
+    print(json.dumps({'outcome':outcome,'blocking_restored':os.get_blocking(reader)}),flush=True)
+finally:
+    stop.set()
+    if thread is not None:
+        thread.join(timeout=0.5)
+        assert not thread.is_alive()
+    elif case!='eof':
+        os.close(writer)
+    os.close(reader)
+"""
+    )
+    custody = {
+        "owner": "lifecycle bounded control-frame counterexample",
+        "case": case,
+        "program": program,
+        "executable": sys.executable,
+        "environment": {"LC_ALL": "C"},
+        "cwd": str(tmp_path),
+        "next_action": "Join exact bounded_run child, retain result and fixture for control review",
+        "review_event": "Frame-reader finding disposition and final owning gate",
+        "joined": False,
+    }
+    receipt = tmp_path / "frame-control-custody.json"
+    receipt.write_text(json.dumps(custody))
+    result = bounded_run([sys.executable, "-I", "-S", "-c", program, case], cwd=tmp_path, env={"LC_ALL": "C"}, timeout=5)
+    custody.update(joined=True, returncode=result.returncode, stdout=result.stdout.decode(), stderr=result.stderr.decode())
+    receipt.write_text(json.dumps(custody))
+    assert result.returncode == 0, "Owned frame reader outlived its deadline or failed; the watchdog is not a frame deadline."
+    expected = "accepted" if case == "ready" else "EOFError" if case == "eof" else "ValueError" if case == "oversize" else "TimeoutError"
+    assert object_at(json.loads(result.stdout)) == {"outcome": expected, "blocking_restored": True}
+
+
 @pytest.mark.parametrize("inside_candidate", [True, False])
 def test_actual_linux_same_uid_non_dumpable_child_retains_unknown_visibility(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, inside_candidate: bool) -> None:
-    import select
     import psutil
 
     from kernel.owned_process import signal_owned_process_tree
@@ -1067,6 +1150,7 @@ if sys.stdin.readline().strip()=='protect':
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         start_new_session=True,
+        bufsize=0,
     )
     try:
         custody["child_pid"] = child.pid
@@ -1075,8 +1159,7 @@ if sys.stdin.readline().strip()=='protect':
 
         def stage() -> dict[str, Any]:
             assert child.stdout is not None
-            assert select.select([child.stdout], [], [], 3)[0], "Owned Linux control did not reach its bounded handshake."
-            return object_at(json.loads(child.stdout.readline()))
+            return _read_owned_control_frame(child.stdout.fileno())
 
         assert stage() == {"pid": child.pid, "dumpable": 1}
         process = psutil.Process(child.pid)
