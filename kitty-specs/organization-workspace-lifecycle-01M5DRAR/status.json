@@ -312,7 +312,7 @@
     },
     "WP13": {
       "actor": "codex-root-wp13-reviewer",
-      "agent": "codex",
+      "agent": "codex-root-wp13-reviewer",
       "agent_profile": "__resolved_profile_absent__",
       "agent_profile_version": "__resolved_profile_version_absent__",
       "force_count": 0,
@@ -321,6 +321,9 @@
       "last_event_id": "01M5RPSJC0VMTWZVR9J1G0JZH6",
       "last_transition_at": "2026-10-25T04:58:37.312564+00:00",
       "model": "__resolved_model_absent__",
+      "notes": [
+        "Independent Reviewer Renata scope review passed for source 52586365129840f9929f0997a2c7d8dffcee90b3 and canonical submission a1f26cc9ad015534cf9ba070f086df75378447ce: exact archive plus full workspace_lifecycle 353 passed; strict six-file type check; independently reproduced and closed foreign-server/same-slug and authoritative .git namespace findings; immutable metadata/default history and no-source-effect boundaries retained. Evidence: /tmp/pdb-mission-control-20261024/wp13-525863-independent-review.json. Approval is WP13 source correctness only; full mission analysis freshness, actual hosted Linux cause, required publication checks, default delivery and runtime/adoption remain separate open gates."
+      ],
       "provider": "__resolved_provider_absent__",
       "review_result": {
         "reference": "review-cycle://organization-workspace-lifecycle-01M5DRAR/WP13-live-mission-archive-boundary/review-cycle-1.md",
