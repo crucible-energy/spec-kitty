@@ -168,3 +168,44 @@ execution rollout remain open. Fresh authenticated inventory contains 119 exact
 repository IDs with both required policy values; the connected app exposes only 87
 and cannot supply the rollout denominator. Verified execution adoption remains
 zero. No project/cache/host resource was removed or capacity recovery attributed.
+
+## Denied-process observation before a Linux policy decision
+
+### User experience findings
+
+The complete a8b742e Linux core_misc3 log records five failures, 1,126 passes and
+three skips. Full JSON establishes the unavailable operation: psutil cwd at
+enumeration position 125, with AccessDenied, before delivery. A position is not
+a process identity or cause. The actual process, principal and state were not
+recorded, so no attribution to an unrelated service, stale producer or exit race
+is justified. The sibling shard was canceled, not passed.
+
+### Engineering decisions
+
+The committed red controls reproduced four missing observation fields while the
+eight existing holder/visibility outcomes remained unchanged. Add a private
+non-authoritative observation only after a Linux access denial: the observed
+PID, cached real/effective/saved UID match facts, and best-effort process state
+within the existing remaining deadline. No additional UID query, process
+selection change, privilege request, subprocess, signal, command line, name,
+path or exception message is introduced. State-read errors remain unknown;
+absence, exit and zombie observations do not grant identity, release or cleanup.
+Enumeration failures cannot be attributed to the preceding process. Fresh
+observations clear stale details, and elapsed accounting includes the optional
+state read. Completion and release decisions never consume these fields.
+
+Twenty-three controlled provider checks pass, including privacy, expired-budget,
+no-context, principal mismatch, stale attribution and elapsed-accounting cases.
+These controls explain the observation mechanism; they are not the actual Linux
+cause. Strict checks keep the original six-file source/test scope without
+suppressions. The validation controller now rejects a malformed JUnit receipt
+argument before creating a job or starting tests, following an earlier retained
+collection refusal. This controller improvement changes no product gate.
+
+### Known limitations
+
+The exact-source complete owning, coverage and publication checks remain in
+external receipts. Another actual hosted Linux observation is required before
+selecting a runtime repair. Runtime admission and every-repository execution
+qualification remain incomplete; the production worker stays disabled. Useful
+work, uncertain resources and their recovery obligations remain protected.
