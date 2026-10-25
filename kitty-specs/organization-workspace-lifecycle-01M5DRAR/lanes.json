@@ -87,10 +87,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-25T01:22:44.776839+00:00",
+  "computed_at": "2026-10-25T01:29:56.342275+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "c0f2612e043a9f1e4dbf21a04b7fb8a9728c7556"
+  "planning_commit_sha": "c45984fce34c00b2da18df2fb750cd8fc85cd516"
 }
