@@ -4,35 +4,23 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-21T06:30:20.707223+00:00'
-analyzer_agent: reviewer-renata
+generated_at: '2026-10-25T05:16:00.724362+00:00'
+analyzer_agent: codex-lifecycle-source-owner
 input_artifacts:
   spec.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/spec.md
-    sha256: 86b2522bbcdda8c123aeab27223c4c2da0ffdad37b75de001c53429f2c6ee6ba
+    sha256: 0b7080f987cf40ac9f8eff4533109d31a4585f9e2c4449fc8f64dad2cebff2d0
   plan.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md
-    sha256: c54f9e1248a0c12b98532884a32378d0f8f5c63a4e3860fe37809718da745297
+    sha256: 7751d3dd13fd175ad8d1ce35c284f242c504aedd632f85ad4b4de7f8a42fce43
   tasks.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md
-    sha256: 63de531735a12eef9277bca812fda58678e88194c4291235b6ef5983b4aefc6d
+    sha256: 933450f7e2ab96304c00a95b52f77204a1c687dd81f7d1f3ba23641324891140
   charter:
     path: .kittify/charter/charter.yaml
-    sha256: 39e75cd05429257095cd1d6111fa75460e0430e5f147d3a97d8c921916bd76af
-  material:.gitignore:
-    path: .gitignore
-    sha256: bc6d8dd6ea67049f807913f146de8f1c889a113319bd57a8036041a4a44f1e08
-  material:.kittify/.gitignore:
-    path: .kittify/.gitignore
-    sha256:
-  material:.kittify/charter/.gitignore:
-    path: .kittify/charter/.gitignore
-    sha256:
+    sha256: ea64c01993e97626ecd9494ce5e5816d01f36fd2870169e48504ac86ed114d29
   material:.kittify/charter/_LIBRARY:
     path: .kittify/charter/_LIBRARY
-    sha256:
-  material:.kittify/charter/_LIBRARY/.gitignore:
-    path: .kittify/charter/_LIBRARY/.gitignore
     sha256:
   material:.kittify/charter/_LIBRARY/agent_profile-analyst-annie.md:
     path: .kittify/charter/_LIBRARY/agent_profile-analyst-annie.md
@@ -777,157 +765,115 @@ input_artifacts:
     sha256: d59dd63cbfc6ab75c708c31b9ff5d6da0f80e49469284f665b41285ec8ba81f4
   material:.kittify/charter/charter.yaml:
     path: .kittify/charter/charter.yaml
-    sha256: 39e75cd05429257095cd1d6111fa75460e0430e5f147d3a97d8c921916bd76af
-  material:.kittify/charter/interview/.gitignore:
-    path: .kittify/charter/interview/.gitignore
-    sha256:
+    sha256: 809dd8709cfddb27fb22d215296ed2ae109d6011c9cfa25addd7a4b75ca3ccf6
   material:.kittify/charter/interview/answers.yaml:
     path: .kittify/charter/interview/answers.yaml
     sha256: 7b0fe84e18c4f9c6f0a8674b5e08e4b17e2074d3c21803cb56acce9dc0ef66fe
+  material:.kittify/charter-packs:
+    path: .kittify/charter-packs
+    sha256: directory
+  material:.kittify/charter-packs/directive:
+    path: .kittify/charter-packs/directive
+    sha256: directory
+  material:.kittify/charter-packs/directive/.provenance:
+    path: .kittify/charter-packs/directive/.provenance
+    sha256: directory
+  material:.kittify/charter-packs/directive/.provenance/DIRECTIVE_evidence_logs_must_persist.yaml:
+    path: .kittify/charter-packs/directive/.provenance/DIRECTIVE_evidence_logs_must_persist.yaml
+    sha256: 8baf139e02195d11835c7256d7bb861f6de14e2e34705a2249f35ac0b1c68854
+  material:.kittify/charter-packs/directive/.provenance/DIRECTIVE_terminus_retrospective_always_on.yaml:
+    path: .kittify/charter-packs/directive/.provenance/DIRECTIVE_terminus_retrospective_always_on.yaml
+    sha256: 0b54ae250707e91573ec07f24af412ccc71b5345b9e9dfa2247cc2efac8ab9a7
+  material:.kittify/charter-packs/directive/DIRECTIVE_evidence_logs_must_persist.md:
+    path: .kittify/charter-packs/directive/DIRECTIVE_evidence_logs_must_persist.md
+    sha256: f74af111711d029ca5efe0aaf57e29c03fbbda3c45ca3262825e3746ab252dea
+  material:.kittify/charter-packs/directive/DIRECTIVE_terminus_retrospective_always_on.md:
+    path: .kittify/charter-packs/directive/DIRECTIVE_terminus_retrospective_always_on.md
+    sha256: 437593d7bf2d1a24cb18d8e53861a96bad58c51ce43b56b74fe8de8afc50348b
+  material:.kittify/charter-packs/overlays:
+    path: .kittify/charter-packs/overlays
+    sha256: directory
+  material:.kittify/charter-packs/overlays/calibration-documentation.yaml:
+    path: .kittify/charter-packs/overlays/calibration-documentation.yaml
+    sha256: dbc68a3eff374c383239d8ec4507dc7ef69d06c3373ec81589e59a6f0bb4c805
+  material:.kittify/charter-packs/overlays/calibration-erp-custom.yaml:
+    path: .kittify/charter-packs/overlays/calibration-erp-custom.yaml
+    sha256: bc8df160116b342e2b4caa0ca1f9e77a39dfda5188909cd00bff96aa219b0938
+  material:.kittify/charter-packs/overlays/calibration-research.yaml:
+    path: .kittify/charter-packs/overlays/calibration-research.yaml
+    sha256: 147e05ffc42fd4637373765a93786d55e6e097393b2f6a89fa12743e793bb7a5
+  material:.kittify/charter-packs/overlays/calibration-software-dev.yaml:
+    path: .kittify/charter-packs/overlays/calibration-software-dev.yaml
+    sha256: c5a0214b1beae6018eca9212acf7fb4ad02d4d336849f48937d603dd1e3b6d8c
+  material:.kittify/charter-packs/pack.yaml:
+    path: .kittify/charter-packs/pack.yaml
+    sha256: da5e3f92d00fc83932000fa891dabb211c86cae2dba18f0123e5b4c95bf84bb0
+  material:.kittify/charter-packs/procedure:
+    path: .kittify/charter-packs/procedure
+    sha256: directory
+  material:.kittify/charter-packs/procedure/.provenance:
+    path: .kittify/charter-packs/procedure/.provenance
+    sha256: directory
+  material:.kittify/charter-packs/procedure/.provenance/PROCEDURE_cross_namespace_owned_files_autodetect.yaml:
+    path: .kittify/charter-packs/procedure/.provenance/PROCEDURE_cross_namespace_owned_files_autodetect.yaml
+    sha256: 5018d971144fbbb274d4a54904b6f8dd6a2d31e8fe4a8c142cc32be8a177c797
+  material:.kittify/charter-packs/procedure/.provenance/PROCEDURE_issue_matrix_autoscaffold.yaml:
+    path: .kittify/charter-packs/procedure/.provenance/PROCEDURE_issue_matrix_autoscaffold.yaml
+    sha256: f31e1ff912dcd72e4990d156d47eee9c4211063cc0c7b9691f9f5292f94098b8
+  material:.kittify/charter-packs/procedure/PROCEDURE_cross_namespace_owned_files_autodetect.md:
+    path: .kittify/charter-packs/procedure/PROCEDURE_cross_namespace_owned_files_autodetect.md
+    sha256: 79d05483cb1c7f4e5a4ea0e7bdc77b04517b8c4c0cf2ccda22ecfc6af28f40c2
+  material:.kittify/charter-packs/procedure/PROCEDURE_issue_matrix_autoscaffold.md:
+    path: .kittify/charter-packs/procedure/PROCEDURE_issue_matrix_autoscaffold.md
+    sha256: 75956f57fd60b9c729138e13b6661606e81d2a03a5907b996f495b3660546455
+  material:.kittify/charter-packs/tactic:
+    path: .kittify/charter-packs/tactic
+    sha256: directory
+  material:.kittify/charter-packs/tactic/.provenance:
+    path: .kittify/charter-packs/tactic/.provenance
+    sha256: directory
+  material:.kittify/charter-packs/tactic/.provenance/TACTIC_mirror_external_issue_numbering.yaml:
+    path: .kittify/charter-packs/tactic/.provenance/TACTIC_mirror_external_issue_numbering.yaml
+    sha256: 2bfcd662f9a2590ccce99799d7cc3746907ff1a830169df99c1c5bd43d1e1835
+  material:.kittify/charter-packs/tactic/TACTIC_mirror_external_issue_numbering.md:
+    path: .kittify/charter-packs/tactic/TACTIC_mirror_external_issue_numbering.md
+    sha256: 327bb3ae4528556e827ef37ea7ae95e2aff0fbe886d4512cdb0398d481a55593
   material:.kittify/command-templates:
     path: .kittify/command-templates
     sha256:
   material:.kittify/config.yaml:
     path: .kittify/config.yaml
-    sha256: 23fca9b821edb886182ece6595946b3261231e0c72e381244a36e38015bc80df
-  material:.kittify/doctrine:
-    path: .kittify/doctrine
-    sha256: directory
-  material:.kittify/doctrine/.gitignore:
-    path: .kittify/doctrine/.gitignore
-    sha256:
-  material:.kittify/doctrine/directive:
-    path: .kittify/doctrine/directive
-    sha256: directory
-  material:.kittify/doctrine/directive/.gitignore:
-    path: .kittify/doctrine/directive/.gitignore
-    sha256:
-  material:.kittify/doctrine/directive/.provenance:
-    path: .kittify/doctrine/directive/.provenance
-    sha256: directory
-  material:.kittify/doctrine/directive/.provenance/.gitignore:
-    path: .kittify/doctrine/directive/.provenance/.gitignore
-    sha256:
-  material:.kittify/doctrine/directive/.provenance/DIRECTIVE_evidence_logs_must_persist.yaml:
-    path: .kittify/doctrine/directive/.provenance/DIRECTIVE_evidence_logs_must_persist.yaml
-    sha256: 8baf139e02195d11835c7256d7bb861f6de14e2e34705a2249f35ac0b1c68854
-  material:.kittify/doctrine/directive/.provenance/DIRECTIVE_terminus_retrospective_always_on.yaml:
-    path: .kittify/doctrine/directive/.provenance/DIRECTIVE_terminus_retrospective_always_on.yaml
-    sha256: 0b54ae250707e91573ec07f24af412ccc71b5345b9e9dfa2247cc2efac8ab9a7
-  material:.kittify/doctrine/directive/DIRECTIVE_evidence_logs_must_persist.md:
-    path: .kittify/doctrine/directive/DIRECTIVE_evidence_logs_must_persist.md
-    sha256: f74af111711d029ca5efe0aaf57e29c03fbbda3c45ca3262825e3746ab252dea
-  material:.kittify/doctrine/directive/DIRECTIVE_terminus_retrospective_always_on.md:
-    path: .kittify/doctrine/directive/DIRECTIVE_terminus_retrospective_always_on.md
-    sha256: 437593d7bf2d1a24cb18d8e53861a96bad58c51ce43b56b74fe8de8afc50348b
-  material:.kittify/doctrine/overlays:
-    path: .kittify/doctrine/overlays
-    sha256: directory
-  material:.kittify/doctrine/overlays/.gitignore:
-    path: .kittify/doctrine/overlays/.gitignore
-    sha256:
-  material:.kittify/doctrine/overlays/calibration-documentation.yaml:
-    path: .kittify/doctrine/overlays/calibration-documentation.yaml
-    sha256: dbc68a3eff374c383239d8ec4507dc7ef69d06c3373ec81589e59a6f0bb4c805
-  material:.kittify/doctrine/overlays/calibration-erp-custom.yaml:
-    path: .kittify/doctrine/overlays/calibration-erp-custom.yaml
-    sha256: bc8df160116b342e2b4caa0ca1f9e77a39dfda5188909cd00bff96aa219b0938
-  material:.kittify/doctrine/overlays/calibration-research.yaml:
-    path: .kittify/doctrine/overlays/calibration-research.yaml
-    sha256: 147e05ffc42fd4637373765a93786d55e6e097393b2f6a89fa12743e793bb7a5
-  material:.kittify/doctrine/overlays/calibration-software-dev.yaml:
-    path: .kittify/doctrine/overlays/calibration-software-dev.yaml
-    sha256: c5a0214b1beae6018eca9212acf7fb4ad02d4d336849f48937d603dd1e3b6d8c
-  material:.kittify/doctrine/procedure:
-    path: .kittify/doctrine/procedure
-    sha256: directory
-  material:.kittify/doctrine/procedure/.gitignore:
-    path: .kittify/doctrine/procedure/.gitignore
-    sha256:
-  material:.kittify/doctrine/procedure/.provenance:
-    path: .kittify/doctrine/procedure/.provenance
-    sha256: directory
-  material:.kittify/doctrine/procedure/.provenance/.gitignore:
-    path: .kittify/doctrine/procedure/.provenance/.gitignore
-    sha256:
-  material:.kittify/doctrine/procedure/.provenance/PROCEDURE_cross_namespace_owned_files_autodetect.yaml:
-    path: .kittify/doctrine/procedure/.provenance/PROCEDURE_cross_namespace_owned_files_autodetect.yaml
-    sha256: 5018d971144fbbb274d4a54904b6f8dd6a2d31e8fe4a8c142cc32be8a177c797
-  material:.kittify/doctrine/procedure/.provenance/PROCEDURE_issue_matrix_autoscaffold.yaml:
-    path: .kittify/doctrine/procedure/.provenance/PROCEDURE_issue_matrix_autoscaffold.yaml
-    sha256: f31e1ff912dcd72e4990d156d47eee9c4211063cc0c7b9691f9f5292f94098b8
-  material:.kittify/doctrine/procedure/PROCEDURE_cross_namespace_owned_files_autodetect.md:
-    path: .kittify/doctrine/procedure/PROCEDURE_cross_namespace_owned_files_autodetect.md
-    sha256: 79d05483cb1c7f4e5a4ea0e7bdc77b04517b8c4c0cf2ccda22ecfc6af28f40c2
-  material:.kittify/doctrine/procedure/PROCEDURE_issue_matrix_autoscaffold.md:
-    path: .kittify/doctrine/procedure/PROCEDURE_issue_matrix_autoscaffold.md
-    sha256: 75956f57fd60b9c729138e13b6661606e81d2a03a5907b996f495b3660546455
-  material:.kittify/doctrine/tactic:
-    path: .kittify/doctrine/tactic
-    sha256: directory
-  material:.kittify/doctrine/tactic/.gitignore:
-    path: .kittify/doctrine/tactic/.gitignore
-    sha256:
-  material:.kittify/doctrine/tactic/.provenance:
-    path: .kittify/doctrine/tactic/.provenance
-    sha256: directory
-  material:.kittify/doctrine/tactic/.provenance/.gitignore:
-    path: .kittify/doctrine/tactic/.provenance/.gitignore
-    sha256:
-  material:.kittify/doctrine/tactic/.provenance/TACTIC_mirror_external_issue_numbering.yaml:
-    path: .kittify/doctrine/tactic/.provenance/TACTIC_mirror_external_issue_numbering.yaml
-    sha256: 2bfcd662f9a2590ccce99799d7cc3746907ff1a830169df99c1c5bd43d1e1835
-  material:.kittify/doctrine/tactic/TACTIC_mirror_external_issue_numbering.md:
-    path: .kittify/doctrine/tactic/TACTIC_mirror_external_issue_numbering.md
-    sha256: 327bb3ae4528556e827ef37ea7ae95e2aff0fbe886d4512cdb0398d481a55593
+    sha256: 13ed92023f70a0eb898baf3688e5dc3c7536b4a404cfe587e01983ef91254b97
   material:.kittify/missions:
     path: .kittify/missions
     sha256: directory
-  material:.kittify/missions/.gitignore:
-    path: .kittify/missions/.gitignore
-    sha256:
   material:.kittify/missions/01KT6HVH3QND4Q3KCGH2419N4J:
     path: .kittify/missions/01KT6HVH3QND4Q3KCGH2419N4J
     sha256: directory
-  material:.kittify/missions/01KT6HVH3QND4Q3KCGH2419N4J/.gitignore:
-    path: .kittify/missions/01KT6HVH3QND4Q3KCGH2419N4J/.gitignore
-    sha256:
   material:.kittify/missions/01KT6HVH3QND4Q3KCGH2419N4J/retrospective.yaml:
     path: .kittify/missions/01KT6HVH3QND4Q3KCGH2419N4J/retrospective.yaml
     sha256: a21994be974ac8172a0befafbf86a96a204828031edc0eaf603c2af5e49139e5
   material:.kittify/missions/01KTDVHZKGCHCW6HQ4V577PNES:
     path: .kittify/missions/01KTDVHZKGCHCW6HQ4V577PNES
     sha256: directory
-  material:.kittify/missions/01KTDVHZKGCHCW6HQ4V577PNES/.gitignore:
-    path: .kittify/missions/01KTDVHZKGCHCW6HQ4V577PNES/.gitignore
-    sha256:
   material:.kittify/missions/01KTDVHZKGCHCW6HQ4V577PNES/retrospective.yaml:
     path: .kittify/missions/01KTDVHZKGCHCW6HQ4V577PNES/retrospective.yaml
     sha256: 6b7999c1d799a046c045cb7cb23eadb342401db363e6841f8f54d5baf1a046fd
   material:.kittify/missions/01KTSJ2H8E5YF2EGJYGAE5Z5Q2:
     path: .kittify/missions/01KTSJ2H8E5YF2EGJYGAE5Z5Q2
     sha256: directory
-  material:.kittify/missions/01KTSJ2H8E5YF2EGJYGAE5Z5Q2/.gitignore:
-    path: .kittify/missions/01KTSJ2H8E5YF2EGJYGAE5Z5Q2/.gitignore
-    sha256:
   material:.kittify/missions/01KTSJ2H8E5YF2EGJYGAE5Z5Q2/retrospective.yaml:
     path: .kittify/missions/01KTSJ2H8E5YF2EGJYGAE5Z5Q2/retrospective.yaml
     sha256: c50f973712f2bf966ba08c19fce2a3a2b20045bf8af688a519c09ec0f62d828b
   material:.kittify/overrides:
     path: .kittify/overrides
     sha256: directory
-  material:.kittify/overrides/.gitignore:
-    path: .kittify/overrides/.gitignore
-    sha256:
   material:.kittify/overrides/AGENTS.md:
     path: .kittify/overrides/AGENTS.md
     sha256: 875bacba0f6341b66d11aac166975d3449c639da8840065e05fed1f9b7351392
   material:.kittify/overrides/missions:
     path: .kittify/overrides/missions
     sha256: directory
-  material:.kittify/overrides/missions/.gitignore:
-    path: .kittify/overrides/missions/.gitignore
-    sha256:
   material:.kittify/overrides/missions/README.md:
     path: .kittify/overrides/missions/README.md
     sha256: 94ebe8f11f82d7c2cd69b3a26e34079c01782ffc087a0414c7349e316e775c3e
@@ -952,27 +898,15 @@ input_artifacts:
   material:.kittify/overrides/scripts:
     path: .kittify/overrides/scripts
     sha256: directory
-  material:.kittify/overrides/scripts/.gitignore:
-    path: .kittify/overrides/scripts/.gitignore
-    sha256:
   material:.kittify/overrides/scripts/validate_encoding.py:
     path: .kittify/overrides/scripts/validate_encoding.py
     sha256: a946a2ac2ee55e85fc1e7ac3bf8cb9e583ed32c9a41bb717a55c750011c534cc
   material:.kittify/templates:
     path: .kittify/templates
     sha256:
-  material:docs/.gitignore:
-    path: docs/.gitignore
-    sha256: 112e48c16ecdc23b524fe0de78f938ee27abf6e32f32b3cc7b5020f3a4252f8f
-  material:docs/adr/.gitignore:
-    path: docs/adr/.gitignore
-    sha256:
   material:docs/adr/3.x:
     path: docs/adr/3.x
     sha256: directory
-  material:docs/adr/3.x/.gitignore:
-    path: docs/adr/3.x/.gitignore
-    sha256:
   material:docs/adr/3.x/2026-03-09-1-prompts-do-not-discover-context-commands-do.md:
     path: docs/adr/3.x/2026-03-09-1-prompts-do-not-discover-context-commands-do.md
     sha256: a965cbf08f179937292105ace9e7e8b5514d7747bf2abc395a80020c4d4150a4
@@ -1396,9 +1330,6 @@ input_artifacts:
   material:docs/adr/4.x:
     path: docs/adr/4.x
     sha256: directory
-  material:docs/adr/4.x/.gitignore:
-    path: docs/adr/4.x/.gitignore
-    sha256:
   material:docs/adr/4.x/2026-09-30-1-allowlist-ratchets-are-priced-debt.md:
     path: docs/adr/4.x/2026-09-30-1-allowlist-ratchets-are-priced-debt.md
     sha256: 0b641408c1360fa38f169f7ba03e5d8382a4a7020e2aca1cd84be1ff31e258ec
@@ -1462,21 +1393,12 @@ input_artifacts:
   material:docs/context:
     path: docs/context
     sha256: directory
-  material:docs/context/.gitignore:
-    path: docs/context/.gitignore
-    sha256:
   material:docs/context/audience:
     path: docs/context/audience
     sha256: directory
-  material:docs/context/audience/.gitignore:
-    path: docs/context/audience/.gitignore
-    sha256:
   material:docs/context/audience/external:
     path: docs/context/audience/external
     sha256: directory
-  material:docs/context/audience/external/.gitignore:
-    path: docs/context/audience/external/.gitignore
-    sha256:
   material:docs/context/audience/external/architect-evaluator.md:
     path: docs/context/audience/external/architect-evaluator.md
     sha256: 0ac93df693660932a52c26fb8f74774b31377c9a766c21b540aa05d24700fe07
@@ -1498,9 +1420,6 @@ input_artifacts:
   material:docs/context/audience/internal:
     path: docs/context/audience/internal
     sha256: directory
-  material:docs/context/audience/internal/.gitignore:
-    path: docs/context/audience/internal/.gitignore
-    sha256:
   material:docs/context/audience/internal/ai-collaboration-agent.md:
     path: docs/context/audience/internal/ai-collaboration-agent.md
     sha256: 8b092c43e6c90ace88e1280f14740fa265f3e90822966c57255ad234e9d2a5dd
@@ -1600,27 +1519,18 @@ input_artifacts:
   material:docs/context/topology.md:
     path: docs/context/topology.md
     sha256: 6d2447a5b5f60814640f1320f806b7d5aebc6f08035b6c9b1bc6c208154b0fbe
-  material:kitty-specs/.gitignore:
-    path: kitty-specs/.gitignore
-    sha256:
-  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/.gitignore:
-    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/.gitignore
-    sha256:
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/meta.json:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/meta.json
-    sha256: a2aeb95ca0ec3bda36317f0cc6a3b57a7d38a0e4fd07bd82e856bbd141a57541
+    sha256: c42a145618d173a160dbdd1898678b047f06c2d2ad95f7e5d73548d5920e5e00
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md
-    sha256: c54f9e1248a0c12b98532884a32378d0f8f5c63a4e3860fe37809718da745297
+    sha256: 7751d3dd13fd175ad8d1ce35c284f242c504aedd632f85ad4b4de7f8a42fce43
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/spec.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/spec.md
-    sha256: 86b2522bbcdda8c123aeab27223c4c2da0ffdad37b75de001c53429f2c6ee6ba
+    sha256: 0b7080f987cf40ac9f8eff4533109d31a4585f9e2c4449fc8f64dad2cebff2d0
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks
     sha256: directory
-  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/.gitignore:
-    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/.gitignore
-    sha256:
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/.gitkeep:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/.gitkeep
     sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
@@ -1630,9 +1540,6 @@ input_artifacts:
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP01-verified-organization-discovery-and-accounting:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP01-verified-organization-discovery-and-accounting
     sha256: directory
-  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP01-verified-organization-discovery-and-accounting/.gitignore
-  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP01-verified-organization-discovery-and-accounting/.gitignore
-    sha256:
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP01-verified-organization-discovery-and-accounting/review-cycle-1.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP01-verified-organization-discovery-and-accounting/review-cycle-1.md
     sha256: 99b15a1669c23f2af5074598c07042b618bb6ad0c73337fc27d676ec45880fe4
@@ -1642,9 +1549,6 @@ input_artifacts:
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP02-durable-lifecycle-state-and-generation-bound-recovery
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP02-durable-lifecycle-state-and-generation-bound-recovery
     sha256: directory
-  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP02-durable-lifecycle-state-and-generation-bound-recovery/.gitignore
-  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP02-durable-lifecycle-state-and-generation-bound-recovery/.gitignore
-    sha256:
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP02-durable-lifecycle-state-and-generation-bound-recovery/review-cycle-1.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP02-durable-lifecycle-state-and-generation-bound-recovery/review-cycle-1.md
     sha256: 49ce99f7231d25f6a480f17558684f4d748f17ee9ba0966d1247a731ce06ade4
@@ -1654,9 +1558,6 @@ input_artifacts:
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP03-supported-creator-adapters-and-automatic-ingress:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP03-supported-creator-adapters-and-automatic-ingress
     sha256: directory
-  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP03-supported-creator-adapters-and-automatic-ingress/.gitignore
-  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP03-supported-creator-adapters-and-automatic-ingress/.gitignore
-    sha256:
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP03-supported-creator-adapters-and-automatic-ingress/review-cycle-1.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP03-supported-creator-adapters-and-automatic-ingress/review-cycle-1.md
     sha256: b455dfffb00764de821218a694a7981d59d687cac4f85935ba833785f14aed22
@@ -1666,9 +1567,6 @@ input_artifacts:
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP04-branch-first-consolidation-and-guidance:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP04-branch-first-consolidation-and-guidance
     sha256: directory
-  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP04-branch-first-consolidation-and-guidance/.gitignore
-  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP04-branch-first-consolidation-and-guidance/.gitignore
-    sha256:
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP04-branch-first-consolidation-and-guidance/review-cycle-1.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP04-branch-first-consolidation-and-guidance/review-cycle-1.md
     sha256: 32b66ec45547444922adf5cc1ee8174521091a5cbded5c460bf708ead43bb29b
@@ -1678,9 +1576,6 @@ input_artifacts:
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP05-integrated-recovery-acceptance-and-adoption:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP05-integrated-recovery-acceptance-and-adoption
     sha256: directory
-  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP05-integrated-recovery-acceptance-and-adoption/.gitignore
-  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP05-integrated-recovery-acceptance-and-adoption/.gitignore
-    sha256:
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP05-integrated-recovery-acceptance-and-adoption/review-cycle-1.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP05-integrated-recovery-acceptance-and-adoption/review-cycle-1.md
     sha256: 0905af16992d1b8581e1a54702a8425a4cf2aaf75fdad7ea2667ae86e1c55c22
@@ -1690,57 +1585,81 @@ input_artifacts:
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout
     sha256: directory
-  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout/.gitignore
-  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout/.gitignore
-    sha256:
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout/review-cycle-1.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout/review-cycle-1.md
     sha256: 5529380d18c2db484cad39dcd951a0ac9fe61411c459638a4669940b625ee532
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout/review-cycle-2.md
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout/review-cycle-2.md
+    sha256: 6180580bf3383154a408bf09551a6af217f511dbf7b97d8ec8e74d6b2c6f84c2
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout.md
     sha256: aa2f4cabf5570ab5a2f68896aaafea532826f659c795bf2b003608d1eb38a3ae
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration
     sha256: directory
-  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration/.gitignore
-  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration/.gitignore
-    sha256:
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration/review-cycle-1.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration/review-cycle-1.md
     sha256: 2956b24cd59465884b2f08d7f585f62224af2d569df1800f1db49658625dbd1d
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration.md
-    sha256: a74d1486cc9a7f5ca31b3f09ca619d12d5d06adff817af53c337dfe79580efe4
+    sha256: 51a853901c6e72c04b73e77550ab9513e7a79fd38084b0db91cee35c9270616d
+  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP08-native-durable-useful-work-finish-obligations:
+    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP08-native-durable-useful-work-finish-obligations
+    sha256: directory
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP08-native-durable-useful-work-finish-obligations/review-cycle-1.md
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP08-native-durable-useful-work-finish-obligations/review-cycle-1.md
+    sha256: 14e7b9d6d0ef6b66d6449cd5385890924746aca8b40ca0c4a2ead3292b51c8d3
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP08-native-durable-useful-work-finish-obligations/review-cycle-2.md
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP08-native-durable-useful-work-finish-obligations/review-cycle-2.md
+    sha256: 373655a179d9cca261f732cf9acd19975c514c4d3a3351711825210769e9d580
+  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP08-native-durable-useful-work-finish-obligations.md:
+    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP08-native-durable-useful-work-finish-obligations.md
+    sha256: 51982b1661e69cc6e56342c8b6ba3291cc6743e2a9244db4ffaaf457a270ec16
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
+    sha256: 94e6cdde29a19381705c2b7896b2ca69d3e72c89b307b9abb69d73a29bd2a44e
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
+    sha256: a8ce616e70aa2b618ddfcd3c4760704409492ea70022f7b5c6dabaf82524f604
+  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP11-retirement-delivery-and-recovery-proof:
+    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP11-retirement-delivery-and-recovery-proof
+    sha256: directory
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP11-retirement-delivery-and-recovery-proof/review-cycle-1.md
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP11-retirement-delivery-and-recovery-proof/review-cycle-1.md
+    sha256: 32299aea9ec0c0aa8e626ccc779dc8f2fd7587ee44c95e2c175d230f2eca58c7
+  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP11-retirement-delivery-and-recovery-proof.md:
+    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP11-retirement-delivery-and-recovery-proof.md
+    sha256: 096d0debf45c1bbc9dff743b4e8e5556a99e958cad92b5d31e7382056c9c060a
+  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP12-branch-first-integration-acceptance.md:
+    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP12-branch-first-integration-acceptance.md
+    sha256: 1fbb0c6c4fd046e38886c697393e4982d10f2333ec6c9bbe1d716c56fb0e5fde
+  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP13-live-mission-archive-boundary:
+    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP13-live-mission-archive-boundary
+    sha256: directory
+  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP13-live-mission-archive-boundary/review-cycle-1.md:
+    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP13-live-mission-archive-boundary/review-cycle-1.md
+    sha256: a68499f5128cc09f306c9920222073b0f297b9385541d238c2c2e56f7d541299
+  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP13-live-mission-archive-boundary.md:
+    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP13-live-mission-archive-boundary.md
+    sha256: 5be833ee03b540a942d83d42f9d3ccd1aeac80d6f03fff3dc2d1ec4eee4a7db0
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md
-    sha256: 63de531735a12eef9277bca812fda58678e88194c4291235b6ef5983b4aefc6d
+    sha256: 933450f7e2ab96304c00a95b52f77204a1c687dd81f7d1f3ba23641324891140
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/wps.yaml:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/wps.yaml
-    sha256:
-  material:packs/.gitignore:
-    path: packs/.gitignore
     sha256:
   material:packs/internal:
     path: packs/internal
     sha256: directory
-  material:packs/internal/.gitignore:
-    path: packs/internal/.gitignore
-    sha256:
   material:packs/internal/README.md:
     path: packs/internal/README.md
     sha256: e28da7d3333bfabd058361f0ec65d2289f53f01ef4e99b75eff27d4a3707f846
   material:packs/internal/assets:
     path: packs/internal/assets
     sha256: directory
-  material:packs/internal/assets/.gitignore:
-    path: packs/internal/assets/.gitignore
-    sha256:
   material:packs/internal/assets/debrief:
     path: packs/internal/assets/debrief
     sha256: directory
-  material:packs/internal/assets/debrief/.gitignore:
-    path: packs/internal/assets/debrief/.gitignore
-    sha256:
   material:packs/internal/assets/debrief/collect-debrief.py:
     path: packs/internal/assets/debrief/collect-debrief.py
     sha256: e6204b6c52e9556adf980b3ca17ecb73f8f0419a482fcb1fbd611e98c6d90395
@@ -1756,9 +1675,6 @@ input_artifacts:
   material:packs/internal/assets/debrief/fonts:
     path: packs/internal/assets/debrief/fonts
     sha256: directory
-  material:packs/internal/assets/debrief/fonts/.gitignore:
-    path: packs/internal/assets/debrief/fonts/.gitignore
-    sha256:
   material:packs/internal/assets/debrief/fonts/FallingSky-Bold.otf:
     path: packs/internal/assets/debrief/fonts/FallingSky-Bold.otf
     sha256: e330f6482b9cad946ce682ccc2d3bd9216f35f1ce26add33bab951fecf8871af
@@ -1810,9 +1726,6 @@ input_artifacts:
   material:packs/internal/directives:
     path: packs/internal/directives
     sha256: directory
-  material:packs/internal/directives/.gitignore:
-    path: packs/internal/directives/.gitignore
-    sha256:
   material:packs/internal/directives/no-full-heavy-suites-in-mission.directive.yaml:
     path: packs/internal/directives/no-full-heavy-suites-in-mission.directive.yaml
     sha256: 3ba1e3df5988417d1113fedc351dfbf3932702467762c574f404dd842d118e18
@@ -1822,18 +1735,12 @@ input_artifacts:
   material:packs/internal/drg:
     path: packs/internal/drg
     sha256: directory
-  material:packs/internal/drg/.gitignore:
-    path: packs/internal/drg/.gitignore
-    sha256:
   material:packs/internal/drg/fragment.yaml:
     path: packs/internal/drg/fragment.yaml
     sha256: 1db95131065c009970c0578262ebef1ac8b1e037953d6bbcd34d741f5fcadca6
   material:packs/internal/glossary_packs:
     path: packs/internal/glossary_packs
     sha256: directory
-  material:packs/internal/glossary_packs/.gitignore:
-    path: packs/internal/glossary_packs/.gitignore
-    sha256:
   material:packs/internal/glossary_packs/spk-internal.glossary-pack.yaml:
     path: packs/internal/glossary_packs/spk-internal.glossary-pack.yaml
     sha256: 2fb82255b622510fbd7ed5d7b8f16cde688405b25730af540fd433ca479f2223
@@ -1843,9 +1750,6 @@ input_artifacts:
   material:packs/internal/procedures:
     path: packs/internal/procedures
     sha256: directory
-  material:packs/internal/procedures/.gitignore:
-    path: packs/internal/procedures/.gitignore
-    sha256:
   material:packs/internal/procedures/cloud-session-dispatch.procedure.yaml:
     path: packs/internal/procedures/cloud-session-dispatch.procedure.yaml
     sha256: 299ebe474360dd93a94b2474c9c35c4cc21ea59776ba20515fdaec8f2923b108
@@ -1882,9 +1786,6 @@ input_artifacts:
   material:packs/internal/skills:
     path: packs/internal/skills
     sha256: directory
-  material:packs/internal/skills/.gitignore:
-    path: packs/internal/skills/.gitignore
-    sha256:
   material:packs/internal/skills/issue-triage.skill.md:
     path: packs/internal/skills/issue-triage.skill.md
     sha256: f7537d583af00993dcaf59ccfe97aff758ecd77c720280a143ab72f1bfc88660
@@ -1912,9 +1813,6 @@ input_artifacts:
   material:packs/internal/styleguides:
     path: packs/internal/styleguides
     sha256: directory
-  material:packs/internal/styleguides/.gitignore:
-    path: packs/internal/styleguides/.gitignore
-    sha256:
   material:packs/internal/styleguides/executive-debrief.styleguide.yaml:
     path: packs/internal/styleguides/executive-debrief.styleguide.yaml
     sha256: 8ba84be8a8880cb0557f7236dfe1b1b59a5764e72f70b63681fd3f71a2f55af4
@@ -1933,9 +1831,6 @@ input_artifacts:
   material:packs/internal/tactics:
     path: packs/internal/tactics
     sha256: directory
-  material:packs/internal/tactics/.gitignore:
-    path: packs/internal/tactics/.gitignore
-    sha256:
   material:packs/internal/tactics/branded-deliverable.tactic.yaml:
     path: packs/internal/tactics/branded-deliverable.tactic.yaml
     sha256: 20463dbbc3dd8d3dff3d558ace0586de0528277edbe4fe224324b18b6813c09a
@@ -1951,9 +1846,6 @@ input_artifacts:
   material:packs/internal/toolguides:
     path: packs/internal/toolguides
     sha256: directory
-  material:packs/internal/toolguides/.gitignore:
-    path: packs/internal/toolguides/.gitignore
-    sha256:
   material:packs/internal/toolguides/BRANDED_DOCUMENT_GENERATION.md:
     path: packs/internal/toolguides/BRANDED_DOCUMENT_GENERATION.md
     sha256: 7cb001615da1620a3072d28db31f9ebb902b315c889507069a3c55d8509d6a08
@@ -1974,118 +1866,93 @@ input_artifacts:
     sha256: 1dc0a32c705e804b87d61ff9ee21b56890a4f895c44813c6d85480bc67857333
   package:built-in:
     path:
-    sha256: a3787a888f5ac58e32ac65271c57089096df5034bc57761514e34a6ee3eb46cd
+    sha256: 05d0e2f397d5c5cd50436f3ba8943cb58be823779aa77a02105a514481fd6331
   package:mission-assets:
     path:
-    sha256: 2ee63bb0c4cc19ddb1b78ba373c5d8d2cee26f15ba316a13f3547038ff6a00e1
+    sha256: 3c3a78cf69c6f1bad1c2d4b3758b8ffe9917c4d3319677b60b2faf6f78b33bbd
   template-selection:spec:
     path:
-    sha256: 7ddb2b421a550f6b5038f74b0fe35f0e52a8524d96e6abda6818e4a6c5eef4b5
+    sha256: a93a55e225e7924104e075ebc372748a964cb141a7c218636ef45e7c9bcad2ae
   template-selection:plan:
     path:
-    sha256: fea1875994035726a2f52b6e4ed0cec837b14452ea4dd2d85538fcb8b91c42a3
-  git:source-membership:
-    path:
-    sha256: 0527092dfad11842ab07c61eb97e42f5cd733084d5311e480d3435808670fdb5
+    sha256: fce828766bca81088198e7717d6a7a3761cc8ebf8eb0777c6a5a1d487d7f3f9d
 verdict: ready
 issue_counts:
+  medium: 0
+  high: 0
   critical: 0
   low: 0
-  high: 0
-  medium: 0
   info: 0
 findings: []
-report_transaction: b3185ea6685e4e79a95c99c47485507a
+report_transaction: 08e6f0354d234097b2094977ed8954fb
 material_manifest_version: 1
 ---
 
 ## Specification Analysis Report
 
-Mission `organization-workspace-lifecycle-01M5DRAR`. Independent incremental formal analysis at `c9bd99da67f3e2c2b2cd77c484ec95ca31f521c5`, following WP06 retained-claim ownership amendment de6febc39 and canonical finalizations62318f704,344012173 andc9bd99da6. Reuse unchanged seven-WP requirement/dependency assessments; this pass reads the bounded plan/WP06 additions and the canonical claim/review-base source contract. No test, source/status/matrix/report mutation or canonical recording performed by this analysis; only this external carrier is written.
+Mission `organization-workspace-lifecycle-01M5DRAR`, analyzed at clean source `64f3e603a0011f7680fdead8573d8774c7f10885`. This is the second full thirteen-package planning assessment after the separately recorded high C1 finding, not a restamp of the former seven-package report. Specification, plan, task outline, package boundaries, lifecycle contract and current canonical primary policy were considered. Readiness means artifact consistency for the declared dependency-ordered work; it does not mean implementation acceptance, Linux success, publication, runtime enablement or organization adoption.
 
 | ID | Category | Severity | Location(s) | Summary | Recommendation |
-|----|----------|----------|-------------|---------|----------------|
-| — | — | — | — | No unresolved cross-artifact findings in the bounded amendment. | Persist current complete material scope canonically before the declared red-first implementation. |
+|---|---|---|---|---|---|
+| — | — | — | Current thirteen-package artifacts | No unresolved cross-artifact planning finding identified in this bounded assessment. | Keep all implementation, review, exact delivery and installed execution gates open until their actual evidence exists. |
 
-### Amendment and Canonical Authority
+### C1 Resolution and Authority
 
-WP06 now additionally owns `src/specify_cli/cli/commands/agent/tasks_move_task.py`, the existing complete `tests/specify_cli/cli/commands/agent/test_owned_checkout_move_task.py` module, `tests/integration/migration/test_wp03_advance_to_approval.py`, canonical `src/specify_cli/lanes/claim_base.py` and its complete `tests/lanes/test_claim_base.py` module. With the original acceptance adapter/test pair, WP06 now has exactly seven admitted owning files. The plan and prompt describe a real strict-closeout refusal: the mission-wide planning pin advanced during genuine later planning, past already committed retained implementation. The current owned-review adapter uses that mutable mission pin as the implementation window and ignores the existing per-WP immutable claim base. It therefore rejects an authentic owned-file change as absent.
+The first supported report was durably recorded at `ea6e701162a78c1829d3a7691a8b005a54824f46` with high C1. In a separate planning step under the user's standing mission authority, the existing core owner released future ordinary allocator/completion ingress to this lifecycle lane. WP09 now explicitly owns `src/specify_cli/lanes/worktree_allocator.py`, `src/specify_cli/invocation/writer.py` and `src/specify_cli/invocation/lifecycle.py`, alongside the existing worker/configuration/command and native module. Its bounded instructions require creator identity before effects, distinguish reused/unknown custody, preserve sealed core bodies, treat completion as wakeup rather than release, and require installed ordinary success/failure/cancellation/recovery proof plus callback budgets.
 
-The canonical claim seam already records an immutable, idempotent-by-absence per-WP base through lanes.claim_base.record_claim_base. This mission has a real WP06 ref at bc5203eae26de49e9c4b72dfc67493703c7db72b, before its committed red485d3c2c5 and implementation6ce9f43cf; its owned-file diff is present. This is existing authority, not a manually inferred replacement SHA. A requeue does not clear that ref; done/canceled cleanup owns its retirement. The current mission planning pin remains valid planning evidence and must not be rewound to force a review diff.
+Supported latest-qualified RC7 finalization validated and then admitted all thirteen packages with zero ownership/requirement warnings. Commit `64f3e603a0011f7680fdead8573d8774c7f10885` changed only the authored WP09 scope and canonical lanes metadata. Prior status/event bytes and acceptance metadata stayed unchanged; no code was implemented by that amendment. Root retains core analysis/finalizer and release convergence. Historical evidence pins and sealed OperationRoot/dispatch/close/executor bodies were not changed.
 
-The bounded repair should validate the current mission planning pin with the existing presence, target-currentness/ancestry and HEAD guards, then read and independently validate the canonical per-WP claim base for the implementation review window. The original missing, unreadable, foreign, orphaned, equal-to-HEAD and ancestry checks on the mission planning pin remain in force before selection. When a per-WP claim ref is present, its independent commit/HEAD/ancestry/currentness validation must refuse invalid evidence and must never fall back to planning. A genuinely absent claim ref preserves the pre-existing validated planning-base compatibility path for older or doctor-rebuilt missions; it is not a new relaxation. The existing migration tests explicitly exercise that healthy rebuilt state without a claim. Because read_claim_base currently returns None for any rev-parse failure, add an opt-in strict read mode in that existing canonical authority; its default legacy behavior stays unchanged. Strict absence requires the expected absent return code1 AND empty stdout AND empty stderr, with any additional native existence probe satisfying the same expected absent shape. Any diagnostic output, unexpected return code, execution/IO error or empty successful output refuses. The owner's controlled disposable Git probe showed a malformed loose ref can yield rc1 with warning stderr, while show-ref --verify --quiet also returns1 and suppresses that warning. Dual return codes alone therefore do not prove absence. Do not match warning text; use the closed return-code/output contract and retain raw probe evidence. A present result still undergoes independent commit/HEAD/ancestry validation; the strict reader cannot turn a blob or invalid ref into acceptance. No CLI duplicate of the private claim-ref namespace is introduced. This compatibility clarification supersedes the stricter absence-refusal recommendation in the previous external carrier, which would unnecessarily break an existing supported recovery contract. Preserve real authored owned-file matching and status-only/out-of-scope/rename refusals. Do not create an alternative writer, fabricate source churn, set the ref manually or edit status events.
-
-### Validation and Compatibility
-
-The amended prompt explicitly requires a committed real linked-checkout regression before repair, then the complete owning move-task module and unchanged required baseline/affected/static/coverage/review gates. The meaningful positive is claim→commit actual owned implementation→genuine planning amendment/finalization advances only the mission pin→review still uses the original canonical claim window. Primary/sibling snapshots, exact typed custody and event integrity remain protected.
-
-Negative controls must preserve existing missing/foreign/orphan/HEAD mission-pin tests and add invalid present-claim checks rather than using claim authority to bypass planning validation. A separate positive retains the real doctor-rebuilt healthy planning-base path without a claim, with the same required evidence as before. Migration SimpleNamespace fixtures receive actual task_id/mission_slug fields matching the real state; no getattr fallback or guessed identity exists solely to keep old fixtures green. New-claim positives should reach the normal claim seam, not invent refs. Full module coverage retains the status-only, auto-commit/out-of-owned-scope, outside-to-inside rename and review/approval durability checks. This is source recovery within WP06; it grants no new worktree, competing WP, runtime authority, primary integration or deployment permission.
-
-The canonical authoring/finalization commits admit these five added surfaces without resetting WP status. The final current-scope authoring receipt lifecycle-wp06-strict-claim-finalize.json reports result=success. The existing prerequisite response lifecycle-analysis-wp06-legacy-claim-prerequisites.json returned valid with no errors/warnings for the unchanged core artifacts; canonical recorder must still resolve current seven-file task material after this final scope amendment. Recording this new analysis still requires the complete current material manifest; successful authoring/finalization is not itself implementation admission or approval. The previously approved WP07 and earlier packages remain independent and unchanged; original rejected WP06 evidence is preserved. No fresh test or final WP06 success is claimed by this planning report.
+The initial report-recording refusal was real protection: the shared canonical primary policy was dirty. Retained receipts identified this lifecycle chat's earlier supported primary RC7 migration, rather than a guessed other owner. Local policy commit `de1a2fdf968d9ad67f51b2204da0684e7228e14d` finished that migration on its existing feature branch. Qualified canonical implement-context resolved, archived policy members were independently hash-read, 110 distinct inherited source/evidence files stayed byte-identical, and scoped diff check passed. Only trailing horizontal whitespace was normalized in generated YAML, with exact parsed-object equality. Canonical policy was not redirected to a shadow checkout. Local policy adoption is not default-branch acceptance; delivery remains an explicit source/release obligation.
 
 ### Coverage Summary Table
 
-Coverage below means planned task association, not code coverage, runtime admission or completion. One task corresponds to one WP; no new parallel execution is declared.
-
-| Requirement Key | Has Task? | Task IDs | Notes |
-|-----------------|-----------|----------|-------|
-| FR-001 organization-discovery | Yes | T001, T005 | Accessible inventory and explicit bounded local scope. |
-| FR-002 durable-accounting | Yes | T001, T002, T005 | Unknown observations remain separate from authenticated creator generations. |
-| FR-003 creator-lifecycle | Yes | T003, T005 | Supported completion/startup and non-lane creator integration. |
-| FR-004 safe-retirement | Yes | T002, T003, T005 | Exact identity, creator hold and fresh preservation checks. |
-| FR-005 replay-and-recovery | Yes | T002, T003, T005, T006 | Recovery plus strict acceptance's owned-code classification prerequisite. |
-| FR-006 branch-first | Yes | T004, T005, T007 | Feature/integration landing and PR-only primary advancement. |
-| FR-007 complete-closeout | Yes | T002, T005, T006, T007 | Separate cleanup outcome and no silent matrix bypass for code work. |
-| FR-008 generation-and-fencing | Yes | T002, T003, T005, T006, T007 | Existing creator generations; WP06 carries admitted checkout custody only. |
-| FR-009 branch-disposition | Yes | T003, T005 | Safe owned local branch handling; unsupported remote actions retained. |
-| NFR-001 preservation | Yes | T001, T002, T003, T005 | Negative controls and primary-checkout preservation. |
-| NFR-002 bounded-execution | Yes | T001, T003, T005 | Finite background operations and actual callback latency gate. |
-| NFR-003 evidence-fidelity | Yes | T001, T002, T006 | Exact lifecycle identities and strict acceptance input custody. |
-| NFR-004 validation | Yes | T005, T006, T007 | Per-package unchanged required gates, coverage and independent review. |
-
-Success criteria remain mapped: SC-001→T001/T002/T005; SC-002→T003/T005; SC-003→T002/T005/T006; SC-004→T003/T005; SC-005→T004/T005/T007. Constraints remain covered through the original packages; T006 and T007 explicitly reiterate C-001/C-003 and preserves prior authority boundaries. All seven task IDs have corresponding WP prompts and requirement mappings. Dependencies are acyclic: WP01→WP02→WP03; WP01→WP04; WP01–WP04→WP05; WP05→WP06 and WP05→WP07.
-
-
-
+| Requirement Key | Has task? | Task IDs | Notes |
+|---|---|---|---|
+| FR-001 organization discovery | Yes | T001, T005, T010 | Paginated accessible IDs and bounded local coverage; rollout must refresh the live denominator. |
+| FR-002 durable accounting | Yes | T001, T002, T008 | Discovery and accountable useful-work obligations remain distinct from authority. |
+| FR-003 creator lifecycle | Yes | T003, T005, T009 | C1 resolved by the bounded canonical WP09 scope amendment; installed proof remains required. |
+| FR-004 safe retirement | Yes | T002, T003, T009, T011 | Fresh preservation, exact delivery and release remain mandatory. |
+| FR-005 replay and recovery | Yes | T002, T003, T005, T006, T009, T011 | Unknown effects retain a recovery obligation; no blind replay. |
+| FR-006 branch first | Yes | T004, T007, T012, T013 | Local integration and mainline PR publication are separate operations. |
+| FR-007 complete closeout | Yes | T002, T005, T006, T007, T010, T013 | Workflow/source completion cannot stand in for verified cleanup. |
+| FR-008 generation and fencing | Yes | T002, T003, T006, T007, T011 | Release and exact creator-generation custody are never inferred from age or session end. |
+| FR-009 branch disposition | Yes | T003, T005, T011, T012, T013 | Local and remote outcomes separate; protected/shared refs retained. |
+| FR-010 useful-work obligations | Yes | T008 | Native durable obligations confer no removal capability. |
+| FR-011 installed automatic ingress | Yes | T009, T011 | Ordinary installed startup, success/failure/cancellation and missed-event recovery must be witnessed. |
+| FR-012 organization adoption | Yes | T010 | Exact repository/runtime/creator/ingress/effect receipts, not guidance-property adoption. |
+| NFR-001 preservation | Yes | T001, T002, T003, T008, T009, T011, T012 | Active, dirty, uncertain, nested, primary and runtime-dependent state stays protected. |
+| NFR-002 bounded execution | Yes | T001, T003, T005 | Plan defines fresh-process callback timing separately from worker deadlines; final installed ingress must satisfy it. |
+| NFR-003 evidence fidelity | Yes | T001, T002, T006, T008, T011, T013 | Exact identities and unknown measurements remain explicit. |
+| NFR-004 validation | Yes | T005, T006, T007 | Required baseline, owning scope, changed-statement coverage and independent review persist for later packages. |
+| C-001 owning layer | Yes | T004, T006, T007 | One supported creator/lock/removal authority; no probabilistic cleanup. |
+| C-002 existing work | Yes | T005 | Reuse the existing lane and coordinate active owners. |
+| C-003 deployment boundary | Yes | T005, T006, T007, T009, T010 | October 24 user amendment permits scoped local lifecycle installation/trust; unrelated host/cloud/Docker/Store operations remain excluded. |
+| C-004 managed creators | Yes | T005, T009, T010 | Managed resources use their supported creator archive interface. |
+| SC-001 real discovery | Yes | T001, T002, T005 | Lane and non-lane resources must both be accounted for. |
+| SC-002 actual retirement | Yes | T003, T005, T009 | Actual disappearance once plus negative preservation; retained-only outcomes are not this positive. |
+| SC-003 crash/replay | Yes | T002, T005, T006, T009 | Exact-once effect and current-fact recovery. |
+| SC-004 production integration | Yes | T003, T005, T009 | Manual wrapper tests alone cannot satisfy it. |
+| SC-005 protected publication | Yes | T004, T007, T012, T013 | Preserve primary branches, frozen archive/history and valid live stacked missions. |
+| SC-006 observed closeout proof | Yes | T010, T011 | Source/install/enabled execution/attributable capacity are separate facts. |
 
 ### Charter Alignment Issues
 
-None unresolved in this planning scope. The fix reuses existing canonical claim authority, preserves mandatory refusals, owns the affected adapter/test module, requires a red-first regression plus full bounded gates and independent review, and avoids a manual status or pin bypass. It directly supports FR-005/FR-007/FR-008 and evidence fidelity. Prior source and failed closeout receipts stay intact. Required quality thresholds and PR-only workflow remain unchanged.
+No new charter exception is proposed. Red-first behavior evidence, strict type/lint requirements, required baseline and owning checks, independent review and PR-only primary advancement remain binding. The October 24 user amendment permits scoped local lifecycle installation and trust; unrelated Docker/cloud/host/service/Store operations stay excluded. New implementation/tests follow the current native Zig direction; Python changes are bounded existing compatibility glue. There is no numerical worktree cap. Unknown resource state retains an accountable recovery/finish obligation.
+
+Fresh official index resolution selects non-yanked 4.0.0rc7 including prereleases. The qualified isolated governing CLI and exact project-lock source test environment are separate identities. No live shared runtime was replaced during this assessment. Current canonical primary charter/config are committed and preserved, not ignored to obtain a pass.
 
 ### Unmapped Tasks
 
-None. The added surfaces belong to T006; all seven existing task mappings remain valid. No additional top-level requirement or dependency cycle is introduced.
+None identified. T006/T007 cover strict-closeout/custody defects; T011 retirement safety and actual Linux visibility diagnosis; T012 branch-first integration; T013 the archive/live boundary. T009 remains dependent on T008 and T011; canonical planning admission does not approve either implementation or a dependent producer. T010 still requires every current authenticated repository's real runtime/ingress/effect evidence.
 
-### Metrics
+### Measurements and Evidence Boundaries
 
-- Requirements:13 (9functional,4non-functional).
-- Tasks:7.
-- Requirement trace association:13/13=100%; not runtime/mission completion.
-- Unresolved findings:0; critical0/high0/medium0/low0.
-- Ambiguity/duplication findings:0/0; overflow0.
-- Newly admitted owning surfaces:5existing files, plus the original2; totalWP06scope7files.
-- No tests, token/cost or elapsed implementation measurements produced by this analysis. The malformed-ref behavior is owner-supplied controlled probe evidence, not a validation run by this reviewer.
-
-### Material Identity Snapshot
-
-Canonical recorder must independently resolve all current material/directory/.gitignore/source-membership inputs; these hashes support review reproducibility only.
-
-| Material | SHA-256 |
-|----------|---------|
-| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/spec.md` | `86b2522bbcdda8c123aeab27223c4c2da0ffdad37b75de001c53429f2c6ee6ba` |
-| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md` | `c54f9e1248a0c12b98532884a32378d0f8f5c63a4e3860fe37809718da745297` |
-| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md` | `63de531735a12eef9277bca812fda58678e88194c4291235b6ef5983b4aefc6d` |
-| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP01-verified-organization-discovery-and-accounting.md` | `4dc70e62161a40d75c546abc3a207adcab93f69ee6f32c978e4879006250c785` |
-| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP02-durable-lifecycle-state-and-generation-bound-recovery.md` | `6c1fc7da7b468c12a4789f2dff15868c407fb9ff229368b01481898e123d8555` |
-| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP03-supported-creator-adapters-and-automatic-ingress.md` | `2158e2e45517fc8585527e991647474081f7ab9f9baba3ee8bb09ceff1d1b317` |
-| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP04-branch-first-consolidation-and-guidance.md` | `26694aa068ab23ff713ad3517f1a131d78fed5637bace8d0c4e4a74a0451da83` |
-| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP05-integrated-recovery-acceptance-and-adoption.md` | `bd0559ce2968722d167705b67508492ffdf1d12369e9e01fd2f0f5d6703977cb` |
-| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout.md` | `93c7bf1a9e9a2dce1aa85a1adb4ef871ae420cb9e422c592d3153c5441cfd957` |
-| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP07-operation-custody-and-closeout-integration.md` | `b4281f7584e213ad5a55b650b8a387a020db01a13870e949405cb99b1b64a9f3` |
-| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/contracts/workspace-lifecycle.md` | `0c71b6cf9d49b6abf38ec4c113048ea07d08f436a310877ebd7cd4619aa83be4` |
-| `.kittify/charter/charter.md` | `d59dd63cbfc6ab75c708c31b9ff5d6da0f80e49469284f665b41285ec8ba81f4` |
-| `kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP06-owned-code-kind-acceptance-and-strict-closeout/review-cycle-1.md` | `5529380d18c2db484cad39dcd951a0ac9fe61411c459638a4669940b625ee532` |
+- Twelve functional requirements, four non-functional requirements, four constraints and six success criteria have nominal task references. This is traceability, not completion or model quality.
+- Thirteen authored tasks; the one high C1 finding was recorded and then resolved by a concrete ownership amendment. No unresolved finding, duplicate requirement or overflow identified in this bounded pass.
+- Source `52586365129840f9929f0997a2c7d8dffcee90b3` passed 353 complete owning checks. The combined owner recorded 2,452 baseline passes/five skips and 722 final documentation passes, with durable independent WP13 approval. Hosted PR120 now tests `c19024d9d37f69426c5946828133b0689268628e`; Linux cause and required terminal platform checks are still pending.
+- Verified organization execution adoption remains zero; production worker enablement remains false. No capacity recovery is attributed to this assessment or policy commit.
+- Earlier reports, failed/refused receipts, review history, archived source and uncertainty remain recoverable. No resources were deleted and no prior approval was converted into deployment authority.
 
 ### Next Actions
 
-Persist this carrier through canonical owned record-analysis with the complete current manifest after finalization settles. Commit the real retained-claim regression, implement the bounded adapter repair, run all required relevant qualification and obtain independent WP06 review. Preserve strict matrix/claim/pin guards and exact source evidence. This ready planning assessment does not approve a WP, merge a PR, install/trust hooks, release a creator, clean unknown workspaces or authorize deployment.
+Persist this current assessment through the supported owned `record-analysis` transaction, then query the same canonical mission next step and honor its actual remaining guards. Obtain actual hosted Linux evidence, reproduce the visibility cause before repair, complete independent review and required source delivery, converge on the true newest-release source and qualify an immutable installed artifact. Only then implement the admitted ordinary creator ingress and prove actual eligible cleanup plus preservation across the current organization repository inventory. Existing useful work and uncertain historical state stay protected until their owning workflow closes them safely.

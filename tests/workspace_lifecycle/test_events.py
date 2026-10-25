@@ -167,7 +167,9 @@ def test_fresh_worker_process_resumes_released_owner_and_retains_unmerged_pr(tmp
     assert len(children) == 1
     assert children[0].wait(timeout=20) == (2 if blocked else 0)
     report = service.status()
-    assert object_at(report, "last_worker_observation")["results"][-1]["status"] == "retired", report
+    assert object_at(report, "last_worker_observation")["results"][-1]["status"] == "retired", json.dumps(
+        object_at(report, "last_worker_observation")["results"], sort_keys=True
+    )
     assert report["pending_wakeup"] is blocked
     assert not path.exists()
     assert git(repo, "branch", "--list", owner.identity.branch.removeprefix("refs/heads/")) == ""

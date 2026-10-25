@@ -472,7 +472,7 @@ def test_recovery_requires_original_creator_receipt_fields(tmp_path: Path, monke
     owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
     owner.complete(pr=9)
     intent = Coordinator(ledger).reconcile(events[0].event_id, owner.identity, owner)
-    assert intent.status == "retired", (intent.reason, owner.runtime_diagnostic)
+    assert intent.status == "retired", json.dumps({"reason": intent.reason, "runtime_diagnostic": owner.runtime_diagnostic}, sort_keys=True)
     with owner.hold(owner.identity):
         assert owner.recover(intent).result.status == "retired"
         assert owner.recover(replace(intent, **{field: "f" * 64 if field == "evidence_sha256" else "other-receipt"})).result.status == "unknown"
@@ -517,7 +517,9 @@ def test_released_owner_waits_safely_for_accepted_delivery(tmp_path: Path, monke
     owner.complete(pr=9)
     coordinator = Coordinator(ledger)
     result = coordinator.reconcile(events[0].event_id, owner.identity, owner)
-    assert result.status == "retained" and result.reason == "delivery_missing", (result.reason, owner.runtime_diagnostic)
+    assert result.status == "retained" and result.reason == "delivery_missing", json.dumps(
+        {"reason": result.reason, "runtime_diagnostic": owner.runtime_diagnostic}, sort_keys=True
+    )
     assert Path(owner.identity.path).exists()
     monkeypatch.setattr(owner.delivery, "verify_current", original)
     assert coordinator.reconcile("accepted-later", owner.identity, owner).status == "retired"
@@ -677,7 +679,9 @@ def test_current_review_and_remote_source_disposition_is_required(tmp_path: Path
 
     monkeypatch.setattr(GitHubDelivery, "_get", staticmethod(response))
     result = Coordinator(ledger).reconcile(events[0].event_id, owner.identity, owner)
-    assert result.status == "retained" and result.reason == "delivery_missing", (result.reason, owner.runtime_diagnostic)
+    assert result.status == "retained" and result.reason == "delivery_missing", json.dumps(
+        {"reason": result.reason, "runtime_diagnostic": owner.runtime_diagnostic}, sort_keys=True
+    )
     assert Path(owner.identity.path).exists()
     assert not list(ledger.root.glob("recovery-*.json"))
 

@@ -29,6 +29,9 @@ owned_files:
 - src/specify_cli/workspace_lifecycle/worker.py
 - src/specify_cli/workspace_lifecycle/configuration.py
 - src/specify_cli/cli/commands/workspaces.py
+- src/specify_cli/lanes/worktree_allocator.py
+- src/specify_cli/invocation/writer.py
+- src/specify_cli/invocation/lifecycle.py
 - tools/zig/workspace_ingress.zig
 tags: []
 task_type: implement
@@ -44,6 +47,36 @@ Integrate native obligations into supported creator startup/completion/recovery.
 ## Context & Constraints
 
 Follow the October 24 amendment, current language policy and existing creator custody. Preserve prior approvals. Implementation is not approval or deployment.
+
+### Ordinary creator boundary and ownership
+
+The existing core/release owner has released bounded ordinary allocator and
+completion-hook integration to this lifecycle lane. Root retains core analysis,
+finalizer and newest-release source/distribution convergence. Canonical task
+finalization must admit the added paths before implementation; this amendment
+does not claim any new implementation or runtime adoption.
+
+- Bind supported creator resource identity and its generation before the actual
+  `allocate_lane_worktree` creation effect, with reuse and interrupted creation
+  classified explicitly. Observing an existing path cannot adopt its custody.
+- Connect actual `write_completed` and `write_paired_completion` outcomes to the
+  same bounded native startup/completion/recovery ingress. These records and
+  session-end hints only wake the worker; they cannot mint owner release,
+  accepted delivery, joined-descendant evidence or deletion authority.
+- Keep new ingress logic and its positive/negative tests in Zig; changes to
+  these existing Python authorities are narrowly reviewed migration glue.
+  Preserve sealed OperationRoot, dispatch, close and executor bodies until any
+  separate extension is explicitly scoped and reviewed. Do not repin historical
+  evidence or bypass creator fences to make an ordinary callback appear safe.
+- Freeze the converged newest-release source and immutable artifact identity
+  before final installed acceptance. Prove ordinary creation/startup, successful,
+  failed and canceled production, and missed-event recovery outside the source
+  checkout. Retained useful results need an accountable owner/next action/review
+  event; eligible resources must actually close once through their creator.
+- Retain the plan's fresh-process callback latency and bounded worker budgets.
+  Installed explicit manual `managed-run` proof alone is insufficient for this
+  ordinary ingress requirement. Managed creators remain protected until their
+  supported archive operation and release are qualified.
 
 ## Validation
 

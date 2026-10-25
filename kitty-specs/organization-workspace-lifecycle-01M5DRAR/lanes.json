@@ -45,7 +45,10 @@
         "src/specify_cli/core/owned_mission.py",
         "src/specify_cli/git/ref_advance.py",
         "src/specify_cli/invocation/executor.py",
+        "src/specify_cli/invocation/lifecycle.py",
+        "src/specify_cli/invocation/writer.py",
         "src/specify_cli/lanes/claim_base.py",
+        "src/specify_cli/lanes/worktree_allocator.py",
         "src/specify_cli/workspace_lifecycle/adapters.py",
         "src/specify_cli/workspace_lifecycle/configuration.py",
         "src/specify_cli/workspace_lifecycle/coordinator.py",
@@ -88,10 +91,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-25T02:43:19.315922+00:00",
+  "computed_at": "2026-10-25T05:14:44.036104+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "eeb5d790f6587e1651104c9453b9b96e6494590b"
+  "planning_commit_sha": "ea6e701162a78c1829d3a7691a8b005a54824f46"
 }
