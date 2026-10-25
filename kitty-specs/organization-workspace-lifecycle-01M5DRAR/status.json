@@ -304,6 +304,9 @@
       "last_event_id": "01M5R7MZ391T1Y4TFB115064XQ",
       "last_transition_at": "2026-10-25T00:33:57.865542+00:00",
       "model": "__resolved_model_absent__",
+      "notes": [
+        "Own inherited PR-only fixture propagation, canonical OS door and explicit internal Op custody contract; selected four regressions reproduced against acaed before repair."
+      ],
       "provider": "__resolved_provider_absent__",
       "role": "implementer"
     }
