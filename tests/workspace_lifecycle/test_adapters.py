@@ -789,12 +789,18 @@ def test_linux_runtime_guard_preserves_dependencies_and_unknown_visibility(tmp_p
     import psutil
 
     class Process:
+        pid = 123
+
         def uids(self) -> SimpleNamespace:
             if case == "denied":
                 raise psutil.AccessDenied(123)
             if case == "exited":
                 raise psutil.NoSuchProcess(123)
-            return SimpleNamespace(real=os.getuid() + (case == "other_user"))
+            uid = os.getuid() + (case == "other_user")
+            return SimpleNamespace(real=uid, effective=uid, saved=uid)
+
+        def status(self) -> str:
+            return "sleeping"
 
         def cwd(self) -> str:
             if case == "denied_cwd":
@@ -835,6 +841,12 @@ def test_linux_runtime_guard_preserves_dependencies_and_unknown_visibility(tmp_p
     if case.startswith("denied"):
         assert diagnostic["stage"] == {"denied": "uids", "denied_cwd": "cwd", "denied_exe": "exe", "denied_files": "open_files"}[case]
         assert diagnostic["error_type"] == "AccessDenied"
+        denied = object_at(diagnostic, "denied_process_observation")
+        assert denied["pid"] == 123
+        assert denied["state"] == "sleeping" and denied["state_observation"] == "observed"
+        assert denied["uid_matches_owner"] == dict.fromkeys(("real", "effective", "saved"), None if case == "denied" else True)
+    else:
+        assert "denied_process_observation" not in diagnostic
     if case == "expired":
         assert diagnostic["outcome"] == "budget_exhausted"
     assert str(tmp_path) not in json.dumps(diagnostic)
