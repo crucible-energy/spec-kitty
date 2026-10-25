@@ -419,3 +419,39 @@ A wider documentation run passed its ordinary checks but could not set up two
 wheel tests without the declared test extra. Running those exact two tests with
 the declared dependencies resolved the setup error; it does not convert the
 original errored aggregate into a passing run.
+
+## 2026-10-25 — Close exact hosted clock and corpus-root findings
+
+### User Experience Findings
+
+Hosted architectural checks found the new active-history fixture imported and
+called the standard wall clock outside the canonical clock module. This was an
+introduced test-source defect; the earlier functional passes did not exercise
+that architectural contract. Another guard still required the retired doctrine
+root after the separately approved router retirement. The actual corpus run
+also exceeded its unchanged 120-second limit at 120.921 seconds; its cause is
+not established by that single timing result.
+
+### Engineering Decisions
+
+Use `kernel.clock.now_utc_iso` in the fixture, preserving real event ordering
+and the same history assertions. Keep both clock guards unchanged. Remove only
+the obsolete `.kittify/doctrine/` data-root expectation under the existing native
+delegate's exact patch approval; all live roots, independent assertions, jobs,
+registry, selection and budgets remain unchanged. Retain the original hosted
+failures and their exact source/job bindings. Do not treat a subsequent pass as
+a diagnosis of timing variance.
+
+### Known Limitations and Retained Obligations
+
+The lifecycle owner's reviewed denial observation is now joined, with its full
+255-test owning result and the combined baseline retained separately. It has not
+yet explained the actual Linux process or granted retirement. The corpus timing
+failure remains open pending source-backed diagnosis and unchanged-gate proof.
+PDB's actual read-only next/validate-only calls passed with all 49 Mission files
+and checkout state preserved; this does not approve WP09 or supply missing
+issuer/serving inputs. The released pre-change fixture extraction was archived,
+all 35,360 file/link entries verified, then the exact private tree retired.
+Its source, failure logs and restore manifest remain recoverable externally;
+no shared cache or worktree was pruned. HELD/v5 and Fast-mode preferences stay
+preserved; no fit, unhold or canonical source operation occurred.

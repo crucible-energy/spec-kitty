@@ -83,7 +83,6 @@ _CORPUS_DATA_ROOTS = (
     "kitty-specs/",
     ".kittify/charter/",
     ".kittify/glossaries/",
-    ".kittify/doctrine/",
     "kitty-ops/",
     # (`.kittify/release/downstream-verified.json` was dropped: it is not a tracked
     # file and is not in the router corpus group.)

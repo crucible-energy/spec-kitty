@@ -48,6 +48,7 @@ from typing import NamedTuple
 import pytest
 from typer.testing import CliRunner
 
+from kernel.clock import now_utc_iso
 from mission_runtime import OwnedCheckout
 from specify_cli.cli.commands.agent.mission import app as mission_app
 from specify_cli.lanes.compute import PLANNING_LANE_ID
@@ -56,7 +57,6 @@ from tests._owned_fixtures import RSnapshotter
 from tests._owned_tree_hash import hash_tree
 from tests.integration.conftest import OwnedCheckouts
 from tests.status.test_transition_request_owned import _write_finalizable_tasks_md
-from datetime import UTC
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
 
@@ -251,8 +251,6 @@ def test_owned_lanes_refinalization_preserves_started_history_and_membership(
     monkeypatch: pytest.MonkeyPatch,
     remove_started: bool,
 ) -> None:
-    from datetime import datetime
-
     from ulid import ULID
 
     from specify_cli.status.models import Lane, StatusEvent
@@ -272,7 +270,7 @@ def test_owned_lanes_refinalization_preserves_started_history_and_membership(
             wp_id="WP01",
             from_lane=Lane.PLANNED,
             to_lane=Lane.CLAIMED,
-            at=datetime.now(UTC).isoformat(),
+            at=now_utc_iso(),
             actor="fixture",
             force=False,
             execution_mode="direct_repo",
