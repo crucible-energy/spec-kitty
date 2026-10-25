@@ -15,7 +15,7 @@ import pytest
 from specify_cli.workspace_lifecycle.coordinator import Coordinator
 from specify_cli.workspace_lifecycle.events import EventQueue
 from specify_cli.workspace_lifecycle.state import StateStore
-from tests.workspace_lifecycle.test_adapters import git, managed_owner, object_at
+from tests.workspace_lifecycle.test_adapters import git, managed_owner, object_at, runtime_fixture
 from tests.workspace_lifecycle.test_ledger_cli import invoke
 
 
@@ -346,6 +346,7 @@ def test_real_spec_kitty_consolidation_is_joined_before_creator_completion_and_c
     from specify_cli.workspace_lifecycle.adapters import GitHubDelivery, ManagedGitCreator
     from tests.terminus.conftest import build_coord_mission
 
+    runtime_fixture(monkeypatch)
     mission = build_coord_mission(tmp_path, target_branch="feature/integration")
     repo = mission.repo
     git(repo, "branch", "main", "feature/integration")

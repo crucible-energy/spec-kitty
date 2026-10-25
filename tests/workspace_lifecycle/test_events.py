@@ -93,16 +93,20 @@ def test_observation_is_non_authoritative_and_never_creates_lock(tmp_path: Path)
 
 
 @pytest.mark.parametrize("blocked", [False, True])
-def test_fresh_worker_process_resumes_released_owner_and_retains_unmerged_pr(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, blocked: bool) -> None:
+@pytest.mark.parametrize("observation", ["clear", "held", "unknown"])
+def test_fresh_worker_process_resumes_released_owner_and_retains_unmerged_pr(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, blocked: bool, observation: str
+) -> None:
     import json
     import os
     import subprocess
     import sys
 
     from tests.workspace_lifecycle.test_adapters import git, managed_owner
+    from specify_cli.workspace_lifecycle import runtime as runtime_module
     from specify_cli.workspace_lifecycle.events import EventQueue
 
-    owner, store, _, repo = managed_owner(tmp_path, monkeypatch)
+    owner, store, _, repo = managed_owner(tmp_path, monkeypatch, runtime=observation)
     owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
     owner.complete(pr=9)
     path = Path(owner.identity.path)
@@ -140,7 +144,7 @@ def test_fresh_worker_process_resumes_released_owner_and_retains_unmerged_pr(tmp
 
     def worker() -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [sys.executable, "-m", "specify_cli.workspace_lifecycle.worker", "--state-dir", str(store.root)], capture_output=True, text=True, timeout=20
+            runtime_module.distribution_argv("specify_cli.workspace_lifecycle.worker", "--state-dir", str(store.root)), capture_output=True, text=True, timeout=20
         )
 
     first = worker()
@@ -167,12 +171,14 @@ def test_fresh_worker_process_resumes_released_owner_and_retains_unmerged_pr(tmp
     assert len(children) == 1
     assert children[0].wait(timeout=20) == (2 if blocked else 0)
     report = service.status()
-    assert object_at(report, "last_worker_observation")["results"][-1]["status"] == "retired", json.dumps(
-        object_at(report, "last_worker_observation")["results"], sort_keys=True
-    )
+    row = object_at(report, "last_worker_observation")["results"][-1]
+    assert row["status"] == ("retired" if observation == "clear" else "retained"), json.dumps(row, sort_keys=True)
+    if observation != "clear":
+        assert row["reason"] == ("runtime_dependency" if observation == "held" else "creator_operation_unsupported")
+        assert not list(store.root.glob("recovery-*.json"))
     assert report["pending_wakeup"] is blocked
-    assert not path.exists()
-    assert git(repo, "branch", "--list", owner.identity.branch.removeprefix("refs/heads/")) == ""
+    assert path.exists() is (observation != "clear")
+    assert bool(git(repo, "branch", "--list", owner.identity.branch.removeprefix("refs/heads/"))) is (observation != "clear")
     assert git(repo, "rev-parse", "main") == source
     assert queue.snapshot() == (2, 0 if blocked else 2)
 

@@ -620,3 +620,60 @@ explicit targets, and the real CLI inventory-failure/ledger-preservation case
 passes unchanged. The earlier configuration's complete inherited environment
 was not retained; do not assert an unproved historical cause for its import
 classification or hide the original failed combined check.
+
+## 2026-10-25 — Separate workflow conformance from ambient visibility
+
+### User Experience Findings
+
+Both corrected Linux nondumpability controls passed on `af2c4128`: inside in
+0.030 seconds and outside in 0.025 seconds. Their full shards still failed five
+and two cases respectively. The opaque same-UID process observations supplied
+neither complete visibility nor permission to remove a workspace. Production
+correctly retained it, but workflow tests assumed that their unrelated receipt,
+recovery or dispatch checks would always reach retirement on a shared host.
+
+### Engineering Decisions
+
+Keep production observers, eligibility and deletion unchanged. Give the existing
+real-Git workflow fixture an explicitly synthetic observer; live-holder cases
+select the actual provider, and the actual Linux kernel controls remain intact.
+The fresh-worker workflow covers clear, held and unknown observations, preserving
+the branch, checkout and absence of recovery effects for both refused cases.
+
+Propagate only this test observer through the canonical distribution launcher.
+Preserve its absolute interpreter, `-I`, exact source-selection statements,
+module invocation, arguments and real child/join behavior. Reject a changed
+launcher shape instead of silently using another interpreter profile. Check
+the preserved bootstrap independently against its original AST and leave other
+modules unchanged. No production flag, environment override or observer API is
+introduced.
+
+Independent review found that the first test adapter matched only legacy `-m`
+commands, missing the actual isolated distribution bootstrap. Its focused run
+failed four held/unknown cases while eighteen passed; retain that failure.
+Replace the obsolete interception with the canonical launcher seam, rather than
+removing isolation. Use the public runtime module for strict typing instead of
+treating an imported worker alias as an exported API. Preserve the original
+strict-check errors and avoid suppressions.
+
+Check the canonical runtime launcher explicitly as an eighth strict target,
+in addition to the original six and ledger helper. The exercised observer
+selection covers the parent and its first dispatched worker, not arbitrary
+self-respawn generations inside that child. No general inheritance claim is
+made for unexercised worker generations.
+
+At late-holder cuts, begin with the controlled workflow prerequisite, restore
+the actual provider before starting the real holder, and require that the
+intended boundary was entered. Retention must come from that boundary's runtime
+check; an earlier unrelated refusal cannot satisfy the test accidentally.
+
+### Known Limitations and Retained Obligations
+
+Synthetic workflow conformance is not full-host visibility, deployment or
+cleanup qualification. The actual live-holder tests establish preservation at
+their cut; unknown visibility does not become a positive holder-detection claim.
+Unknown processes remain unknown, and the worker remains uninstalled/disabled.
+Retain the original shard failures, independent review, focused failures and
+frozen final receipts. Source still owns the canonical Store, HELD/v5 remains
+unchanged, and neither fit, unhold, Native platform-gate bypass, shared pruning
+nor faster processing is authorized by this test repair.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import subprocess
@@ -105,13 +106,85 @@ def git(repo: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def managed_owner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[ManagedGitCreator, StateStore, list[Completion], Path]:
+def runtime_fixture(monkeypatch: pytest.MonkeyPatch, observation: str = "clear") -> None:
+    """Select a synthetic observer for this process and its first worker dispatch.
+
+    These tests exercise Git/receipts/dispatch, not whole-host visibility. Actual
+    observer and kernel controls remain separate and never use this helper.
+    Nothing in the runtime accepts this test-only selection.
+    """
+    from specify_cli.workspace_lifecycle import adapters, runtime, worker
+
+    states = {"clear": (False, True), "held": (True, True), "unknown": (False, False)}
+    state = states[observation]
+    monkeypatch.setattr(adapters, "_runtime_state", lambda path: state)
+    original = runtime.distribution_argv
+
+    def launch(module: str, *arguments: str) -> list[str]:
+        argv: list[str] = original(module, *arguments)
+        if module != "specify_cli.workspace_lifecycle.worker":
+            return argv
+        if argv[1:3] != ["-I", "-c"]:
+            raise ValueError("Qualify the changed distribution launcher before using the fixture")
+        bootstrap = ast.parse(argv[3])
+        invocation = bootstrap.body[-1]
+        if not (
+            isinstance(invocation, ast.Expr)
+            and isinstance(invocation.value, ast.Call)
+            and ast.unparse(invocation.value.func) == "runpy.run_module"
+            and invocation.value.args
+            and isinstance(invocation.value.args[0], ast.Constant)
+            and invocation.value.args[0].value == module
+        ):
+            raise ValueError("Expected the pinned module invocation after distribution selection")
+        # Keep the canonical executable, -I, source-path selection, module call,
+        # arguments and real child lifecycle. Only its observer is synthetic.
+        bootstrap.body[-1:-1] = ast.parse(f"from specify_cli.workspace_lifecycle import adapters; adapters._runtime_state=lambda path: {state!r}").body
+        argv[3] = ast.unparse(bootstrap)
+        return argv
+
+    monkeypatch.setattr(worker, "distribution_argv", launch)
+    monkeypatch.setattr(runtime, "distribution_argv", launch)
+
+
+def test_workflow_fixture_preserves_distribution_selection_and_arguments(monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.workspace_lifecycle import runtime
+
+    module = "specify_cli.workspace_lifecycle.worker"
+    original = runtime.distribution_argv(module, "--state-dir", "/synthetic-not-opened")
+    unrelated = runtime.distribution_argv("specify_cli.workspace_lifecycle.ingress", "--help")
+    runtime_fixture(monkeypatch, "unknown")
+    selected = runtime.distribution_argv(module, "--state-dir", "/synthetic-not-opened")
+    assert selected[:3] == original[:3] and selected[1:3] == ["-I", "-c"]
+    assert selected[4:] == original[4:]
+    bootstrap = ast.parse(selected[3])
+    del bootstrap.body[-3:-1]
+    assert ast.dump(bootstrap) == ast.dump(ast.parse(original[3]))
+    assert runtime.distribution_argv("specify_cli.workspace_lifecycle.ingress", "--help") == unrelated
+
+
+def test_workflow_fixture_refuses_an_unqualified_launcher(monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.workspace_lifecycle import runtime
+
+    monkeypatch.setattr(runtime, "distribution_argv", lambda module, *args: [sys.executable, "-m", module, *args])
+    runtime_fixture(monkeypatch)
+    with pytest.raises(ValueError, match="Qualify the changed distribution launcher"):
+        runtime.distribution_argv("specify_cli.workspace_lifecycle.worker", "--help")
+
+
+def managed_owner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, runtime: str = "clear") -> tuple[ManagedGitCreator, StateStore, list[Completion], Path]:
+    """Real Git/delivery workflow with an explicit synthetic observer by default.
+
+    Runtime-holder tests select ``actual`` and retain the real platform provider.
+    """
     from kernel.no_follow import fd_relative_dir_ops_supported
     from specify_cli.workspace_lifecycle.adapters import GitHubDelivery, ManagedGitCreator
     from specify_cli.workspace_lifecycle.state import StateStore
 
     if not fd_relative_dir_ops_supported():
         pytest.skip("Strict persistence is unavailable on this platform")
+    if runtime != "actual":
+        runtime_fixture(monkeypatch, runtime)
     repo = tmp_path / "repo"
     repo.mkdir()
     git(repo, "init", "-b", "main")
@@ -231,7 +304,7 @@ def test_released_creator_preserves_another_live_runtime_holder(tmp_path: Path, 
     import select
     from specify_cli.workspace_lifecycle.coordinator import Coordinator
 
-    owner, ledger, events, _ = managed_owner(tmp_path, monkeypatch)
+    owner, ledger, events, _ = managed_owner(tmp_path, monkeypatch, runtime="actual")
     owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
     owner.complete(pr=9)
     path = Path(owner.identity.path)
@@ -1309,14 +1382,17 @@ def test_source_advanced_during_recovery_is_retained_with_old_ancestry_safe(tmp_
 @pytest.mark.parametrize("phase", ["before_retire", "after_recovery"])
 def test_new_live_holder_at_retirement_boundary_is_preserved(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, phase: str) -> None:
     import select
+    from specify_cli.workspace_lifecycle import adapters
     from specify_cli.workspace_lifecycle.coordinator import Coordinator
 
+    actual_runtime = adapters._runtime_state
     owner, ledger, events, _ = managed_owner(tmp_path, monkeypatch)
     owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
     owner.complete(pr=9)
     children = []
 
     def start() -> None:
+        monkeypatch.setattr(adapters, "_runtime_state", actual_runtime)
         child = subprocess.Popen([sys.executable, "-c", "import time; print('ready',flush=True); time.sleep(30)"], cwd=owner.identity.path, stdout=subprocess.PIPE)
         children.append(child)
         assert child.stdout is not None
@@ -1344,6 +1420,8 @@ def test_new_live_holder_at_retirement_boundary_is_preserved(tmp_path: Path, mon
     try:
         result = Coordinator(ledger).reconcile(events[0].event_id, owner.identity, owner)
         assert result.status == "retained" and Path(owner.identity.path).exists()
+        assert len(children) == 1 and children[0].poll() is None, "The intended retirement boundary must actually be reached."
+        assert result.reason == ("runtime_or_nested_state_changed" if phase == "before_retire" else "runtime_changed_after_recovery")
     finally:
         for child in children:
             child.terminate()
