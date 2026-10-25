@@ -12,8 +12,9 @@ import re
 import subprocess
 from pathlib import Path
 
-from tests.terminus.conftest import CoordMission, build_coord_mission, plant_canceled_commit, restamp_approvals_at_lane_tips, run_terminus
+from tests.terminus.conftest import CoordMission, plant_canceled_commit, restamp_approvals_at_lane_tips, run_terminus
 from tests.terminus.conftest import _git as git
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
 
 _REPORT_HEADER = "Rollback to the pre-consolidation snapshot:"
 
@@ -123,4 +124,6 @@ def failing_gate_run(tmp_path: Path, mid8: str) -> tuple[CoordMission, str, dict
     reflog_before = len(reflog_shas(mission, mission.coord_branch))
     result = run_terminus(mission, ["consolidate", "--mission", mission.slug, "--yes"])
     assert result.returncode != 0, f"fixture precondition: the run must gate-FAIL. output={flat(result)}"
+    assert state_path(mission) is not None, "fixture precondition: consolidation must reach persisted mutation state"
+    assert _REPORT_HEADER in flat(result), f"fixture precondition: the actual rollback door must execute. output={flat(result)}"
     return mission, planted, before, reflog_before, result
