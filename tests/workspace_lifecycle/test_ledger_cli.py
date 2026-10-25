@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import NoReturn
 
 import pytest
 import typer
@@ -108,7 +109,7 @@ def test_failed_inventory_preserves_ledger(tmp_path: Path, monkeypatch: pytest.M
     assert invoke(monkeypatch, ["initialize", "--state-dir", str(root)]).exit_code == 0
     before = (root / "state.json").read_bytes()
 
-    def unavailable(org: str):
+    def unavailable(org: str) -> NoReturn:
         raise OrganizationInventoryUnavailable("inventory unavailable")
 
     monkeypatch.setattr(workspaces, "fetch_repositories", unavailable)

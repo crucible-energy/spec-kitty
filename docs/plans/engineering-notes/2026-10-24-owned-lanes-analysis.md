@@ -600,3 +600,23 @@ workflow registration is delivered separately in PR121, not runtime adoption.
 Preserve earlier failures and recovery archives. HELD/v5, Source Store custody
 and the platform-held Native lane remain unchanged; no fit, unhold, shared
 pruning or faster processing follows from this source integration.
+
+### Combined strict-check discovery
+
+The combined strict scope followed an existing ledger CLI test callback and
+reported its missing return annotation. Substituting the exact pre-correction
+adapter test from `24856332` reproduced the same error, so the directory change
+did not introduce it. Give the always-raising callback its truthful standard
+library `NoReturn` annotation; keep its body, assertions, strict flags and the
+original six-file scope. Check the helper explicitly too. Retain both original
+failures and the import-profile investigation; a narrower type-check traversal
+must not silently hide this imported test contract.
+
+The owner subsequently recovered the earlier check's retained import metadata:
+its explicit acceptance/event targets were checked, but the imported ledger
+helper had `ignore_all` set. That historical result is not proof of this
+helper's strictness. The original six targets plus the helper now pass as seven
+explicit targets, and the real CLI inventory-failure/ledger-preservation case
+passes unchanged. The earlier configuration's complete inherited environment
+was not retained; do not assert an unproved historical cause for its import
+classification or hide the original failed combined check.
