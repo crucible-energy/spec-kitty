@@ -765,3 +765,32 @@ does not install the lifecycle worker, complete PDB package acceptance, or grant
 Source/Store/serving authority. HELD/v5, the Native platform hold, and standard
 processing remain unchanged. Retain the small recovery fixtures until reviewed
 closeout; no shared pruning or duplicate owner lane is introduced.
+
+## 2026-10-25 — Bound render fixtures to their actual committed input
+
+### User Experience Findings
+
+The recovery's committed-input check passed both real render cases, parity and
+command-override tests, but one additional fixture setup exceeded the unchanged
+240-second test deadline during checkout: 50 passed and one setup error. The
+first checkout also took 145 seconds. This is not a successful gate or evidence
+of a content regression; retain the failed log and all four exact clone pins.
+The cause of the transient checkout delay remains unproved. Full historical
+object copying is nevertheless unnecessary work in this committed-tree fixture.
+
+### Engineering Decisions
+
+Use Git's shallow transport for the exact current commit, retaining the full
+committed tree, fresh ignore configuration and real tracked-file status checks.
+Require exact HEAD equality, actual shallow history and no alternate object
+store. The render contract does not inspect historical commits. No deadline is
+widened, artifact is excluded, assertion is skipped or failed run relabeled.
+This is a fixture input reduction, not a production Git/lifecycle change.
+
+### Known Limitations and Retained Obligations
+
+Historical ancestry is intentionally not qualified by these render tests;
+ancestry-dependent lifecycle tests retain their own real-history fixtures.
+Requalify the changed fixture and exact committed inputs before publishing.
+Retain failure evidence and review this new fixture change independently. No
+global filesystem improvement or cause of concurrent capacity changes is claimed.

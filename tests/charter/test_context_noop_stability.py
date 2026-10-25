@@ -63,6 +63,11 @@ def _clone_doctrine_tracked_repo(dest: Path) -> Path:
     copied. The clone therefore observes the committed ``.gitignore`` state,
     where the selected doctrine root and charter are tracked.
 
+    Only the exact committed tree is an input to this render contract. Use
+    Git's shallow local transport to avoid copying unrelated historical
+    objects into every disposable fixture. Do not share object storage or
+    substitute an exported/untracked tree for a real checkout.
+
     The committed ``charter.yaml`` now carries the WP04 (C-A1)
     ``mission_type_activations`` provisioning key (emitted by the charter
     generation path — ``charter.activation.compiler.provision_mission_type_activations``),
@@ -71,10 +76,13 @@ def _clone_doctrine_tracked_repo(dest: Path) -> Path:
     """
     head_sha = _run_git(["rev-parse", "HEAD"], cwd=_REPO_ROOT).stdout.strip()
     _run_git(
-        ["clone", "--local", "--no-hardlinks", "--no-checkout", "--quiet", str(_REPO_ROOT), str(dest)],
+        ["clone", "--no-local", "--depth", "1", "--no-checkout", "--quiet", str(_REPO_ROOT), str(dest)],
         cwd=_REPO_ROOT,
     )
     _run_git(["checkout", "--quiet", head_sha], cwd=dest)
+    assert _run_git(["rev-parse", "HEAD"], cwd=dest).stdout.strip() == head_sha
+    assert _run_git(["rev-parse", "--is-shallow-repository"], cwd=dest).stdout.strip() == "true"
+    assert not (dest / ".git/objects/info/alternates").exists()
     return dest
 
 
