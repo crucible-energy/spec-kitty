@@ -18,12 +18,15 @@
         "WP08",
         "WP11",
         "WP09",
-        "WP10"
+        "WP10",
+        "WP12"
       ],
       "write_scope": [
         ".kittify/charter/charter.md",
         "AGENTS.md",
+        "contracts/mission-status/schemas/OpsInvocation.yaml",
         "docs/guides/how-to/workspace-lifecycle.md",
+        "docs/plans/engineering-notes/2026-10-24-lifecycle-integration-contracts.md",
         "docs/plans/engineering-notes/2026-10-24-organization-lifecycle-rollout.md",
         "docs/reports/organization-workspace-lifecycle/**",
         "packs/built-in/missions/mission-steps/**",
@@ -38,6 +41,7 @@
         "src/specify_cli/cli/commands/workspaces.py",
         "src/specify_cli/consolidation/**",
         "src/specify_cli/core/owned_mission.py",
+        "src/specify_cli/git/ref_advance.py",
         "src/specify_cli/invocation/checkout.py",
         "src/specify_cli/invocation/executor.py",
         "src/specify_cli/lanes/claim_base.py",
@@ -53,6 +57,8 @@
         "src/specify_cli/workspace_lifecycle/worker.py",
         "tests/acceptance/test_owned_code_kind.py",
         "tests/consolidation/**",
+        "tests/contract/test_mission_status_ops.py",
+        "tests/git/test_ref_advance_cas.py",
         "tests/integration/migration/test_wp03_advance_to_approval.py",
         "tests/integration/test_owned_analysis_implementation_cli.py",
         "tests/integration/test_owned_lifecycle_acceptance_e2e.py",
@@ -61,7 +67,9 @@
         "tests/lanes/test_claim_base.py",
         "tests/specify_cli/cli/commands/agent/test_owned_checkout_move_task.py",
         "tests/specify_cli/cli/commands/test_doctor_cli_surface_golden.py",
+        "tests/specify_cli/consolidation/test_single_branch_consolidate_e2e.py",
         "tests/specify_cli/invocation/cli/test_owned_checkout.py",
+        "tests/terminus/**",
         "tests/workspace_lifecycle/test_acceptance.py",
         "tests/workspace_lifecycle/test_adapters.py",
         "tests/workspace_lifecycle/test_coordinator.py",
@@ -78,10 +86,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-24T22:23:18.900803+00:00",
+  "computed_at": "2026-10-25T00:33:21.858777+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "e1dc28a29d74e67dbe48bec33e79b2bb36cae53b"
+  "planning_commit_sha": "f65c92d93713a6bb91d8a24c69a5cfc7ad2edb05"
 }

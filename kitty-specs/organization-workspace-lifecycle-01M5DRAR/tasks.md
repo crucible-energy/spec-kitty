@@ -86,3 +86,11 @@ T010 Deliver source chain and runtime, admit every authenticated repo by exact I
 **Requirement Refs**: FR-004, FR-005, FR-008, FR-009, FR-011, SC-006, NFR-001, NFR-003
 
 T011 Repair retained creator delivery/recovery safety with real Git counterexamples and independent review. WP09 depends on this safety gate as well as WP08.
+
+## Work Package WP12: Restore branch-first integration acceptance
+
+**Dependencies**: WP04, WP07
+
+**Requirement Refs**: FR-006, FR-009, SC-005, NFR-001
+
+T012 Correct inherited protected-target fixture propagation and canonical OS/status-contract integration without weakening production guards. Preserve exact red evidence, active ownership and original primary/protected cases.
