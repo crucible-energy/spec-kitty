@@ -1048,6 +1048,9 @@ if sys.stdin.readline().strip()=='protect':
         "purpose": "Reproduce same-UID protection before considering any visibility-policy repair",
         "scope": "Only this exact child is enumerated; not full-host visibility or cleanup qualification",
         "inside_candidate": inside_candidate,
+        "cwd": str(cwd),
+        "executable": str(Path(sys.executable).absolute()),
+        "isolated_program": program,
         "next_action": "Join the owned child through stdin; force only its dedicated process group on timeout",
         "review_event": "Test terminal outcome and Linux CI evidence review",
         "joined": False,
@@ -1058,6 +1061,8 @@ if sys.stdin.readline().strip()=='protect':
         [sys.executable, "-I", "-c", program], cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True
     )
     try:
+        custody["child_pid"] = child.pid
+        receipt.write_text(json.dumps(custody))
         assert child.stdout is not None and child.stdin is not None
 
         def stage() -> dict[str, Any]:
