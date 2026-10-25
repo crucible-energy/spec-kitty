@@ -534,3 +534,30 @@ a genuine owning installation and independently current authority; a healthy
 source-unproven incumbent or an Auth provider module does not supply either.
 HELD/v5, Source's exclusive Store custody and processing-tier preferences remain
 unchanged; no fit, unhold, source query, enrollment or runtime action occurred.
+
+## 2026-10-25 — Separate governance scope from the native-path test profile
+
+### User Experience Findings
+
+The first combined baseline inherited an explicit consumer asset scope and
+private home from its runner. Eleven tests intentionally exercise native agent
+destinations and one requires no explicit home override. Those inputs changed
+their subject: the run completed with twelve failures, 2,440 passes and five
+skips. Every tracked source hash remained unchanged.
+
+### Engineering Decisions
+
+Correct only the external test runner. The canonical pytest configuration
+already establishes isolated per-worker home and configuration roots before
+collection; use that test profile without inherited consumer overrides. The
+private consumer wrapper remains mandatory for governance CLI invocations.
+All twelve exact failed cases then passed on the same frozen source. Retain
+both runs and repeat the required combined baseline with the corrected inputs;
+do not change assertions, production paths or enforcement to obtain a pass.
+
+### Known Limitations and Retained Obligations
+
+The failed aggregate remains failed; the twelve-case diagnostic is not the
+full required gate. Final results must bind the frozen candidate and actual
+test environment externally. Private failed-run assets remain retained; no
+global command rollback, shared cleanup or processing-tier change is implied.
