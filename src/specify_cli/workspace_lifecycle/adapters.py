@@ -417,6 +417,17 @@ def _runtime_result(
     return held, complete
 
 
+def _process_directory_owner(pid: int) -> int:
+    """Read one procfs directory's metadata, never its command or link targets."""
+    procfs = getattr(psutil, "PROCFS_PATH", None)
+    if type(pid) is not int or pid <= 0 or not isinstance(procfs, str) or not Path(procfs).is_absolute():
+        raise ValueError("Process directory observation unavailable")
+    info = (Path(procfs) / str(pid)).lstat()
+    if not stat.S_ISDIR(info.st_mode):
+        raise ValueError("Process directory observation unavailable")
+    return info.st_uid
+
+
 def _observe_denied_process(
     process: psutil.Process | None, uids: object, owner_uid: int | None, stage: str, deadline: float, error: BaseException
 ) -> dict[str, object] | None:
@@ -444,6 +455,21 @@ def _observe_denied_process(
                 observation["state_observation"] = "invalid"
         except (OSError, psutil.Error, AttributeError) as state_error:
             observation.update(state_observation="unavailable", state_error_type=type(state_error).__name__)
+    directory: dict[str, object] = {"observation": "deadline"}
+    observation["process_directory"] = directory
+    if time.monotonic() < deadline:
+        if type(pid) is not int or pid <= 0:
+            directory["observation"] = "invalid_pid"
+        elif observation["state_observation"] != "observed" or observation["state"] in {"zombie", "dead"}:
+            directory["observation"] = "process_unavailable"
+        else:
+            try:
+                directory_uid = _process_directory_owner(pid)
+                directory.update(
+                    observation="observed", owner_uid_matches=directory_uid == owner_uid if owner_uid is not None else None, root_uid_matches=directory_uid == 0
+                )
+            except (OSError, ValueError) as directory_error:
+                directory.update(observation="unavailable", error_type=type(directory_error).__name__)
     return observation
 
 

@@ -923,6 +923,7 @@ def test_denied_process_observation_never_grants_visibility(tmp_path: Path, monk
 
 @pytest.mark.parametrize("case", ["owner", "root", "foreign", "unavailable", "gone", "deadline", "no_context", "invalid_pid", "timed_probe", "state_deadline"])
 def test_denied_process_directory_observation_is_bounded_and_non_authoritative(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str) -> None:
+    import time
     from types import SimpleNamespace
 
     import psutil
@@ -1001,12 +1002,12 @@ def test_process_directory_owner_observes_only_a_real_pid_directory(tmp_path: Pa
     monkeypatch.setattr(psutil, "PROCFS_PATH", str(tmp_path), raising=False)
     assert adapters._process_directory_owner(321) == process_directory.lstat().st_uid
     for invalid_pid in (True, 0, -1):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Process directory observation unavailable"):
             adapters._process_directory_owner(invalid_pid)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Process directory observation unavailable"):
         adapters._process_directory_owner(322)
     monkeypatch.setattr(psutil, "PROCFS_PATH", "relative/proc")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Process directory observation unavailable"):
         adapters._process_directory_owner(321)
 
 

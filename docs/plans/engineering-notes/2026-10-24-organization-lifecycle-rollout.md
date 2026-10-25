@@ -209,3 +209,46 @@ external receipts. Another actual hosted Linux observation is required before
 selecting a runtime repair. Runtime admission and every-repository execution
 qualification remain incomplete; the production worker stays disabled. Useful
 work, uncertain resources and their recovery obligations remain protected.
+
+## October 25 — protected procfs observation, before any policy repair
+
+### User experience findings
+
+Published integration `2214f39c` reached Linux core_misc shard 2: four failures,
+1,128 passes and four skips in 256.60 seconds. The exact decoded log is retained
+externally. The denied PID was 970, sleeping, with real/effective/saved UIDs all
+matching the caller. Its cwd remained unavailable. This is not an observation
+of a vanished, zombie or foreign-effective-UID process. Shards 3 and 4 were
+cancelled by matrix fail-fast, not passing. Process purpose and security policy
+remain unknown; no inference from its PID or apparent age authorizes removal.
+
+### Engineering decisions
+
+The Linux kernel documents that cwd link reads use ptrace credential checks and
+procfs ownership can differ after protection/credential changes. These explain
+possible mechanisms, not this process's established cause. Add one non-follow
+directory-metadata observation after the existing denial, only with a valid PID,
+an observed live state and remaining original deadline. Emit only whether its
+owner matches the caller or root, plus sanitized unavailability; no names,
+paths, command lines, exception text, new privilege or extra UID query. Reject
+relative proc roots, non-directory leaves and invalid PIDs. These observations
+remain outside identity, evidence, release and eligibility. Dead/unknown state,
+no diagnostic context and expired time cannot cause an additional filesystem
+query. Elapsed accounting includes the optional metadata read.
+
+Test-before-code retained ten missing-field/helper failures and one no-context
+pass with unchanged source/toolchain and a joined producer. All 34 focused old
+and new controls then passed, including exact metadata observation, symlink and
+invalid-PID refusal, missing state, no-context/deadline, stale-data clearing,
+privacy, unchanged retention and elapsed time. Full owning and strict checks
+belong to the new frozen candidate's external receipts; they are not inferred
+from the earlier 255-case pass. Newest non-yanked prerelease resolved again to
+4.0.0rc7; the explicitly addressed qualified runtime was verified, not replaced.
+
+### Known limitations
+
+The actual Linux procfs ownership and denial mechanism still need a new hosted
+observation before a repair is selected. No platform visibility rule, creator
+fence, deadline or removal predicate changed. Default delivery, installed
+ordinary native ingress and per-repository execution adoption remain unfinished.
+No project, host, cache or uncertain registration was retired.
