@@ -5,18 +5,12 @@ Contract (FR-005/FR-007/FR-011, SC-005/SC-006, ``contracts/rollback-authority.md
 authority FIRST, and clears the record only after a full restore. Without that,
 the NEXT fresh run would capture the ADVANCED base as its own "pre-run" state.
 
-Trigger: the #5385 shape. A LANES mission whose target is the protected ``main``
-raises ``BookkeepingPolicyRefused`` in ``_phase_record_done_and_project`` AFTER the
-squash advanced the target and AFTER the post-mutation tips were recorded for the
-``_phase_mission_to_target`` phase. Since #5385 the driver's rollback door restores
-that crash in-process, so a real run only leaves crash residue (advanced ``main`` +
-advanced mission branch + a resumable ``state.json``) when the process dies between
-the failure and the in-process rollback. :func:`_run_hard_killed` models exactly that
-hard kill: it runs the REAL CLI in a subprocess whose ``_report_rollback`` prints the
-original traceback and calls ``os._exit(137)`` -- everything before it (git, the
-policy refusal, the recorded tips) is real. The same wrapper disables the up-front
-protected-target preflight (#5385 WP02), which would otherwise refuse this shape
-before any branch moves.
+Historical motivation: #5385 advanced protected main before a bookkeeping
+refusal. PR-only admission now prevents creating that unsafe shape. The current
+fixture therefore uses a valid feature target, runs the real mutation phase,
+and injects a failure afterward. The rollback door is hard-killed before any
+restore, retaining actual advanced refs and the real resumable state. No
+protection check is disabled to reach the fault.
 
 Cases that a real CLI run cannot produce say so in their docstring:
 
@@ -91,7 +85,13 @@ def _killed_before_rollback(*_args, **_kwargs):
     os._exit(137)
 
 executor._report_rollback = _killed_before_rollback
-executor._refuse_protected_status_target_or_continue = lambda *_a, **_k: None  # WP02 (#5385): let the protected shape reach the post-squash crash
+_original_record = executor._phase_record_done_and_project
+
+def _fail_after_record(run):
+    _original_record(run)
+    raise RuntimeError("planted post-mutation crash")
+
+executor._phase_record_done_and_project = _fail_after_record
 sys.argv = ["spec-kitty", *sys.argv[1:]]
 specify_cli.main()
 """
@@ -108,13 +108,13 @@ def _run_hard_killed(mission: CoordMission, args: Sequence[str]) -> subprocess.C
 
 
 def _crashed_lanes_run(tmp_path: Path, mid8: str) -> tuple[CoordMission, dict[str, str]]:
-    """LANES mission on protected ``main``: a post-squash crash (#5385) hard-killed before the rollback, refs advanced."""
-    mission = build_lanes_mission(tmp_path, wps=("WP01", "WP02"), target_branch="main", mid8=mid8)
+    """Real feature consolidation hard-killed at the rollback door after recorded mutations."""
+    mission = build_lanes_mission(tmp_path, wps=("WP01", "WP02"), target_branch="feature/integration", mid8=mid8)
     before = ref_shas(mission)
     result = _run_hard_killed(mission, ["consolidate", "--mission", mission.slug, "--yes"])
     output = flat(result)
-    assert result.returncode != 0, f"fixture precondition: the run must crash. output={output}"
-    assert "PROTECTED_BRANCH_REFUSED" in output, f"fixture precondition: the crash must be the #5385 policy refusal. output={output}"
+    assert result.returncode == 137, f"fixture precondition: the actual rollback-door process must be hard-killed. output={output}"
+    assert "planted post-mutation crash" in output, f"fixture precondition: actual mutation must reach the injected fault. output={output}"
     after = ref_shas(mission)
     assert after["target"] != before["target"], "fixture precondition: the squash must have advanced the target before the crash"
     assert after["coord"] != before["coord"], "fixture precondition: the mission branch must have advanced (lane merges + bake)"

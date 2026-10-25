@@ -1,27 +1,12 @@
-"""A consolidation the status policy would refuse is refused up front (#5385).
+"""PR-only admission and bookkeeping protection refuse before effects.
 
-A LANES mission (no coordination branch) whose recorded target is the protected
-``main`` records its ``done`` bookkeeping on ``main``. The workflow mutation policy
-refuses that write (``PROTECTED_BRANCH_REFUSED``), but pre-fix it only did so from
-``_phase_record_done_and_project``: AFTER the squash had advanced ``main``. The
-rollback door now restores that crash; this contract is stronger -- the
-refusal happens BEFORE any branch moves and before a merge record is written
-with the policy's own code, message and remedy.
-
-The refusal comes from the transaction's own policy gate (probed lock-free),
-never from a second "is this LANES and protected" rule. The controls below run on
-the SAME fixture shape, so a preflight that refuses everything, or nothing, fails:
-
-* an unprotected target (``develop``) consolidates;
-* the operator hatch (``SPEC_KITTY_ALLOW_PROTECTED_BRANCH_COMMITS``) and an empty
-  ``protection.protected_branches`` config are honoured;
-* ``--target`` cannot launder the refusal (the status write target is the RECORDED
-  meta target);
-* a ``single_branch`` mission with ``commit_to_target`` and a coordination-topology
-  mission are not refused on ``main``;
-* an all-done mission writes no ``done`` bookkeeping, so it is not refused.
-
-Driven through the REAL ``spec-kitty consolidate`` CLI over real git.
+Real Git controls prove a feature target consolidates without advancing main,
+while primary consolidation is refused even with an operator hatch, empty
+configured list, done status, coordination bookkeeping or commit_to_target.
+A feature --target override must not launder protected recorded bookkeeping.
+The existing dry-run JSON status-policy diagnostic remains separately pinned.
+Interrupted runs retain their real state and must receive an actionable abort
+remedy rather than a claim that a previous attempt moved nothing.
 """
 
 from __future__ import annotations
@@ -75,17 +60,24 @@ def _assert_refused_before_any_mutation(
     result: subprocess.CompletedProcess[str],
     before: dict[str, str],
     reflogs_before: dict[str, list[str]],
+    *,
+    legacy_status: bool = False,
+    expected_code: bool = False,
 ) -> None:
     output = flat(result)
     assert result.returncode == 1, f"the protected-target consolidation must be refused. output={output}"
-    assert _REFUSAL_CODE in output, f"the refusal must carry the policy's error code. output={output}"
-    assert _REMEDY in output, f"the refusal must carry the policy's remedy. output={output}"
-    assert _PREFLIGHT_LINE in output, f"the refusal must come from the up-front preflight. output={output}"
+    if legacy_status:
+        assert _REFUSAL_CODE in output, f"the recorded status target must still be protected. output={output}"
+        assert _REMEDY in output, output
+        assert _PREFLIGHT_LINE in output, output
+    else:
+        assert "PR-only consolidation:" in output and "is protected" in output, output
+        assert "feature/integration branch, then open a PR" in output, output
     assert "Traceback" not in result.stderr, f"a policy refusal is not a crash. stderr={result.stderr}"
     assert ref_shas(mission) == before, f"no branch tip may move. output={output}"
     assert _reflogs(mission) == reflogs_before, f"no branch may move and come back either. output={output}"
     assert _merge_records(mission) == [], f"no merge record may be written. output={output}"
-    assert not blob_present_at(mission.repo, mission.target_branch, "src/pkg/wp01.py"), "no squashed content on the target"
+    assert blob_present_at(mission.repo, mission.target_branch, "src/pkg/wp01.py") is expected_code, "the preexisting target content must be preserved"
 
 
 def test_lanes_mission_on_protected_main_is_refused_before_any_mutation(tmp_path: Path) -> None:
@@ -113,14 +105,14 @@ def test_dry_run_reports_the_policy_refusal_code(tmp_path: Path) -> None:
 def test_target_override_cannot_launder_the_recorded_protected_target(tmp_path: Path) -> None:
     """The status write target is the RECORDED meta target, never ``--target``."""
     mission = build_lanes_mission(tmp_path, wps=("WP01", "WP02"), target_branch="main", mid8="01M5385T")
-    git(mission.repo, "checkout", "-qb", "develop", "main")
+    git(mission.repo, "checkout", "-qb", "feature/override", "main")
     before, reflogs_before = ref_shas(mission), _reflogs(mission)
-    develop_before = git(mission.repo, "rev-parse", "develop").stdout.strip()
+    develop_before = git(mission.repo, "rev-parse", "feature/override").stdout.strip()
 
-    result = _consolidate(mission, "--target", "develop")
+    result = _consolidate(mission, "--target", "feature/override")
 
-    _assert_refused_before_any_mutation(mission, result, before, reflogs_before)
-    assert git(mission.repo, "rev-parse", "develop").stdout.strip() == develop_before, "the override target must not move either"
+    _assert_refused_before_any_mutation(mission, result, before, reflogs_before, legacy_status=True)
+    assert git(mission.repo, "rev-parse", "feature/override").stdout.strip() == develop_before, "the override target must not move either"
 
 
 def test_control_unprotected_target_consolidates(tmp_path: Path) -> None:
@@ -134,42 +126,36 @@ def test_control_unprotected_target_consolidates(tmp_path: Path) -> None:
     assert blob_present_at(mission.repo, mission.target_branch, "src/pkg/wp02.py"), output
 
 
-def test_control_operator_hatch_is_not_refused(tmp_path: Path) -> None:
+def test_operator_hatch_cannot_bypass_pr_only_consolidation(tmp_path: Path) -> None:
     mission = build_lanes_mission(tmp_path, wps=("WP01", "WP02"), target_branch="main", mid8="01M5385H")
 
+    before, reflogs_before = ref_shas(mission), _reflogs(mission)
+
     result = _consolidate(mission, env={_HATCH: "1"})
-
-    output = flat(result)
-    assert _REFUSAL_CODE not in output, f"the hatch declares main unprotected; the preflight must honour it. output={output}"
-    assert _PREFLIGHT_LINE not in output, output
-    assert result.returncode == 0, output
+    _assert_refused_before_any_mutation(mission, result, before, reflogs_before)
 
 
-def test_control_empty_protected_branch_config_is_not_refused(tmp_path: Path) -> None:
+def test_empty_config_cannot_bypass_actual_primary_protection(tmp_path: Path) -> None:
     mission = build_lanes_mission(tmp_path, wps=("WP01", "WP02"), target_branch="main", mid8="01M5385E")
     _commit_protection_config(mission, _EMPTY_PROTECTION)
 
+    before, reflogs_before = ref_shas(mission), _reflogs(mission)
+
     result = _consolidate(mission)
-
-    output = flat(result)
-    assert _REFUSAL_CODE not in output, f"an empty protected list protects nothing. output={output}"
-    assert _PREFLIGHT_LINE not in output, output
-    assert result.returncode == 0, output
+    _assert_refused_before_any_mutation(mission, result, before, reflogs_before)
 
 
-def test_control_coordination_mission_on_main_is_not_refused(tmp_path: Path) -> None:
+def test_coordination_bookkeeping_does_not_authorize_primary_consolidation(tmp_path: Path) -> None:
     mission = build_coord_mission(tmp_path, wps=("WP01",), target_branch="main", mid8="01M5385C")
 
+    before, reflogs_before = ref_shas(mission), _reflogs(mission)
+
     result = _consolidate(mission)
-
-    output = flat(result)
-    assert _PREFLIGHT_LINE not in output, f"a coordination mission redirects its bookkeeping. output={output}"
-    assert _REFUSAL_CODE not in output, output
-    assert result.returncode == 0, output
+    _assert_refused_before_any_mutation(mission, result, before, reflogs_before)
 
 
-def test_control_all_done_mission_is_not_refused(tmp_path: Path) -> None:
-    """An all-done run writes no ``done`` bookkeeping, so there is nothing for the policy to refuse."""
+def test_done_status_does_not_authorize_primary_consolidation(tmp_path: Path) -> None:
+    """Done bookkeeping is not authority to bypass primary PR acceptance."""
     mission = build_lanes_mission(tmp_path, wps=("WP01", "WP02"), target_branch="main", mid8="01M5385A")
     events_path = mission.feature_dir / "status.events.jsonl"
     with events_path.open("a", encoding="utf-8") as fh:
@@ -178,12 +164,10 @@ def test_control_all_done_mission_is_not_refused(tmp_path: Path) -> None:
     git(mission.repo, "add", str(events_path))
     git(mission.repo, "commit", "-qm", "chore: record WP01/WP02 done")
 
-    result = _consolidate(mission)
+    before, reflogs_before = ref_shas(mission), _reflogs(mission)
 
-    output = flat(result)
-    assert _PREFLIGHT_LINE not in output, f"an all-done run must not be refused up front. output={output}"
-    assert _REFUSAL_CODE not in output, f"an all-done run writes no done bookkeeping for the policy to refuse. output={output}"
-    assert result.returncode == 0, output
+    result = _consolidate(mission)
+    _assert_refused_before_any_mutation(mission, result, before, reflogs_before)
 
 
 def _build_commit_to_target_single_branch(tmp_path: Path, mid8: str) -> CoordMission:
@@ -233,34 +217,33 @@ def _build_commit_to_target_single_branch(tmp_path: Path, mid8: str) -> CoordMis
     return mission
 
 
-def test_control_single_branch_commit_to_target_is_not_refused(tmp_path: Path) -> None:
+def test_commit_to_target_does_not_authorize_primary_consolidation(tmp_path: Path) -> None:
     mission = _build_commit_to_target_single_branch(tmp_path, "01M5385S")
 
-    result = _consolidate(mission)
+    before, reflogs_before = ref_shas(mission), _reflogs(mission)
 
-    output = flat(result)
-    assert _PREFLIGHT_LINE not in output, f"commit_to_target lets this mission's own writes reach main. output={output}"
-    assert _REFUSAL_CODE not in output, output
-    assert result.returncode == 0, output
+    result = _consolidate(mission)
+    _assert_refused_before_any_mutation(mission, result, before, reflogs_before, expected_code=True)
 
 
 def test_resume_after_a_crash_points_at_abort_instead_of_claiming_nothing_moved(tmp_path: Path) -> None:
     """A ``--resume`` refused up front must not claim no branch moved: an earlier attempt did.
 
-    Crash residue (advanced ``main`` + mission branch + a resumable record) comes
-    from the hard-killed real run of ``test_abort_restores_snapshot``; the ``--resume``
-    itself is the unpatched real CLI, so the up-front preflight refuses it.
+    A valid feature run is hard-killed after real recorded mutations, then its
+    target becomes explicitly protected. The unpatched CLI must refuse resume
+    without losing the guarded abort remedy or modifying any recorded branch.
     """
     from tests.terminus.test_abort_restores_snapshot import _crashed_lanes_run
 
     mission, _before = _crashed_lanes_run(tmp_path, "01M5385R")
+    _commit_protection_config(mission, "protection:\n  protected_branches: [feature/integration]\n")
     crashed = ref_shas(mission)
 
     result = _consolidate(mission, "--resume")
 
     output = flat(result)
     assert result.returncode == 1, output
-    assert _REFUSAL_CODE in output, output
+    assert "PR-only consolidation:" in output and "is protected" in output, output
     assert "spec-kitty consolidate --abort" in output, f"the refusal must point at --abort to restore the earlier attempt. output={output}"
     assert _PREFLIGHT_LINE not in output, f"a resume must not claim no branch moved. output={output}"
     assert ref_shas(mission) == crashed, f"the refused resume itself moves nothing. output={output}"

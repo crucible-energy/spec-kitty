@@ -22,6 +22,7 @@ create_intent:
 - docs/plans/engineering-notes/2026-10-24-lifecycle-integration-contracts.md
 execution_mode: code_change
 owned_files:
+- src/specify_cli/consolidation/preflight.py
 - tests/terminus/**
 - tests/specify_cli/consolidation/test_single_branch_consolidate_e2e.py
 - src/specify_cli/git/ref_advance.py
@@ -63,3 +64,7 @@ Independent review must confirm tested mutation phases were reached and restored
 ## Activity Log
 
 - Bounded continuation authored from the canonical task-prompt template after hosted failure classification; runtime transitions are recorded by supported CLI only.
+
+### Ownership clarification after real crash reproduction
+
+The same lifecycle owner retains the earlier WP04 preflight surface; no other active writer owns it. WP12 includes the bounded protected-refusal diagnostic correction: retain the strict canonical decision and expose guarded abort for a previously interrupted attempt, without claiming earlier mutations were undone. This is same-owner, dependency-ordered ownership-map leeway, not a guard bypass. Canonical finalization/ownership verification remains required before review/publication once the isolated latest-runtime asset-scope compatibility blocker is qualified. No runtime status/event payload was hand-edited.
