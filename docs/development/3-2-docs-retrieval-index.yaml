@@ -8147,6 +8147,14 @@ pages:
     - {slug: "caught-at-closeout-the-loop-working-expensively", text: "Caught at closeout (the loop working, expensively)", level: 2}
     - {slug: "recommendation-a-post-tasks-contract-step-ownership-lint", text: "Recommendation: a post-tasks contract-step-ownership lint", level: 2}
     - {slug: "takeaway", text: "Takeaway", level: 2}
+  - path: "docs/plans/engineering-notes/2026-10-25-single-shard-registration.md"
+    title: "Qualified single-shard workflow registration"
+    divio_type: "explanation"
+    abstract: "Records the registration-only manual workflow, exact selected-ref prerequisites, direct contract validation, and preserved runtime and custody boundaries."
+    anchors:
+    - {slug: "user-experience-findings", text: "User Experience Findings", level: 2}
+    - {slug: "engineering-decisions", text: "Engineering Decisions", level: 2}
+    - {slug: "known-limitations-and-retained-obligations", text: "Known Limitations and Retained Obligations", level: 2}
   - path: "docs/plans/engineering-notes/2173-infra-logic-separation/00-SYNTHESIS.md"
     title: "Infra-to-logic separation (#2173) — investigation synthesis"
     divio_type: "none"

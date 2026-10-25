@@ -1,0 +1,52 @@
+# Register the qualified branch's existing workflow without adding a test
+# executor to this older default branch's delivery topology. GitHub loads
+# workflow_dispatch from the selected ref. The owning migration lane must
+# verify its exact reviewed head and results; this anchor never runs tests.
+name: Module tests (qualified ref only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      module:
+        description: 'Registry module name to re-run a single shard for.'
+        required: true
+        type: string
+      roots:
+        description: "JSON array of the module's src/** globs."
+        required: true
+        type: string
+      cov_target:
+        description: 'JSON array of dotted coverage targets (ownership declaration only; the measured set is derived from src/ — see the workflow_call input above).'
+        required: true
+        type: string
+      tier:
+        description: 'Registry tier.'
+        required: true
+        type: string
+      shard:
+        description: 'Shard as "<index>/<total>".'
+        required: true
+        type: string
+      mode:
+        description: 'pr or full.'
+        required: false
+        type: string
+        default: pr
+      test_dirs:
+        description: 'JSON array of explicit tests/** directories (registry modules[].test_dirs). Optional.'
+        required: false
+        type: string
+        default: '[]'
+
+permissions: {}
+
+jobs:
+  refuse-unqualified-ref:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    steps:
+      - name: Refuse this registration-only profile
+        shell: bash
+        run: |
+          echo '::error::This ref only registers the workflow. Select the owner-qualified integration ref and verify its exact reviewed head before running a shard.'
+          exit 64
