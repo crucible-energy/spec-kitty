@@ -1,7 +1,7 @@
 {
-  "event_count": 64,
-  "last_event_id": "01M5R0WSBKF50QP1ZVJX4A6SX3",
-  "materialized_at": "2026-10-24T22:35:54.099960+00:00",
+  "event_count": 65,
+  "last_event_id": "01M5R7KVHM3C27B4E7JHYS03RH",
+  "materialized_at": "2026-10-25T00:33:21.460134+00:00",
   "mission_number": "",
   "mission_slug": "organization-workspace-lifecycle-01M5DRAR",
   "mission_type": "software-dev",
@@ -15,7 +15,7 @@
     "for_review": 0,
     "in_progress": 1,
     "in_review": 0,
-    "planned": 2
+    "planned": 3
   },
   "work_packages": {
     "WP01": {
@@ -293,6 +293,13 @@
       "subtasks": {
         "T011": "planned"
       }
+    },
+    "WP12": {
+      "actor": "finalize-tasks",
+      "force_count": 0,
+      "lane": "planned",
+      "last_event_id": "01M5R7KVHM3C27B4E7JHYS03RH",
+      "last_transition_at": "2026-10-25T00:33:21.460134+00:00"
     }
   }
 }
