@@ -95,3 +95,7 @@ Re-finalization advances the mission-wide planning pin but does not erase comple
 Reuse the owner-released lane; preserve primary dirty source and migration receipts. Add native Zig durable finish obligations under private no-follow state with revision checks; obligations confer no deletion capability. Integrate through the existing creator and worker boundaries. Package explicit runtime identity, satisfy review and publication gates, and verify per-repository startup/completion plus actual eligible cleanup. Unknown/unsupported creators remain retained with accountable follow-through. External receipts keep validated candidates frozen.
 
 The retained creator delivery/recovery safety repair is WP11, independently gated on WP07; WP09 now waits for both native obligations and that safety repair. Ownership is disjoint, so review of WP08 need not delay a reproduced production-safety fix.
+
+## Hosted integration follow-through
+
+WP12 owns missed branch-first fixture propagation, the inherited canonical OS-door predicate and explicit internal checkout-identity omission in the status contract. Root retains disjoint generator/CI wiring repairs. This bounded source follow-through precedes final distribution qualification; it does not alter default-branch protection or erase earlier approvals. Required full owning gates and independent review remain mandatory before rollout.
