@@ -252,3 +252,24 @@ observation before a repair is selected. No platform visibility rule, creator
 fence, deadline or removal predicate changed. Default delivery, installed
 ordinary native ingress and per-repository execution adoption remain unfinished.
 No project, host, cache or uncertain registration was retired.
+
+### Controlled Linux reproduction admission
+
+The local shell and independent Node runtime both report Darwin/arm64; neither
+can establish a Linux kernel result. Add a real Linux-only control to this
+existing retained-runtime test scope, not another service or an invented local
+pass. A sole explicitly owned child first exposes a readable cwd, then changes
+only its own dumpability through `prctl`. Test both a cwd inside the candidate
+and a separate owned outside directory. Real psutil reads must reproduce
+same-UID access denial and protected procfs ownership in both cases, while the
+adapter retains unknown visibility. Enumeration is explicitly limited to that
+known child for the control; this does not qualify full-host visibility or
+identify the original PID 970.
+
+The child has a dedicated process group, bounded handshakes, a self-expiry alarm
+and joined stdin completion; timeout force is restricted to that owned group.
+Its admission/result receipt remains in the retained fixture. The normal Linux
+CI input must execute these cases. Darwin compiles the literal fixture program
+but declares the Linux cases skipped; those skips are not Linux passes. A
+privileged/unsupported caller is not silently treated as a successful denial
+control. No existing positive cleanup assertion is changed or weakened.

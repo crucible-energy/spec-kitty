@@ -1011,6 +1011,97 @@ def test_process_directory_owner_observes_only_a_real_pid_directory(tmp_path: Pa
         adapters._process_directory_owner(321)
 
 
+@pytest.mark.parametrize("inside_candidate", [True, False])
+def test_actual_linux_same_uid_non_dumpable_child_retains_unknown_visibility(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, inside_candidate: bool) -> None:
+    import select
+    import psutil
+
+    from kernel.owned_process import signal_owned_process_tree
+    from specify_cli.workspace_lifecycle import adapters
+
+    program = """import ctypes,json,os,signal,sys
+signal.alarm(20)
+libc=ctypes.CDLL(None,use_errno=True)
+libc.prctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_ulong,ctypes.c_ulong,ctypes.c_ulong]
+libc.prctl.restype=ctypes.c_int
+PR_GET_DUMPABLE,PR_SET_DUMPABLE=3,4
+def set_dumpable(value):
+    if libc.prctl(PR_SET_DUMPABLE,value,0,0,0)!=0:
+        raise OSError(ctypes.get_errno(),'owned fixture prctl failed')
+    return libc.prctl(PR_GET_DUMPABLE,0,0,0,0)
+print(json.dumps({'pid':os.getpid(),'dumpable':set_dumpable(1)}),flush=True)
+if sys.stdin.readline().strip()=='protect':
+    print(json.dumps({'pid':os.getpid(),'dumpable':set_dumpable(0)}),flush=True)
+    sys.stdin.readline()
+"""
+    compile(program, "<owned-linux-visibility-control>", "exec")
+    if sys.platform != "linux":
+        pytest.skip("Requires actual Linux prctl/procfs; other-platform passes do not qualify this control")
+    assert os.getuid() == os.geteuid() != 0, "This denial control requires the ordinary unprivileged Linux caller profile."
+    candidate = tmp_path / "candidate"
+    outside = tmp_path / "outside"
+    candidate.mkdir()
+    outside.mkdir()
+    cwd = candidate if inside_candidate else outside
+    custody = {
+        "owner": "workspace-lifecycle Linux visibility control",
+        "purpose": "Reproduce same-UID protection before considering any visibility-policy repair",
+        "scope": "Only this exact child is enumerated; not full-host visibility or cleanup qualification",
+        "inside_candidate": inside_candidate,
+        "next_action": "Join the owned child through stdin; force only its dedicated process group on timeout",
+        "review_event": "Test terminal outcome and Linux CI evidence review",
+        "joined": False,
+    }
+    receipt = tmp_path / "linux-process-custody.json"
+    receipt.write_text(json.dumps(custody))
+    child = subprocess.Popen(
+        [sys.executable, "-I", "-c", program], cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True
+    )
+    try:
+        assert child.stdout is not None and child.stdin is not None
+
+        def stage() -> dict[str, Any]:
+            assert child.stdout is not None
+            assert select.select([child.stdout], [], [], 3)[0], "Owned Linux control did not reach its bounded handshake."
+            return object_at(json.loads(child.stdout.readline()))
+
+        assert stage() == {"pid": child.pid, "dumpable": 1}
+        process = psutil.Process(child.pid)
+        assert process.cwd() == str(cwd)
+        original_uids = process.uids()
+        assert original_uids.real == original_uids.effective == original_uids.saved == os.getuid()
+        monkeypatch.setattr(psutil, "process_iter", lambda: iter([process]))
+        assert adapters._runtime_state(candidate) == (inside_candidate, True)
+        child.stdin.write(b"protect\n")
+        child.stdin.flush()
+        assert stage() == {"pid": child.pid, "dumpable": 0}
+        assert child.poll() is None and process.uids() == original_uids
+        with pytest.raises(psutil.AccessDenied):
+            process.cwd()
+        diagnostic: dict[str, object] = {}
+        token = adapters._runtime_diagnostic.set(diagnostic)
+        try:
+            assert adapters._runtime_state(candidate) == (False, False)
+        finally:
+            adapters._runtime_diagnostic.reset(token)
+        assert diagnostic["stage"] == "cwd" and diagnostic["error_type"] == "AccessDenied"
+        denied = object_at(diagnostic, "denied_process_observation")
+        assert denied["pid"] == child.pid and denied["uid_matches_owner"] == dict.fromkeys(("real", "effective", "saved"), True)
+        assert denied["process_directory"] == {"observation": "observed", "owner_uid_matches": False, "root_uid_matches": True}
+        custody["protected_observation"] = diagnostic
+    finally:
+        try:
+            child.communicate(input=b"done\n", timeout=3)
+        except subprocess.TimeoutExpired:
+            signal_owned_process_tree(child, force=True)
+            child.communicate(timeout=3)
+            raise
+        finally:
+            custody["joined"] = child.returncode is not None
+            receipt.write_text(json.dumps(custody))
+    assert child.returncode == 0 and custody["joined"]
+
+
 @pytest.mark.parametrize("previous", ["exited", "other_user"])
 def test_enumeration_failure_does_not_attribute_the_previous_process(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, previous: str) -> None:
     from collections.abc import Iterator
