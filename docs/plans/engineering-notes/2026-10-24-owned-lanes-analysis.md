@@ -524,9 +524,11 @@ available; no shared cache or worktree was pruned.
 
 ### Known Limitations and Retained Obligations
 
-The corrected Source child still needs its final owning/strict results, explicit
-release, merged qualification and actual new-head Linux checks. Local review is
-not Linux execution or complete-host visibility. Release inventory is not asset,
+The migration owner released `53afc55c` with 272 passing tests, two explicit
+Linux-only skips, strict checks and joined execution. Its twenty added production
+statements were covered without exclusions. Merged qualification and actual
+new-head Linux checks remain required. Local review is not Linux execution or
+complete-host visibility. Release inventory is not asset,
 dependency or packaging closure. The separate PDB Host composition still needs
 a genuine owning installation and independently current authority; a healthy
 source-unproven incumbent or an Auth provider module does not supply either.
