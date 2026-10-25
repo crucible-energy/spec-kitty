@@ -14,6 +14,8 @@ target and nothing is reported missing.
 
 from __future__ import annotations
 
+from tests._support.feature_landing import TARGET, pin_primary
+
 from pathlib import Path
 
 import pytest
@@ -50,7 +52,8 @@ def _coord_worktree(mission: CoordMission) -> Path:
 def _build(tmp_path: Path, mid8: str, *, drop_scaffolding: bool) -> CoordMission:
     """WP01 (lane-a) and WP02 (lane-b, depends on WP01) approved; the mission branch got scaffolding BEFORE the lanes were cut."""
     slug = f"terminus-{mid8}"
-    mission = _init_fixture_repo(tmp_path, mid8=mid8, slug=slug, target_branch="main", extra_base_files={})
+    mission = _init_fixture_repo(tmp_path, mid8=mid8, slug=slug, target_branch=TARGET, extra_base_files={})
+    pin_primary(mission.repo)
     (mission.feature_dir / "tasks").mkdir(parents=True)
     _write_meta(mission)
     manifest = _manifest(mission, depends=True)
@@ -62,7 +65,7 @@ def _build(tmp_path: Path, mid8: str, *, drop_scaffolding: bool) -> CoordMission
     _cut_coord_branch(mission)
     _git(mission.repo, "checkout", "-q", mission.coord_branch)
     _commit_in(mission.repo, SCRATCH, "x = 1\n", "chore: scaffolding outside every lane")
-    _git(mission.repo, "checkout", "-q", "main")
+    _git(mission.repo, "checkout", "-q", mission.target_branch)
     _finish_coord_mission(mission)
     manifest = read_lanes_json(mission.feature_dir) or manifest
     a_tree, a_branch = allocate_lane_worktree(mission.repo, slug, "WP01", manifest)
@@ -90,11 +93,13 @@ def _consolidate(mission: CoordMission, monkeypatch: pytest.MonkeyPatch, capsys:
 
     monkeypatch.setenv("HOME", str(mission.home))
     monkeypatch.chdir(mission.repo)
+    primary_before = _git_out(mission.repo, "rev-parse", "main").strip()
     code = 0
     try:
         executor._run_lane_based_consolidation(mission.repo, mission.slug, push=False, delete_branch=None, remove_worktree=None, assume_yes=True)
     except typer.Exit as exc:
         code = int(exc.exit_code or 0)
+    assert _git_out(mission.repo, "rev-parse", "main").strip() == primary_before, "Feature consolidation advanced the actual primary"
     return code, " ".join(capsys.readouterr().out.split())
 
 

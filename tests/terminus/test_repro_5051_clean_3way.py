@@ -85,17 +85,14 @@ reverted; GREEN once they landed.
 
 from __future__ import annotations
 
+from tests.terminus.feature_fixture_support import feature_build_coord_mission_shared_file as build_coord_mission_shared_file
+
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from tests.terminus.conftest import (
-    blob_present_at,
-    build_coord_mission_shared_file,
-    fold_lanes_into_mission_branch,
-    run_terminus,
-)
+from tests.terminus.conftest import blob_present_at, fold_lanes_into_mission_branch, run_terminus
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo, pytest.mark.regression]
 

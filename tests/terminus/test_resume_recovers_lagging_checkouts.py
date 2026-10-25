@@ -31,6 +31,8 @@ the mission branch checked out on a LANES-topology mission (arm 3).
 
 from __future__ import annotations
 
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
+
 import re
 import subprocess
 from pathlib import Path
@@ -38,7 +40,7 @@ from pathlib import Path
 import pytest
 
 from tests.terminus.approved_content_support import ARMS, WPS, InterruptedConsolidate as Interrupted
-from tests.terminus.conftest import build_coord_mission, run_terminus, sha_reachable
+from tests.terminus.conftest import run_terminus, sha_reachable
 from tests.terminus.conftest import _git as git
 from tests.terminus.conftest import _git_out as git_out
 from tests.terminus.mixed_lane_support import collapse

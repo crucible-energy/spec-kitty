@@ -19,6 +19,8 @@ the public ``ConsolidationState`` / ``save_state`` API — fixture setup, not a 
 
 from __future__ import annotations
 
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
+
 import json
 from pathlib import Path
 from typing import Any
@@ -31,7 +33,7 @@ from specify_cli.cli.commands.doctor import app as doctor_app
 from specify_cli.consolidation.state import ConsolidationState, load_state, marker_strand_shas, save_state
 from specify_cli.coordination.status_transition import emit_status_transition_transactional
 from specify_cli.status.models import TransitionRequest
-from tests.terminus.conftest import CoordMission, build_coord_mission
+from tests.terminus.conftest import CoordMission
 from tests.terminus.conftest import _git as git
 from tests.terminus.conftest import _git_out as git_out
 from tests.terminus.mixed_lane_support import transition

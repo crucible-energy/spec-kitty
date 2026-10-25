@@ -14,6 +14,8 @@ approval is the production shape of a mission approved before the stamp existed:
 
 from __future__ import annotations
 
+from tests.terminus.feature_fixture_support import feature_build_post_approval_mission as build_post_approval_mission
+
 import json
 from pathlib import Path
 
@@ -28,16 +30,7 @@ from tests.terminus.canceled_dependency_support import ACTOR, LANE_A
 from tests.terminus.conftest import CoordMission, blob_present_at, git_rev, run_terminus
 from tests.terminus.conftest import _git as run_git
 from tests.terminus.mixed_lane_support import collapse
-from tests.terminus.post_approval_support import (
-    LATE_PATH,
-    WP01_PATH,
-    WP02_PATH,
-    Topology,
-    add_post_approval_commit,
-    build_post_approval_mission,
-    lane_worktree,
-    strip_approval_stamps,
-)
+from tests.terminus.post_approval_support import LATE_PATH, WP01_PATH, WP02_PATH, Topology, add_post_approval_commit, lane_worktree, strip_approval_stamps
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
 

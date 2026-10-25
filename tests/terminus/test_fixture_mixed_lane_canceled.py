@@ -15,17 +15,14 @@ WP02+) — this file only pins the FIXTURE's own documented behaviour.
 
 from __future__ import annotations
 
+from tests.terminus.feature_fixture_support import feature_build_coord_mission_mixed_lane_canceled as build_coord_mission_mixed_lane_canceled
+
 import json
 from pathlib import Path
 
 import pytest
 
-from tests.terminus.conftest import (
-    CoordMission,
-    PlantedChange,
-    _event,
-    build_coord_mission_mixed_lane_canceled,
-)
+from tests.terminus.conftest import CoordMission, PlantedChange, _event
 from tests.terminus.conftest import _git as git
 from tests.terminus.conftest import (
     reached_reconciliation_verdict,

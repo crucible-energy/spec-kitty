@@ -18,6 +18,8 @@ end to end. The transitions run through the in-process production status shell
 
 from __future__ import annotations
 
+from tests.terminus.feature_fixture_support import feature_build_post_approval_mission as build_post_approval_mission
+
 import json
 import re
 import shlex
@@ -30,16 +32,7 @@ from specify_cli.consolidation.approved_bound import BoundRefusal, BoundRefusalC
 from tests.terminus.conftest import CoordMission, blob_present_at, git_rev, run_terminus
 from tests.terminus.conftest import _git as git
 from tests.terminus.mixed_lane_support import collapse
-from tests.terminus.post_approval_support import (
-    LATE_PATH,
-    REWORK_PATH,
-    Topology,
-    WP01_PATH,
-    add_post_approval_commit,
-    build_post_approval_mission,
-    lane_worktree,
-    rework_and_reapprove,
-)
+from tests.terminus.post_approval_support import LATE_PATH, REWORK_PATH, Topology, WP01_PATH, add_post_approval_commit, lane_worktree, rework_and_reapprove
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo, pytest.mark.regression]
 

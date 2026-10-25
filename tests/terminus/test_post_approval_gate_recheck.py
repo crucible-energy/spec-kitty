@@ -33,6 +33,8 @@ CLI end to end (see :mod:`tests.terminus.post_approval_support`).
 
 from __future__ import annotations
 
+from tests.terminus.feature_fixture_support import feature_build_post_approval_mission as build_post_approval_mission
+
 import re
 import subprocess
 import sys
@@ -43,15 +45,7 @@ import pytest
 from specify_cli.lanes.persistence import read_lanes_json
 from tests.terminus.conftest import CoordMission, _cli_env, blob_present_at, git_rev
 from tests.terminus.mixed_lane_support import collapse
-from tests.terminus.post_approval_support import (
-    LATE_CONTENT,
-    LATE_PATH,
-    Topology,
-    WP01_PATH,
-    WP02_PATH,
-    build_post_approval_mission,
-    lane_worktree,
-)
+from tests.terminus.post_approval_support import LATE_CONTENT, LATE_PATH, Topology, WP01_PATH, WP02_PATH, lane_worktree
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
 

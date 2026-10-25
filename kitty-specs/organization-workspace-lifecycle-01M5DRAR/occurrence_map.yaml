@@ -6,7 +6,7 @@ categories:
   code_symbols:
     action: manual_review
   import_paths:
-    action: do_not_change
+    action: manual_review
   filesystem_paths:
     action: manual_review
   serialized_keys:
@@ -37,3 +37,9 @@ exceptions:
   action: manual_review
   reason: Inspect live branch-first prose only; preserve doctrine identities, schema
     keys and operator ownership.
+- path: src/**
+  action: do_not_change
+  reason: Product import identities are not fixture targets; only scoped internal test-adapter imports are reviewed under WP12.
+- path: kernel/**
+  action: do_not_change
+  reason: Canonical kernel import identities stay unchanged.
