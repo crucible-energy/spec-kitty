@@ -1,17 +1,6 @@
 ---
 work_package_id: WP13
 title: Preserve live stacked missions and frozen archive history
-task_type: implement
-phase: Lifecycle publication safety
-execution_mode: code_change
-owned_files:
-- tests/architectural/test_archive_root_byte_identical.py
-authoritative_surface: tests/architectural/test_archive_root_byte_identical.py
-create_intent: []
-agent_profile: implementer-ivan
-role: implementer
-subtasks:
-- T013
 dependencies:
 - WP07
 requirement_refs:
@@ -22,7 +11,21 @@ requirement_refs:
 - SC-005
 planning_base_branch: codex/organization-workspace-lifecycle-20261020
 merge_target_branch: codex/organization-workspace-lifecycle-20261020
+branch_strategy: Planning artifacts for this mission were generated on codex/organization-workspace-lifecycle-20261020. During /spec-kitty.implement this WP may branch from a dependency-specific base, but completed changes must merge back into codex/organization-workspace-lifecycle-20261020 unless the human explicitly redirects the landing branch.
+subtasks:
+- T013
+phase: Lifecycle publication safety
 history: []
+agent_profile: implementer-ivan
+authoritative_surface: tests/architectural/test_archive_root_byte_identical.py
+create_intent: []
+execution_mode: code_change
+owned_files:
+- tests/architectural/test_archive_root_byte_identical.py
+role: implementer
+tags: []
+task_type: implement
+tracker_refs: []
 ---
 
 # Work Package Prompt: WP13 — Preserve live stacked missions and frozen archive history
