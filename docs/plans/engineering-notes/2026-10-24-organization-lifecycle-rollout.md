@@ -123,3 +123,48 @@ Independent review reproduced a genuine namespace bypass: a different server wit
 Only the network contact is isolated in new fixtures; endpoint/config validation is real, and HEAD/history comes from an actual private Git mirror. Forty-nine focused controls passed after the correction. Self-review additionally reproduced optional clone-suffix normalization incorrectly consuming an authoritative repository-name suffix; the canonical endpoint now appends its own transport suffix before normalization, with valid-name and wrong-sibling controls.
 
 The complete guard and adapters previously passed 187 checks under exact project-locked events10.4.0/Python3.11.15, with all source/dependency files unchanged. The governing latest qualified CLI remains a separate runtime. New-source strict type checks were already clean; existing test helpers exposed weak annotations/unchecked object access. Their transport contracts and JSON shape checks are now explicit, without ignores, casts or checker relaxation. The reused-PID negative uses a real bounded joined child, preserving the no-later-signal assertion. Full updated owning tests, exact-source type checks and independent final review remain delivery gates; all results live in external receipts so recording them does not mutate the candidate.
+
+## October 25 — actual Linux refusal and complete diagnostics
+
+### User experience findings
+
+Exact source 525863 passed the complete 353 archive/lifecycle checks with unchanged
+source/toolchain identity and received bounded independent approval. Canonical
+WP13 approval is durable at e8c1f757. Root published the combined c19024d9 through
+PR120 HEAD, preserving its integration base and main. The actual hosted archive
+check passed. The Linux core_misc4 shard then failed two lifecycle cases after
+1,129 passes and three skips: process inspection returned AccessDenied before
+delivery. The core_misc3 shard was canceled by failfast, not passed. Existing
+tuple/dictionary assertion messages abbreviated the diagnostic and concealed its
+provider/stage/count. The complete retained job log confirms that this was pytest
+message formatting, not only a log-download limit.
+
+### Engineering decisions
+
+Render the existing sanitized diagnostic as JSON text in the affected adapter
+and fresh-worker assertions. The installed pytest formatter preserves string
+messages verbatim while applying bounded repr to dictionaries. No runtime
+predicate, deadline, process selection, authority, assertion condition, workflow
+filter or delivery requirement changes. Actual Linux inspection-stage evidence
+is still required before selecting an eligibility repair.
+
+Retained receipts identified this chat's unfinished supported primary RC7
+migration. A scoped local policy commit de1a2fdf preserved 110 distinct inherited
+source/evidence files and byte-identical charter-pack moves. Its policy archive
+members were independently hash-read; canonical context and scoped diff checks
+passed. This is local project-policy adoption, not default delivery. The first
+fresh 13-package report recorded a genuine high ownership finding; canonical
+WP09 scope amendment 64f3e603 then added actual allocator/completion hook ownership
+without changing sealed core bodies or prior runtime history. New report 2d165875
+is ready for dependency-ordered planning, not production. Canonical next still
+reports dependencies_not_satisfied, with no guard failure.
+
+### Known limitations
+
+All final results for this diagnostic-message increment remain in external
+receipts. Actual Linux cause, WP11/WP12 review and delivery, true newest-release
+source convergence, immutable installed ordinary ingress and every-repository
+execution rollout remain open. Fresh authenticated inventory contains 119 exact
+repository IDs with both required policy values; the connected app exposes only 87
+and cannot supply the rollout denominator. Verified execution adoption remains
+zero. No project/cache/host resource was removed or capacity recovery attributed.
