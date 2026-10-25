@@ -28,7 +28,8 @@ from pathlib import Path
 
 import pytest
 
-from tests.terminus.conftest import CoordMission, build_coord_mission, run_terminus
+from tests.terminus.conftest import CoordMission, run_terminus
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
 

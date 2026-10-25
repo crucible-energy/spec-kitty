@@ -16,7 +16,8 @@ from pathlib import Path
 import pytest
 
 from tests.terminus.conftest import _git as git
-from tests.terminus.conftest import build_coord_mission, run_terminus
+from tests.terminus.conftest import run_terminus
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
 from tests.terminus.test_repro_4997 import _interrupt_behind_own_head
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]

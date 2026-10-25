@@ -851,3 +851,31 @@ Run every affected file, the protected-target controls and the formatter ratchet
 then the mandatory baseline. Existing larger-scope Linux results remain failed
 until current-candidate CI proves the correction. Canonical Store exclusion,
 HELD/v5, no-fit/no-unhold and the Native platform hold remain unchanged.
+
+## 2026-10-25 — Make recovery preservation controls non-vacuous
+
+### User Experience Findings
+
+A scoped audit of remaining legacy-builder callers found five recovery controls
+that accepted refusal and preserved content, but could stop at unrelated
+protected-target admission. Through the existing real CLI entry points, new
+phase-precondition assertions failed all five cases before the fixture repair.
+Commit those red controls separately and preserve their raw outputs.
+
+### Engineering Decisions
+
+Use the same existing integration-target adapter in these three test files.
+Retain the new refusal-cause checks and every original no-op, branch-survival,
+dirty-content, untracked-collision and ignored-file preservation assertion.
+The separate real primary is pinned and checked by the shared CLI harness.
+Do not alter legacy-builder defaults, production recovery or protected-branch
+policy. The remaining explicit protected-target controls and read-only dry-run
+fixture intentionally keep their original target choices.
+
+### Known Limitations and Retained Obligations
+
+The red controls prove the previous unrelated-refusal shortcut; they do not
+establish a production data-loss event. Validate both the recovered paths and
+protected-target negative controls before publication. Old red CI and local
+environment failures remain distinct retained evidence; passing controls do not
+grant installed runtime, cleanup or canonical Store authority.
