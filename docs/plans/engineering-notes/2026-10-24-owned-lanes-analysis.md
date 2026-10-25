@@ -561,3 +561,42 @@ The failed aggregate remains failed; the twelve-case diagnostic is not the
 full required gate. Final results must bind the frozen candidate and actual
 test environment externally. Private failed-run assets remain retained; no
 global command rollback, shared cleanup or processing-tier change is implied.
+
+## 2026-10-25 — Bind Linux control expectations to observed metadata
+
+### User Experience Findings
+
+The actual Linux inside/outside controls both reproduced zero dumpability,
+unchanged UID credentials, cwd access denial and unknown visibility. They then
+failed a hardcoded claim that the PID directory becomes root-owned. Directory
+metadata does not establish dumpability or retirement authority. The original
+whole shards remain failed, and their opaque-process diagnostics remain open.
+
+The mandatory fast baseline does not collect the lifecycle owning directory.
+Its passing result cannot substitute for that directory's qualification. The
+Source branch also lacks this integration's resolver and finalization changes,
+so its complete owning result alone is not a test of the combined candidate.
+
+### Engineering Decisions
+
+Integrate the existing owner's reviewed `58164a96` correction without changing
+production eligibility or any real protection and lifetime assertion. Expected
+metadata now comes from independent, non-following stat of the exact live child.
+The released Source gate passed 272 cases with two explicit Linux-only skips;
+it is Source-specific conformance, not execution of the corrected Linux body.
+
+Freeze the combined code and documentation before publication checks. Execute
+the original six-file strict scope, the distinct mandatory fast baseline, and
+one full owning-directory run against this combined tree. Retain raw results
+and input identities externally. This additional owning run is justified by
+changed CLI dependencies, rather than repeating an identical validated tree.
+
+### Known Limitations and Retained Obligations
+
+Actual new-head Linux controls and the remaining opaque-process failures are
+still required. Unknown visibility retains state; a passing metadata comparison
+cannot supply missing creator, host, ingress or rollout evidence. The standalone
+workflow registration is delivered separately in PR121, not runtime adoption.
+Preserve earlier failures and recovery archives. HELD/v5, Source Store custody
+and the platform-held Native lane remain unchanged; no fit, unhold, shared
+pruning or faster processing follows from this source integration.
