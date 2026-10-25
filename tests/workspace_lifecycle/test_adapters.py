@@ -3,13 +3,31 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, NoReturn, TYPE_CHECKING
 
 import pytest
 
 from specify_cli.workspace_lifecycle.policy import Identity
+
+if TYPE_CHECKING:
+    from kernel.git import GitResult
+    from specify_cli.workspace_lifecycle.adapters import GitHubDelivery, ManagedGitCreator, _OwnerState
+    from specify_cli.workspace_lifecycle.coordinator import Result
+    from specify_cli.workspace_lifecycle.events import Completion
+    from specify_cli.workspace_lifecycle.state import Operation, StateStore
+
+
+def object_at(value: object, *path: str) -> dict[str, Any]:
+    """Assert a JSON object's shape before inspecting its variable fixture data."""
+    for key in path:
+        assert isinstance(value, dict)
+        value = value[key]
+    assert isinstance(value, dict) and all(isinstance(key, str) for key in value)
+    return value
 
 
 def identity() -> Identity:
@@ -64,7 +82,9 @@ def test_delivery_deadline_is_finite_and_failure_is_sanitized(monkeypatch: pytes
     from specify_cli.workspace_lifecycle.state import StateError
 
     def timeout(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
-        raise subprocess.TimeoutExpired(argv, kwargs["timeout"], output=b"private-response")
+        timeout_seconds = kwargs["timeout"]
+        assert isinstance(timeout_seconds, (int, float))
+        raise subprocess.TimeoutExpired(argv, timeout_seconds, output=b"private-response")
 
     monkeypatch.setattr(subprocess, "run", timeout)
     with pytest.raises(StateError, match="Delivery authority unavailable") as failure:
@@ -85,7 +105,7 @@ def git(repo: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def managed_owner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def managed_owner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[ManagedGitCreator, StateStore, list[Completion], Path]:
     from kernel.no_follow import fd_relative_dir_ops_supported
     from specify_cli.workspace_lifecycle.adapters import GitHubDelivery, ManagedGitCreator
     from specify_cli.workspace_lifecycle.state import StateStore
@@ -106,7 +126,7 @@ def managed_owner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     root = tmp_path / "ledger"
     root.mkdir(mode=0o700)
     ledger = StateStore.initialize(root)
-    events = []
+    events: list[Completion] = []
     owner = ManagedGitCreator.create(
         ledger,
         repo_root=repo,
@@ -119,10 +139,11 @@ def managed_owner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     )
     original_run = subprocess.run
 
-    def transport(argv, **kwargs):
+    def transport(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[Any]:
         if argv[0] != "gh":
             return original_run(argv, **kwargs)
         merge = git(mirror, "rev-parse", "refs/heads/main")
+        value: dict[str, Any]
         if argv[-1] == "graphql":
             value = {
                 "data": {
@@ -194,7 +215,7 @@ def test_old_merged_api_response_without_current_default_delivery_preserves_crea
 
     original_accepted = GitHubDelivery._accepted
 
-    def old_accepted(self, expected, pr, deadline):
+    def old_accepted(self: GitHubDelivery, expected: Identity, pr: int, deadline: float) -> tuple[str, str, str] | None:
         value = original_accepted(self, expected, pr, deadline)
         return (value[0], owner.identity.head, value[2]) if value else None
 
@@ -331,9 +352,11 @@ def test_failed_producer_is_not_implicitly_released(tmp_path: Path, monkeypatch:
 def test_creator_persists_creation_custody_before_git_effect(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from specify_cli.workspace_lifecycle import adapters
 
-    original = adapters.run_git
+    from kernel.git import run_git
 
-    def inspect_before_effect(repo, *args, **kwargs):
+    original = run_git
+
+    def inspect_before_effect(repo: Path, *args: str, **kwargs: Any) -> GitResult:
         if args[:2] == ("worktree", "add"):
             records = list((tmp_path / "ledger").glob("creator-*.json"))
             assert len(records) == 1, "Creation must have durable custody before Git runs"
@@ -402,13 +425,20 @@ def test_timed_out_owned_producer_is_joined_without_releasing_generation(tmp_pat
 
 
 def test_reaped_producer_never_authorizes_later_process_group_signals(monkeypatch: pytest.MonkeyPatch) -> None:
-    from types import SimpleNamespace
     from specify_cli.workspace_lifecycle import adapters
 
-    signals = []
+    # A real joined child proves this boundary without pretending a namespace
+    # object is a Popen or manufacturing authority for an arbitrary live PID.
+    reaped = subprocess.Popen([sys.executable, "-c", "pass"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        reaped.wait(timeout=5)
+    finally:
+        if reaped.poll() is None:
+            reaped.kill()
+            reaped.wait(timeout=5)
+    signals: list[object] = []
     monkeypatch.setattr(adapters, "signal_owned_process_tree", lambda *args, **kwargs: signals.append(kwargs))
-    monkeypatch.setattr(adapters.os, "killpg", lambda *args: signals.append(args))
-    reaped = SimpleNamespace(returncode=0, pid=123456, wait=lambda **kwargs: 0)
+    monkeypatch.setattr(os, "killpg", lambda *args: signals.append(args))
     adapters.ManagedGitCreator._stop_producer(reaped)
     assert signals == [], "A reaped PID/PGID is no longer owned signalling authority"
 
@@ -468,7 +498,7 @@ def test_joined_owner_release_does_not_wait_for_delivery_or_run_network_inline(t
     owner, _, events, _ = managed_owner(tmp_path, monkeypatch)
     owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
 
-    def forbidden(*args, **kwargs):
+    def forbidden(*args: object, **kwargs: object) -> NoReturn:
         pytest.fail("Completion must persist release/enqueue; delivery belongs to worker")
 
     monkeypatch.setattr(owner.delivery, "verify_current", forbidden)
@@ -547,7 +577,7 @@ def test_same_commit_on_another_pr_branch_is_not_creator_delivery(monkeypatch: p
     responses(monkeypatch)
     transport = subprocess.run
 
-    def wrong_branch(argv, **kwargs):
+    def wrong_branch(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[Any]:
         result = transport(argv, **kwargs)
         if argv[-1].endswith("/pulls/9"):
             data = json.loads(result.stdout)
@@ -574,7 +604,7 @@ def test_same_commit_on_another_pr_branch_is_not_creator_delivery(monkeypatch: p
         ("schema_version", True),
     ],
 )
-def test_malformed_creator_fields_never_establish_owner_authority(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field, value) -> None:
+def test_malformed_creator_fields_never_establish_owner_authority(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str, value: object) -> None:
     from specify_cli.workspace_lifecycle.state import StateError
 
     owner, _, _, _ = managed_owner(tmp_path, monkeypatch)
@@ -631,10 +661,10 @@ def test_current_review_and_remote_source_disposition_is_required(tmp_path: Path
     owner.complete(pr=9)
     original = GitHubDelivery._get
 
-    def response(endpoint, deadline, *, query=None):
+    def response(endpoint: str, deadline: float, *, query: str | None = None) -> dict[str, object]:
         data = original(endpoint, deadline, query=query)
         if endpoint == "graphql":
-            pull = data["data"]["repository"]["pullRequest"]
+            pull = object_at(data, "data", "repository", "pullRequest")
             if disposition == "unresolved":
                 pull["reviewThreads"]["nodes"] = [{"id": "thread1", "isResolved": False}]
             elif disposition == "unavailable":
@@ -661,7 +691,7 @@ def test_failed_source_recovery_never_removes_checkout_or_branch(tmp_path: Path,
     owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
     owner.complete(pr=9)
 
-    def refuse(*args, **kwargs):
+    def refuse(*args: object, **kwargs: object) -> NoReturn:
         raise RefAdvanceError("injected exact ref persistence failure")
 
     monkeypatch.setattr(adapters, "advance_branch_ref", refuse)
@@ -712,10 +742,10 @@ def test_review_pagination_never_turns_partial_or_changed_evidence_into_disposit
 
     calls = []
 
-    def page(endpoint, deadline, *, query=None):
+    def page(endpoint: str, deadline: float, *, query: str | None = None) -> dict[str, object]:
         calls.append(query)
         index = len(calls)
-        pull = {
+        pull: dict[str, Any] = {
             "headRefOid": "a" * 40,
             "headRef": None,
             "mergeCommit": {"oid": "b" * 40},
@@ -738,7 +768,9 @@ def test_review_pagination_never_turns_partial_or_changed_evidence_into_disposit
     result = GitHubDelivery()._reviews(identity(), 9, "b" * 40, time.monotonic() + 5)
     if case == "complete":
         assert result == [{"id": "thread1", "isResolved": True}, {"id": "thread2", "isResolved": True}]
-        assert 'after:"page1"' in calls[1]
+        second_query = calls[1]
+        assert second_query is not None
+        assert 'after:"page1"' in second_query
     else:
         assert result is None
     assert len(calls) <= 10
@@ -753,31 +785,31 @@ def test_linux_runtime_guard_preserves_dependencies_and_unknown_visibility(tmp_p
     import psutil
 
     class Process:
-        def uids(self):
+        def uids(self) -> SimpleNamespace:
             if case == "denied":
                 raise psutil.AccessDenied(123)
             if case == "exited":
                 raise psutil.NoSuchProcess(123)
             return SimpleNamespace(real=os.getuid() + (case == "other_user"))
 
-        def cwd(self):
+        def cwd(self) -> str:
             if case == "denied_cwd":
                 raise psutil.AccessDenied(123)
             return str(tmp_path) if case == "cwd" else "/unrelated"
 
-        def exe(self):
+        def exe(self) -> str:
             if case == "denied_exe":
                 raise psutil.AccessDenied(123)
             return str(tmp_path / "tool") if case == "exe" else "/unrelated/tool"
 
-        def open_files(self):
+        def open_files(self) -> list[SimpleNamespace]:
             if case == "denied_files":
                 raise psutil.AccessDenied(123)
             return [SimpleNamespace(path=str(tmp_path / "data"))] if case == "file" else []
 
     monkeypatch.setattr(adapters, "sys", SimpleNamespace(platform="linux"))
-    monkeypatch.setattr(adapters.os, "getuid", lambda: 1000, raising=False)
-    monkeypatch.setattr(adapters.psutil, "process_iter", lambda: iter([] if case == "empty" else [Process()]))
+    monkeypatch.setattr(os, "getuid", lambda: 1000, raising=False)
+    monkeypatch.setattr(psutil, "process_iter", lambda: iter([] if case == "empty" else [Process()]))
     if case == "expired":
         monkeypatch.setattr(adapters, "process_deadline", lambda: time.monotonic() - 1)
     diagnostic: dict[str, object] = {}
@@ -826,7 +858,7 @@ def test_source_advanced_during_recovery_is_retained_with_old_ancestry_safe(tmp_
     original = owner._recovery
     path = Path(owner.identity.path)
 
-    def recover_then_advance(state, intent, *, create):
+    def recover_then_advance(state: _OwnerState, intent: Operation, *, create: bool) -> bool:
         result = original(state, intent, create=create)
         if create and result:
             git(path, "commit", "--allow-empty", "-m", "new owner work after recovery")
@@ -850,7 +882,7 @@ def test_new_live_holder_at_retirement_boundary_is_preserved(tmp_path: Path, mon
     owner.complete(pr=9)
     children = []
 
-    def start():
+    def start() -> None:
         child = subprocess.Popen([sys.executable, "-c", "import time; print('ready',flush=True); time.sleep(30)"], cwd=owner.identity.path, stdout=subprocess.PIPE)
         children.append(child)
         assert child.stdout is not None
@@ -860,7 +892,7 @@ def test_new_live_holder_at_retirement_boundary_is_preserved(tmp_path: Path, mon
     if phase == "before_retire":
         original = owner.retire
 
-        def retire(intent):
+        def retire(intent: Operation) -> Result:
             start()
             return original(intent)
 
@@ -868,7 +900,7 @@ def test_new_live_holder_at_retirement_boundary_is_preserved(tmp_path: Path, mon
     else:
         original_recovery = owner._recovery
 
-        def recover(state, intent, *, create):
+        def recover(state: _OwnerState, intent: Operation, *, create: bool) -> bool:
             result = original_recovery(state, intent, create=create)
             if create and result:
                 start()
@@ -935,10 +967,10 @@ def test_current_source_branch_is_retained_remotely_after_local_retirement(tmp_p
     owner.complete(pr=9)
     original = GitHubDelivery._get
 
-    def current(endpoint, deadline, *, query=None):
+    def current(endpoint: str, deadline: float, *, query: str | None = None) -> dict[str, object]:
         data = original(endpoint, deadline, query=query)
         if endpoint == "graphql":
-            data["data"]["repository"]["pullRequest"]["headRef"] = {"target": {"oid": owner.identity.head}}
+            object_at(data, "data", "repository", "pullRequest")["headRef"] = {"target": {"oid": owner.identity.head}}
         return data
 
     monkeypatch.setattr(GitHubDelivery, "_get", staticmethod(current))
@@ -1024,9 +1056,11 @@ def test_worker_explains_visibility_retention_without_authorizing_cleanup(tmp_pa
 
     monkeypatch.setattr(adapters, "_runtime_state", unavailable)
     report = LifecycleService(ledger).run()
-    row = report["results"][-1]
+    rows = report["results"]
+    assert isinstance(rows, list)
+    row = rows[-1]
     assert row["status"] == "retained" and row["reason"] == "creator_operation_unsupported"
-    assert row["runtime_diagnostic"]["error_type"] == "AccessDenied"
+    assert object_at(row, "runtime_diagnostic")["error_type"] == "AccessDenied"
     assert adapters._runtime_diagnostic.get() is None
     assert Path(owner.identity.path).exists()
     assert git(repo, "rev-parse", "task") == owner.identity.head

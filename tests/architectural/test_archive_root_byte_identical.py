@@ -38,6 +38,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -572,23 +573,82 @@ def _stack_read(*args: str, missing_ok: bool = False) -> str:
     )
     if result.returncode not in ({0, 1} if missing_ok else {0}):
         raise ValueError("live-stack Git visibility unavailable")
-    return result.stdout.decode("utf-8").strip()
+    return result.stdout.decode("utf-8").removesuffix("\n")
 
 
-def _stack_default_revision() -> str:
+def _stack_endpoint(value: object) -> tuple[str, str, int, str]:
+    """Normalize only the supported server-bound Git endpoint forms."""
+    if not isinstance(value, str) or len(value) > 4096 or any(char.isspace() for char in value):
+        raise ValueError("invalid repository endpoint")
+    if value.startswith("git@") and "://" not in value:
+        value = "ssh://" + value.replace(":", "/", 1)
+    parsed = urlsplit(value)
+    if parsed.scheme not in {"https", "ssh"} or parsed.query or parsed.fragment:
+        raise ValueError("unsupported repository endpoint")
+    if parsed.username != ("git" if parsed.scheme == "ssh" else None) or parsed.password is not None or parsed.hostname is None:
+        raise ValueError("unsupported repository endpoint credentials")
+    port = parsed.port if parsed.port is not None else 443 if parsed.scheme == "https" else 22
+    if not 1 <= port <= 65535:
+        raise ValueError("invalid endpoint port")
+    return parsed.scheme, parsed.hostname.lower(), port, parsed.path.rstrip("/").removesuffix(".git")
+
+
+def _stack_approved_endpoints(event: dict[str, Any]) -> set[tuple[str, str, int, str]]:
+    """Authority comes from correlated platform metadata, never a name suffix."""
+    server = os.environ["GITHUB_SERVER_URL"]
+    parsed = urlsplit(server)
+    if parsed.scheme != "https" or parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+        raise ValueError("platform server identity unavailable")
+    repository = event["repository"]
+    if repository["full_name"] != os.environ["GITHUB_REPOSITORY"]:
+        raise ValueError("platform repository mismatch")
+    canonical = _stack_endpoint(server.rstrip("/") + "/" + repository["full_name"] + ".git")
+    if _stack_endpoint(repository["clone_url"]) != canonical:
+        raise ValueError("correlated clone endpoint mismatch")
+    approved = {canonical}
+    if (ssh_url := repository.get("ssh_url")) is not None:
+        ssh = _stack_endpoint(ssh_url)
+        if ssh != ("ssh", canonical[1], 22, canonical[3]):
+            raise ValueError("correlated SSH endpoint mismatch")
+        approved.add(ssh)
+    return approved
+
+
+def _stack_approved_remotes(approved: set[tuple[str, str, int, str]]) -> list[str]:
+    """Inspect real single-valued configured AND effective fetch endpoints."""
+    result: list[str] = []
+    for remote in sorted(_live_remote_urls()):
+        raw_text = _stack_read("config", "--get-all", f"remote.{remote}.url", missing_ok=True)
+        raw = raw_text.splitlines()
+        if len(raw) != 1 or raw_text != raw[0]:
+            continue
+        try:
+            if _stack_endpoint(raw[0]) not in approved:
+                continue
+            effective_text = _stack_read("remote", "get-url", "--all", "--", remote)
+            effective = effective_text.splitlines()
+            if len(effective) == 1 and effective_text == effective[0] and _stack_endpoint(effective[0]) in approved:
+                result.append(remote)
+        except ValueError:
+            continue
+    return result
+
+
+def _stack_default_revision(expected_base: str) -> str:
     """Independently bind actual own-default identity, not a local alias."""
     event = _read_pr_event()
+    if event["pull_request"]["base"]["sha"] != expected_base:
+        raise ValueError("correlated event changed")
     default = event["repository"]["default_branch"]
     if not isinstance(default, str) or default == os.environ["GITHUB_BASE_REF"]:
         raise ValueError("non-default review target required")
+    approved = _stack_approved_endpoints(event)
     _stack_read("check-ref-format", "refs/heads/" + default)
     if _stack_read("rev-parse", "--is-shallow-repository") != "false":
         raise ValueError("complete default history required")
     if _stack_read("config", "--get-regexp", r"^(remote\..*\.promisor|extensions\.partialclone)$", missing_ok=True):
         raise ValueError("partial default history unsupported")
-    repository = os.environ["GITHUB_REPOSITORY"]
-    own = sorted(name for name, url in _live_remote_urls().items() if _remote_repo_slug(url) == repository)
-    for remote in own:
+    for remote in _stack_approved_remotes(approved):
         live = _stack_read("ls-remote", "--symref", "--exit-code", "--", remote, "HEAD").splitlines()
         symbolic = "ref: refs/heads/" + default + "\tHEAD"
         if len(live) != 2 or symbolic not in live:
@@ -688,7 +748,7 @@ def _live_stack_paths(base: str, baseline: dict[str, Blob], index: dict[str, Blo
     admitted: set[str] = set()
     try:
         with process_budget(30):
-            default = _stack_default_revision()
+            default = _stack_default_revision(base)
             for directory in sorted(candidates):
                 admitted |= _live_stack_mission_paths(directory, baseline, index, default)
     except (AssertionError, KeyError, OSError, subprocess.SubprocessError, TypeError, ValueError):
@@ -2292,7 +2352,6 @@ def live_stack_checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict
     git("clone", "--bare", str(root), str(mirror))
     url = "https://github.com/crucible-energy/spec-kitty.git"
     git("remote", "add", "origin", url)
-    git("config", f"url.{mirror.as_uri()}.insteadOf", url)
     git("update-ref", "refs/remotes/origin/main", main)
     git("checkout", "-qb", "patch-base")
     slug, mission_id = "live-stack-01M5DRAR", "01M5DRAR13PRV108ZDRQDS7SZ2"
@@ -2332,7 +2391,7 @@ def live_stack_checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict
     (directory / "spec.md").write_text("reviewed live design increment\n")
     _git_commit_all(root, "live design increment")
     head = git("rev-parse", "HEAD")
-    repository = {"full_name": "crucible-energy/spec-kitty", "default_branch": "main"}
+    repository = {"full_name": "crucible-energy/spec-kitty", "default_branch": "main", "clone_url": url, "ssh_url": "git@github.com:crucible-energy/spec-kitty.git"}
     event = {
         "number": 75,
         "repository": repository,
@@ -2348,6 +2407,7 @@ def live_stack_checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict
     for key, value in {
         "CI": "true",
         "GITHUB_ACTIONS": "true",
+        "GITHUB_SERVER_URL": "https://github.com",
         "GITHUB_EVENT_NAME": "pull_request",
         "GITHUB_REPOSITORY": repository["full_name"],
         "GITHUB_BASE_REF": "patch-base",
@@ -2357,7 +2417,24 @@ def live_stack_checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict
     }.items():
         monkeypatch.setenv(key, value)
     monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", root)
+    network = {"path": mirror}
+    contacts: list[str] = []
+    read = _stack_read
+
+    def private_contact(*args: str, missing_ok: bool = False) -> str:
+        if args[:4] == ("ls-remote", "--symref", "--exit-code", "--"):
+            contacts.append(args[4])
+            assert args[4:] == ("origin", "HEAD"), "Only the declared private canonical mirror may be contacted."
+            observed = run_git(root, *args[:4], str(network["path"]), "HEAD", check=False, timeout=10)
+            if observed.returncode:
+                raise ValueError("private test endpoint unavailable")
+            return observed.stdout.decode("utf-8").removesuffix("\n")
+        return read(*args, missing_ok=missing_ok)
+
+    monkeypatch.setattr(sys.modules[__name__], "_stack_read", private_contact)
     return {
+        "network": network,
+        "contacts": contacts,
         "root": root,
         "git": git,
         "main": main,
@@ -2467,8 +2544,7 @@ def test_live_stack_unknown_default_never_grants_exemption(live_stack_checkout: 
     elif corruption == "shallow":
         (case["root"] / ".git/shallow").write_text(case["main"] + "\n")
     else:
-        case["git"]("config", "--unset-all", f"url.{case['mirror'].as_uri()}.insteadOf")
-        case["git"]("config", f"url.{(case['mirror'].parent / 'absent.git').as_uri()}.insteadOf", "https://github.com/crucible-energy/spec-kitty.git")
+        case["network"]["path"] = case["mirror"].parent / "absent.git"
     with pytest.raises(AssertionError, match="ordinary archive history changed"):
         test_no_preexisting_archived_file_was_modified()
 
@@ -2566,3 +2642,110 @@ def test_live_stack_append_to_empty_event_file_requires_complete_json_objects(
     else:
         with pytest.raises(AssertionError, match="ordinary archive history changed"):
             test_no_preexisting_archived_file_was_modified()
+
+
+def test_live_stack_unrelated_server_with_same_slug_cannot_replace_actual_default(live_stack_checkout: dict[str, Any]) -> None:
+    """Actual own-default history survives an additional same-named endpoint."""
+    case = live_stack_checkout
+    test_live_stack_cannot_resurrect_default_history(case, "same_path")
+    actual_default = case["git"]("rev-parse", "refs/remotes/origin/main")
+    unrelated = case["mirror"].parent / "unrelated.git"
+    case["git"]("clone", "--bare", str(case["root"]), str(unrelated))
+    for args in [("update-ref", "refs/heads/main", case["main"]), ("symbolic-ref", "HEAD", "refs/heads/main")]:
+        subprocess.run(["git", "--git-dir", str(unrelated), *args], check=True, capture_output=True, timeout=10)
+    url = "https://unrelated.invalid/crucible-energy/spec-kitty.git"
+    case["git"]("remote", "add", "aaa_unrelated", url)
+    case["git"]("config", f"url.{unrelated.as_uri()}.insteadOf", url)
+    case["git"]("update-ref", "refs/remotes/aaa_unrelated/main", case["main"])
+    assert _remote_repo_slug(url) == os.environ["GITHUB_REPOSITORY"], "Legacy frontier parsing stays host agnostic."
+    with pytest.raises(AssertionError, match="ordinary archive history changed"):
+        test_no_preexisting_archived_file_was_modified()
+    assert case["git"]("rev-parse", "refs/remotes/origin/main") == actual_default
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        "rewrite",
+        "multiple",
+        "event_clone_host",
+        "event_clone_path",
+        "server_mismatch",
+        "missing_server",
+        "missing_clone",
+        "credentialed",
+        "wrong_port",
+        "whitespace",
+        "foreign_host",
+    ],
+)
+def test_live_stack_unknown_endpoint_authority_refuses_before_contact(
+    live_stack_checkout: dict[str, Any], monkeypatch: pytest.MonkeyPatch, corruption: str
+) -> None:
+    case = live_stack_checkout
+    original = case["git"]("rev-parse", "refs/remotes/origin/main")
+    canonical = "https://github.com/crucible-energy/spec-kitty.git"
+    foreign = "https://unrelated.invalid/crucible-energy/spec-kitty.git"
+    if corruption == "rewrite":
+        case["git"]("config", f"url.{foreign}.insteadOf", canonical)
+    elif corruption == "multiple":
+        case["git"]("config", "--add", "remote.origin.url", foreign)
+    elif corruption == "event_clone_host":
+        case["event"]["repository"]["clone_url"] = foreign
+    elif corruption == "event_clone_path":
+        case["event"]["repository"]["clone_url"] = "https://github.com/contributor/spec-kitty.git"
+    elif corruption == "server_mismatch":
+        monkeypatch.setenv("GITHUB_SERVER_URL", "https://other.invalid")
+    elif corruption == "missing_server":
+        monkeypatch.delenv("GITHUB_SERVER_URL")
+    elif corruption == "missing_clone":
+        case["event"]["repository"].pop("clone_url")
+    else:
+        endpoint = {
+            "credentialed": "https://someone@github.com/crucible-energy/spec-kitty.git",
+            "wrong_port": "https://github.com:444/crucible-energy/spec-kitty.git",
+            "whitespace": canonical + "\n",
+            "foreign_host": foreign,
+        }[corruption]
+        case["git"]("config", "remote.origin.url", endpoint)
+    case["event_file"].write_text(json.dumps(case["event"]))
+    case["contacts"].clear()
+    with pytest.raises(AssertionError, match="ordinary archive history changed"):
+        test_no_preexisting_archived_file_was_modified()
+    assert case["contacts"] == [], "Unknown authority must not be disguised as a failed network read."
+    assert case["git"]("rev-parse", "refs/remotes/origin/main") == original
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://github.com/crucible-energy/spec-kitty",
+        "git@github.com:crucible-energy/spec-kitty.git",
+        "ssh://git@github.com/crucible-energy/spec-kitty.git",
+        "ssh://git@github.com:22/crucible-energy/spec-kitty.git",
+    ],
+)
+def test_live_stack_approved_transport_forms_keep_same_endpoint(live_stack_checkout: dict[str, Any], endpoint: str) -> None:
+    case = live_stack_checkout
+    case["git"]("config", "remote.origin.url", endpoint)
+    test_no_preexisting_archived_file_was_modified()
+    assert case["contacts"] == ["origin"]
+
+
+@pytest.mark.parametrize("name", ["ordinary", "ending.git"])
+def test_live_stack_authoritative_repository_name_is_not_a_clone_suffix(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+    repository = "fixture/" + name
+    monkeypatch.setenv("GITHUB_SERVER_URL", "https://github.com")
+    monkeypatch.setenv("GITHUB_REPOSITORY", repository)
+    event = {"repository": {"full_name": repository, "clone_url": "https://github.com/" + repository + ".git", "ssh_url": "git@github.com:" + repository + ".git"}}
+    approved = _stack_approved_endpoints(event)
+    assert approved == {("https", "github.com", 443, "/" + repository), ("ssh", "github.com", 22, "/" + repository)}
+
+
+def test_live_stack_malformed_clone_metadata_cannot_select_sibling_namespace(monkeypatch: pytest.MonkeyPatch) -> None:
+    repository = "fixture/ending.git"
+    monkeypatch.setenv("GITHUB_SERVER_URL", "https://github.com")
+    monkeypatch.setenv("GITHUB_REPOSITORY", repository)
+    event = {"repository": {"full_name": repository, "clone_url": "https://github.com/" + repository, "ssh_url": None}}
+    with pytest.raises(ValueError, match="correlated clone endpoint mismatch"):
+        _stack_approved_endpoints(event)
