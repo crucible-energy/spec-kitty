@@ -2,7 +2,7 @@
 title: Owned LANES Analysis Admission
 description: Canonical target-checkout admission and isolated report transactions.
 doc_status: active
-updated: '2026-10-24'
+updated: '2026-10-25'
 ---
 
 # Owned LANES Analysis Admission
@@ -323,3 +323,55 @@ probe still requires the kernel stop. The final parsed PID must still match the
 witness exactly, so partial or incorrect captures remain visible failures. No
 output is reconstructed, no limit widened, and no production path changed.
 Both failed control runs remain retained beside the delegated v2 review.
+
+## October 25 — canonical review and private invocation discipline
+
+### User Experience Findings
+
+A deep help inspection was accidentally invoked without the private consumer
+scope. Its bootstrap refreshed 182 generated command files across 13 non-Codex
+agent roots and eight cache lock/stamp nodes during the observed call window.
+Shared Codex and agent skill files were outside that window. Exact post-call
+bytes were preserved externally. A subsequent independent read found another
+writer had regenerated those commands with the official RC7 marker; that writer
+is unattributed. No restoration, shared pruning, processing-tier configuration,
+Store access, fit or unhold was attempted.
+
+The explicit owned-review path also correctly refused the integration checkout
+because its branch differs from the mission's recorded write branch. Addressing
+the actual Source checkout resolved ownership selection. A private home reached
+through the system temporary-directory alias then failed the material-input
+symlink guard; explicitly addressing the identical physical home resolved that
+caller error without weakening the guard.
+
+### Engineering Decisions
+
+Use a mandatory external invocation wrapper that fixes the isolated executable,
+canonical private home and consumer asset scope, and clears inherited source
+imports. Future governance commands must not depend on remembering those flags.
+Retain both shared-asset observations; never restore old generated files over a
+concurrent writer or active consumer without owner-supported reconciliation.
+
+The normal owned `move-task` review API applied the independently reviewed WP13
+verdict with a distinct reviewer actor and a generated review artifact. No force,
+skip, raw event edit or manufactured prompt was used. The old twelve WP rows,
+prior event prefix, acceptance metadata and six tested source/test hashes remain
+identical. This leaf-review operation does not advance the full mission past its
+separate stale-analysis guard. Runtime query, bounded source approval, publication
+and installed adoption remain different facts.
+
+### Known Limitations and Retained Obligations
+
+No pre-call content snapshot exists for the accidental shared bootstrap; the
+original bytes cannot be claimed restored or lossless. The observed snapshots,
+private governance state, failed invocations and exact command observations are
+retained under this mission's external receipt root. The existing migration owner
+has the incident and active-consumer boundary; shared repair remains unperformed.
+
+The complete archive/lifecycle owner gate passed 353 tests. The exact combined
+source passed the mandatory baseline with 2,452 tests and five declared skips;
+all owned producers are joined. The subsequent review child changes only
+canonical review metadata. Actual Linux visibility failures, full-mission
+analysis freshness, remaining hosted gates, default-branch delivery and runtime
+adoption are not closed by those passes or by WP13 approval. HELD/v5 and existing
+Source/native owner lanes remain preserved.
