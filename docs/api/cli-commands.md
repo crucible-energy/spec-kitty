@@ -823,7 +823,30 @@ _Mission type commands (activated types only)._
 ## spec-kitty charter new
 
 ```
+ Usage: spec-kitty charter new [OPTIONS] KIND ID
 
+ Scaffold a stub doctrine artifact YAML (FR-016).
+
+ The scaffolder pre-fills the canonical schema's required fields with
+ ``TODO …`` placeholders so the file passes ``charter validate`` on
+ first emit.  Refuses to overwrite an existing file.
+
+╭─ Arguments ──────────────────────────────────────────────────────────────────╮
+│ *    kind             TEXT  Artifact kind (singular): one of agent_profile,  │
+│                             asset, directive, mission_step_contract,         │
+│                             paradigm, procedure, styleguide, tactic,         │
+│                             toolguide.                                       │
+│                             [required]                                       │
+│ *    artifact_id      ID    Artifact identifier (kebab-case for most kinds;  │
+│                             SCREAMING_SNAKE for directives).                 │
+│                             [required]                                       │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --pack          PATH  Scaffold inside a doctrine pack directory instead of   │
+│                       the project layer. When omitted, the stub lands under  │
+│                       .kittify/doctrine/.                                    │
+│ --help  -h            Show this message and exit.                            │
+╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## spec-kitty charter org
@@ -3803,7 +3826,14 @@ _Inspect mission types for this project._
 ## spec-kitty mission current
 
 ```
+ Usage: spec-kitty mission current [OPTIONS]
 
+ Show currently active mission for a mission (auto-detects mission from cwd).
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --mission          TEXT  Mission slug                                        │
+│ --help     -h            Show this message and exit.                         │
+╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## spec-kitty mission follow-up
@@ -4287,7 +4317,17 @@ _Inspect mission types for this project._
 _Operation history (git reflog)_
 
 ```
+ Usage: spec-kitty ops [OPTIONS] COMMAND [ARGS]...
 
+ Operation history (git reflog)
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --help  -h        Show this message and exit.                                │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Commands ───────────────────────────────────────────────────────────────────╮
+│ log   Show operation history.                                                │
+│ undo  Undo is not supported for git.                                         │
+╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## spec-kitty ops log
@@ -4586,7 +4626,31 @@ _Machine-contract API for external orchestrators (JSON-first)_
 ## spec-kitty orchestrator-api consolidate-mission
 
 ```
+ Usage: spec-kitty orchestrator-api consolidate-mission [OPTIONS]
 
+ Consolidate a lane-based mission into target.
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --mission               TEXT                Mission slug [required]       │
+│    --target                TEXT                Target branch to merge into   │
+│                                                (auto-detected from           │
+│                                                meta.json)                    │
+│    --strategy              TEXT                Merge strategy: merge,        │
+│                                                squash, or rebase             │
+│                                                [default: merge]              │
+│    --push                                      Push target branch after      │
+│                                                merge                         │
+│    --origin-check          [enforce|warn|off]  Refuse (enforce, the default) │
+│                                                or only warn (warn) when the  │
+│                                                mission's status evidence or  │
+│                                                approved lanes are behind or  │
+│                                                unreachable on their remote;  │
+│                                                off contacts nothing and      │
+│                                                accepts stale evidence.       │
+│                                                Overrides                     │
+│                                                SPEC_KITTY_ORIGIN_CHECK.      │
+│    --help          -h                          Show this message and exit.   │
+╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## spec-kitty orchestrator-api contract-version

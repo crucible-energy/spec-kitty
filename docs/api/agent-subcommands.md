@@ -683,7 +683,23 @@ _Decision Moment ledger for interview questions._
 ## spec-kitty agent decision verify
 
 ```
+ Usage: spec-kitty agent decision verify [OPTIONS]
 
+ Cross-check deferred decisions against inline sentinel markers.
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --mission                                  TEXT  Mission handle           │
+│                                                     [required]               │
+│    --fail-on-stale      --no-fail-on-stale          Exit non-zero when       │
+│                                                     findings are present     │
+│                                                     (default true)           │
+│                                                     [default: fail-on-stale] │
+│    --json               --no-json                   Output JSON (default     │
+│                                                     true)                    │
+│                                                     [default: json]          │
+│    --help           -h                              Show this message and    │
+│                                                     exit.                    │
+╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## spec-kitty agent issue-verdict
@@ -723,7 +739,37 @@ _Decision Moment ledger for interview questions._
 _Mission lifecycle commands for AI agents_
 
 ```
+ Usage: spec-kitty agent mission [OPTIONS] COMMAND [ARGS]...
 
+ Mission lifecycle commands for AI agents
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --help  -h        Show this message and exit.                                │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Commands ───────────────────────────────────────────────────────────────────╮
+│ record-analysis      Persist `/spec-kitty.analyze` output as                 │
+│                      `analysis-report.md`.                                   │
+│ acceptance-verdict   Record an acceptance-criterion verdict, or              │
+│                      register/execute a negative                             │
+│                      invariant (FR-007/FR-008) — exactly one of              │
+│                      ``--criterion``/                                        │
+│                      ``--negative-invariant``, both routed through the WP03  │
+│                      write seam.                                             │
+│ branch-context       Return deterministic branch contract for planning-stage │
+│                      prompts.                                                │
+│ create               Create new mission directory structure in the project   │
+│                      root checkout.                                          │
+│ check-prerequisites  Validate mission structure and prerequisites.           │
+│ setup-plan           Scaffold an implementation plan template in the         │
+│                      repository root checkout or an owned checkout.          │
+│ accept               Perform mission acceptance workflow.                    │
+│ merge                Merge mission branch into target branch.                │
+│ finalize-tasks       Parse dependencies from tasks.md and update WP          │
+│                      frontmatter, then commit to target branch.              │
+│ repair               Detect and forward-only repair a pre-existing           │
+│                      cross-partition content                                 │
+│                      split-brain for one mission (FR-005, NFR-005).          │
+╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## spec-kitty agent mission accept

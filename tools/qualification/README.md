@@ -42,3 +42,18 @@ Actual project replay remains owner-coordinated and source-bound. This build is
 not package-index publication, default-branch adoption, a mission approval,
 Store access, or production admission. Retain failed and passing receipts and
 close only the build owner's eligible resources after consumer handover.
+
+
+## Agent-asset custody boundary
+
+Published RC7 does not include the integration source's private consumer-agent
+asset seam. `SPEC_KITTY_HOME` alone does not isolate every native agent directory;
+setting `SPEC_KITTY_ASSET_SCOPE=consumer` cannot add missing implementation.
+Synthetic qualification uses genuine private fixture homes. It does not attest
+that ordinary startup on a user's shared agent directories is isolated.
+Do not admit further ordinary startup/recording under that isolation claim
+until the source closure is separately built, installed and qualified. The
+actual `next` callback has its bounded fast-path proof; this is not blanket
+qualification of other commands. Preserve existing consumers rather than patch
+an installed distribution. The source closure in accepted commit `c9f90a3a7`
+is a port input, not proof of installed adoption.

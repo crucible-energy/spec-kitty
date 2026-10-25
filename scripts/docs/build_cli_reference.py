@@ -5,8 +5,8 @@ Implements ``contracts/build_cli_reference.md`` (FR-007 / FR-008).
 The script:
 
 1. Discovers every visible command path via :func:`scripts.docs._typer_walker.walk`.
-2. Captures each path's ``--help`` output via ``subprocess.run(["uv", "run",
-   "spec-kitty", *path, "--help"])`` and normalizes the result (strip ANSI,
+2. Captures each path's ``--help`` through the current interpreter and the
+   canonical CLI entry point, and normalizes the result (strip ANSI,
    collapse blank-line runs, preserve fenced code blocks).
 3. Emits a sectioned markdown document grouped by top-level command/group.
 4. Honours ``--mode {generated, hybrid, hand}`` for the
@@ -26,9 +26,11 @@ _os.environ.setdefault("SPEC_KITTY_ENABLE_SAAS_SYNC", "1")
 _os.environ.setdefault("SPEC_KITTY_NO_UPGRADE_CHECK", "1")
 
 import argparse
+import json
 import re
 import subprocess
 import sys
+import tempfile
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -117,14 +119,53 @@ def normalize_help_text(text: str) -> str:
     return "\n".join(out_lines) + "\n" if out_lines else ""
 
 
+class HelpCaptureError(RuntimeError):
+    """A failed required capture, retaining the exact child diagnostics."""
+
+    def __init__(self, command: Sequence[str], reason: str, *, returncode: int | None = None, stdout: bytes = b"", stderr: bytes = b"") -> None:
+        super().__init__(f"HELP_CAPTURE_FAILED: {reason}")
+        self.command = tuple(command)
+        self.reason = reason
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+    def retain_diagnostics(self) -> Path:
+        root = Path(tempfile.mkdtemp(prefix="required-help-failure-"))
+        root.chmod(0o700)
+        files = {
+            "stdout.log": self.stdout,
+            "stderr.log": self.stderr,
+            "receipt.json": json.dumps(
+                {
+                    "command": self.command,
+                    "reason": self.reason,
+                    "returncode": self.returncode,
+                    "owner": "CLI reference generator",
+                    "next_action": "diagnose capture failure before regeneration; retain until owner release",
+                },
+                indent=2,
+            ).encode(),
+        }
+        for name, content in files.items():
+            with (root / name).open("xb") as stream:
+                (root / name).chmod(0o600)
+                stream.write(content)
+        return root
+
+
 def capture_help(
     path: tuple[str, ...],
     *,
-    cmd_runner: Sequence[str] = ("uv", "run", "spec-kitty"),
+    cmd_runner: Sequence[str] | None = None,
     env: dict[str, str] | None = None,
     timeout: float = 30.0,
 ) -> str:
     """Capture the normalized ``--help`` output for the given command path."""
+    # The console-script entry point under this exact interpreter/dependency
+    # environment, without a nested package-manager synchronization per command.
+    if cmd_runner is None:
+        cmd_runner = (sys.executable, "-c", "import sys; from specify_cli import main; sys.argv[0] = 'spec-kitty'; main()")
     full_cmd: list[str] = [*cmd_runner, *path, "--help"]
     proc_env = dict(_os.environ)
     if env:
@@ -133,15 +174,27 @@ def capture_help(
     proc_env.setdefault("SPEC_KITTY_NO_UPGRADE_CHECK", "1")
     proc_env.setdefault("NO_COLOR", "1")
     proc_env.setdefault("TERM", "dumb")
-    result = subprocess.run(  # noqa: S603
-        full_cmd,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        env=proc_env,
-        check=False,
-    )
-    return normalize_help_text(result.stdout or "")
+    try:
+        result = subprocess.run(  # noqa: S603
+            full_cmd,
+            capture_output=True,
+            timeout=timeout,
+            env=proc_env,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise HelpCaptureError(full_cmd, "timeout", stdout=exc.stdout or b"", stderr=exc.stderr or b"") from exc
+    except OSError as exc:
+        raise HelpCaptureError(full_cmd, "spawn failed", stderr=str(exc).encode()) from exc
+    if result.returncode != 0:
+        raise HelpCaptureError(full_cmd, "nonzero exit", returncode=result.returncode, stdout=result.stdout, stderr=result.stderr)
+    try:
+        normalized = normalize_help_text(result.stdout.decode("utf-8"))
+    except UnicodeDecodeError as exc:
+        raise HelpCaptureError(full_cmd, "invalid UTF-8", returncode=result.returncode, stdout=result.stdout, stderr=result.stderr) from exc
+    if not normalized.strip():
+        raise HelpCaptureError(full_cmd, "empty required help", returncode=result.returncode, stdout=result.stdout, stderr=result.stderr)
+    return normalized
 
 
 # ---------------------------------------------------------------------------
@@ -349,16 +402,17 @@ def _classification_table(entries: Sequence[CommandPathEntry]) -> str:
     return "\n".join(rows) + "\n"
 
 
-def _generate_for_target(
+def _render_for_target(
     target: Path,
     *,
     entries: Sequence[CommandPathEntry],
     title: str,
     include_hidden_entries: Sequence[CommandPathEntry],
     mode: Mode,
-    dry_run: bool,
     skip_help_capture: bool,
-) -> None:
+) -> str:
+    if mode == "hand":
+        return _classification_table([*entries, *include_hidden_entries])
     sections: list[RenderedSection] = []
     for e in entries:
         if e.hidden:
@@ -370,11 +424,6 @@ def _generate_for_target(
         help_text = "" if skip_help_capture else capture_help(e.path)
         hidden_sections.append(render_section(e, help_text))
 
-    if mode == "hand":
-        body = _classification_table([*entries, *include_hidden_entries])
-        _write_or_dry_run(target, body, dry_run=dry_run)
-        return
-
     generated_body = render_document(
         sections,
         title=title,
@@ -382,13 +431,11 @@ def _generate_for_target(
     )
 
     if mode == "generated":
-        _write_or_dry_run(target, generated_body, dry_run=dry_run)
-        return
+        return generated_body
 
     # hybrid
     existing = _load_existing(target)
-    body = wrap_with_markers(generated_body, existing=existing)
-    _write_or_dry_run(target, body, dry_run=dry_run)
+    return wrap_with_markers(generated_body, existing=existing)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -426,24 +473,26 @@ def main(argv: Sequence[str] | None = None) -> int:
                 sys.stderr.write(f"BUILD-TARGET-DIRTY  {target}\n  Target has uncommitted edits. Stash, commit, or pass --force.\n")
                 return 3
 
-    _generate_for_target(
+    main_body = _render_for_target(
         args.output,
         entries=main_entries,
         title="CLI Command Reference",
         include_hidden_entries=hidden_entries,
         mode=args.mode,
-        dry_run=args.dry_run,
         skip_help_capture=args.skip_help_capture,
     )
-    _generate_for_target(
+    agent_body = _render_for_target(
         args.agent_output,
         entries=agent_entries,
         title="Agent Subcommand Reference",
         include_hidden_entries=[],
         mode=args.mode,
-        dry_run=args.dry_run,
         skip_help_capture=args.skip_help_capture,
     )
+
+    # A failed capture in either document must leave both existing targets intact.
+    _write_or_dry_run(args.output, main_body, dry_run=args.dry_run)
+    _write_or_dry_run(args.agent_output, agent_body, dry_run=args.dry_run)
 
     visible_count = len([e for e in entries if not e.hidden])
     hidden_count = len([e for e in entries if e.hidden])
@@ -453,4 +502,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":  # pragma: no cover - script entry point
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except HelpCaptureError as error:
+        try:
+            diagnostics = error.retain_diagnostics()
+        except OSError as persistence_error:
+            sys.stderr.write(f"{error}; diagnostic retention failed: {persistence_error}\n")
+        else:
+            sys.stderr.write(f"{error}; diagnostics retained at {diagnostics}\n")
+        raise SystemExit(2) from error

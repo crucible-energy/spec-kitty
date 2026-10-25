@@ -135,3 +135,87 @@ no rule is dropped or regenerated away. CLI references are rendered from the
 actual registered surface with the canonical generator; rendering help does not
 activate a workspace worker or grant cleanup. These publication corrections
 remain separate from subsequent LANES-finalizer route qualification.
+
+
+## Required-help capture correction
+
+### User Experience Findings
+
+Independent incremental review found six empty help fences after a generator
+run reported success. The old capture discarded return codes and stderr;
+a controlled child exiting 9 with partial stdout reproduced the false success.
+The original six child failure causes remain unknown because those diagnostics
+were not retained. A new actual-reference guard detects all six, with a planted
+empty/nonempty control to verify the guard itself.
+
+### Engineering Decisions
+
+Required help now rejects nonzero exit, empty normalized output, invalid UTF-8,
+timeout and spawn failure. CLI failures retain exact stdout/stderr and command
+metadata in a private owner-released diagnostic directory. Both reference
+bodies render completely before either target is written. Captures use the
+canonical console entry point under the generator's exact interpreter instead
+of running a package-manager synchronization for each command. The existing
+owner approved the additive nonempty-reference guard without weakening other
+checks. Complete reference regeneration uses successful real captures only.
+
+### Known Limitations
+
+The original discarded failures cannot be reconstructed from later successful
+help commands. Pre-rendering prevents capture failures from partially updating
+the pair; it does not make two filesystem writes one crash-atomic transaction.
+Diagnostic directories remain retained pending owner release. This closes a
+documentation capture defect, not LANES finalizer qualification, runtime
+adoption, production authority, or PDB HELD/v5 custody.
+
+
+A strict regeneration subsequently refused `context mission-show --help` with
+an actual global slash-command input-change diagnostic. This is a newly observed
+cause, not proof of the six original discarded failures. Rendered help now uses
+the supported consumer-scoped private asset root during qualification, preserving
+shared agents' assets and the existing currentness guards. Hosted routing checks
+also exposed an inherited canonical-local-authority migration mismatch: the
+registry/scrub/workflow mirrors had the new subsystem but the active local JSON
+selection lacked it. The delegated owner approved matching additive local
+source/test enrollment and explicit YAML input for YAML-transcription guards.
+Consolidation fixture corrections remain with the existing lifecycle owner.
+
+The non-main-registry fixture now supplies its actual synthetic router and
+registry explicitly to the real selection function; changing the retired
+legacy default no longer redirected the canonical authority. Its original
+lost-routing negative remains, and all 21 focused routing/fixture checks pass.
+The first applied fixture exposed a missing module-level `sys` import in the
+negative branch; that failure is retained and the import corrected. Local
+review-base probes replay exact GitHub-observed PR metadata; they are not
+hosted execution evidence. The actual default branch has no 4.x registry, so
+an ordinary default-main comparison is not a valid integration-base proof.
+
+A normal nested CLI help invocation still runs the existing global-asset
+startup owners. The failed shared-scope attempt has no before/after asset
+manifest, so it does not establish that those assets stayed unchanged or
+identify which producer caused the observed drift. Subsequent rendering is
+consumer-scoped; no shared asset cleanup, rollback or runtime replacement is
+attempted by this repair. PDB Store/HELD/v5 state is outside these help calls.
+
+
+The full affected-subsystem run retained failures before publication. Self-review
+found that a subsequent render targeted nested temporary paths while the seed
+references were root-level, so those generated copies lacked the existing
+hybrid envelope. The canonical `wrap_with_markers` restored the exact current
+hand-authored prefix around byte-identical successful generated blocks. No help
+was manually filled. Its receipt records both hashes. The private test environment
+also lacked lockfile-pinned `defusedxml` 0.7.1; the exact lockfile wheel checksum
+was verified before installation after the original producer joined. Router
+mapping pins still require explicit source-epoch review for the already approved
+source glob; changed-source refusal remains mandatory. The published RC7 private
+agent-root gap is documented separately from integration-source isolation.
+
+The delegated source review confirmed that removing only the approved new
+router glob reproduces its exact previous SHA. The new epoch is admitted in
+the canonical extractor; source, migration, workflow contracts and inventory
+are regenerated from that reviewed source. All 19 original workflow definitions
+remain exact apart from the single approved filter addition. Existing pinned
+source and changed-workflow refusal controls remain intact. JSON ordering is
+retained for review without changing the extractor's computed object. The full
+failed run classifies exactly six envelope failures, 29 missing-dependency
+failures and six source-epoch failures; none are silently relabeled as passes.
