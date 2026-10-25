@@ -273,3 +273,21 @@ CI input must execute these cases. Darwin compiles the literal fixture program
 but declares the Linux cases skipped; those skips are not Linux passes. A
 privileged/unsupported caller is not silently treated as a successful denial
 control. No existing positive cleanup assertion is changed or weakened.
+
+### Review finding — whole-frame deadline
+
+The independent owner found that readiness followed by blocking `readline`
+did not bound the whole response. The extracted unchanged pattern reproduced
+four real pipe-control failures: an unterminated response survived until the
+four-second child watchdog, slow partial output outlived the requested frame
+deadline, oversized output was accepted and EOF was misclassified. The normal
+ready response passed. All producer outcomes were retained and joined.
+
+Use one absolute monotonic deadline with nonblocking short raw reads, a
+1,024-byte frame bound and explicit EOF/oversize/deadline failures. Preserve
+exclusive stdout ownership, restore descriptor flags, and reject trailing
+frames. Both Linux protocol stages share the same three-second deadline;
+partial reads and later stages cannot restart it. The watchdog remains a
+separate last-resort child lifetime bound. Six real POSIX controls now pass,
+including an already-expired deadline and descriptor-mode restoration. These
+transport results do not establish a Linux kernel or full-host visibility pass.

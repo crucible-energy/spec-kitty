@@ -1011,15 +1011,41 @@ def test_process_directory_owner_observes_only_a_real_pid_directory(tmp_path: Pa
         adapters._process_directory_owner(321)
 
 
-def _read_owned_control_frame(fd: int, *, timeout: float = 3.0) -> dict[str, Any]:
+def _read_owned_control_frame(fd: int, *, deadline: float) -> dict[str, Any]:
     import select
+    import time
 
-    with os.fdopen(os.dup(fd), "rb") as stream:
-        assert select.select([stream], [], [], timeout)[0], "Owned control did not reach its bounded handshake."
-        return object_at(json.loads(stream.readline()))
+    if time.monotonic() >= deadline:
+        raise TimeoutError("Owned control frame deadline exceeded")
+    blocking = os.get_blocking(fd)
+    os.set_blocking(fd, False)
+    frame = bytearray()
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not select.select([fd], [], [], max(0.0, remaining))[0] or time.monotonic() >= deadline:
+                raise TimeoutError("Owned control frame deadline exceeded")
+            try:
+                chunk = os.read(fd, min(256, 1025 - len(frame)))
+            except BlockingIOError:
+                continue
+            if not chunk:
+                raise EOFError("Owned control frame ended before newline")
+            frame.extend(chunk)
+            if len(frame) > 1024:
+                raise ValueError("Owned control frame too large")
+            if b"\n" in frame:
+                if not frame.endswith(b"\n") or frame.count(b"\n") != 1:
+                    raise ValueError("Unexpected trailing control frame")
+                value = object_at(json.loads(frame.decode("utf-8")))
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("Owned control frame deadline exceeded")
+                return value
+    finally:
+        os.set_blocking(fd, blocking)
 
 
-@pytest.mark.parametrize("case", ["ready", "eof", "unterminated", "oversize", "trickle"])
+@pytest.mark.parametrize("case", ["ready", "eof", "unterminated", "oversize", "trickle", "expired"])
 def test_owned_control_frame_has_one_bounded_deadline(tmp_path: Path, case: str) -> None:
     import inspect
 
@@ -1028,7 +1054,7 @@ def test_owned_control_frame_has_one_bounded_deadline(tmp_path: Path, case: str)
     if os.name != "posix":
         pytest.skip("This Linux-control pipe transport requires POSIX descriptors")
     program = (
-        "from __future__ import annotations\nimport os,json,signal,sys,threading\n"
+        "from __future__ import annotations\nimport os,json,signal,sys,threading,time\n"
         + inspect.getsource(object_at)
         + "\n"
         + inspect.getsource(_read_owned_control_frame)
@@ -1053,13 +1079,13 @@ if case=='trickle':
 elif case=='eof':
     os.close(writer)
 else:
-    payload=b'{"ready":true}'+(b'\\n' if case=='ready' else b'')
+    payload=b'{"ready":true}'+(b'\\n' if case in {'ready','expired'} else b'')
     if case=='oversize':
         payload=b'{"padding":"'+b'x'*2048+b'"}\\n'
     os.write(writer,payload)
 try:
     try:
-        value=_read_owned_control_frame(reader,timeout=0.1)
+        value=_read_owned_control_frame(reader,deadline=time.monotonic()+(-1 if case=='expired' else 0.1))
         outcome='accepted'
     except (TimeoutError,EOFError,ValueError) as error:
         outcome=type(error).__name__
@@ -1097,6 +1123,7 @@ finally:
 
 @pytest.mark.parametrize("inside_candidate", [True, False])
 def test_actual_linux_same_uid_non_dumpable_child_retains_unknown_visibility(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, inside_candidate: bool) -> None:
+    import time
     import psutil
 
     from kernel.owned_process import signal_owned_process_tree
@@ -1156,10 +1183,11 @@ if sys.stdin.readline().strip()=='protect':
         custody["child_pid"] = child.pid
         receipt.write_text(json.dumps(custody))
         assert child.stdout is not None and child.stdin is not None
+        handshake_deadline = time.monotonic() + 3
 
         def stage() -> dict[str, Any]:
             assert child.stdout is not None
-            return _read_owned_control_frame(child.stdout.fileno())
+            return _read_owned_control_frame(child.stdout.fileno(), deadline=handshake_deadline)
 
         assert stage() == {"pid": child.pid, "dumpable": 1}
         process = psutil.Process(child.pid)
