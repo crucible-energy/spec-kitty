@@ -23,7 +23,7 @@ from specify_cli.git.ref_advance import RefDeleteMismatchError
 from specify_cli.lanes.models import ExecutionLane, LanesManifest
 from specify_cli.orchestrator_api import consolidation
 from tests.terminus.conftest import _cli_env as cli_env
-from tests.terminus.conftest import build_coord_mission
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
 from tests.terminus.test_coord_teardown_cas_branch_delete import _COORD_MOVED_CODE, _COORD_MOVED_EXIT, _flat
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]

@@ -1040,7 +1040,6 @@ exclude = [
     "tests/charter/test_context_include.py",
     "tests/charter/test_context_include_activation.py",
     "tests/charter/test_context_leaf_seams.py",
-    "tests/charter/test_context_noop_stability.py",
     "tests/charter/test_context_org_chain.py",
     "tests/charter/test_context_prose_presence_pin.py",
     "tests/charter/test_context_provenance.py",

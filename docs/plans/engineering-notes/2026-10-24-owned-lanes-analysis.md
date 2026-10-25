@@ -794,3 +794,60 @@ ancestry-dependent lifecycle tests retain their own real-history fixtures.
 Requalify the changed fixture and exact committed inputs before publishing.
 Retain failure evidence and review this new fixture change independently. No
 global filesystem improvement or cause of concurrent capacity changes is claimed.
+
+## 2026-10-25 — Retire the repaired fixture's formatter exemption
+
+### User Experience Findings
+
+Current Linux architectural CI caught a stale formatter exemption for the
+now-formatted render fixture: 798 passed, one skipped, one failed. The existing
+shrink-only ratchet correctly refused to retain an unnecessary exclusion.
+Keep that failure as the reproduction, separate from passing local test results.
+
+### Engineering Decisions
+
+Remove only this exact path from the formatter exclusion list, as the existing
+ratchet requires. Do not restore formatting debt, add an exception, raise the
+baseline or change any test, CI workflow, hook, budget or status expectation.
+The fixture becomes subject to the already-established formatting requirement.
+Recheck the named ratchet and mandatory baseline before publication.
+
+### Known Limitations and Retained Obligations
+
+Other current-head CI jobs still need their actual terminal outcomes. A local
+formatter check does not substitute for the architectural ratchet or passing
+Linux control evidence. No Source/Store, authority, resource-pruning or runtime
+behavior changes are introduced by retiring this obsolete exception.
+
+## 2026-10-25 — Reach consolidation behavior without targeting protected history
+
+### User Experience Findings
+
+The current consolidation shard finished with eight failures, 1,254 passes and
+three expected failures. Eight fixtures still requested protected main/develop
+targets, so PR-only admission correctly refused before the intended claim,
+reconciliation, teardown or reviewed-fix boundary. Those tests were not proving
+their intended behavior. Preserve the actual failed run and cancelled shards.
+
+### Engineering Decisions
+
+Opt these consolidation cases into the existing real integration-target adapter,
+which pins a separate protected primary. Keep the legacy builders' defaults and
+all protected-target tests unchanged. For the mixed canceled-content builder,
+use its existing target parameter and the same primary-pin helper. Do not change
+production target policy, enable an escape hatch or relax any status/content
+assertion.
+
+The explicit-target resume case now uses distinct eligible integration targets:
+one stale metadata target and one actual explicit target. Require successful
+consolidation, exact approved-commit reachability, unchanged stale target and the
+shared harness's unchanged-primary check. Protected bookkeeping cannot be
+laundered by an explicit override; retain that separate negative control.
+
+### Known Limitations and Retained Obligations
+
+These are real Git/CLI fixture corrections, not production branch-policy changes.
+Run every affected file, the protected-target controls and the formatter ratchet,
+then the mandatory baseline. Existing larger-scope Linux results remain failed
+until current-candidate CI proves the correction. Canonical Store exclusion,
+HELD/v5, no-fit/no-unhold and the Native platform hold remain unchanged.
