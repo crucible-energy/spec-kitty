@@ -7,6 +7,23 @@ import pytest
 from specify_cli.workspace_lifecycle.state import StateError, StateStore
 
 
+def _review_evidence(source: str) -> dict[str, object]:
+    """Bounded API evidence for the real local mirror's exact source/merge."""
+    return {
+        "data": {
+            "repository": {
+                "databaseId": 7,
+                "pullRequest": {
+                    "headRefOid": source,
+                    "headRef": None,
+                    "mergeCommit": {"oid": source},
+                    "reviewThreads": {"nodes": [], "pageInfo": {"hasNextPage": False, "endCursor": None}},
+                },
+            }
+        }
+    }
+
+
 def ledger(tmp_path: Path) -> StateStore:
     root = tmp_path / "ledger"
     root.mkdir(mode=0o700)
@@ -72,10 +89,10 @@ def test_fresh_worker_process_resumes_released_owner_and_retains_unmerged_pr(tmp
     import subprocess
     import sys
 
-    from test_adapters import managed_owner
+    from test_adapters import git, managed_owner
     from specify_cli.workspace_lifecycle.events import EventQueue
 
-    owner, store, _, _ = managed_owner(tmp_path, monkeypatch)
+    owner, store, _, repo = managed_owner(tmp_path, monkeypatch)
     owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
     owner.complete(pr=9)
     path = Path(owner.identity.path)
@@ -89,19 +106,24 @@ def test_fresh_worker_process_resumes_released_owner_and_retains_unmerged_pr(tmp
     binary_dir.mkdir()
     metadata = tmp_path / "metadata.json"
     repository = {"id": 7, "full_name": "crucible-energy/example", "default_branch": "main"}
+    source = git(repo, "rev-parse", "main")
+    assert source == git(tmp_path / "origin.git", "rev-parse", "refs/heads/main")
+    reviews = _review_evidence(source)
     pull = {
         "number": 9,
         "merged": False,
         "state": "closed",
-        "merged_at": "2026-10-20",
-        "merge_commit_sha": "b" * 40,
+        "merged_at": None,
+        "merge_commit_sha": source,
         "head": {"ref": "task", "sha": owner.identity.head, "repo": repository},
         "base": {"ref": "main", "repo": repository},
     }
-    metadata.write_text(json.dumps({"repo": repository, "pull": pull}))
+    metadata.write_text(json.dumps({"repo": repository, "pull": pull, "reviews": reviews}))
     gh = binary_dir / "gh"
     gh.write_text(
-        f'#!{sys.executable}\nimport json,sys\nv=json.load(open({str(metadata)!r}))\nprint(json.dumps(v["pull" if "/pulls/" in sys.argv[-1] else "repo"]))\n'
+        f"#!{sys.executable}\nimport json,sys\nv=json.load(open({str(metadata)!r}))\n"
+        'key = "reviews" if sys.argv[-1] == "graphql" else "pull" if "/pulls/" in sys.argv[-1] else "repo"\n'
+        "print(json.dumps(v[key]))\n"
     )
     gh.chmod(0o700)
     monkeypatch.setenv("PATH", str(binary_dir) + os.pathsep + os.environ["PATH"])
@@ -117,7 +139,8 @@ def test_fresh_worker_process_resumes_released_owner_and_retains_unmerged_pr(tmp
     assert path.exists()
     assert queue.snapshot() == (1, 0 if blocked else 1)
     pull["merged"] = True
-    metadata.write_text(json.dumps({"repo": repository, "pull": pull}))
+    pull["merged_at"] = "2026-10-20T00:00:00Z"
+    metadata.write_text(json.dumps({"repo": repository, "pull": pull, "reviews": reviews}))
     from specify_cli.workspace_lifecycle.worker import LifecycleService
 
     children = []
@@ -137,6 +160,8 @@ def test_fresh_worker_process_resumes_released_owner_and_retains_unmerged_pr(tmp
     assert report["last_worker_observation"]["results"][-1]["status"] == "retired"
     assert report["pending_wakeup"] is blocked
     assert not path.exists()
+    assert git(repo, "branch", "--list", owner.identity.branch.removeprefix("refs/heads/")) == ""
+    assert git(repo, "rev-parse", "main") == source
     assert queue.snapshot() == (2, 0 if blocked else 2)
 
 
@@ -178,23 +203,26 @@ def test_managed_run_cli_joins_reports_pr_and_automatically_retires(tmp_path: Pa
     from test_ledger_cli import invoke
     from specify_cli.workspace_lifecycle.worker import LifecycleService
 
-    _, store, _, repo = managed_owner(tmp_path, monkeypatch)
+    original_owner, store, _, repo = managed_owner(tmp_path, monkeypatch)
     bindir = tmp_path / "bin"
     bindir.mkdir()
     repository = {"id": 7, "full_name": "crucible-energy/example", "default_branch": "main"}
+    source = git(repo, "rev-parse", "main")
+    assert source == git(tmp_path / "origin.git", "rev-parse", "refs/heads/main")
+    reviews = _review_evidence(source)
     pull = {
         "number": 9,
         "merged": True,
         "state": "closed",
         "merged_at": "2026-10-20",
-        "merge_commit_sha": "b" * 40,
+        "merge_commit_sha": source,
         "head": {"ref": "automatic-job", "sha": git(repo, "rev-parse", "HEAD"), "repo": repository},
         "base": {"ref": "main", "repo": repository},
     }
     gh = bindir / "gh"
     gh.write_text(
-        f"#!{sys.executable}\nimport json,sys\nv={json.dumps({'repo': repository, 'pull': pull})!r}\n"
-        'v=json.loads(v)\nprint(json.dumps(v["pull" if "/pulls/" in sys.argv[-1] else "repo"]))\n'
+        f"#!{sys.executable}\nimport json,sys\nv={json.dumps({'repo': repository, 'pull': pull, 'reviews': reviews})!r}\n"
+        'v=json.loads(v)\nprint(json.dumps(v["reviews" if sys.argv[-1] == "graphql" else "pull" if "/pulls/" in sys.argv[-1] else "repo"]))\n'
     )
     gh.chmod(0o700)
     monkeypatch.setenv("PATH", str(bindir) + os.pathsep + os.environ["PATH"])
@@ -238,6 +266,8 @@ def test_managed_run_cli_joins_reports_pr_and_automatically_retires(tmp_path: Pa
     assert children[0].wait(timeout=20) == 0
     assert not path.exists()
     assert git(repo, "branch", "--list", "automatic-job") == ""
+    assert git(repo, "rev-parse", "main") == source
+    assert Path(original_owner.identity.path).exists(), "Unreleased sibling creator must remain preserved"
     assert LifecycleService(store).status()["pending_wakeup"] is False
 
 

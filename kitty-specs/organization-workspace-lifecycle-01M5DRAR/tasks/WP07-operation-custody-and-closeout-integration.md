@@ -22,7 +22,6 @@ create_intent: []
 execution_mode: code_change
 owned_files:
 - src/specify_cli/core/owned_mission.py
-- src/specify_cli/invocation/checkout.py
 - src/specify_cli/invocation/executor.py
 - src/specify_cli/cli/commands/dispatch.py
 - src/specify_cli/cli/commands/profile_invocation.py
@@ -49,3 +48,7 @@ Retain the preceding full failing gate receipts as red architecture proof. Add f
 ## Constraints
 
 Same existing checkout, feature-first/PR-only delivery. Preserve active owners and native Zig changes. No global installation, backlog retirement, cloud/DNS/service/Store mutation or deployment retry.
+
+### Reviewed source-retirement reconciliation (2026-10-25)
+
+Dependency commit 9fdcc64b6aa7354312318229e5a3bd3610c4ae1e removed the obsolete five-line invocation/checkout.py re-export shim (prior Git blob85fefb859). Its actual authority was already src/specify_cli/core/owned_mission.py, which remains this WP's authoritative_surface and owned source. Remove only the retired literal from the current execution map so canonical literal-path validation describes existing source. The original authored scope and approval remain in Git/status history; this planning reconciliation neither restamps that approval nor adds implementation authority. Do not recreate the shim or falsely add create_intent. All recorded approval/status/event bytes must remain unchanged through supported finalization.

@@ -27,6 +27,7 @@ owned_files:
 - src/specify_cli/workspace_lifecycle/adapters.py
 - tests/workspace_lifecycle/test_adapters.py
 - tests/workspace_lifecycle/test_acceptance.py
+- tests/workspace_lifecycle/test_events.py
 - src/kernel/git/remote.py
 - tests/kernel/test_git_remote.py
 tags: []
@@ -49,3 +50,7 @@ This is a bounded correctness repair to retained Python, permitted by current de
 Reproduce unsafe actual removal with an old merged-PR API response whose merge is absent from the current default branch, then prove refusal through real Git fixtures. Prove normal merge and squash controls, unresolved/unavailable reviews, source recovery/restore and changed branch/owner refusal. Run focused retained-runtime subsystem checks, ruff/mypy and changed-statement coverage required by project policy. Independent review and source publication are separate from local passes.
 
 Remote contact stays in kernel.git.remote: extend its bounded fetch seam for a creator-generation evidence ref instead of constructing remote argv in the adapter. Recovery ref advancement uses the existing guarded CAS ref owner.
+
+### Owning event-fixture propagation
+
+The full remaining owning scope reproduced three stale positive fixtures in test_events.py: arbitrary nonexistent merge SHA and missing GraphQL review evidence. Extend this same-owner dependency-ordered WP11 scope to that existing event test module. Positive worker/CLI cases must use real mirror/default/source objects and explicit bounded API review evidence, preserving unmerged, malformed-creator and unreleased-sibling controls. No production delivery/runtime/recovery predicate changes.
