@@ -73,7 +73,7 @@ from specify_cli.cli.commands._owned_checkout import (
     resolve_owned_or_adopt,
     stale_copy_payload,
 )
-from specify_cli.core.owned_mission import LIFECYCLE_OWNED_TOPOLOGIES, require_unstaged_index
+from specify_cli.core.owned_mission import FINALIZATION_OWNED_TOPOLOGIES, require_unstaged_index
 from specify_cli.ownership.frontmatter_source import (
     FinalizeFrontmatterSource,
     resolve_wp_manifests,
@@ -612,7 +612,7 @@ def _resolve_finalize_context(
     # favour of WP08's single shared validation surface
     # (``resolve_owned_or_adopt``), which performs exactly the same
     # explicit-checkout resolution here (``target_override`` forwarded,
-    # ``LIFECYCLE_OWNED_TOPOLOGIES`` enforced) while remaining the one CLI
+    # finalization's command-specific topology set enforced) while remaining the one CLI
     # caller other owned-capable commands also route through. Called
     # unconditionally -- not gated on ``owned_checkout is not None`` -- so
     # flagless adoption (FR-021) applies here too: running from inside a
@@ -632,7 +632,7 @@ def _resolve_finalize_context(
             owned_checkout,
             mission_handle or "",
             cwd=Path.cwd(),
-            allowed_topologies=LIFECYCLE_OWNED_TOPOLOGIES,
+            allowed_topologies=FINALIZATION_OWNED_TOPOLOGIES,
             target_override=target_branch_override,
         )
     except ActionContextError as refusal:

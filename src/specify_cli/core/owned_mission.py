@@ -1,4 +1,4 @@
-"""Shared preflight for explicitly selected, single-branch mission checkouts.
+"""Shared preflight for explicitly selected mission checkouts.
 
 ``resolve_owned_mission`` is the SOLE minter of :class:`mission_runtime.OwnedCheckout`
 (gate G3, ``contracts/owned-checkout-carrier.md`` §1). Every owned command
@@ -48,13 +48,13 @@ MISSION_CONTEXT_CONFLICT: Final = "MISSION_CONTEXT_CONFLICT"  # pre-existing wir
 _FEATURE_CONTEXT_UNRESOLVED = FEATURE_CONTEXT_UNRESOLVED
 _MISSION_CONTEXT_CONFLICT = MISSION_CONTEXT_CONFLICT
 
-# owned-checkout-lifecycle-authority WP02 (FR-023, research R-02): the two
-# allowed-topology sets a call site chooses from. LANES is deliberately absent
-# from LIFECYCLE_OWNED_TOPOLOGIES (today's lifecycle commands only support
-# single_branch) but present in NEXT_OWNED_TOPOLOGIES, because today's
-# `next --owned-checkout` applies no topology check at all and must keep
-# accepting a plain lanes-without-coordination owned mission.
+# Call sites choose their own bounded capability set. General lifecycle
+# operations remain single-branch; analysis and planning finalization can use
+# a plain LANES root. NEXT retains its existing query coverage independently.
 LIFECYCLE_OWNED_TOPOLOGIES: Final[frozenset[MissionTopology]] = frozenset({MissionTopology.SINGLE_BRANCH})
+# Planning finalization can write the selected plain-LANES root without
+# granting lane implementation, acceptance, merge or coordination authority.
+FINALIZATION_OWNED_TOPOLOGIES: Final[frozenset[MissionTopology]] = frozenset({MissionTopology.SINGLE_BRANCH, MissionTopology.LANES})
 # Analysis/prerequisite admission does not widen implementation or merge authority.
 ANALYSIS_OWNED_TOPOLOGIES: Final[frozenset[MissionTopology]] = frozenset({MissionTopology.SINGLE_BRANCH, MissionTopology.LANES})
 NEXT_OWNED_TOPOLOGIES: Final[frozenset[MissionTopology]] = frozenset(

@@ -17,6 +17,7 @@ import pytest
 from mission_runtime import ActionContextError, MissionTopology, OwnedCheckout
 from specify_cli.core.owned_mission import (
     ANALYSIS_OWNED_TOPOLOGIES,
+    FINALIZATION_OWNED_TOPOLOGIES,
     LIFECYCLE_OWNED_TOPOLOGIES,
     NEXT_OWNED_TOPOLOGIES,
     OwnedCreateRoot,
@@ -403,6 +404,10 @@ def test_coordination_worktree_is_refused(tmp_path: Path) -> None:
 
 def test_lifecycle_owned_topologies_is_single_branch_only() -> None:
     assert frozenset({MissionTopology.SINGLE_BRANCH}) == LIFECYCLE_OWNED_TOPOLOGIES
+
+
+def test_finalization_owned_topologies_excludes_coordination() -> None:
+    assert frozenset({MissionTopology.SINGLE_BRANCH, MissionTopology.LANES}) == FINALIZATION_OWNED_TOPOLOGIES
 
 
 def test_next_owned_topologies_covers_all_owned_shapes() -> None:

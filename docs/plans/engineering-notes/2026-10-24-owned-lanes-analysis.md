@@ -375,3 +375,47 @@ canonical review metadata. Actual Linux visibility failures, full-mission
 analysis freshness, remaining hosted gates, default-branch delivery and runtime
 adoption are not closed by those passes or by WP13 approval. HELD/v5 and existing
 Source/native owner lanes remain preserved.
+
+## 2026-10-25 — Owned plain-lanes planning finalization
+
+### User Experience Findings
+
+The real owned-checkout finalization CLI accepted the single-branch fixture but
+refused a registered plain-lanes Mission with `OWNED_TOPOLOGY_UNSUPPORTED`.
+Analysis already admitted that shape. This prevented an ownership amendment to
+unstarted work without contributing protection for active work.
+
+### Engineering Decisions
+
+Give only planning finalization a dedicated closed topology set and continue
+through the canonical resolver and existing transactional finalizer. Preserve
+all other lifecycle topology sets. Registered-checkout tests cover read-only
+validation, unchanged invoking repositories, coordinated-topology refusal,
+branch and staged-index guards, active lane/history preservation and removal
+refusal. The failing real CLI reproduction is retained separately from its
+passing amended-source checks. No status, lane or authority record is manually
+edited in an actual Mission.
+
+### Known Limitations and Retained Obligations
+
+Source conformance is not installed-runtime qualification or PDB workflow
+adoption. Exact final test and immutable artifact receipts remain external so
+recording their results cannot change the validated source. The existing
+migration owner retains the actual Linux process-visibility diagnosis; its
+hosted failure is not resolved by this planning fix. The fork default-branch
+release convergence and downstream dependency gates remain separate obligations.
+HELD/v5, current Source/native lanes and processing-tier preferences are preserved.
+
+The broader source gate exposed two cycle-fixture setup failures before the
+finalizer was invoked. An immutable pre-change archive reproduced both: the
+fixture tried to allocate a successor while the predecessor still occupied the
+same lane. Its synthetic setup now completes the predecessor through the test
+status API before allocating and normally claiming the successor. The two WPs
+remain history-started, and the original exact cycle/refusal/no-write assertions
+are unchanged. No allocator or occupancy predicate was weakened. The initial
+117-pass/two-failure result and frozen baseline failures remain retained.
+
+A wider documentation run passed its ordinary checks but could not set up two
+wheel tests without the declared test extra. Running those exact two tests with
+the declared dependencies resolved the setup error; it does not convert the
+original errored aggregate into a passing run.

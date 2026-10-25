@@ -442,7 +442,7 @@ def _set_wp(mission: Mission, wp_id: str, owned: list[str], dependencies: list[s
 
 
 def _set_up_frozen_lane_cycle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Mission:
-    """WP01 and WP03 started together on lane-a; the amendment chains WP01 -> WP02 (lane-b) -> WP03.
+    """WP01 and its successor WP03 have started on lane-a; the amendment chains WP01 -> WP02 (lane-b) -> WP03.
 
     Without the freeze the three WPs get three acyclic lanes; keeping WP01 and
     WP03 together makes lane-a -> lane-b -> lane-a.
@@ -459,9 +459,13 @@ def _set_up_frozen_lane_cycle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     manifest = read_lanes_json(mission.feature_dir)
     assert manifest is not None
     assert ("lane-a", ("WP01", "WP03")) in lane_topology(manifest), lane_topology(manifest)
-    # WP01 is not approved yet, so WP03's claim is forced past the dependency gate.
+    # Seed a completed predecessor through the fixture's status API before
+    # allocating its successor. Both WPs remain history-started, without a
+    # second outstanding claim bypassing the real lane-occupancy guard.
+    emit_status_transition(mission.feature_dir, mission.slug, "WP01", "for_review", "test", force=True, reason="synthetic completed predecessor")
+    emit_status_transition(mission.feature_dir, mission.slug, "WP01", "approved", "test", force=True, reason="synthetic predecessor review")
     allocate_lane_worktree(mission.repo, mission.slug, "WP03", manifest)
-    emit_status_transition(mission.feature_dir, mission.slug, "WP03", "claimed", "test", force=True, reason="started beside WP01 on lane-a")
+    emit_status_transition(mission.feature_dir, mission.slug, "WP03", "claimed", "test")
     _set_wp(mission, "WP02", ["b.py"], ["WP01"])
     _set_wp(mission, "WP03", ["c.py"], ["WP02"])
     commit_amendment(mission)
