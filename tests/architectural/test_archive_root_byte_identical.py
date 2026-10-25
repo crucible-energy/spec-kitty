@@ -38,14 +38,19 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import pytest
+
+from kernel.git import run_git
+from kernel.owned_process import process_budget
 
 from specify_cli.invocation.errors import LegacyRecordError
 from specify_cli.invocation.lifecycle import LIFECYCLE_LOG_RELATIVE_PATH
 from specify_cli.invocation.record import OpCompletedEvent, ProfileInvocationRecord, parse_op_event
 from specify_cli.invocation.writer import OP_CLOSURES_RELATIVE_PATH
 from specify_cli.missions._archive import ARCHIVE_REGISTRY_RELPATH
+from specify_cli.status.models import Lane, NON_DISPLAY_LANES
 from specify_cli.status.reducer import materialize_snapshot, materialize_to_json
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -557,6 +562,201 @@ def _terminal_lifecycle_paths(  # noqa: C901 - fail-closed evidence validation i
     return admitted
 
 
+def _stack_read(*args: str, missing_ok: bool = False) -> str:
+    """Read through the existing bounded, joined Git transport; never fetch."""
+    result = run_git(
+        REPO_ROOT,
+        *args,
+        check=False,
+        timeout=10,
+        env={**os.environ, **_GIT_SUBPROCESS_ENV_OVERRIDES, "GIT_NO_LAZY_FETCH": "1", "GIT_TERMINAL_PROMPT": "0", "GIT_GRAFT_FILE": os.devnull},
+    )
+    if result.returncode not in ({0, 1} if missing_ok else {0}):
+        raise ValueError("live-stack Git visibility unavailable")
+    return result.stdout.decode("utf-8").removesuffix("\n")
+
+
+def _stack_endpoint(value: object) -> tuple[str, str, int, str]:
+    """Normalize only the supported server-bound Git endpoint forms."""
+    if not isinstance(value, str) or len(value) > 4096 or any(char.isspace() for char in value):
+        raise ValueError("invalid repository endpoint")
+    if value.startswith("git@") and "://" not in value:
+        value = "ssh://" + value.replace(":", "/", 1)
+    parsed = urlsplit(value)
+    if parsed.scheme not in {"https", "ssh"} or parsed.query or parsed.fragment:
+        raise ValueError("unsupported repository endpoint")
+    if parsed.username != ("git" if parsed.scheme == "ssh" else None) or parsed.password is not None or parsed.hostname is None:
+        raise ValueError("unsupported repository endpoint credentials")
+    port = parsed.port if parsed.port is not None else 443 if parsed.scheme == "https" else 22
+    if not 1 <= port <= 65535:
+        raise ValueError("invalid endpoint port")
+    return parsed.scheme, parsed.hostname.lower(), port, parsed.path.rstrip("/").removesuffix(".git")
+
+
+def _stack_approved_endpoints(event: dict[str, Any]) -> set[tuple[str, str, int, str]]:
+    """Authority comes from correlated platform metadata, never a name suffix."""
+    server = os.environ["GITHUB_SERVER_URL"]
+    parsed = urlsplit(server)
+    if parsed.scheme != "https" or parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+        raise ValueError("platform server identity unavailable")
+    repository = event["repository"]
+    if repository["full_name"] != os.environ["GITHUB_REPOSITORY"]:
+        raise ValueError("platform repository mismatch")
+    canonical = _stack_endpoint(server.rstrip("/") + "/" + repository["full_name"] + ".git")
+    if _stack_endpoint(repository["clone_url"]) != canonical:
+        raise ValueError("correlated clone endpoint mismatch")
+    approved = {canonical}
+    if (ssh_url := repository.get("ssh_url")) is not None:
+        ssh = _stack_endpoint(ssh_url)
+        if ssh != ("ssh", canonical[1], 22, canonical[3]):
+            raise ValueError("correlated SSH endpoint mismatch")
+        approved.add(ssh)
+    return approved
+
+
+def _stack_approved_remotes(approved: set[tuple[str, str, int, str]]) -> list[str]:
+    """Inspect real single-valued configured AND effective fetch endpoints."""
+    result: list[str] = []
+    for remote in sorted(_live_remote_urls()):
+        raw_text = _stack_read("config", "--get-all", f"remote.{remote}.url", missing_ok=True)
+        raw = raw_text.splitlines()
+        if len(raw) != 1 or raw_text != raw[0]:
+            continue
+        try:
+            if _stack_endpoint(raw[0]) not in approved:
+                continue
+            effective_text = _stack_read("remote", "get-url", "--all", "--", remote)
+            effective = effective_text.splitlines()
+            if len(effective) == 1 and effective_text == effective[0] and _stack_endpoint(effective[0]) in approved:
+                result.append(remote)
+        except ValueError:
+            continue
+    return result
+
+
+def _stack_default_revision(expected_base: str) -> str:
+    """Independently bind actual own-default identity, not a local alias."""
+    event = _read_pr_event()
+    if event["pull_request"]["base"]["sha"] != expected_base:
+        raise ValueError("correlated event changed")
+    default = event["repository"]["default_branch"]
+    if not isinstance(default, str) or default == os.environ["GITHUB_BASE_REF"]:
+        raise ValueError("non-default review target required")
+    approved = _stack_approved_endpoints(event)
+    _stack_read("check-ref-format", "refs/heads/" + default)
+    if _stack_read("rev-parse", "--is-shallow-repository") != "false":
+        raise ValueError("complete default history required")
+    if _stack_read("config", "--get-regexp", r"^(remote\..*\.promisor|extensions\.partialclone)$", missing_ok=True):
+        raise ValueError("partial default history unsupported")
+    for remote in _stack_approved_remotes(approved):
+        live = _stack_read("ls-remote", "--symref", "--exit-code", "--", remote, "HEAD").splitlines()
+        symbolic = "ref: refs/heads/" + default + "\tHEAD"
+        if len(live) != 2 or symbolic not in live:
+            continue
+        tip = next(row for row in live if row != symbolic)
+        if not re.fullmatch(r"[0-9a-f]{40}\tHEAD", tip):
+            continue
+        sha = tip.split("\t")[0]
+        if _stack_read("rev-parse", "--verify", f"refs/remotes/{remote}/{default}^{{commit}}") == sha:
+            return sha
+    raise ValueError("actual default identity is unavailable or stale")
+
+
+def _stack_identity(meta: dict[str, Any], directory: str, target: str) -> tuple[str, str]:
+    mission_id, mid8 = meta.get("mission_id"), meta.get("mid8")
+    if not isinstance(mission_id, str) or not re.fullmatch(r"[0-9A-HJKMNP-TV-Z]{26}", mission_id):
+        raise ValueError("canonical mission UUID required")
+    slug = directory.removeprefix("kitty-specs/")
+    if "/" in slug or not slug.endswith("-" + mission_id[:8]) or mid8 != mission_id[:8]:
+        raise ValueError("mission path/identity mismatch")
+    if meta.get("slug") != slug or meta.get("mission_slug") != slug or meta.get("target_branch") != target:
+        raise ValueError("mission target/identity mismatch")
+    if meta.get("mission_number") is not None or meta.get("flattened") is not False:
+        raise ValueError("numbered or flattened history is frozen")
+    return mission_id, mid8
+
+
+def _stack_nonterminal(status: dict[str, Any]) -> bool:
+    packages = status.get("work_packages")
+    if not isinstance(packages, dict) or not packages or not all(isinstance(row, dict) for row in packages.values()):
+        return False
+    lanes = {row.get("lane") for row in packages.values()}
+    return lanes <= set(Lane) - NON_DISPLAY_LANES and bool(lanes - {Lane.DONE, Lane.CANCELED})
+
+
+def _stack_is_archived(tree: dict[str, Blob], mission_id: str) -> bool:
+    registry = tree.get(ARCHIVE_REGISTRY_RELPATH.as_posix())
+    if registry is None:
+        return False
+    for line in registry.read().splitlines():
+        if not line:
+            continue
+        archived = _json_object(line).get("mission_id")
+        if archived == mission_id or (isinstance(archived, str) and (archived == mission_id[:8] or archived.endswith("-" + mission_id[:8]))):
+            return True
+    return False
+
+
+def _live_stack_mission_paths(directory: str, baseline: dict[str, Blob], index: dict[str, Blob], default: str) -> set[str]:
+    """Qualify immutable BASE identity and canonical current progress together."""
+    target = os.environ["GITHUB_BASE_REF"]
+    meta_path, status_path, events_path = (f"{directory}/{name}" for name in ("meta.json", "status.json", "status.events.jsonl"))
+    old_meta, new_meta = _json_object(baseline[meta_path].read()), _json_object(index[meta_path].read())
+    mission_id, mid8 = _stack_identity(old_meta, directory, target)
+    if _stack_identity(new_meta, directory, target) != (mission_id, mid8):
+        return set()
+    # Acceptance/identity evidence is not rewritten as part of live progress.
+    if baseline[meta_path] != index[meta_path] or not _stack_nonterminal(_json_object(baseline[status_path].read())):
+        return set()
+    if _stack_is_archived(baseline, mission_id) or _stack_is_archived(index, mission_id):
+        return set()
+    # Search complete actual-default history by identity, including relocation,
+    # prior deletion and archive registry entries, not just the current pathname.
+    if _stack_read("log", "-1", "--format=%H", "-G" + mission_id + "|" + mid8, default, "--", *_ARCHIVE_ROOTS, ARCHIVE_REGISTRY_RELPATH.as_posix()):
+        return set()
+    before, after = baseline[events_path].read(), index[events_path].read()
+    if not before.endswith(b"\n") or not after.endswith(b"\n") or not after.startswith(before):
+        return set()
+    canonical = materialize_to_json(materialize_snapshot(REPO_ROOT / directory)).encode("utf-8")
+    if index[status_path].read() != canonical or not _stack_nonterminal(_json_object(canonical)):
+        return set()
+    paths = {path for path in baseline if path.startswith(directory + "/")}
+    if not paths <= index.keys():
+        return set()
+    for path in paths:
+        if index[path].mode != baseline[path].mode or index[path].read() != _disk(path, index[path].mode):
+            return set()
+        if path.endswith(".jsonl"):
+            old, new = baseline[path].read(), index[path].read()
+            if new != old:
+                if (old and not old.endswith(b"\n")) or not new.endswith(b"\n") or not new.startswith(old):
+                    return set()
+                for line in new[len(old) :].splitlines():
+                    _json_object(line)
+    return paths
+
+
+def _live_stack_paths(base: str, baseline: dict[str, Blob], index: dict[str, Blob]) -> set[str]:
+    """Classify only correlated non-default live missions; unknown stays frozen."""
+    if _non_main_pr_base_rev() != base:
+        return set()
+    changed = {path for _, paths in [*_changes(base), *_changes(base, cached=True)] for path in paths}
+    directories = {"/".join(path.split("/")[:2]) for path in changed if path.startswith("kitty-specs/")}
+    candidates = {directory for directory in directories if f"{directory}/meta.json" in baseline and f"{directory}/meta.json" in index}
+    if not candidates:
+        return set()
+    admitted: set[str] = set()
+    try:
+        with process_budget(30):
+            default = _stack_default_revision(base)
+            for directory in sorted(candidates):
+                admitted |= _live_stack_mission_paths(directory, baseline, index, default)
+    except (AssertionError, KeyError, OSError, subprocess.SubprocessError, TypeError, ValueError):
+        # No authority fallback, metadata repair, fetch, or deletion on failure.
+        return set()
+    return admitted
+
+
 # WP11 independent review, persisted by parent event 01M1VMFHA7K9XJAK0Y2MJR6NRV.
 # These commits and this digest are trust inputs, never taken from the candidate.
 ORIGINAL = "c0054153b9bce0778cf41a85d11ecd4e9650031d"
@@ -996,6 +1196,7 @@ def test_no_preexisting_archived_file_was_modified() -> None:
     if _dead_port_recovery_present(baseline, index):
         admitted |= _check_dead_port_recovery(index)
     admitted |= _terminal_lifecycle_paths(baseline, index)
+    admitted |= _live_stack_paths(port_base_rev, baseline, index)
     violations: list[str] = []
     for status, paths in [*_changes(port_base_rev), *_changes(port_base_rev, cached=True)]:
         for path in paths:
@@ -2125,3 +2326,426 @@ def test_main_pr_empty_fork_payload_preserves_canonical_resolution(patch_target_
     monkeypatch.setenv("GITHUB_BASE_REF", "main")
     case["event_file"].write_text("{}")
     assert _require_port_base_rev() == case["main"]
+
+
+@pytest.fixture
+def live_stack_checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Real published default and separate live mission, with canonical replay."""
+    from specify_cli.status.models import Lane, StatusEvent
+    from specify_cli.status.reducer import materialize
+    from specify_cli.status.store import append_event
+
+    root = tmp_path / "repo"
+    root.mkdir()
+    _git_init_fixture_repo(root)
+
+    def git(*args: str) -> str:
+        return subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, text=True, timeout=10).stdout.strip()
+
+    git("checkout", "-qb", "main")
+    history = root / "kitty-specs/history/spec.md"
+    history.parent.mkdir(parents=True)
+    history.write_text("published history\n")
+    _git_commit_all(root, "default history")
+    main = git("rev-parse", "HEAD")
+    mirror = tmp_path / "published.git"
+    git("clone", "--bare", str(root), str(mirror))
+    url = "https://github.com/crucible-energy/spec-kitty.git"
+    git("remote", "add", "origin", url)
+    git("update-ref", "refs/remotes/origin/main", main)
+    git("checkout", "-qb", "patch-base")
+    slug, mission_id = "live-stack-01M5DRAR", "01M5DRAR13PRV108ZDRQDS7SZ2"
+    directory = root / "kitty-specs" / slug
+    (directory / "tasks").mkdir(parents=True)
+    meta = {
+        "mission_id": mission_id,
+        "mid8": mission_id[:8],
+        "mission_slug": slug,
+        "slug": slug,
+        "mission_number": None,
+        "flattened": False,
+        "target_branch": "patch-base",
+        "mission_type": "software-dev",
+    }
+    (directory / "meta.json").write_text(json.dumps(meta))
+    (directory / "spec.md").write_text("live design\n")
+    (directory / "tasks/WP01-live.md").write_text("---\nwork_package_id: WP01\ntitle: Live work\nsubtasks: []\n---\nUseful work.\n")
+    append_event(
+        directory,
+        StatusEvent(
+            event_id="01HXYZ0000000000000000000A",
+            mission_slug=slug,
+            wp_id="WP01",
+            from_lane=Lane.PLANNED,
+            to_lane=Lane.CLAIMED,
+            at="2026-10-24T12:00:00Z",
+            actor="fixture",
+            force=False,
+            execution_mode="direct_repo",
+        ),
+    )
+    materialize(directory)
+    _git_commit_all(root, "live mission on published feature base")
+    base = git("rev-parse", "HEAD")
+    git("update-ref", "refs/remotes/origin/patch-base", base)
+    (directory / "spec.md").write_text("reviewed live design increment\n")
+    _git_commit_all(root, "live design increment")
+    head = git("rev-parse", "HEAD")
+    repository = {"full_name": "crucible-energy/spec-kitty", "default_branch": "main", "clone_url": url, "ssh_url": "git@github.com:crucible-energy/spec-kitty.git"}
+    event = {
+        "number": 75,
+        "repository": repository,
+        "pull_request": {
+            "number": 75,
+            "base": {"ref": "patch-base", "sha": base, "repo": repository},
+            "head": {"sha": head, "repo": repository},
+            "merge_commit_sha": None,
+        },
+    }
+    event_file = tmp_path / "event.json"
+    event_file.write_text(json.dumps(event))
+    for key, value in {
+        "CI": "true",
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_SERVER_URL": "https://github.com",
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REPOSITORY": repository["full_name"],
+        "GITHUB_BASE_REF": "patch-base",
+        "GITHUB_REF": "refs/pull/75/head",
+        "GITHUB_SHA": head,
+        "GITHUB_EVENT_PATH": str(event_file),
+    }.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", root)
+    network = {"path": mirror}
+    contacts: list[str] = []
+    read = _stack_read
+
+    def private_contact(*args: str, missing_ok: bool = False) -> str:
+        if args[:4] == ("ls-remote", "--symref", "--exit-code", "--"):
+            contacts.append(args[4])
+            assert args[4:] == ("origin", "HEAD"), "Only the declared private canonical mirror may be contacted."
+            observed = run_git(root, *args[:4], str(network["path"]), "HEAD", check=False, timeout=10)
+            if observed.returncode:
+                raise ValueError("private test endpoint unavailable")
+            return observed.stdout.decode("utf-8").removesuffix("\n")
+        return read(*args, missing_ok=missing_ok)
+
+    monkeypatch.setattr(sys.modules[__name__], "_stack_read", private_contact)
+    return {
+        "network": network,
+        "contacts": contacts,
+        "root": root,
+        "git": git,
+        "main": main,
+        "base": base,
+        "head": head,
+        "directory": directory,
+        "event": event,
+        "event_file": event_file,
+        "mirror": mirror,
+        "mission_id": mission_id,
+    }
+
+
+def test_live_stacked_mission_updates_are_not_historical_rewrites(live_stack_checkout: dict[str, Any]) -> None:
+    case = live_stack_checkout
+    assert _non_main_pr_base_rev() == case["base"]
+    assert case["git"]("log", "-1", "--format=%H", "main", "--", "kitty-specs/live-stack-01M5DRAR") == ""
+    test_no_preexisting_archived_file_was_modified()
+
+
+def _publish_stack_fixture_base(case: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
+    """Advance only this disposable fixture's advertised feature frontier."""
+    _git_commit_all(case["root"], "bounded fixture base")
+    case["base"] = case["git"]("rev-parse", "HEAD")
+    case["git"]("update-ref", "refs/remotes/origin/patch-base", case["base"])
+    (case["directory"] / "spec.md").write_text("next live increment\n")
+    _git_commit_all(case["root"], "bounded fixture candidate")
+    case["head"] = case["git"]("rev-parse", "HEAD")
+    case["event"]["pull_request"]["base"]["sha"] = case["base"]
+    case["event"]["pull_request"]["head"]["sha"] = case["head"]
+    case["event_file"].write_text(json.dumps(case["event"]))
+    monkeypatch.setenv("GITHUB_SHA", case["head"])
+
+
+@pytest.mark.parametrize("placement", ["same_path", "relocated", "deleted", "registry", "legacy_mid8", "grafted"])
+def test_live_stack_cannot_resurrect_default_history(live_stack_checkout: dict[str, Any], placement: str) -> None:
+    case = live_stack_checkout
+    git = case["git"]
+    git("checkout", "-q", "main")
+    relative = "kitty-specs/live-stack-01M5DRAR/meta.json" if placement == "same_path" else "kitty-specs/former-name-01M5DRAR/meta.json"
+    if placement == "registry":
+        relative = ARCHIVE_REGISTRY_RELPATH.as_posix()
+    destination = case["root"] / relative
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    record = {"mission_id": case["mission_id"]}
+    if placement == "legacy_mid8":
+        record = {"mission_id": "legacy", "slug": "former-name-01M5DRAR"}
+    destination.write_text(json.dumps(record) + "\n")
+    _git_commit_all(case["root"], "published identity history")
+    if placement in {"deleted", "grafted"}:
+        git("rm", "--", relative)
+        _git_commit_all(case["root"], "published removal retains history")
+    default = git("rev-parse", "HEAD")
+    git("push", str(case["mirror"]), "main:main")
+    git("update-ref", "refs/remotes/origin/main", default)
+    git("checkout", "-q", "patch-base")
+    if placement == "grafted":
+        git("config", "advice.graftFileDeprecated", "false")
+        (case["root"] / ".git/info/grafts").write_text(default + "\n")
+    with pytest.raises(AssertionError, match="ordinary archive history changed"):
+        test_no_preexisting_archived_file_was_modified()
+    assert git("rev-parse", "main") == default
+
+
+@pytest.mark.parametrize("corruption", ["numbered", "flattened", "terminal", "archived", "path_identity"])
+def test_live_stack_requires_immutable_base_to_be_live(live_stack_checkout: dict[str, Any], monkeypatch: pytest.MonkeyPatch, corruption: str) -> None:
+    case = live_stack_checkout
+    directory = case["directory"]
+    meta = _json_object((directory / "meta.json").read_bytes())
+    if corruption in {"numbered", "flattened", "path_identity"}:
+        meta[{"numbered": "mission_number", "flattened": "flattened", "path_identity": "mid8"}[corruption]] = {
+            "numbered": 7,
+            "flattened": True,
+            "path_identity": "01M5XXXX",
+        }[corruption]
+        (directory / "meta.json").write_text(json.dumps(meta))
+    elif corruption == "terminal":
+        status = _json_object((directory / "status.json").read_bytes())
+        status["work_packages"]["WP01"]["lane"] = "done"
+        (directory / "status.json").write_text(json.dumps(status))
+    else:
+        registry = case["root"] / ARCHIVE_REGISTRY_RELPATH
+        registry.parent.mkdir(parents=True)
+        registry.write_text(json.dumps({"mission_id": case["mission_id"]}) + "\n")
+    _publish_stack_fixture_base(case, monkeypatch)
+    # A candidate's "active" claim cannot rewrite the BASE qualification.
+    if corruption in {"numbered", "flattened"}:
+        meta["mission_number"], meta["flattened"] = None, False
+        (directory / "meta.json").write_text(json.dumps(meta))
+        case["git"]("add", "--", str(directory / "meta.json"))
+    with pytest.raises(AssertionError, match="ordinary archive history changed"):
+        test_no_preexisting_archived_file_was_modified()
+
+
+@pytest.mark.parametrize("corruption", ["missing", "mismatch", "stale", "shallow", "unavailable"])
+def test_live_stack_unknown_default_never_grants_exemption(live_stack_checkout: dict[str, Any], corruption: str) -> None:
+    case = live_stack_checkout
+    if corruption in {"missing", "mismatch"}:
+        repository = case["event"]["repository"]
+        if corruption == "missing":
+            repository.pop("default_branch")
+        else:
+            repository["default_branch"] = "other"
+        case["event_file"].write_text(json.dumps(case["event"]))
+    elif corruption == "stale":
+        case["git"]("update-ref", "refs/remotes/origin/main", case["base"])
+    elif corruption == "shallow":
+        (case["root"] / ".git/shallow").write_text(case["main"] + "\n")
+    else:
+        case["network"]["path"] = case["mirror"].parent / "absent.git"
+    with pytest.raises(AssertionError, match="ordinary archive history changed"):
+        test_no_preexisting_archived_file_was_modified()
+
+
+@pytest.mark.parametrize("corruption", ["uuid", "mid8", "target", "slug", "events", "projection", "disk", "deleted_file", "root", "path"])
+def test_live_stack_candidate_cannot_change_identity_or_forge_progress(live_stack_checkout: dict[str, Any], corruption: str) -> None:
+    from specify_cli.status.reducer import materialize
+
+    case = live_stack_checkout
+    directory = case["directory"]
+    meta = _json_object((directory / "meta.json").read_bytes())
+    if corruption in {"uuid", "mid8", "target", "slug"}:
+        key = {"uuid": "mission_id", "mid8": "mid8", "target": "target_branch", "slug": "slug"}[corruption]
+        meta[key] = {"uuid": case["mission_id"][:-1] + "3", "mid8": "01M5XXXX", "target": "unrelated", "slug": "other-01M5DRAR"}[corruption]
+        (directory / "meta.json").write_text(json.dumps(meta))
+    elif corruption == "events":
+        events = directory / "status.events.jsonl"
+        events.write_bytes(events.read_bytes().replace(b'"fixture"', b'"rewritten"'))
+        materialize(directory)
+    elif corruption == "projection":
+        status = _json_object((directory / "status.json").read_bytes())
+        status["work_packages"]["WP01"]["lane"] = "approved"
+        (directory / "status.json").write_text(json.dumps(status))
+    elif corruption == "disk":
+        (directory / "spec.md").write_text("unindexed mutation\n")
+    elif corruption == "deleted_file":
+        (directory / "tasks/WP01-live.md").unlink()
+    else:
+        destination = case["root"] / (".kittify/missions/live-stack-01M5DRAR" if corruption == "root" else "kitty-specs/renamed-01M5DRAR")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        directory.rename(destination)
+    if corruption != "disk":
+        case["git"]("add", "-A")
+    with pytest.raises(AssertionError, match="ordinary archive history changed"):
+        test_no_preexisting_archived_file_was_modified()
+
+
+def test_live_stack_canonical_status_append_preserves_old_events(live_stack_checkout: dict[str, Any]) -> None:
+    from specify_cli.status.models import Lane, StatusEvent
+    from specify_cli.status.reducer import materialize
+    from specify_cli.status.store import append_event
+
+    directory = live_stack_checkout["directory"]
+    before = (directory / "status.events.jsonl").read_bytes()
+    append_event(
+        directory,
+        StatusEvent(
+            event_id="01HXYZ0000000000000000000B",
+            mission_slug=directory.name,
+            wp_id="WP01",
+            from_lane=Lane.CLAIMED,
+            to_lane=Lane.IN_PROGRESS,
+            at="2026-10-24T13:00:00Z",
+            actor="fixture",
+            force=False,
+            execution_mode="direct_repo",
+        ),
+    )
+    materialize(directory)
+    live_stack_checkout["git"]("add", "-A")
+    assert (directory / "status.events.jsonl").read_bytes().startswith(before)
+    test_no_preexisting_archived_file_was_modified()
+
+
+@pytest.mark.parametrize("corruption", ["legacy_archive_identity", "metadata_reformat"])
+def test_live_stack_preserves_legacy_archive_identity_and_exact_metadata(
+    live_stack_checkout: dict[str, Any], monkeypatch: pytest.MonkeyPatch, corruption: str
+) -> None:
+    case = live_stack_checkout
+    if corruption == "legacy_archive_identity":
+        registry = case["root"] / ARCHIVE_REGISTRY_RELPATH
+        registry.parent.mkdir(parents=True)
+        registry.write_text(json.dumps({"mission_id": case["directory"].name}) + "\n")
+        _publish_stack_fixture_base(case, monkeypatch)
+    else:
+        path = case["directory"] / "meta.json"
+        path.write_text(json.dumps(_json_object(path.read_bytes()), indent=2) + "\n")
+        case["git"]("add", "--", str(path))
+    with pytest.raises(AssertionError, match="ordinary archive history changed"):
+        test_no_preexisting_archived_file_was_modified()
+
+
+@pytest.mark.parametrize("suffix", [b'{"observation":"test"}\n', b"not-json\n", b"[]\n"])
+def test_live_stack_append_to_empty_event_file_requires_complete_json_objects(
+    live_stack_checkout: dict[str, Any], monkeypatch: pytest.MonkeyPatch, suffix: bytes
+) -> None:
+    case = live_stack_checkout
+    events = case["directory"] / "mission-events.jsonl"
+    events.write_bytes(b"")
+    _publish_stack_fixture_base(case, monkeypatch)
+    events.write_bytes(suffix)
+    case["git"]("add", "--", str(events))
+    if suffix.startswith(b"{"):
+        test_no_preexisting_archived_file_was_modified()
+    else:
+        with pytest.raises(AssertionError, match="ordinary archive history changed"):
+            test_no_preexisting_archived_file_was_modified()
+
+
+def test_live_stack_unrelated_server_with_same_slug_cannot_replace_actual_default(live_stack_checkout: dict[str, Any]) -> None:
+    """Actual own-default history survives an additional same-named endpoint."""
+    case = live_stack_checkout
+    test_live_stack_cannot_resurrect_default_history(case, "same_path")
+    actual_default = case["git"]("rev-parse", "refs/remotes/origin/main")
+    unrelated = case["mirror"].parent / "unrelated.git"
+    case["git"]("clone", "--bare", str(case["root"]), str(unrelated))
+    for args in [("update-ref", "refs/heads/main", case["main"]), ("symbolic-ref", "HEAD", "refs/heads/main")]:
+        subprocess.run(["git", "--git-dir", str(unrelated), *args], check=True, capture_output=True, timeout=10)
+    url = "https://unrelated.invalid/crucible-energy/spec-kitty.git"
+    case["git"]("remote", "add", "aaa_unrelated", url)
+    case["git"]("config", f"url.{unrelated.as_uri()}.insteadOf", url)
+    case["git"]("update-ref", "refs/remotes/aaa_unrelated/main", case["main"])
+    assert _remote_repo_slug(url) == os.environ["GITHUB_REPOSITORY"], "Legacy frontier parsing stays host agnostic."
+    with pytest.raises(AssertionError, match="ordinary archive history changed"):
+        test_no_preexisting_archived_file_was_modified()
+    assert case["git"]("rev-parse", "refs/remotes/origin/main") == actual_default
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        "rewrite",
+        "multiple",
+        "event_clone_host",
+        "event_clone_path",
+        "server_mismatch",
+        "missing_server",
+        "missing_clone",
+        "credentialed",
+        "wrong_port",
+        "whitespace",
+        "foreign_host",
+    ],
+)
+def test_live_stack_unknown_endpoint_authority_refuses_before_contact(
+    live_stack_checkout: dict[str, Any], monkeypatch: pytest.MonkeyPatch, corruption: str
+) -> None:
+    case = live_stack_checkout
+    original = case["git"]("rev-parse", "refs/remotes/origin/main")
+    canonical = "https://github.com/crucible-energy/spec-kitty.git"
+    foreign = "https://unrelated.invalid/crucible-energy/spec-kitty.git"
+    if corruption == "rewrite":
+        case["git"]("config", f"url.{foreign}.insteadOf", canonical)
+    elif corruption == "multiple":
+        case["git"]("config", "--add", "remote.origin.url", foreign)
+    elif corruption == "event_clone_host":
+        case["event"]["repository"]["clone_url"] = foreign
+    elif corruption == "event_clone_path":
+        case["event"]["repository"]["clone_url"] = "https://github.com/contributor/spec-kitty.git"
+    elif corruption == "server_mismatch":
+        monkeypatch.setenv("GITHUB_SERVER_URL", "https://other.invalid")
+    elif corruption == "missing_server":
+        monkeypatch.delenv("GITHUB_SERVER_URL")
+    elif corruption == "missing_clone":
+        case["event"]["repository"].pop("clone_url")
+    else:
+        endpoint = {
+            "credentialed": "https://someone@github.com/crucible-energy/spec-kitty.git",
+            "wrong_port": "https://github.com:444/crucible-energy/spec-kitty.git",
+            "whitespace": canonical + "\n",
+            "foreign_host": foreign,
+        }[corruption]
+        case["git"]("config", "remote.origin.url", endpoint)
+    case["event_file"].write_text(json.dumps(case["event"]))
+    case["contacts"].clear()
+    with pytest.raises(AssertionError, match="ordinary archive history changed"):
+        test_no_preexisting_archived_file_was_modified()
+    assert case["contacts"] == [], "Unknown authority must not be disguised as a failed network read."
+    assert case["git"]("rev-parse", "refs/remotes/origin/main") == original
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://github.com/crucible-energy/spec-kitty",
+        "git@github.com:crucible-energy/spec-kitty.git",
+        "ssh://git@github.com/crucible-energy/spec-kitty.git",
+        "ssh://git@github.com:22/crucible-energy/spec-kitty.git",
+    ],
+)
+def test_live_stack_approved_transport_forms_keep_same_endpoint(live_stack_checkout: dict[str, Any], endpoint: str) -> None:
+    case = live_stack_checkout
+    case["git"]("config", "remote.origin.url", endpoint)
+    test_no_preexisting_archived_file_was_modified()
+    assert case["contacts"] == ["origin"]
+
+
+@pytest.mark.parametrize("name", ["ordinary", "ending.git"])
+def test_live_stack_authoritative_repository_name_is_not_a_clone_suffix(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+    repository = "fixture/" + name
+    monkeypatch.setenv("GITHUB_SERVER_URL", "https://github.com")
+    monkeypatch.setenv("GITHUB_REPOSITORY", repository)
+    event = {"repository": {"full_name": repository, "clone_url": "https://github.com/" + repository + ".git", "ssh_url": "git@github.com:" + repository + ".git"}}
+    approved = _stack_approved_endpoints(event)
+    assert approved == {("https", "github.com", 443, "/" + repository), ("ssh", "github.com", 22, "/" + repository)}
+
+
+def test_live_stack_malformed_clone_metadata_cannot_select_sibling_namespace(monkeypatch: pytest.MonkeyPatch) -> None:
+    repository = "fixture/ending.git"
+    monkeypatch.setenv("GITHUB_SERVER_URL", "https://github.com")
+    monkeypatch.setenv("GITHUB_REPOSITORY", repository)
+    event = {"repository": {"full_name": repository, "clone_url": "https://github.com/" + repository, "ssh_url": None}}
+    with pytest.raises(ValueError, match="correlated clone endpoint mismatch"):
+        _stack_approved_endpoints(event)

@@ -25,6 +25,7 @@ create_intent: []
 execution_mode: code_change
 owned_files:
 - src/specify_cli/workspace_lifecycle/adapters.py
+- src/specify_cli/workspace_lifecycle/worker.py
 - tests/workspace_lifecycle/test_adapters.py
 - tests/workspace_lifecycle/test_acceptance.py
 - tests/workspace_lifecycle/test_events.py
@@ -54,3 +55,7 @@ Remote contact stays in kernel.git.remote: extend its bounded fetch seam for a c
 ### Owning event-fixture propagation
 
 The full remaining owning scope reproduced three stale positive fixtures in test_events.py: arbitrary nonexistent merge SHA and missing GraphQL review evidence. Extend this same-owner dependency-ordered WP11 scope to that existing event test module. Positive worker/CLI cases must use real mirror/default/source objects and explicit bounded API review evidence, preserving unmerged, malformed-creator and unreleased-sibling controls. No production delivery/runtime/recovery predicate changes.
+
+### Hosted Linux visibility diagnosis
+
+The exact9d hosted core_misc shard retained four cases before delivery with creator_operation_unsupported, unlike local source checks. Preserve those failures. Expose bounded non-authoritative inspection diagnostics for Linux visibility failures before considering a repair: provider/stage, exception class or exhausted bound, inspected count and elapsed time; no command lines or release capability. Keep all existing retention predicates, fences and deadlines unchanged. The worker diagnostic is observation only and cannot authorize release. Reproduce unknown/vanished-process controls locally and obtain actual Linux evidence before claiming a fix. This bounded extension to the retained Python adapter/worker is not a new Python service; WP09 already depends on WP11, so same-owner worker scope remains dependency-ordered.

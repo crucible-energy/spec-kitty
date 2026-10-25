@@ -15,7 +15,7 @@ import pytest
 from specify_cli.workspace_lifecycle.coordinator import Coordinator
 from specify_cli.workspace_lifecycle.events import EventQueue
 from specify_cli.workspace_lifecycle.state import StateStore
-from tests.workspace_lifecycle.test_adapters import git, managed_owner
+from tests.workspace_lifecycle.test_adapters import git, managed_owner, object_at
 from tests.workspace_lifecycle.test_ledger_cli import invoke
 
 
@@ -152,7 +152,7 @@ def test_startup_accounts_non_lane_work_and_retires_released_delivered_creator_o
         assert len(children) == iteration + 1
         assert children[-1].wait(timeout=20) == 0
     report = LifecycleService(store).status()
-    inventory = report["organization_observation"]
+    inventory = object_at(report, "organization_observation")
     assert inventory["status"] == "observed" and inventory["local_scan_complete"] is True
     assert not Path(owner.identity.path).exists() and unknown.exists()
     assert git(repo, "rev-parse", "main") == main
@@ -179,8 +179,8 @@ def test_hung_inventory_records_unknown_diagnostic_and_joins_its_process_tree(tm
     elapsed = time.monotonic() - started
     assert result.returncode == 2, result.stdout + result.stderr
     report = LifecycleService(store).status()
-    assert report["organization_observation"]["status"] == "unknown"
-    assert report["organization_observation"]["reason"] == "inventory_unavailable"
+    assert object_at(report, "organization_observation")["status"] == "unknown"
+    assert object_at(report, "organization_observation")["reason"] == "inventory_unavailable"
     assert report["pending_wakeup"] is True
     assert Path(owner.identity.path).exists()
     assert elapsed < 4, f"Worker deadline did not bound the actual hung inventory: {elapsed}"
@@ -404,7 +404,7 @@ def test_real_spec_kitty_consolidation_is_joined_before_creator_completion_and_c
     assert owner.identity.head != before
     assert len(children) == 1 and git(repo, "rev-parse", "main") == primary
     assert children[0].wait(timeout=20) == 0
-    assert not Path(owner.identity.path).exists(), store.read().operations
+    assert not Path(owner.identity.path).exists(), (store.read().operations, json.loads((store.root / "worker-result.json").read_text()))
     assert git(repo, "rev-parse", "main") == primary
     assert git(repo, "branch", "--list", "feature/driver") == ""
     assert sum(op.status == "retired" for op in store.read().operations) == 1

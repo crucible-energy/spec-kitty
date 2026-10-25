@@ -1,6 +1,6 @@
 # Organization workspace lifecycle — tasks
 
-These packages are authored for the accepted specification. Canonical finalization admitted all five packages; implementation/review transitions remain separate; no runtime claim or done event is inferred from source edits.
+The initial accepted increment covered the original packages; later reviewed amendments add explicit productionization and publication-safety work. Canonical finalization owns package admission, while implementation/review transitions remain separate. Prior approval history is preserved; no runtime rollout or done event is inferred from authored source changes.
 
 ## WP01: Verified organization discovery and accounting
 
@@ -94,3 +94,11 @@ T011 Repair retained creator delivery/recovery safety with real Git counterexamp
 **Requirement Refs**: FR-006, FR-009, SC-005, NFR-001
 
 T012 Correct inherited protected-target fixture propagation and canonical OS/status-contract integration without weakening production guards. Preserve exact red evidence, active ownership and original primary/protected cases.
+
+## Work Package WP13: Preserve live stacked missions and frozen archive history
+
+**Dependencies**: WP07
+
+**Requirement Refs**: FR-006, FR-007, FR-009, NFR-003, SC-005
+
+T013 Resolve the measured non-main archive-frontier conflict using immutable base/default identity and canonical live-state evidence, preserving all published/terminal history and adversarial countercases. No review-base override or broad path waiver.

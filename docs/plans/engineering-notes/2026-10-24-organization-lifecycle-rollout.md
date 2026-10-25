@@ -71,3 +71,55 @@ The combined adapter/acceptance/kernel/remote-owner gate passed214 cases and the
 An external all-retention repeat now preserves actual async local retirement evidence: exact path/local branch absent, one retired operation, named canonical recovery ref, independent index and nine-file restore. Earlier passing per-test fixtures had been removed by pytest's failed-only retention; that custody gap is recorded, not a restored-data claim. This source proof uses a bounded API stand-in, not production GitHub admission, installed native distribution or organization adoption. No reclaimed-capacity claim.
 
 Canonical finalization first refused because the reviewed dependency9fdcc64 retired a five-line alias shim still named literally in approved WP07's current execution map. The actual sole authority, core/owned_mission.py, was already declared there. Reconcile only that dead path in authored planning with the exact deletion provenance; preserve historical task/approval commits and every runtime status/event byte. No recreated shim, false create_intent, guard waiver or new implementation approval. Supported validate-only and normal refresh must accept and demonstrate preservation before publication.
+
+## Hosted9d blockers — October24 local time
+
+The required hosted run is red, with33siblings canceled; there is no full consolidation/terminus pass. Archive-freeze treats this new-to-default live dossier as ordinary archive at the stacked feature base. WP13 will qualify a typed immutable-base/default boundary with adversarial negative controls rather than remove history or add a broad exemption. Existing Root/native design review is advisory pending exact code and proofs.
+
+Four Linux retirement cases retain creator_operation_unsupported before delivery. The adapter combines nested traversal completeness and runtime visibility completeness into that result, but currently hides the failed provider stage. WP11 first records actionable bounded diagnostics without weakening any predicate or deadline, then requires actual Linux evidence for repair. Root separately owns released documentation frontmatter and exact stale CI-filter/epoch corrections. No source-level local result is a hosted pass, default delivery, installed cleanup or119-repository execution adoption. No disk recovery is claimed.
+
+## Linux visibility diagnosis — bounded source follow-up
+
+### User experience finding
+
+The actual Linux hosted run retained four released fixtures before delivery inspection with only `creator_operation_unsupported`. That correctly blocks uncertain cleanup but hides the failed provider, stage or bound; a successful Mac run cannot diagnose it. Worker stdout is intentionally detached, so the observation must survive in its existing structured result.
+
+### Engineering decision
+
+Runtime observations now attach a private-context diagnostic to an inspection and copy it into the worker result only for unsupported retention. It records provider, checkout/admin scope, scan stage, process count, elapsed time, outcome and exception class; it excludes paths, command lines, exception messages and release capabilities. It never enters eligibility, release, recovery or evidence fingerprints. All time/process bounds, UID filtering, holder checks and unknown-retention predicates remain unchanged. Tests preserve AccessDenied at each Linux stage, vanished processes, other users, exhausted bounds, real holders and detached-worker preservation.
+
+### Validation and limitations
+
+The first focused receipt has 18 passing controls, with all five frozen modified source files unchanged and the producer joined. The earlier eight-case run was named “red” but loaded implementation edits before collection; it is a passing exploratory result, not a before-repair reproduction. The actual hosted failures remain the red evidence. The diagnostic-only change is not a Linux cause repair, a full owning gate, installed distribution, cleanup of real project work, or organization adoption. Actual Linux observation and independent review remain required.
+
+## WP13 — live stacked source and immutable default history
+
+### User experience findings
+
+The hosted archive job incorrectly froze a live mission newly introduced on its non-default integration branch. A real-Git fixture reproduced the same `ordinary archive history changed` refusal before guard implementation. Earlier acceptance metadata was a retained snapshot, while the work packages remained nonterminal; it was not new approval.
+
+Self-review then reproduced three overly permissive cases in the initial correction: a legacy slug-based archive identity, metadata formatting changes, and local Git grafts hiding formerly published identity history. Those results were retained as failures, then corrected; they are not passing validation. The diagnostic follow-up separately passed the complete 117 adapter/event/original cleanup checks with all frozen source hashes unchanged and the producer joined.
+
+### Engineering decisions
+
+Preserve the validated event's exact review frontier and all four historical roots. The new classification uses immutable BASE identity and nonterminal state, exact unchanged metadata, matching canonical path/UUID/MID8/target, absence from BASE/current archive registry, old event-byte prefixes, actual canonical status replay, and index/disk parity. Only those preexisting paths in the qualified mission are admitted. Deletions, unknown visibility, identity changes and forged snapshots remain frozen.
+
+Actual own-default identity is independently checked through the matching remote's live HEAD symref/SHA and exact available local default commit. The bounded joined Git transport reads complete, non-shallow/non-partial history, disables replacement/graft views and lazy fetching, and searches by UUID/MID8 across all historical roots and the canonical archive registry. A moved, deleted or legacy default identity remains frozen. No fetch, Git rewrite, fixture waiver, runtime repair, host operation or broad prefix exemption grants eligibility.
+
+### Known limitations and gates
+
+This bounded classifier also retains metadata edits, including formatting, until a separate reviewed workflow qualifies them. It intentionally refuses on unavailable/stale default identity or unsupported history, rather than guessing. New tests use real local Git with an explicitly private remote stand-in; their results do not establish hosted execution, default-branch delivery, installed runtime adoption or organization cleanup. The complete affected guard file, existing frontier/ratchet controls, independent review, required combined source/publication gates and actual Linux result remain outstanding. Organization verified execution adoption remains zero.
+
+### Complete guard result and independent diagnostic finding
+
+The full affected archive file completed with 89 passing checks and one failure at the actual local default frontier, before live-stack classification. Canonical replay of the pinned cyclic-lane dossier attributes three duplicate terminal transitions to their earlier event IDs/times, while the immutable committed snapshot attributes the later duplicates. No snapshot, archive proof pin, default frontier or guard exemption was changed. The installed test dependency is spec-kitty-events10.5.1, within current source requirements; actual default66b requires6.x and has no copy of this dossier. Attribution and compatibility repair remain open through the existing release/status owner; this is not labeled an actual-default failure or a passing full gate.
+
+The independent owner review found uninstrumented lsof/unsupported counts were incorrectly emitted as zero, and a metadata-only failure could carry the previous checkout's count/time. Seven new assertions reproduced the issue before correction. Those measurements now remain null when unknown; metadata-only observations identify the Git identity stage and clear unrelated scan values. Linux observations retain measured enumeration counts, including a genuinely empty enumeration. All retirement predicates and bounds are unchanged. The follow-up requires exact-source validation and reviewer disposition; it does not resolve the actual hosted Linux visibility cause.
+
+### Endpoint review finding and locked validation closure
+
+Independent review reproduced a genuine namespace bypass: a different server with the same trailing owner/repository name could supply the clean default while the actual origin still contained the dossier. This was reproduced locally before repair. The legacy frontier helper remains unchanged; the new live exception now binds the platform server, correlated clone/SSH endpoints and exact repository path. Both the single configured fetch URL and its resolved effective URL must match that approved identity. Missing/mismatched context, rewritten foreign endpoints and multivalued URLs retain the archive before contact. No new authority flag, host action, token requirement, workflow exception or remote mutation was introduced.
+
+Only the network contact is isolated in new fixtures; endpoint/config validation is real, and HEAD/history comes from an actual private Git mirror. Forty-nine focused controls passed after the correction. Self-review additionally reproduced optional clone-suffix normalization incorrectly consuming an authoritative repository-name suffix; the canonical endpoint now appends its own transport suffix before normalization, with valid-name and wrong-sibling controls.
+
+The complete guard and adapters previously passed 187 checks under exact project-locked events10.4.0/Python3.11.15, with all source/dependency files unchanged. The governing latest qualified CLI remains a separate runtime. New-source strict type checks were already clean; existing test helpers exposed weak annotations/unchecked object access. Their transport contracts and JSON shape checks are now explicit, without ignores, casts or checker relaxation. The reused-PID negative uses a real bounded joined child, preserving the no-later-signal assertion. Full updated owning tests, exact-source type checks and independent final review remain delivery gates; all results live in external receipts so recording them does not mutate the candidate.

@@ -19,7 +19,8 @@
         "WP11",
         "WP09",
         "WP10",
-        "WP12"
+        "WP12",
+        "WP13"
       ],
       "write_scope": [
         ".kittify/charter/charter.md",
@@ -56,6 +57,7 @@
         "src/specify_cli/workspace_lifecycle/state.py",
         "src/specify_cli/workspace_lifecycle/worker.py",
         "tests/acceptance/test_owned_code_kind.py",
+        "tests/architectural/test_archive_root_byte_identical.py",
         "tests/consolidation/**",
         "tests/contract/test_mission_status_ops.py",
         "tests/git/test_ref_advance_cas.py",
@@ -86,10 +88,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-25T02:08:27.252700+00:00",
+  "computed_at": "2026-10-25T02:43:19.315922+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "fe305555ef8626ae1bc64a4cedd4c1052ad4637d"
+  "planning_commit_sha": "eeb5d790f6587e1651104c9453b9b96e6494590b"
 }
