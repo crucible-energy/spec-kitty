@@ -77,3 +77,17 @@ Canonical finalization first refused because the reviewed dependency9fdcc64 reti
 The required hosted run is red, with33siblings canceled; there is no full consolidation/terminus pass. Archive-freeze treats this new-to-default live dossier as ordinary archive at the stacked feature base. WP13 will qualify a typed immutable-base/default boundary with adversarial negative controls rather than remove history or add a broad exemption. Existing Root/native design review is advisory pending exact code and proofs.
 
 Four Linux retirement cases retain creator_operation_unsupported before delivery. The adapter combines nested traversal completeness and runtime visibility completeness into that result, but currently hides the failed provider stage. WP11 first records actionable bounded diagnostics without weakening any predicate or deadline, then requires actual Linux evidence for repair. Root separately owns released documentation frontmatter and exact stale CI-filter/epoch corrections. No source-level local result is a hosted pass, default delivery, installed cleanup or119-repository execution adoption. No disk recovery is claimed.
+
+## Linux visibility diagnosis — bounded source follow-up
+
+### User experience finding
+
+The actual Linux hosted run retained four released fixtures before delivery inspection with only `creator_operation_unsupported`. That correctly blocks uncertain cleanup but hides the failed provider, stage or bound; a successful Mac run cannot diagnose it. Worker stdout is intentionally detached, so the observation must survive in its existing structured result.
+
+### Engineering decision
+
+Runtime observations now attach a private-context diagnostic to an inspection and copy it into the worker result only for unsupported retention. It records provider, checkout/admin scope, scan stage, process count, elapsed time, outcome and exception class; it excludes paths, command lines, exception messages and release capabilities. It never enters eligibility, release, recovery or evidence fingerprints. All time/process bounds, UID filtering, holder checks and unknown-retention predicates remain unchanged. Tests preserve AccessDenied at each Linux stage, vanished processes, other users, exhausted bounds, real holders and detached-worker preservation.
+
+### Validation and limitations
+
+The first focused receipt has 18 passing controls, with all five frozen modified source files unchanged and the producer joined. The earlier eight-case run was named “red” but loaded implementation edits before collection; it is a passing exploratory result, not a before-repair reproduction. The actual hosted failures remain the red evidence. The diagnostic-only change is not a Linux cause repair, a full owning gate, installed distribution, cleanup of real project work, or organization adoption. Actual Linux observation and independent review remain required.

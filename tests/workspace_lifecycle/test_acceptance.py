@@ -404,7 +404,7 @@ def test_real_spec_kitty_consolidation_is_joined_before_creator_completion_and_c
     assert owner.identity.head != before
     assert len(children) == 1 and git(repo, "rev-parse", "main") == primary
     assert children[0].wait(timeout=20) == 0
-    assert not Path(owner.identity.path).exists(), store.read().operations
+    assert not Path(owner.identity.path).exists(), (store.read().operations, json.loads((store.root / "worker-result.json").read_text()))
     assert git(repo, "rev-parse", "main") == primary
     assert git(repo, "branch", "--list", "feature/driver") == ""
     assert sum(op.status == "retired" for op in store.read().operations) == 1

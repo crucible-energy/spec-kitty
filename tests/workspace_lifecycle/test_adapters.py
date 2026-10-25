@@ -434,7 +434,7 @@ def test_recovery_requires_original_creator_receipt_fields(tmp_path: Path, monke
     owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
     owner.complete(pr=9)
     intent = Coordinator(ledger).reconcile(events[0].event_id, owner.identity, owner)
-    assert intent.status == "retired"
+    assert intent.status == "retired", (intent.reason, owner.runtime_diagnostic)
     with owner.hold(owner.identity):
         assert owner.recover(intent).result.status == "retired"
         assert owner.recover(replace(intent, **{field: "f" * 64 if field == "evidence_sha256" else "other-receipt"})).result.status == "unknown"
@@ -479,7 +479,7 @@ def test_released_owner_waits_safely_for_accepted_delivery(tmp_path: Path, monke
     owner.complete(pr=9)
     coordinator = Coordinator(ledger)
     result = coordinator.reconcile(events[0].event_id, owner.identity, owner)
-    assert result.status == "retained" and result.reason == "delivery_missing"
+    assert result.status == "retained" and result.reason == "delivery_missing", (result.reason, owner.runtime_diagnostic)
     assert Path(owner.identity.path).exists()
     monkeypatch.setattr(owner.delivery, "verify_current", original)
     assert coordinator.reconcile("accepted-later", owner.identity, owner).status == "retired"
@@ -639,7 +639,7 @@ def test_current_review_and_remote_source_disposition_is_required(tmp_path: Path
 
     monkeypatch.setattr(GitHubDelivery, "_get", staticmethod(response))
     result = Coordinator(ledger).reconcile(events[0].event_id, owner.identity, owner)
-    assert result.status == "retained" and result.reason == "delivery_missing"
+    assert result.status == "retained" and result.reason == "delivery_missing", (result.reason, owner.runtime_diagnostic)
     assert Path(owner.identity.path).exists()
     assert not list(ledger.root.glob("recovery-*.json"))
 
@@ -736,7 +736,7 @@ def test_review_pagination_never_turns_partial_or_changed_evidence_into_disposit
     assert len(calls) <= 10
 
 
-@pytest.mark.parametrize("case", ["none", "cwd", "exe", "file", "denied", "exited", "other_user", "expired"])
+@pytest.mark.parametrize("case", ["none", "cwd", "exe", "file", "denied", "denied_cwd", "denied_exe", "denied_files", "exited", "other_user", "expired"])
 def test_linux_runtime_guard_preserves_dependencies_and_unknown_visibility(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str) -> None:
     import os
     import time
@@ -753,21 +753,47 @@ def test_linux_runtime_guard_preserves_dependencies_and_unknown_visibility(tmp_p
             return SimpleNamespace(real=os.getuid() + (case == "other_user"))
 
         def cwd(self):
+            if case == "denied_cwd":
+                raise psutil.AccessDenied(123)
             return str(tmp_path) if case == "cwd" else "/unrelated"
 
         def exe(self):
+            if case == "denied_exe":
+                raise psutil.AccessDenied(123)
             return str(tmp_path / "tool") if case == "exe" else "/unrelated/tool"
 
         def open_files(self):
+            if case == "denied_files":
+                raise psutil.AccessDenied(123)
             return [SimpleNamespace(path=str(tmp_path / "data"))] if case == "file" else []
 
-    monkeypatch.setattr(adapters.sys, "platform", "linux")
+    monkeypatch.setattr(adapters, "sys", SimpleNamespace(platform="linux"))
     monkeypatch.setattr(adapters.os, "getuid", lambda: 1000, raising=False)
     monkeypatch.setattr(adapters.psutil, "process_iter", lambda: iter([Process()]))
     if case == "expired":
         monkeypatch.setattr(adapters, "process_deadline", lambda: time.monotonic() - 1)
-    actual = adapters._runtime_state(tmp_path)
-    assert actual == ((True, True) if case in {"cwd", "exe", "file"} else (False, False) if case in {"denied", "expired"} else (False, True))
+    diagnostic: dict[str, object] = {}
+    token = adapters._runtime_diagnostic.set(diagnostic)
+    try:
+        actual = adapters._runtime_state(tmp_path)
+    finally:
+        adapters._runtime_diagnostic.reset(token)
+    assert actual == (
+        (True, True)
+        if case in {"cwd", "exe", "file"}
+        else (False, False)
+        if case in {"denied", "denied_cwd", "denied_exe", "denied_files", "expired"}
+        else (False, True)
+    )
+    assert diagnostic["provider"] == "psutil"
+    assert diagnostic["complete"] is actual[1]
+    if case.startswith("denied"):
+        assert diagnostic["stage"] == {"denied": "uids", "denied_cwd": "cwd", "denied_exe": "exe", "denied_files": "open_files"}[case]
+        assert diagnostic["error_type"] == "AccessDenied"
+    if case == "expired":
+        assert diagnostic["outcome"] == "budget_exhausted"
+    assert str(tmp_path) not in json.dumps(diagnostic)
+    assert adapters._runtime_diagnostic.get() is None
 
 
 def test_shallow_recovery_obligation_preserves_checkout_and_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -971,3 +997,28 @@ def test_regular_hardlinked_packs_retain_their_own_inode_after_retirement(tmp_pa
     proof = json.loads(next(ledger.root.glob("recovery-*.json")).read_text())
     assert git(repo, "cat-file", "-t", proof["recovery_ref"]) == "commit"
     assert git(repo, "rev-parse", proof["recovery_ref"]) == owner.identity.head
+
+
+def test_worker_explains_visibility_retention_without_authorizing_cleanup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.workspace_lifecycle import adapters
+    from specify_cli.workspace_lifecycle.worker import LifecycleService
+
+    owner, ledger, _, repo = managed_owner(tmp_path, monkeypatch)
+    owner.run_producer([sys.executable, "-c", "pass"], timeout=5)
+    owner.complete(pr=9)
+
+    def unavailable(path: Path) -> tuple[bool, bool]:
+        diagnostic = adapters._runtime_diagnostic.get()
+        assert diagnostic is not None
+        diagnostic.update(provider="psutil", stage="open_files", error_type="AccessDenied", complete=False)
+        return False, False
+
+    monkeypatch.setattr(adapters, "_runtime_state", unavailable)
+    report = LifecycleService(ledger).run()
+    row = report["results"][-1]
+    assert row["status"] == "retained" and row["reason"] == "creator_operation_unsupported"
+    assert row["runtime_diagnostic"]["error_type"] == "AccessDenied"
+    assert adapters._runtime_diagnostic.get() is None
+    assert Path(owner.identity.path).exists()
+    assert git(repo, "rev-parse", "task") == owner.identity.head
+    assert not list(ledger.root.glob("recovery-*.json"))

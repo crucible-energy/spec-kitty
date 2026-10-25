@@ -16,6 +16,7 @@ import tempfile
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
+from contextvars import ContextVar
 from dataclasses import asdict, dataclass, fields, replace
 from pathlib import Path
 from typing import cast
@@ -387,51 +388,92 @@ def _nested_state(root: Path) -> tuple[bool, bool]:
     return False, True
 
 
-def _runtime_state(root: Path) -> tuple[bool, bool]:
-    """Observe current holders in addition to the authenticated producer fence.
+# Observational only: never part of Evidence, release, or recovery authorization.
+_runtime_diagnostic: ContextVar[dict[str, object] | None] = ContextVar("lifecycle_runtime_diagnostic", default=None)
 
-    A negative snapshot never replaces owner release or excludes future
-    producers. Unavailable visibility refuses this creator operation. Darwin's
-    system lsof can inspect descriptors of protected user agents that psutil
-    cannot; query only this bounded, already inspected workspace.
+
+def _runtime_result(
+    held: bool,
+    complete: bool,
+    outcome: str,
+    error: BaseException | None,
+    *,
+    provider: str,
+    stage: str,
+    observed: int,
+    started: float,
+) -> tuple[bool, bool]:
+    if (diagnostic := _runtime_diagnostic.get()) is not None:
+        diagnostic.update(
+            provider=provider, stage=stage, processes_observed=observed, elapsed_seconds=round(time.monotonic() - started, 6), complete=complete, outcome=outcome
+        )
+        diagnostic.pop("error_type", None)
+        if error is not None:
+            diagnostic["error_type"] = type(error).__name__
+    return held, complete
+
+
+def _runtime_state(root: Path) -> tuple[bool, bool]:
+    """Observe holders within the existing bounds; explain incomplete visibility.
+
+    Diagnostic fields deliberately exclude paths, command lines and exception
+    messages. They explain retention without changing any eligibility predicate.
     """
+    started = time.monotonic()
+    provider = "lsof" if sys.platform == "darwin" else "psutil" if sys.platform == "linux" else "unsupported"
+    stage, observed = "start", 0
+
+    def result(held: bool, complete: bool, outcome: str, error: BaseException | None = None) -> tuple[bool, bool]:
+        return _runtime_result(held, complete, outcome, error, provider=provider, stage=stage, observed=observed, started=started)
+
     if sys.platform == "darwin":
+        stage = "lsof"
         try:
-            result = bounded_run(
+            snapshot = bounded_run(
                 ["/usr/sbin/lsof", "-nP", "+D", str(root), "-F0pfnt"],
                 capture_output=True,
                 check=False,
                 timeout=5,
                 env=_git_env(),
             )
-            if result.stderr or len(result.stdout) > 1024 * 1024:
-                return False, False
-            if result.returncode == 1 and not result.stdout:
-                return False, True  # lsof's documented no-matching-files outcome.
-            if result.returncode == 0 and re.search(rb"(?:^|\n)p[0-9]+\0", result.stdout):
-                return True, True
-            return False, False
-        except (OSError, subprocess.SubprocessError):
-            return False, False
+            if snapshot.stderr or len(snapshot.stdout) > 1024 * 1024:
+                return result(False, False, "incomplete_output")
+            if snapshot.returncode == 1 and not snapshot.stdout:
+                return result(False, True, "no_holders")
+            if snapshot.returncode == 0 and re.search(rb"(?:^|\n)p[0-9]+\0", snapshot.stdout):
+                return result(True, True, "holder_found")
+            return result(False, False, "unrecognized_output")
+        except (OSError, subprocess.SubprocessError) as error:
+            return result(False, False, "unavailable", error)
     if sys.platform != "linux":
-        return False, False
+        return result(False, False, "unsupported_platform")
     inherited = process_deadline()
     deadline = min(time.monotonic() + 5, inherited if inherited is not None else float("inf"))
     try:
+        stage = "enumeration"
         for index, process in enumerate(psutil.process_iter()):
+            observed = index + 1
             if index >= 10000 or time.monotonic() >= deadline:
-                return False, False
+                return result(False, False, "budget_exhausted")
             try:
+                stage = "uids"
                 if process.uids().real != os.getuid():
                     continue
-                paths = [process.cwd(), process.exe(), *(entry.path for entry in process.open_files())]
+                stage = "cwd"
+                cwd = process.cwd()
+                stage = "exe"
+                exe = process.exe()
+                stage = "open_files"
+                paths = [cwd, exe, *(entry.path for entry in process.open_files())]
+                stage = "path_match"
                 if any(path and (Path(path) == root or root in Path(path).parents) for path in paths):
-                    return True, True
+                    return result(True, True, "holder_found")
             except psutil.NoSuchProcess:
                 continue
-        return False, True
-    except (OSError, psutil.Error):
-        return False, False
+            stage = "enumeration"
+        return result(False, True, "no_holders")
+    except (OSError, psutil.Error) as error:
+        return result(False, False, "unavailable", error)
 
 
 def _creator_runtime_state(identity: Identity) -> tuple[bool, bool]:
@@ -442,6 +484,8 @@ def _creator_runtime_state(identity: Identity) -> tuple[bool, bool]:
     unlike a sibling's legitimate use of shared packs or common refs.
     """
     root = Path(identity.path)
+    if (diagnostic := _runtime_diagnostic.get()) is not None:
+        diagnostic["scope"] = "checkout"
     held, complete = _runtime_state(root)
     if held or not complete:
         return held, complete
@@ -449,11 +493,19 @@ def _creator_runtime_state(identity: Identity) -> tuple[bool, bool]:
         raw = run_git(root, "rev-parse", "--absolute-git-dir", env=_git_env(), timeout=5).stdout
         metadata = Path(os.fsdecode(raw.removesuffix(b"\n")))
         if not metadata.is_absolute() or metadata.parent != Path(identity.common_dir) / "worktrees":
+            if diagnostic is not None:
+                diagnostic.update(scope="git_admin", stage="identity", complete=False, outcome="invalid_metadata")
             return False, False
         if any(path.is_symlink() for path in (metadata, *metadata.parents)) or not stat.S_ISDIR(metadata.lstat().st_mode):
+            if diagnostic is not None:
+                diagnostic.update(scope="git_admin", stage="identity", complete=False, outcome="invalid_metadata")
             return False, False
+        if diagnostic is not None:
+            diagnostic["scope"] = "git_admin"
         return _runtime_state(metadata)
-    except (GitCommandError, OSError, ValueError):
+    except (GitCommandError, OSError, ValueError) as error:
+        if diagnostic is not None:
+            diagnostic.update(scope="git_admin", stage="identity", complete=False, outcome="unavailable", error_type=type(error).__name__)
         return False, False
 
 
@@ -542,10 +594,16 @@ class ManagedGitCreator:
         self._unconfirmed_producer = False
         self._held: tuple[int, int] | None = None
         self._last_delivery: str | None = None
+        self._runtime_observation: dict[str, object] = {}
         self._last_delivery_proof: dict[str, object] | None = None
         info = store.root.lstat()
         self._root_identity = (info.st_dev, info.st_ino)
         self.authority_id = "registered-git:" + token
+
+    @property
+    def runtime_diagnostic(self) -> dict[str, object]:
+        """Copy of the last inspection's nonauthoritative visibility explanation."""
+        return dict(self._runtime_observation)
 
     @property
     def _path(self) -> Path:
@@ -786,7 +844,12 @@ class ManagedGitCreator:
         path = Path(fresh.path)
         entries = status_entries(path, untracked="all", ignored=True, optional_locks=False, env=_git_env(), timeout=5)
         nested, complete = _nested_state(path)
-        runtime_held, runtime_complete = _creator_runtime_state(fresh) if complete and not entries and not nested else (False, True)
+        self._runtime_observation = {}
+        token = _runtime_diagnostic.set(self._runtime_observation)
+        try:
+            runtime_held, runtime_complete = _creator_runtime_state(fresh) if complete and not entries and not nested else (False, True)
+        finally:
+            _runtime_diagnostic.reset(token)
         accepted = (
             self.delivery.verify_current(fresh, state.pr)
             if state.pr and _released(state) and complete and not entries and not nested and runtime_complete and not runtime_held
