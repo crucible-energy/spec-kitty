@@ -1,0 +1,387 @@
+# Module tests (shard) — reusable workflow.
+#
+# Mission ci-pipeline-reinstatement-01M1X35E, WP09 (FR-001/006/008).
+#
+# One reusable `workflow_call` shard, matrixed by the caller
+# (ci-modules.yml) over the WP08-committed module registry
+# (.github/ci-module-registry.yml) — adding a module is a registry row, never
+# a new workflow file (bounded reusable-workflow fan-out, <=20/caller
+# ceiling; contract contracts/router-two-authority.md §"Module shard
+# registry"). Each shard:
+#   * consumes the WP04 warmup composite (.github/actions/warmup) exactly
+#     once — no per-shard re-install (the #3283 kill in practice, T050);
+#   * selects its slice of the module's tests via greedy LPT
+#     (longest-processing-time-first) bin-packing — the SAME algorithm the
+#     registry used to size shard_count
+#     (tests/architectural/test_module_shard_registry.py::_lpt_bin_pack) —
+#     never round-robin or alphabetical;
+#   * runs pytest with dotted `--cov=<target>` flags (never the path form)
+#     covering the FULL top-level package set derived from `src/` — not just
+#     the row's own `cov_target` (mission
+#     sonar-per-pr-coverage-reuse-01M2FR32, WP01/FR-013: a narrow `--cov`
+#     DROPS, rather than zero-records, every line a slice executes outside its
+#     own package) — and emits coverage/xunit under
+#     contracts/artefact-naming.md (forward-ref WP10, which dedups per-shard
+#     artefacts by basename).
+#
+# `mode` (pr|full) is honored in THIS workflow's own run step: pr mode fails
+# fast on the first red test; full mode continues past failures so every
+# shard still uploads its coverage/xunit artefacts (if: always()) for
+# aggregation (FR-018/FR-019, T049). The cross-cutting dual-mode contract
+# test (test_dual_mode_contract) and dispatched-run evidence are WP11's.
+
+on:
+  workflow_call:
+    inputs:
+      module:
+        description: 'Registry module name (ci-module-registry.yml modules[].module).'
+        required: true
+        type: string
+      roots:
+        description: "JSON array of the module's src/** globs (registry modules[].roots) — carried through for traceability/logging; the test-selection step below resolves the mirrored tests/<module> directory (or the registry row's explicit test_dirs, when provided)."
+        required: true
+        type: string
+      cov_target:
+        description: "JSON array of dotted coverage targets (registry modules[].cov_targets). OWNERSHIP DECLARATION ONLY — since mission sonar-per-pr-coverage-reuse-01M2FR32 (WP01, FR-013) every shard measures the full top-level package set derived from src/, so this input is logged for traceability and read by the registry gates, but no longer decides what this workflow measures."
+        required: true
+        type: string
+      tier:
+        description: 'Registry tier (registry modules[].tier).'
+        required: true
+        type: string
+      shard:
+        description: 'This shard as "<1-based index>/<total>"; total = registry modules[].shard_count.'
+        required: true
+        type: string
+      mode:
+        description: 'pr (fail-fast) or full (run-all, if: always()). Defaults to pr.'
+        required: false
+        type: string
+        default: pr
+      test_dirs:
+        description: 'JSON array of explicit tests/** directories (registry modules[].test_dirs), for modules whose tests span more than the mirrored tests/<module> directory (AGGREGATE modules like core_misc/execution_context; dual-tree modules like dashboard/charter). Optional — an empty array or omitted input falls back to the tests/{module} mirror.'
+        required: false
+        type: string
+        default: '[]'
+  workflow_dispatch:
+    inputs:
+      module:
+        description: 'Registry module name to re-run a single shard for.'
+        required: true
+        type: string
+      roots:
+        description: "JSON array of the module's src/** globs."
+        required: true
+        type: string
+      cov_target:
+        description: 'JSON array of dotted coverage targets (ownership declaration only; the measured set is derived from src/ — see the workflow_call input above).'
+        required: true
+        type: string
+      tier:
+        description: 'Registry tier.'
+        required: true
+        type: string
+      shard:
+        description: 'Shard as "<index>/<total>".'
+        required: true
+        type: string
+      mode:
+        description: 'pr or full.'
+        required: false
+        type: string
+        default: pr
+      test_dirs:
+        description: 'JSON array of explicit tests/** directories (registry modules[].test_dirs). Optional.'
+        required: false
+        type: string
+        default: '[]'
+
+jobs:
+  test:
+    name: "module-tests (${{ inputs.module }} shard ${{ inputs.shard }})"
+    runs-on: ubuntu-24.04
+    # #4429: ceiling re-base on observed shard durations — the charter shard's
+    # green baseline runs 24-26m (runs 34926712832 / 34924060312), and the
+    # charter-heavy head 06fe4cfd grew past that into the 30m ceiling (killed
+    # at 30:04m, reported as 'cancelled', wedging the PR on a stale
+    # `[ci] running` verdict). The #4207 fix re-based the router cli/e2e
+    # shard ceilings on observed max + headroom but left this workflow's
+    # uniform 30m untouched. 40m covers the observed charter ceiling plus
+    # headroom for charter test-mass growth, one ceiling for every registry
+    # module's shards.
+    #
+    # #5378 (per-PR half; #5386 fixed ci-nightly.yml only): 40m no longer held.
+    # PR #5383's charter shards 1/5 and 2/5 were cancelled at 40:17 with the
+    # suite still running. The cap is re-derived by the #5386 rule,
+    # ceil((max-suite + 0:30) * 1.5), and is only ever raised. max-suite is the
+    # longest "Run pytest for this shard" step over every registry module's
+    # shards in 95 CI Modules runs (2026-09-28T11:07Z..2026-09-29T14:13Z). The
+    # longest was charter; no other module passed 26m. The listed runs are the
+    # five longest charter shards. `>=` means the longest shard was killed at
+    # the cap, so its real duration is a lower bound.
+    # tests/ci/test_nightly_timeout_headroom.py pins this cap to the comment.
+    # headroom (#5378): max-suite>=38:03 runs=36570492217,36563732095,36553736315,36498972402,36549070577 formula=ceil((max+0:30)*1.5)
+    timeout-minutes: 58
+    steps:
+      # A local composite action (./.github/actions/warmup) can only be resolved
+      # once the repository is on disk — GitHub loads its action.yml from the
+      # caller's checkout before the action's own steps run. Without this the job
+      # fails immediately: "Can't find 'action.yml' ... under .github/actions/warmup".
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          # Full history: some module tests (e.g. tests/upgrade's mission-corpus
+          # recovery suite) `git archive` historical mission SHAs, which a shallow
+          # (fetch-depth 1) checkout does not contain — they error at setup with
+          # `git archive <sha> ... exit 128` otherwise.
+          fetch-depth: 0
+      - name: Warm up shared test environment
+        id: warmup
+        uses: ./.github/actions/warmup
+        with:
+          mode: ${{ inputs.mode }}
+
+      - name: Provision pinned native validation compiler
+        if: inputs.module == 'ci'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          umask 077
+          compiler_root="$(mktemp -d "${RUNNER_TEMP}/validation-compiler.XXXXXX")"
+          curl --fail --location --silent --show-error --max-time 180 \
+            'https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz' --output "$compiler_root/compiler.tar.xz"
+          printf '%s  %s\n' '70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00' "$compiler_root/compiler.tar.xz" | sha256sum --check
+          tar -xJf "$compiler_root/compiler.tar.xz" -C "$compiler_root" --strip-components=1
+          test "$("$compiler_root/zig" version)" = 0.16.0
+          printf '%s\n' "$compiler_root" >> "$GITHUB_PATH"
+          # Runner-owned temporary toolchain ends with this hosted job; no shared cache pruning.
+
+      - name: Compute shard identifiers
+        id: shard-info
+        shell: bash
+        env:
+          SHARD: ${{ inputs.shard }}
+          MODULE: ${{ inputs.module }}
+          ROOTS: ${{ inputs.roots }}
+          COV_TARGET: ${{ inputs.cov_target }}
+        run: |
+          set -euo pipefail
+          shard="$SHARD"
+          if [[ ! "$shard" =~ ^[1-9][0-9]*/[1-9][0-9]*$ ]]; then
+            echo "::error::module-tests: shard must be N/M with positive integers, got '$shard'"
+            exit 1
+          fi
+          idx="${shard%%/*}"
+          total="${shard##*/}"
+          slug="${idx}-of-${total}"
+          {
+            echo "idx=$idx"
+            echo "total=$total"
+            echo "slug=$slug"
+          } >> "$GITHUB_OUTPUT"
+          echo "module-tests: roots for $MODULE = $ROOTS"
+          # Ownership declaration, logged for traceability only — the pytest
+          # step measures the full top-level package set regardless (WP01,
+          # mission sonar-per-pr-coverage-reuse-01M2FR32). Read from env: like
+          # every other value here, per the #4355 interpolation hardening.
+          echo "module-tests: declared cov_target (ownership record, not the measured set) for $MODULE = $COV_TARGET"
+
+      - name: Select this shard's tests (greedy-LPT bin-packing over the registry shard structure)
+        id: select
+        shell: bash
+        env:
+          MODULE: ${{ inputs.module }}
+          TEST_DIRS: ${{ inputs.test_dirs }}
+          SHARD_IDX: ${{ steps.shard-info.outputs.idx }}
+          SHARD_TOTAL: ${{ steps.shard-info.outputs.total }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          venv_python="${{ steps.warmup.outputs.venv-path }}/bin/python"
+          # The selection deselects the performance AND stress flows (they belong
+          # to ci-nightly's dedicated lanes); the marker expression, the test-dir
+          # resolution and the greedy-LPT bin-packing all live in
+          # scripts/ci/shard_select.py (MODULE_SELECTION_MARKER_EXPR). Each shard
+          # runs SERIALLY -- parallelism is ACROSS shards via the matrix, not
+          # within a shard (the suite is not intra-shard xdist-safe).
+          "$venv_python" -m scripts.ci.shard_select module \
+            --module "$MODULE" \
+            --shard "$SHARD_IDX/$SHARD_TOTAL" \
+            --test-dirs "$TEST_DIRS" \
+            --python "$venv_python" \
+            --out "$RUNNER_TEMP/shard_tests.txt"
+
+          # Shared test-universe collection (mission shared-collection-and-shard-recapture,
+          # FR-008, research D-06). The workflow serves every module and shard, so the
+          # pre-test step below runs only where the selected list holds the test that
+          # collects the universe -- decided from the list, never from a module name
+          # that would break silently when the test moves. The greedy-LPT split is per
+          # test; the `ci` module runs as one shard, and the condition names the one test
+          # that uses `live_universe` (so a module that splits would run the step only on
+          # the shard holding it) (tests/ci/test_ci_workflow_prestep_shape.py pins that it
+          # exists and still takes the fixture). The list lives in the runner
+          # temp directory: an untracked file in the checkout would make the store report
+          # a dirty checkout for the rest of the job (research B-02). pr mode only: the
+          # full-mode warm-up upgrades a pinned package, which may rewrite the
+          # tracked lockfile and so leave the checkout dirty.
+          universe=false
+          if [ "$MODE" = "pr" ] && grep -q -x -F "tests/ci/test_corpus_blocking_home.py::test_every_corpus_test_has_a_blocking_per_pr_home" "$RUNNER_TEMP/shard_tests.txt"; then
+            universe=true
+          fi
+          echo "universe=$universe" >> "$GITHUB_OUTPUT"
+          echo "module-tests: test-universe pre-step selected: $universe"
+
+      - name: Compute the test-universe collection key
+        id: universe-key
+        if: steps.select.outputs.universe == 'true'
+        shell: bash
+        run: |
+          venv_python="${{ steps.warmup.outputs.venv-path }}/bin/python"
+          # Prints nothing and exits 2 on a dirty checkout: the empty output keeps restore
+          # and save off, and the collect step then fails the job with the dirty paths.
+          # The key includes the commit: a stored record is valid for one commit only and a
+          # cache key never changes once saved, so a key without it could go stale.
+          key="$("$venv_python" -m scripts.ci.collect_universe_prestep key --with-commit)" || key=""
+          echo "key=${key:+universe-$key}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the test-universe store
+        id: universe-restore
+        if: steps.select.outputs.universe == 'true' && steps.universe-key.outputs.key != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .pytest_cache/universe-store
+          key: ${{ steps.universe-key.outputs.key }}
+
+      - name: Collect the test universe once (pre-test step)
+        id: universe-collect
+        if: steps.select.outputs.universe == 'true'
+        shell: bash
+        env:
+          SK_GATE_REUSE_REPORT: ${{ runner.temp }}/universe-reuse.jsonl
+        run: |
+          venv_python="${{ steps.warmup.outputs.venv-path }}/bin/python"
+          "$venv_python" -m scripts.ci.collect_universe_prestep collect
+
+      - name: Save the test-universe store
+        if: steps.select.outputs.universe == 'true' && steps.universe-key.outputs.key != '' && steps.universe-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .pytest_cache/universe-store
+          key: ${{ steps.universe-key.outputs.key }}
+
+      - name: Run pytest for this shard
+        id: pytest-run
+        shell: bash
+        env:
+          TIER: ${{ inputs.tier }}
+          MODULE: ${{ inputs.module }}
+          MODE: ${{ inputs.mode }}
+          COV_TARGET: ${{ inputs.cov_target }}
+          # Empty (no report) on every shard that did not run the pre-test step.
+          SK_GATE_REUSE_REPORT: ${{ steps.select.outputs.universe == 'true' && format('{0}/universe-reuse.jsonl', runner.temp) || '' }}
+        run: |
+          set -euo pipefail
+          venv_python="${{ steps.warmup.outputs.venv-path }}/bin/python"
+          tier="$TIER"
+          mod="$MODULE"
+          slug="${{ steps.shard-info.outputs.slug }}"
+          mode="$MODE"
+          run_id="${{ github.run_id }}"
+
+          mkdir -p out/reports/coverage out/reports/xunit-reports
+
+          # ---------------------------------------------------------------
+          # Coverage breadth — mission sonar-per-pr-coverage-reuse-01M2FR32,
+          # WP01 (FR-013/NFR-009). READ BEFORE "FIXING" THIS BACK.
+          #
+          # Every shard measures the FULL top-level package set, NOT this
+          # row's `inputs.cov_target`. A narrow per-module `--cov` does not
+          # record another package's executed lines as zero — coverage.py
+          # DROPS the measurement, so the line is `absent` from the report.
+          # Slices routinely execute code outside the package their module is
+          # named for, and every one of those hits used to be discarded before
+          # it reached the reconciled union: the matrix recorded 71,070 of the
+          # 128,878-statement union (55.15%) against 42,933 (33.31%) for the
+          # single broad step this mission retires, with 4,391 statements
+          # covered by that step and by no slice at all.
+          #
+          # `inputs.cov_target` is deliberately still an input: it is the
+          # registry row's OWNERSHIP declaration
+          # (.github/ci-module-registry.yml, consumed verbatim by
+          # tests/architectural/test_module_shard_registry.py) and is echoed
+          # for traceability in "Compute shard identifiers". It declares who
+          # owns what; it must not decide what a slice MEASURES.
+          #
+          # The set is derived from the source tree at run time — top-level
+          # packages plus public top-level single-file modules under src/ —
+          # never transcribed, so a new top-level package is measured without
+          # editing this workflow. Pinned by
+          # tests/architectural/test_coverage_breadth.py.
+          # ---------------------------------------------------------------
+          cov_targets="$("$venv_python" - <<'COV_PY'
+          import pathlib
+
+          src = pathlib.Path("src")
+          targets = {
+              entry.name if entry.is_dir() else entry.stem
+              for entry in src.iterdir()
+              if (entry.is_dir() and (entry / "__init__.py").is_file())
+              or (entry.is_file() and entry.suffix == ".py" and not entry.name.startswith("_"))
+          }
+          if not targets:
+              raise SystemExit("module-tests: no top-level coverage targets found under src/")
+          print("\n".join(sorted(targets)))
+          COV_PY
+          )"
+
+          cov_args=()
+          while IFS= read -r target; do
+            [ -n "$target" ] && cov_args+=("--cov=$target")
+          done <<< "$cov_targets"
+          if [ "${#cov_args[@]}" -eq 0 ]; then
+            echo "::error::module-tests: derived an empty coverage-target set from src/"
+            exit 64
+          fi
+          echo "module-tests: measuring ${cov_args[*]}"
+
+          coverage_xml="out/reports/coverage/coverage-${tier}-${mod}-shard${slug}.xml"
+          xunit_xml="out/reports/xunit-reports/xunit-result-${mod}-shard${slug}-${run_id}.xml"
+
+          mapfile -t shard_tests < "$RUNNER_TEMP/shard_tests.txt"
+
+          set +e
+          "$venv_python" -m pytest "${shard_tests[@]}" \
+            -m "not performance and not stress" \
+            "${cov_args[@]}" --cov-report="xml:${coverage_xml}" \
+            --junitxml="${xunit_xml}" \
+            -q
+          status=$?
+          set -e
+
+          if [ "$mode" = "full" ]; then
+            # full mode: run-all, never short-circuit the aggregation run --
+            # this shard's failure is surfaced but does not abort the step.
+            if [ "$status" -ne 0 ]; then
+              echo "::warning::module-tests: shard ${mod} ${slug} failed in full mode (if: always() aggregation continues)"
+            fi
+          else
+            # pr mode: fail-fast -- propagate this shard's exit status.
+            exit "$status"
+          fi
+
+      - name: Check the test-universe reuse
+        if: always() && steps.select.outputs.universe == 'true'
+        shell: bash
+        env:
+          SK_GATE_REUSE_REPORT: ${{ runner.temp }}/universe-reuse.jsonl
+        run: |
+          venv_python="${{ steps.warmup.outputs.venv-path }}/bin/python"
+          "$venv_python" -m scripts.ci.collect_universe_prestep check
+
+      - name: Upload coverage + xunit artefacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: "module-tests-${{ inputs.module }}-shard-${{ steps.shard-info.outputs.slug }}-attempt-${{ github.run_attempt }}-reports"
+          path: out/reports/
