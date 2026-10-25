@@ -793,7 +793,7 @@ def executable_router_specification(root: Path) -> dict[str, object]:
     if hashlib.sha256(router_raw).hexdigest() != source["sha256"]:
         raise ValueError("Pinned router changed; source mapping review required")
     # Every dynamic normalization below is scoped to this reviewed exact source.
-    if source["sha256"] != "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090":
+    if source["sha256"] != "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85":
         raise ValueError("Unsupported router source mapping")
     jobs = _mapping(_load(router_raw)["jobs"])
     inventory = extract_workflows(root)

@@ -43,7 +43,7 @@
       "recipe": {
         "source": {
           "path": ".github/workflows/ci-router.yml",
-          "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+          "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
           "role": "migration-baseline"
         },
         "python_version": "3.12",
@@ -125,7 +125,7 @@
       "recipe": {
         "source": {
           "path": ".github/workflows/ci-router.yml",
-          "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+          "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
           "role": "migration-baseline"
         },
         "python_version": "3.12",
@@ -189,7 +189,7 @@
       "recipe": {
         "source": {
           "path": ".github/workflows/ci-router.yml",
-          "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+          "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
           "role": "migration-baseline"
         },
         "python_version": "3.12",
@@ -249,7 +249,7 @@
       "recipe": {
         "source": {
           "path": ".github/workflows/ci-router.yml",
-          "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+          "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
           "role": "migration-baseline"
         },
         "python_version": "3.12",
@@ -307,7 +307,7 @@
       "recipe": {
         "source": {
           "path": ".github/workflows/ci-router.yml",
-          "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+          "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
           "role": "migration-baseline"
         },
         "python_version": "3.12",
@@ -378,7 +378,7 @@
       "recipe": {
         "source": {
           "path": ".github/workflows/ci-router.yml",
-          "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+          "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
           "role": "migration-baseline"
         },
         "python_version": "3.12",
@@ -448,7 +448,7 @@
       "recipe": {
         "source": {
           "path": ".github/workflows/ci-router.yml",
-          "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+          "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
           "role": "migration-baseline"
         },
         "python_version": "3.12",
@@ -518,7 +518,7 @@
       "recipe": {
         "source": {
           "path": ".github/workflows/ci-router.yml",
-          "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+          "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
           "role": "migration-baseline"
         },
         "python_version": "3.12",
@@ -596,7 +596,7 @@
       "recipe": {
         "source": {
           "path": ".github/workflows/ci-router.yml",
-          "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+          "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
           "role": "migration-baseline"
         },
         "python_version": "3.12",
@@ -669,7 +669,7 @@
       "recipe": {
         "source": {
           "path": ".github/workflows/ci-router.yml",
-          "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+          "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
           "role": "migration-baseline"
         },
         "python_version": "3.12",
@@ -739,7 +739,7 @@
       "recipe": {
         "source": {
           "path": ".github/workflows/ci-router.yml",
-          "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+          "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
           "role": "migration-baseline"
         },
         "python_version": "3.12",
@@ -851,7 +851,7 @@
       "recipe": {
         "source": {
           "path": ".github/workflows/ci-router.yml",
-          "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+          "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
           "role": "migration-baseline"
         },
         "python_version": "3.12",
@@ -1116,7 +1116,7 @@
       "recipe": {
         "source": {
           "path": ".github/workflows/ci-router.yml",
-          "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+          "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
           "role": "migration-baseline"
         },
         "python_version": "3.12",
@@ -1229,7 +1229,7 @@
       "recipe": {
         "source": {
           "path": ".github/workflows/ci-router.yml",
-          "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+          "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
           "role": "migration-baseline"
         },
         "python_version": "3.12",
@@ -1302,7 +1302,7 @@
       "recipe": {
         "source": {
           "path": ".github/workflows/ci-router.yml",
-          "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+          "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
           "role": "migration-baseline"
         },
         "python_version": "3.12",
@@ -1381,7 +1381,7 @@
       "recipe": {
         "source": {
           "path": ".github/workflows/ci-router.yml",
-          "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+          "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
           "role": "migration-baseline"
         },
         "python_version": "3.12",
@@ -1462,7 +1462,7 @@
       "recipe": {
         "source": {
           "path": ".github/workflows/ci-router.yml",
-          "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+          "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
           "role": "migration-baseline"
         },
         "python_version": "3.12",
@@ -1529,7 +1529,7 @@
       "recipe": {
         "source": {
           "path": ".github/workflows/ci-router.yml",
-          "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+          "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
           "role": "migration-baseline"
         },
         "python_version": "3.12",
@@ -3139,7 +3139,7 @@
     {
       "path": ".github/workflows/ci-router.yml",
       "role": "migration-baseline",
-      "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090"
+      "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85"
     },
     {
       "path": ".github/workflows/ci-shard-recapture.yml",
@@ -3617,7 +3617,6 @@
         "kitty-specs/**/acceptance-matrix.json",
         ".kittify/charter/**",
         ".kittify/glossaries/**",
-        ".kittify/doctrine/**",
         "contracts/**",
         "kitty-ops/**"
       ],
@@ -3839,7 +3838,7 @@
   "source": {
     "path": ".github/workflows/ci-router.yml",
     "role": "migration-baseline",
-    "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090"
+    "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85"
   },
   "workflow_contracts": [
     {
@@ -6787,7 +6786,7 @@
       "id": "ci-router",
       "source": {
         "path": ".github/workflows/ci-router.yml",
-        "sha256": "f24918e58fc303f40d0733f19b25195c171c67ed76477dfee3deabc90ad91090",
+        "sha256": "b2816b9a13acd136cdedb09a53ff56bb3811033c083ee3823aa66da575d0ab85",
         "role": "migration-baseline"
       },
       "definition": {
@@ -6899,7 +6898,7 @@
                 "id": "filter",
                 "if": "steps.green.outputs.skip != 'true'",
                 "with": {
-                  "filters": "consolidation:\n  - 'src/specify_cli/consolidation/**'\nauth:\n  - 'src/specify_cli/auth/**'\nmissions:\n  - 'src/specify_cli/mission.py'\n  - 'src/specify_cli/mission_metadata.py'\n  - 'src/specify_cli/missions/**'\n  - 'src/charter/offering/missions/**'\npost_merge:\n  - 'src/specify_cli/post_merge/**'\nrelease:\n  - 'src/specify_cli/release/**'\nstatus:\n  - 'src/specify_cli/status/**'\n  - 'src/specify_cli/coordination/**'\nreview:\n  - 'src/specify_cli/review/**'\nnext:\n  - 'src/specify_cli/runtime/**'\n  - 'src/runtime/next/**'\n  - 'src/mission_runtime/**'\nlanes:\n  - 'src/specify_cli/lanes/**'\nupgrade:\n  - 'src/specify_cli/upgrade/**'\ncli:\n  - 'src/specify_cli/cli/**'\ncharter:\n  - 'src/charter/**'\n  - 'src/specify_cli/charter_runtime/**'\nagent:\n  - 'src/specify_cli/agent_utils/**'\nkernel:\n  - 'src/kernel/**'\nglossary:\n  - 'src/glossary/**'\nexecution_context:\n  - 'src/mission_runtime/**'\n  - 'src/specify_cli/status/**'\n  - 'src/runtime/next/**'\n  - 'src/specify_cli/cli/commands/agent/**'\ncore_misc:\n  - 'src/kernel/**'\n  - 'src/charter/offering/**'\n  - 'src/specify_cli/core/**'\n  - 'src/specify_cli/coordination/**'\n  - 'src/specify_cli/doctrine_synthesizer/**'\n  - 'src/specify_cli/status/**'\n  - 'src/specify_cli/tool_surface/**'\n  - 'src/specify_cli/zeitgeist_client/**'\n  - 'src/specify_cli/workspace_lifecycle/**'\n# Test-inventory groups: tests/unit and tests/specify_cli/runtime had\n# no declared home in the module registry. Every glob below is a\n# verbatim copy of one another group already carries (scrub groups\n# `unit` / `specify_cli_runtime`), so no path's match set changes.\nunit:\n  - 'src/specify_cli/status/**'\n  - 'src/runtime/next/**'\n  - 'src/charter/offering/missions/**'\n  - 'src/kernel/**'\nspecify_cli_runtime:\n  - 'src/specify_cli/runtime/**'\n  - 'src/charter/offering/missions/**'\n  - 'src/specify_cli/core/**'\ndocs:\n  - 'docs/**'\n  - 'tests/docs/**'\n  - 'scripts/docs/**'\ncorpus:\n  - 'packs/**'\n  - 'kitty-specs/**/spec.md'\n  - 'kitty-specs/**/plan.md'\n  - 'kitty-specs/**/tasks/**'\n  - 'kitty-specs/**/contracts/**'\n  - 'kitty-specs/**/acceptance-matrix.json'\n  - '.kittify/charter/**'\n  - '.kittify/glossaries/**'\n  - '.kittify/doctrine/**'\n  - 'contracts/**'\n  # Intended: an Op-journal commit under kitty-ops/ triggers the corpus job (the Ops read of the reality suite reads it).\n  - 'kitty-ops/**'\ne2e:\n  - 'tests/e2e/**'\n  - 'tests/cross_cutting/**'\n# CI-infrastructure group (spec-kitty#4386), mirroring the `ci` module\n# registry row and its scrub group 1:1. NON-src, like docs/corpus/e2e:\n# deliberately NOT in the unmatched loop below -- the FR-004 catch-all\n# is contractually the sensor for unmapped src/** CODE\n# (contracts/router-two-authority.md Invariants 1-2), and these paths\n# are not src and are now named, so there is nothing unmatched to\n# catch. No job gates on this group BY DESIGN: the per-PR executor for\n# these paths' guard suite (tests/ci) is the ci-modules.yml module\n# matrix, which runs on every PR; a `tests (ci)` job here would\n# double-run the suite per PR -- the exact duplicate class\n# tests/architectural/test_no_duplicate_suite_execution.py exists to\n# remove. The group makes the path family's routing visible and\n# asserted (tests/ci/test_ci_module_wiring.py) instead of silent.\nci:\n  - 'scripts/ci/**'\n  - '.github/workflows/**'\n# Architectural-gate group (spec-kitty#5168): NON-src (not in the\n# unmatched loop); gates only the heavy battery, the sole per-PR home\n# of tests/architectural (see .github/ci-module-registry.yml).\narchitectural:\n  - 'tests/architectural/**'\n# CI-configuration group (Mission ci-runtime-stabilisation, FR-007; contract\n# amendment kitty-specs/ci-runtime-stabilisation-01M3TZH6/contracts/\n# router-two-authority-amendment.md A1). NON-src (not in the unmatched loop);\n# gates ONLY the architectural battery, whose gates guard exactly these files.\n# Overlaps the `ci` group by design: `ci` keeps gating no router job (#4386).\nci_config:\n  - '.github/workflows/**'\n  - '.github/actions/**'\n  - 'scripts/ci/**'\n  - 'pytest.ini'\n  - 'pyproject.toml'\n  - 'Makefile'\n  - '.github/ci-module-registry.yml'\n  - '.github/ci-shard-timings.json'\n# Contract-tools group (#5558): NON-src (not in the unmatched loop); with `corpus`\n# (which owns contracts/**, pinned by tests/ci/test_contracts_routing.py) it gates\n# only `tests (contract tools)`. It names what the contract tool tests read or run on\n# beyond contracts/**: their own tests, the contract workflows, the locked environment, the\n# pytest configuration and conftest, and the lifecycle source event_mapping_check parses.\ncontract_tools:\n  - 'tests/contract/**'\n  - '.github/workflows/contracts.yml'\n  - '.github/workflows/contracts-release.yml'\n  - 'uv.lock'\n  - 'pyproject.toml'\n  - 'pytest.ini'\n  - 'tests/conftest.py'\n  # Not spelled src/...: a src/ glob would make this a src-backed group (a code-shard gate that\n  # belongs in the unmatched catch-all, scripts/ci/gate_selection.py), and this one is data-shaped.\n  # The file is the one event_mapping_check parses; the `status` group still routes it to its modules.\n  - '**/status/lifecycle_events.py'\n  # The src files the mission-status reference reader (tests/contract/_mission_status_*.py) and its tests import,\n  # spelled the same way and for the same reason: a change to one of them must run `tests (contract tools)`, which is\n  # their only per-PR home, plus the src files the contract's x-derived blocks cite. Pinned by\n  # tests/ci/test_contracts_workflows.py, which derives the list from the imports and from the x-derived paths.\n  - '**/kernel/clock.py'\n  - '**/kernel/errors.py'\n  - '**/kernel/git/__init__.py'\n  - '**/kernel/git/listing.py'\n  - '**/mission_runtime/__init__.py'\n  - '**/mission_runtime/context.py'\n  - '**/mission_runtime/identity.py'\n  - '**/specify_cli/audit/classifiers/status_json.py'\n  - '**/specify_cli/audit/models.py'\n  - '**/specify_cli/cli/commands/agent/tasks_move_task.py'\n  - '**/specify_cli/cli/commands/invocations_cmd.py'\n  - '**/specify_cli/consolidation/baseline.py'\n  - '**/specify_cli/context/__init__.py'\n  - '**/specify_cli/context/mission_resolver.py'\n  - '**/specify_cli/coordination/surface_resolver.py'\n  - '**/specify_cli/coordination/workspace.py'\n  - '**/specify_cli/core/dependency_graph.py'\n  - '**/specify_cli/core/git_ops.py'\n  - '**/specify_cli/core/paths.py'\n  - '**/specify_cli/core/stale_detection.py'\n  - '**/specify_cli/core/subtask_rows.py'\n  - '**/specify_cli/core/vcs/git.py'\n  - '**/specify_cli/core/version_checker.py'\n  - '**/specify_cli/frontmatter.py'\n  - '**/specify_cli/git/remote_probes.py'\n  - '**/specify_cli/invocation/errors.py'\n  - '**/specify_cli/invocation/modes.py'\n  - '**/specify_cli/invocation/record.py'\n  - '**/specify_cli/invocation/writer.py'\n  - '**/specify_cli/lanes/_git.py'\n  - '**/specify_cli/lanes/branch_naming.py'\n  - '**/specify_cli/lanes/compute.py'\n  - '**/specify_cli/lanes/models.py'\n  - '**/specify_cli/lanes/persistence.py'\n  - '**/specify_cli/migration/__init__.py'\n  - '**/specify_cli/migration/schema_version.py'\n  - '**/specify_cli/mission_metadata.py'\n  - '**/specify_cli/missions/_read_path_resolver.py'\n  - '**/specify_cli/ownership/validation.py'\n  - '**/specify_cli/policy/commit_guard.py'\n  - '**/specify_cli/review/artifacts.py'\n  - '**/specify_cli/review/cycle.py'\n  - '**/specify_cli/status/__init__.py'\n  - '**/specify_cli/status/aggregate.py'\n  - '**/specify_cli/status/doctor.py'\n  - '**/specify_cli/status/lifecycle.py'\n  - '**/specify_cli/status/models.py'\n  - '**/specify_cli/status/progress.py'\n  - '**/specify_cli/status/reducer.py'\n  - '**/specify_cli/status/store.py'\n  - '**/specify_cli/status/tail_reader.py'\n  - '**/specify_cli/status/validate.py'\n  - '**/specify_cli/status/wp_metadata.py'\n  - '**/specify_cli/status/wp_review.py'\n  - '**/specify_cli/status/wp_view.py'\n  - '**/specify_cli/upgrade/metadata.py'\n  - '**/specify_cli/workspace/context.py'\n# FR-004 probe: matches ANY src change. The `unmatched` step computes\n# `any_src AND NOT (any named src group)` from the filter's own outputs.\n# Never gate a job on `any_src` directly (contract Invariant 1).\nany_src:\n  - 'src/**'\n"
+                  "filters": "consolidation:\n  - 'src/specify_cli/consolidation/**'\nauth:\n  - 'src/specify_cli/auth/**'\nmissions:\n  - 'src/specify_cli/mission.py'\n  - 'src/specify_cli/mission_metadata.py'\n  - 'src/specify_cli/missions/**'\n  - 'src/charter/offering/missions/**'\npost_merge:\n  - 'src/specify_cli/post_merge/**'\nrelease:\n  - 'src/specify_cli/release/**'\nstatus:\n  - 'src/specify_cli/status/**'\n  - 'src/specify_cli/coordination/**'\nreview:\n  - 'src/specify_cli/review/**'\nnext:\n  - 'src/specify_cli/runtime/**'\n  - 'src/runtime/next/**'\n  - 'src/mission_runtime/**'\nlanes:\n  - 'src/specify_cli/lanes/**'\nupgrade:\n  - 'src/specify_cli/upgrade/**'\ncli:\n  - 'src/specify_cli/cli/**'\ncharter:\n  - 'src/charter/**'\n  - 'src/specify_cli/charter_runtime/**'\nagent:\n  - 'src/specify_cli/agent_utils/**'\nkernel:\n  - 'src/kernel/**'\nglossary:\n  - 'src/glossary/**'\nexecution_context:\n  - 'src/mission_runtime/**'\n  - 'src/specify_cli/status/**'\n  - 'src/runtime/next/**'\n  - 'src/specify_cli/cli/commands/agent/**'\ncore_misc:\n  - 'src/kernel/**'\n  - 'src/charter/offering/**'\n  - 'src/specify_cli/core/**'\n  - 'src/specify_cli/coordination/**'\n  - 'src/specify_cli/doctrine_synthesizer/**'\n  - 'src/specify_cli/status/**'\n  - 'src/specify_cli/tool_surface/**'\n  - 'src/specify_cli/zeitgeist_client/**'\n  - 'src/specify_cli/workspace_lifecycle/**'\n# Test-inventory groups: tests/unit and tests/specify_cli/runtime had\n# no declared home in the module registry. Every glob below is a\n# verbatim copy of one another group already carries (scrub groups\n# `unit` / `specify_cli_runtime`), so no path's match set changes.\nunit:\n  - 'src/specify_cli/status/**'\n  - 'src/runtime/next/**'\n  - 'src/charter/offering/missions/**'\n  - 'src/kernel/**'\nspecify_cli_runtime:\n  - 'src/specify_cli/runtime/**'\n  - 'src/charter/offering/missions/**'\n  - 'src/specify_cli/core/**'\ndocs:\n  - 'docs/**'\n  - 'tests/docs/**'\n  - 'scripts/docs/**'\ncorpus:\n  - 'packs/**'\n  - 'kitty-specs/**/spec.md'\n  - 'kitty-specs/**/plan.md'\n  - 'kitty-specs/**/tasks/**'\n  - 'kitty-specs/**/contracts/**'\n  - 'kitty-specs/**/acceptance-matrix.json'\n  - '.kittify/charter/**'\n  - '.kittify/glossaries/**'\n  - 'contracts/**'\n  # Intended: an Op-journal commit under kitty-ops/ triggers the corpus job (the Ops read of the reality suite reads it).\n  - 'kitty-ops/**'\ne2e:\n  - 'tests/e2e/**'\n  - 'tests/cross_cutting/**'\n# CI-infrastructure group (spec-kitty#4386), mirroring the `ci` module\n# registry row and its scrub group 1:1. NON-src, like docs/corpus/e2e:\n# deliberately NOT in the unmatched loop below -- the FR-004 catch-all\n# is contractually the sensor for unmapped src/** CODE\n# (contracts/router-two-authority.md Invariants 1-2), and these paths\n# are not src and are now named, so there is nothing unmatched to\n# catch. No job gates on this group BY DESIGN: the per-PR executor for\n# these paths' guard suite (tests/ci) is the ci-modules.yml module\n# matrix, which runs on every PR; a `tests (ci)` job here would\n# double-run the suite per PR -- the exact duplicate class\n# tests/architectural/test_no_duplicate_suite_execution.py exists to\n# remove. The group makes the path family's routing visible and\n# asserted (tests/ci/test_ci_module_wiring.py) instead of silent.\nci:\n  - 'scripts/ci/**'\n  - '.github/workflows/**'\n# Architectural-gate group (spec-kitty#5168): NON-src (not in the\n# unmatched loop); gates only the heavy battery, the sole per-PR home\n# of tests/architectural (see .github/ci-module-registry.yml).\narchitectural:\n  - 'tests/architectural/**'\n# CI-configuration group (Mission ci-runtime-stabilisation, FR-007; contract\n# amendment kitty-specs/ci-runtime-stabilisation-01M3TZH6/contracts/\n# router-two-authority-amendment.md A1). NON-src (not in the unmatched loop);\n# gates ONLY the architectural battery, whose gates guard exactly these files.\n# Overlaps the `ci` group by design: `ci` keeps gating no router job (#4386).\nci_config:\n  - '.github/workflows/**'\n  - '.github/actions/**'\n  - 'scripts/ci/**'\n  - 'pytest.ini'\n  - 'pyproject.toml'\n  - 'Makefile'\n  - '.github/ci-module-registry.yml'\n  - '.github/ci-shard-timings.json'\n# Contract-tools group (#5558): NON-src (not in the unmatched loop); with `corpus`\n# (which owns contracts/**, pinned by tests/ci/test_contracts_routing.py) it gates\n# only `tests (contract tools)`. It names what the contract tool tests read or run on\n# beyond contracts/**: their own tests, the contract workflows, the locked environment, the\n# pytest configuration and conftest, and the lifecycle source event_mapping_check parses.\ncontract_tools:\n  - 'tests/contract/**'\n  - '.github/workflows/contracts.yml'\n  - '.github/workflows/contracts-release.yml'\n  - 'uv.lock'\n  - 'pyproject.toml'\n  - 'pytest.ini'\n  - 'tests/conftest.py'\n  # Not spelled src/...: a src/ glob would make this a src-backed group (a code-shard gate that\n  # belongs in the unmatched catch-all, scripts/ci/gate_selection.py), and this one is data-shaped.\n  # The file is the one event_mapping_check parses; the `status` group still routes it to its modules.\n  - '**/status/lifecycle_events.py'\n  # The src files the mission-status reference reader (tests/contract/_mission_status_*.py) and its tests import,\n  # spelled the same way and for the same reason: a change to one of them must run `tests (contract tools)`, which is\n  # their only per-PR home, plus the src files the contract's x-derived blocks cite. Pinned by\n  # tests/ci/test_contracts_workflows.py, which derives the list from the imports and from the x-derived paths.\n  - '**/kernel/clock.py'\n  - '**/kernel/errors.py'\n  - '**/kernel/git/__init__.py'\n  - '**/kernel/git/listing.py'\n  - '**/mission_runtime/__init__.py'\n  - '**/mission_runtime/context.py'\n  - '**/mission_runtime/identity.py'\n  - '**/specify_cli/audit/classifiers/status_json.py'\n  - '**/specify_cli/audit/models.py'\n  - '**/specify_cli/cli/commands/agent/tasks_move_task.py'\n  - '**/specify_cli/cli/commands/invocations_cmd.py'\n  - '**/specify_cli/consolidation/baseline.py'\n  - '**/specify_cli/context/__init__.py'\n  - '**/specify_cli/context/mission_resolver.py'\n  - '**/specify_cli/coordination/surface_resolver.py'\n  - '**/specify_cli/coordination/workspace.py'\n  - '**/specify_cli/core/dependency_graph.py'\n  - '**/specify_cli/core/git_ops.py'\n  - '**/specify_cli/core/paths.py'\n  - '**/specify_cli/core/stale_detection.py'\n  - '**/specify_cli/core/subtask_rows.py'\n  - '**/specify_cli/core/vcs/git.py'\n  - '**/specify_cli/core/version_checker.py'\n  - '**/specify_cli/frontmatter.py'\n  - '**/specify_cli/git/remote_probes.py'\n  - '**/specify_cli/invocation/errors.py'\n  - '**/specify_cli/invocation/modes.py'\n  - '**/specify_cli/invocation/record.py'\n  - '**/specify_cli/invocation/writer.py'\n  - '**/specify_cli/lanes/_git.py'\n  - '**/specify_cli/lanes/branch_naming.py'\n  - '**/specify_cli/lanes/compute.py'\n  - '**/specify_cli/lanes/models.py'\n  - '**/specify_cli/lanes/persistence.py'\n  - '**/specify_cli/migration/__init__.py'\n  - '**/specify_cli/migration/schema_version.py'\n  - '**/specify_cli/mission_metadata.py'\n  - '**/specify_cli/missions/_read_path_resolver.py'\n  - '**/specify_cli/ownership/validation.py'\n  - '**/specify_cli/policy/commit_guard.py'\n  - '**/specify_cli/review/artifacts.py'\n  - '**/specify_cli/review/cycle.py'\n  - '**/specify_cli/status/__init__.py'\n  - '**/specify_cli/status/aggregate.py'\n  - '**/specify_cli/status/doctor.py'\n  - '**/specify_cli/status/lifecycle.py'\n  - '**/specify_cli/status/models.py'\n  - '**/specify_cli/status/progress.py'\n  - '**/specify_cli/status/reducer.py'\n  - '**/specify_cli/status/store.py'\n  - '**/specify_cli/status/tail_reader.py'\n  - '**/specify_cli/status/validate.py'\n  - '**/specify_cli/status/wp_metadata.py'\n  - '**/specify_cli/status/wp_review.py'\n  - '**/specify_cli/status/wp_view.py'\n  - '**/specify_cli/upgrade/metadata.py'\n  - '**/specify_cli/workspace/context.py'\n# FR-004 probe: matches ANY src change. The `unmatched` step computes\n# `any_src AND NOT (any named src group)` from the filter's own outputs.\n# Never gate a job on `any_src` directly (contract Invariant 1).\nany_src:\n  - 'src/**'\n"
                 }
               },
               {

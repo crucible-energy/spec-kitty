@@ -276,7 +276,6 @@
         "kitty-specs/**/acceptance-matrix.json",
         ".kittify/charter/**",
         ".kittify/glossaries/**",
-        ".kittify/doctrine/**",
         "contracts/**",
         "kitty-ops/**"
       ],

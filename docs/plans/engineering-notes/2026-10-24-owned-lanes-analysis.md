@@ -251,3 +251,75 @@ by the hosted job lifecycle; this step does not prune shared caches. Local test
 resources and raw failures remain in the external recovery bundle. This source
 fix grants no runtime admission, production authority, PDB source access, fit or
 unhold.
+
+## 2026-10-25 — Preserve actual hosted failures and repair publication metadata
+
+### User Experience Findings
+
+Hosted checks at the combined source passed the Linux compiler provisioning
+step, then exposed additional integration gaps: missing required frontmatter in
+the lifecycle correction note, a filter still naming removed tracked doctrine
+assets, four Linux creator-operation refusals, and archive classification of
+live planning files in the stacked branch. Fail-fast canceled sibling module
+jobs; they are not passing or complete owning-suite evidence.
+
+### Engineering Decisions
+
+The existing migration owner released only the correction note's frontmatter
+for this lane. Add its canonical description and active document status while
+preserving the exact body bytes. The migration owner retains the Linux
+creator-operation diagnosis and archive/live-in-stack boundary. The stale-filter
+repair requires exact delegated workflow review and source-epoch rederivation;
+no dummy asset, missing-tool skip or changed-source waiver is appropriate.
+
+### Known Limitations
+
+The published combined source remains red. Local passes and successful compiler
+setup do not replace actual Linux suite completion. Failed logs, canceled job
+identities, prior planning/status history and both source revisions remain
+retained. No archive policy, source authority, runtime admission, HELD/v5, fit
+or unhold effect follows from these publication repairs.
+
+The delegated owner approved deletion of exactly the retired doctrine filter
+after independently confirming zero tracked files remain there. Its reviewed
+router preimage is f24918e; the result is b2816b9. The canonical extractor epoch,
+source contracts and inventory are regenerated from that exact source. All
+other live filters, jobs, statuses, triggers, budgets and changed-source refusal
+controls remain intact. The hosted CI-module job was canceled by fail-fast
+before completion: its successful compiler provision is not a passing suite.
+
+The interrupted affected run has no retained terminal result. Its focused
+unchanged-source diagnostic joined with 642 passes and two concrete failures:
+the scrub's routing-documentation mirror still carried the retired glob, and
+a corpus-selection positive row still expected that retired path to trigger.
+The delegated owner approved matching mirror removal and moving that existing
+row into the negative truth table. Total rows, assertion functions and all live
+positive controls are preserved; the retirement is tested, not silently omitted.
+The original partial and diagnostic logs remain failures, separate from the
+completed mandatory baseline. Final affected checks retain individual test IDs
+so an interruption need not discard their diagnostic identity.
+
+The completed affected run retained 5,254 passes, 40 declared skips and one
+failure in the derived native stopped-child cancellation control. Its imported
+five-poll trigger never established that the child had stopped before requesting
+cancellation. The failing PID bytes were not logged, so empty early capture is
+an explanation to test, not a reconstructed fact about that run.
+
+The delegated owner approved replacing only this derived control's trigger with
+a kernel CLD_STOPPED witness observed using WNOWAIT. It must match the captured
+owned leader PID before the test can pass; an unrelated stopped child cannot be
+credited. Cancellation, terminal reap, group disposal, PID parsing and liveness
+assertions remain, with unchanged limits and test count. The historical source
+fixture and its digest remain untouched. Invalid PID bytes now have explicit
+bounded diagnostics. This corrects a missing test precondition, not production
+process-ownership logic or a claim that the original transient is fully explained.
+
+The stop-only focused rerun retained an actual empty PID capture. A stopped
+producer has written its bytes, but cancellation can precede the parent's next
+pipe read; this is not proof that already-retained data was lost. Refine the
+same control using the existing synchronous retained monitor: it reports actual
+owned preview bytes and returns no failure, while the original cancellation
+probe still requires the kernel stop. The final parsed PID must still match the
+witness exactly, so partial or incorrect captures remain visible failures. No
+output is reconstructed, no limit widened, and no production path changed.
+Both failed control runs remain retained beside the delegated v2 review.

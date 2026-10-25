@@ -1,5 +1,7 @@
 ---
 title: Lifecycle integration acceptance corrections
+description: Source and fixture corrections for lifecycle integration, with retained failure evidence and explicit qualification limits.
+doc_status: active
 type: explanation
 audience: software-engineer
 updated: 2026-10-24

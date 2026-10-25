@@ -231,7 +231,6 @@ jobs:
               - 'kitty-specs/**/acceptance-matrix.json'
               - '.kittify/charter/**'
               - '.kittify/glossaries/**'
-              - '.kittify/doctrine/**'
               - 'contracts/**'
               # Intended: an Op-journal commit under kitty-ops/ triggers the corpus job (the Ops read of the reality suite reads it).
               - 'kitty-ops/**'
