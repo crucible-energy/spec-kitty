@@ -789,12 +789,18 @@ def test_linux_runtime_guard_preserves_dependencies_and_unknown_visibility(tmp_p
     import psutil
 
     class Process:
+        pid = 123
+
         def uids(self) -> SimpleNamespace:
             if case == "denied":
                 raise psutil.AccessDenied(123)
             if case == "exited":
                 raise psutil.NoSuchProcess(123)
-            return SimpleNamespace(real=os.getuid() + (case == "other_user"))
+            uid = os.getuid() + (case == "other_user")
+            return SimpleNamespace(real=uid, effective=uid, saved=uid)
+
+        def status(self) -> str:
+            return "sleeping"
 
         def cwd(self) -> str:
             if case == "denied_cwd":
@@ -835,10 +841,121 @@ def test_linux_runtime_guard_preserves_dependencies_and_unknown_visibility(tmp_p
     if case.startswith("denied"):
         assert diagnostic["stage"] == {"denied": "uids", "denied_cwd": "cwd", "denied_exe": "exe", "denied_files": "open_files"}[case]
         assert diagnostic["error_type"] == "AccessDenied"
+        denied = object_at(diagnostic, "denied_process_observation")
+        assert denied["pid"] == 123
+        assert denied["state"] == "sleeping" and denied["state_observation"] == "observed"
+        assert denied["uid_matches_owner"] == dict.fromkeys(("real", "effective", "saved"), None if case == "denied" else True)
+    else:
+        assert "denied_process_observation" not in diagnostic
     if case == "expired":
         assert diagnostic["outcome"] == "budget_exhausted"
     assert str(tmp_path) not in json.dumps(diagnostic)
     assert adapters._runtime_diagnostic.get() is None
+
+
+@pytest.mark.parametrize("case", ["zombie", "gone", "state_denied", "invalid_state", "effective_other", "invalid_pid", "deadline", "timed_state", "no_context"])
+def test_denied_process_observation_never_grants_visibility(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str) -> None:
+    import time
+    from types import SimpleNamespace
+
+    import psutil
+
+    from specify_cli.workspace_lifecycle import adapters
+
+    clock = [10.0]
+    state_calls: list[int] = []
+
+    class Process:
+        pid = True if case == "invalid_pid" else 321
+
+        def uids(self) -> SimpleNamespace:
+            return SimpleNamespace(real=1000, effective=1001 if case == "effective_other" else 1000, saved=1000)
+
+        def cwd(self) -> NoReturn:
+            if case == "deadline":
+                clock[0] = 16.0
+            raise psutil.AccessDenied(321, name=str(tmp_path))
+
+        def status(self) -> str:
+            state_calls.append(321)
+            if case == "timed_state":
+                clock[0] = 12.0
+            if case == "gone":
+                raise psutil.NoSuchProcess(321)
+            if case == "state_denied":
+                raise psutil.AccessDenied(321, name=str(tmp_path))
+            return str(tmp_path) if case == "invalid_state" else "zombie" if case == "zombie" else "sleeping"
+
+    monkeypatch.setattr(adapters, "sys", SimpleNamespace(platform="linux"))
+    monkeypatch.setattr(os, "getuid", lambda: 1000, raising=False)
+    monkeypatch.setattr(psutil, "process_iter", lambda: iter([Process()]))
+    if case in {"deadline", "timed_state"}:
+        monkeypatch.setattr(time, "monotonic", lambda: clock[0])
+    diagnostic: dict[str, object] = {}
+    token = adapters._runtime_diagnostic.set(None if case == "no_context" else diagnostic)
+    try:
+        assert adapters._runtime_state(tmp_path) == (False, False)
+        if case == "no_context":
+            assert not state_calls and not diagnostic
+            return
+        denied = object_at(diagnostic, "denied_process_observation")
+        assert denied["pid"] == (None if case == "invalid_pid" else 321)
+        assert object_at(denied, "uid_matches_owner") == {"real": True, "effective": case != "effective_other", "saved": True}
+        assert denied["state_observation"] == (
+            "unavailable" if case in {"gone", "state_denied"} else "invalid" if case == "invalid_state" else "deadline" if case == "deadline" else "observed"
+        )
+        if case in {"gone", "state_denied"}:
+            assert denied["state"] is None
+            assert denied["state_error_type"] == ("NoSuchProcess" if case == "gone" else "AccessDenied")
+        if case == "deadline":
+            assert not state_calls and denied["state"] is None
+        if case == "zombie":
+            assert denied["state"] == "zombie"
+        if case == "timed_state":
+            assert diagnostic["elapsed_seconds"] == 2.0
+        assert str(tmp_path) not in json.dumps(diagnostic)
+        monkeypatch.setattr(psutil, "process_iter", lambda: iter([]))
+        assert adapters._runtime_state(tmp_path) == (False, True)
+        assert "denied_process_observation" not in diagnostic
+    finally:
+        adapters._runtime_diagnostic.reset(token)
+
+
+@pytest.mark.parametrize("previous", ["exited", "other_user"])
+def test_enumeration_failure_does_not_attribute_the_previous_process(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, previous: str) -> None:
+    from collections.abc import Iterator
+    from types import SimpleNamespace
+
+    import psutil
+
+    from specify_cli.workspace_lifecycle import adapters
+
+    class Process:
+        pid = 777
+
+        def uids(self) -> SimpleNamespace:
+            if previous == "exited":
+                raise psutil.NoSuchProcess(777)
+            return SimpleNamespace(real=1001)
+
+        def status(self) -> NoReturn:
+            pytest.fail("A failed enumeration cannot inspect the preceding process.")
+
+    def processes() -> Iterator[Process]:
+        yield Process()
+        raise psutil.AccessDenied(None)
+
+    monkeypatch.setattr(adapters, "sys", SimpleNamespace(platform="linux"))
+    monkeypatch.setattr(os, "getuid", lambda: 1000, raising=False)
+    monkeypatch.setattr(psutil, "process_iter", processes)
+    diagnostic: dict[str, object] = {}
+    token = adapters._runtime_diagnostic.set(diagnostic)
+    try:
+        assert adapters._runtime_state(tmp_path) == (False, False)
+    finally:
+        adapters._runtime_diagnostic.reset(token)
+    assert diagnostic["stage"] == "enumeration"
+    assert "denied_process_observation" not in diagnostic
 
 
 def test_shallow_recovery_obligation_preserves_checkout_and_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -402,15 +402,49 @@ def _runtime_result(
     stage: str,
     observed: int | None,
     started: float,
+    denied_process: dict[str, object] | None = None,
 ) -> tuple[bool, bool]:
     if (diagnostic := _runtime_diagnostic.get()) is not None:
+        diagnostic.pop("denied_process_observation", None)
         diagnostic.update(
             provider=provider, stage=stage, processes_observed=observed, elapsed_seconds=round(time.monotonic() - started, 6), complete=complete, outcome=outcome
         )
         diagnostic.pop("error_type", None)
         if error is not None:
             diagnostic["error_type"] = type(error).__name__
+        if denied_process is not None:
+            diagnostic["denied_process_observation"] = denied_process
     return held, complete
+
+
+def _observe_denied_process(
+    process: psutil.Process | None, uids: object, owner_uid: int | None, stage: str, deadline: float, error: BaseException
+) -> dict[str, object] | None:
+    """Explain an already-retained result; these facts never establish identity or release."""
+    diagnostic = _runtime_diagnostic.get()
+    if diagnostic is None or process is None or not isinstance(error, psutil.AccessDenied) or stage not in {"uids", "cwd", "exe", "open_files"}:
+        return None
+    uid_matches: dict[str, bool | None] = {}
+    for field in ("real", "effective", "saved"):
+        value = getattr(uids, field, None)
+        uid_matches[field] = value == owner_uid if type(value) is int and owner_uid is not None else None
+    pid = process.pid
+    observation: dict[str, object] = {
+        "pid": pid if type(pid) is int and pid > 0 else None,
+        "uid_matches_owner": uid_matches,
+        "state": None,
+        "state_observation": "deadline",
+    }
+    if time.monotonic() < deadline:
+        try:
+            state = process.status()
+            if isinstance(state, str) and re.fullmatch(r"[a-z-]{1,32}", state):
+                observation.update(state=state, state_observation="observed")
+            else:
+                observation["state_observation"] = "invalid"
+        except (OSError, psutil.Error, AttributeError) as state_error:
+            observation.update(state_observation="unavailable", state_error_type=type(state_error).__name__)
+    return observation
 
 
 def _runtime_state(root: Path) -> tuple[bool, bool]:
@@ -424,8 +458,8 @@ def _runtime_state(root: Path) -> tuple[bool, bool]:
     stage = "start"
     observed: int | None = 0 if sys.platform == "linux" else None
 
-    def result(held: bool, complete: bool, outcome: str, error: BaseException | None = None) -> tuple[bool, bool]:
-        return _runtime_result(held, complete, outcome, error, provider=provider, stage=stage, observed=observed, started=started)
+    def result(held: bool, complete: bool, outcome: str, error: BaseException | None = None, denied_process: dict[str, object] | None = None) -> tuple[bool, bool]:
+        return _runtime_result(held, complete, outcome, error, provider=provider, stage=stage, observed=observed, started=started, denied_process=denied_process)
 
     if sys.platform == "darwin":
         stage = "lsof"
@@ -450,15 +484,22 @@ def _runtime_state(root: Path) -> tuple[bool, bool]:
         return result(False, False, "unsupported_platform")
     inherited = process_deadline()
     deadline = min(time.monotonic() + 5, inherited if inherited is not None else float("inf"))
+    observed_process: psutil.Process | None = None
+    observed_uids: object = None
+    observed_owner_uid: int | None = None
     try:
         stage = "enumeration"
         for index, process in enumerate(psutil.process_iter()):
             observed = index + 1
             if index >= 10000 or time.monotonic() >= deadline:
                 return result(False, False, "budget_exhausted")
+            observed_process, observed_uids, observed_owner_uid = process, None, None
             try:
                 stage = "uids"
-                if process.uids().real != os.getuid():
+                uids = process.uids()
+                observed_uids, observed_owner_uid = uids, os.getuid()
+                if uids.real != observed_owner_uid:
+                    stage = "enumeration"
                     continue
                 stage = "cwd"
                 cwd = process.cwd()
@@ -470,11 +511,13 @@ def _runtime_state(root: Path) -> tuple[bool, bool]:
                 if any(path and (Path(path) == root or root in Path(path).parents) for path in paths):
                     return result(True, True, "holder_found")
             except psutil.NoSuchProcess:
+                stage = "enumeration"
                 continue
             stage = "enumeration"
         return result(False, True, "no_holders")
     except (OSError, psutil.Error) as error:
-        return result(False, False, "unavailable", error)
+        observation = _observe_denied_process(observed_process, observed_uids, observed_owner_uid, stage, deadline, error)
+        return result(False, False, "unavailable", error, observation)
 
 
 def _metadata_visibility_failure(outcome: str, error: BaseException | None = None) -> None:
