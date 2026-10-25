@@ -41,18 +41,14 @@ setup, not a mock. Verified RED against pre-fix ``executor.py``/``state.py``
 
 from __future__ import annotations
 
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
+
 import json
 from pathlib import Path
 
 import pytest
 
-from tests.terminus.conftest import (
-    CoordMission,
-    blob_present_at,
-    build_coord_mission,
-    run_terminus,
-    sha_reachable,
-)
+from tests.terminus.conftest import CoordMission, blob_present_at, run_terminus, sha_reachable
 from tests.terminus.conftest import _git as git
 from tests.terminus.conftest import _git_out as git_out
 

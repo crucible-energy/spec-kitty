@@ -25,17 +25,14 @@ setup, not a mock.
 
 from __future__ import annotations
 
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
+
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from tests.terminus.conftest import (
-    CoordMission,
-    build_coord_mission,
-    run_terminus,
-    sha_reachable,
-)
+from tests.terminus.conftest import CoordMission, run_terminus, sha_reachable
 from tests.terminus.conftest import _git as git
 from tests.terminus.conftest import _git_out as git_out
 

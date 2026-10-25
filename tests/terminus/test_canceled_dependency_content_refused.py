@@ -21,13 +21,14 @@ approved dependency anchor dropped) turn them red.
 
 from __future__ import annotations
 
+from tests.terminus.feature_fixture_support import feature_build_lanes_mission_canceled_dependency as build_lanes_mission_canceled_dependency
+
 import subprocess
 from pathlib import Path
 
 import pytest
 
 from tests.terminus.conftest import blob_present_at, run_terminus
-from tests.terminus.lanes_fixture import build_lanes_mission_canceled_dependency
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo, pytest.mark.regression]
 

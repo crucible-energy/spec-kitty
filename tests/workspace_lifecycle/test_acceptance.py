@@ -32,23 +32,44 @@ def fake_gh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, owner: Any, *, hung
     directory.mkdir()
     marker = tmp_path / "inventory-processes.json"
     repository = {"id": 7, "full_name": "crucible-energy/example", "default_branch": "main"}
+    source = git(Path(owner.identity.path), "rev-parse", "HEAD")
+    # Accepted server delivery is a real bare-remote commit, independent of the
+    # checked-out local default branch and the API fixture response.
+    git(Path(owner.identity.path), "push", str(tmp_path / "origin.git"), "HEAD:refs/heads/main")
+    reviews = {
+        "data": {
+            "repository": {
+                "databaseId": 7,
+                "pullRequest": {
+                    "headRefOid": source,
+                    "headRef": None,
+                    "mergeCommit": {"oid": source},
+                    "reviewThreads": {"nodes": [], "pageInfo": {"hasNextPage": False, "endCursor": None}},
+                },
+            }
+        }
+    }
     pull = {
         "number": 9,
         "merged": True,
         "state": "closed",
         "merged_at": "2026-10-21",
-        "merge_commit_sha": "b" * 40,
+        "merge_commit_sha": source,
         "head": {"ref": owner.identity.branch.removeprefix("refs/heads/"), "sha": git(Path(owner.identity.path), "rev-parse", "HEAD"), "repo": repository},
         "base": {"ref": "main", "repo": repository},
     }
-    script = f"#!{sys.executable}\nimport json,os,subprocess,sys,time\nfrom pathlib import Path\nrepository={repository!r}\npull={pull!r}\n"
+    script = f"#!{sys.executable}\nimport json,os,subprocess,sys,time\nfrom pathlib import Path\nrepository={repository!r}\npull={pull!r}\nreviews={reviews!r}\n"
     if hung:
         script += (
             "child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(5)'])\n"
             f"Path({str(marker)!r}).write_text(json.dumps([os.getpid(),child.pid]))\n"
             "time.sleep(5)\n"
         )
-    script += "endpoint=sys.argv[-1]\nprint(json.dumps([repository] if endpoint.startswith('orgs/') else pull if '/pulls/' in endpoint else repository))\n"
+    script += (
+        "endpoint=sys.argv[-1]\n"
+        "value=[repository] if endpoint.startswith('orgs/') else reviews if endpoint == 'graphql' else pull if '/pulls/' in endpoint else repository\n"
+        "print(json.dumps(value))\n"
+    )
     tool = directory / "gh"
     tool.write_text(script)
     tool.chmod(0o700)

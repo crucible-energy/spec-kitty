@@ -26,19 +26,13 @@ is out of scope for this mission either way).
 
 from __future__ import annotations
 
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
+
 from pathlib import Path
 
 import pytest
 
-from tests.terminus.conftest import (
-    CoordMission,
-    blob_present_at,
-    build_coord_mission,
-    patch_ids_in_window,
-    plant_canceled_commit,
-    run_terminus,
-    sha_reachable,
-)
+from tests.terminus.conftest import CoordMission, blob_present_at, patch_ids_in_window, plant_canceled_commit, run_terminus, sha_reachable
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
 

@@ -28,6 +28,8 @@ later commit does not survive to the target â†’ the "survives" assertion fails â
 
 from __future__ import annotations
 
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
+
 import json
 import subprocess
 from pathlib import Path
@@ -36,7 +38,7 @@ import pytest
 
 from specify_cli.coordination.status_transition import emit_status_transition_transactional
 from specify_cli.status.models import TransitionRequest
-from tests.terminus.conftest import CoordMission, build_coord_mission, run_terminus
+from tests.terminus.conftest import CoordMission, run_terminus
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
 

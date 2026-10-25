@@ -32,6 +32,8 @@ the authority, and a verified landing no longer refused. Guards:
 
 from __future__ import annotations
 
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
+
 from pathlib import Path
 
 import pytest
@@ -39,7 +41,7 @@ import pytest
 from kernel.git import GitCommandError
 
 from specify_cli.consolidation import executor
-from tests.terminus.conftest import blob_present_at, build_coord_mission, run_terminus
+from tests.terminus.conftest import blob_present_at, run_terminus
 from tests.terminus.rollback_harness import (
     assert_report_is_truthful,
     failing_gate_run,

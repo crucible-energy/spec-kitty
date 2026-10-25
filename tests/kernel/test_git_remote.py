@@ -499,3 +499,51 @@ def test_two_clone_helper_smoke(world: tuple[Path, Path], tmp_path: Path) -> Non
     pushed = _commit(second, "s.txt")
     _git(second, "push", "-q", "origin", "main")
     assert remote_heads(work, "origin", ["main"]) == {"main": pushed}
+
+
+def test_evidence_fetch_moves_only_private_ref_despite_mirror_mapping(world: tuple[Path, Path]) -> None:
+    bare, work = world
+    original = _git(work, "rev-parse", "HEAD")
+    writer = work.parent / "writer"
+    _git(work, "clone", str(bare), str(writer))
+    _git(writer, "config", "user.name", "T")
+    _git(writer, "config", "user.email", "t@example.invalid")
+    _git(writer, "checkout", "main")
+    latest = _commit(writer, "new.md", "accepted remote")
+    _git(writer, "push", "origin", "main")
+    _git(work, "config", "remote.origin.fetch", "+refs/heads/*:refs/heads/*")
+    destination = "refs/spec-kitty/test-delivery/default"
+    git_remote.fetch_evidence_ref(work, "origin", "refs/heads/main", destination, timeout=5)
+    assert _git(work, "rev-parse", destination) == latest
+    assert _git(work, "rev-parse", "HEAD") == original
+    assert not (work / "new.md").exists()
+
+
+@pytest.mark.parametrize(
+    "source,destination",
+    [
+        ("refs/tags/tag", "refs/spec-kitty/test/default"),
+        ("refs/heads/main", "refs/heads/main"),
+        ("refs/heads/main", "refs/spec-kitty/../bad"),
+    ],
+)
+def test_evidence_fetch_refuses_unsafe_refspec_before_contact(world: tuple[Path, Path], source: str, destination: str) -> None:
+    _, work = world
+    before = _git(work, "rev-parse", "HEAD")
+    with pytest.raises((ValueError, GitCommandError)):
+        git_remote.fetch_evidence_ref(work, "/unreachable", source, destination, timeout=1)
+    assert _git(work, "rev-parse", "HEAD") == before
+
+
+@pytest.mark.parametrize("timeout", [0, -1, float("inf"), float("nan")])
+def test_evidence_fetch_requires_bounded_contact(world: tuple[Path, Path], timeout: float) -> None:
+    _, work = world
+    with pytest.raises(ValueError, match="Finite positive"):
+        git_remote.fetch_evidence_ref(work, "/unreachable", "refs/heads/main", "refs/spec-kitty/test/default", timeout=timeout)
+
+
+def test_evidence_fetch_unreachable_is_not_absence(world: tuple[Path, Path]) -> None:
+    _, work = world
+    with pytest.raises(RemoteUnreachable):
+        git_remote.fetch_evidence_ref(work, "/unreachable", "refs/heads/main", "refs/spec-kitty/test/default", timeout=1)
+    assert _git(work, "for-each-ref", "--format=%(refname)", "refs/spec-kitty/") == ""

@@ -1,21 +1,21 @@
 {
-  "event_count": 45,
-  "last_event_id": "01M5EKPWRXK82KPVMKFFEYGAMN",
-  "materialized_at": "2026-10-21T06:52:19.613665+00:00",
+  "event_count": 67,
+  "last_event_id": "01M5R7MZ391T1Y4TFB115064XQ",
+  "materialized_at": "2026-10-25T00:33:57.865542+00:00",
   "mission_number": "",
   "mission_slug": "organization-workspace-lifecycle-01M5DRAR",
   "mission_type": "software-dev",
   "schema_version": 2,
   "summary": {
-    "approved": 7,
+    "approved": 8,
     "blocked": 0,
     "canceled": 0,
     "claimed": 0,
     "done": 0,
     "for_review": 0,
-    "in_progress": 0,
+    "in_progress": 2,
     "in_review": 0,
-    "planned": 0
+    "planned": 2
   },
   "work_packages": {
     "WP01": {
@@ -217,6 +217,98 @@
       "subtasks": {
         "T007": "done"
       }
+    },
+    "WP08": {
+      "actor": "reviewer-renata",
+      "agent": "reviewer-renata",
+      "agent_profile": "__resolved_profile_absent__",
+      "agent_profile_version": "__resolved_profile_version_absent__",
+      "assignee": "crucible-workspace-closeout",
+      "force_count": 1,
+      "lane": "approved",
+      "last_event_id": "01M5QYSXQJBFFHEFB1C39TEKTC",
+      "last_transition_at": "2026-10-24T21:59:23.122855+00:00",
+      "model": "__resolved_model_absent__",
+      "notes": [
+        "Existing lane owner assigned; native finish obligations, safe persistence and no retirement authority.",
+        "Native finish-store source32332053 plus final tests at f131e0df: Debug/ReleaseSafe7pass, real CLI restart/stale/missing-history/archive-restore proof, no deletion authority; independent reviewer requested.",
+        "Record independent01a13e15 reviewer changes requested on exactf131e0df: umask publication metadata and mandatory persisted envelope; no approval inferred.",
+        "Independent r1 findings reproduced by two failing native regressions; repairing only new-file metadata and required persisted envelope.",
+        "Independent coordinator Reviewer Renata R2 approved exact native source SHA256 587936899f3bb3912701ae5b4f41d872bff1193e0da688656e3c674fe3252ad1; both reproduced R1 defects replayed fixed; external receipt /Users/sam/Documents/Codex/2026-10-15/we-re-x20/outputs/lifecycle-wp08-independent-review-r2.json. Bounded source only, not retirement or rollout approval."
+      ],
+      "provider": "__resolved_provider_absent__",
+      "review": null,
+      "review_result": {
+        "reference": "review-cycle://organization-workspace-lifecycle-01M5DRAR/WP08-native-durable-useful-work-finish-obligations/review-cycle-2.md",
+        "reviewer": "reviewer-renata",
+        "verdict": "approved"
+      },
+      "role": "reviewer",
+      "shell_pid": null,
+      "shell_pid_created_at": null,
+      "subtasks": {
+        "T008": "done"
+      }
+    },
+    "WP09": {
+      "actor": "finalize-tasks",
+      "force_count": 0,
+      "lane": "planned",
+      "last_event_id": "01M5QVB086RHS1EH00007T3C52",
+      "last_transition_at": "2026-10-24T20:58:48.454911+00:00"
+    },
+    "WP10": {
+      "actor": "finalize-tasks",
+      "force_count": 0,
+      "lane": "planned",
+      "last_event_id": "01M5QVB0RJNXCHS02MRCMX85DE",
+      "last_transition_at": "2026-10-24T20:58:48.978709+00:00"
+    },
+    "WP11": {
+      "actor": "codex",
+      "agent": "codex",
+      "agent_profile": "__resolved_profile_absent__",
+      "agent_profile_version": "__resolved_profile_version_absent__",
+      "assignee": "crucible-workspace-closeout",
+      "force_count": 1,
+      "lane": "in_progress",
+      "last_event_id": "01M5R0WSBKF50QP1ZVJX4A6SX3",
+      "last_transition_at": "2026-10-24T22:35:54.099960+00:00",
+      "model": "__resolved_model_absent__",
+      "notes": [
+        "Independent retained-runtime safety repair: fresh delivery/recovery/runtime preservation before rollout; WP08 review proceeds separately.",
+        "Frozen source597207757:208 targeted behavior/architecture controls pass, strict mypy/Ruff pass, required changed-statement gate93.8% (exact ratio in external report), external evidence under closeout outputs/lifecycle-wp11-*-r7.*. Independent review requested; not approved, released or deployed."
+      ],
+      "provider": "__resolved_provider_absent__",
+      "review": null,
+      "review_result": {
+        "feedback_path": "/Users/sam/git/crucible/spec-kitty/.worktrees/review-thread-closure-upstream/kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP11-retirement-delivery-and-recovery-proof/review-cycle-1.md",
+        "reference": "review-cycle://organization-workspace-lifecycle-01M5DRAR/WP11-retirement-delivery-and-recovery-proof/review-cycle-1.md",
+        "reviewer": "reviewer-renata",
+        "verdict": "changes_requested"
+      },
+      "role": "implementer",
+      "shell_pid": null,
+      "shell_pid_created_at": null,
+      "subtasks": {
+        "T011": "planned"
+      }
+    },
+    "WP12": {
+      "actor": "codex",
+      "agent": "codex",
+      "agent_profile": "__resolved_profile_absent__",
+      "agent_profile_version": "__resolved_profile_version_absent__",
+      "force_count": 0,
+      "lane": "in_progress",
+      "last_event_id": "01M5R7MZ391T1Y4TFB115064XQ",
+      "last_transition_at": "2026-10-25T00:33:57.865542+00:00",
+      "model": "__resolved_model_absent__",
+      "notes": [
+        "Own inherited PR-only fixture propagation, canonical OS door and explicit internal Op custody contract; selected four regressions reproduced against acaed before repair."
+      ],
+      "provider": "__resolved_provider_absent__",
+      "role": "implementer"
     }
   }
 }

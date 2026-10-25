@@ -21,15 +21,13 @@ authored SHAs/patch-ids (T005).
 
 from __future__ import annotations
 
+from tests.terminus.feature_fixture_support import feature_build_coord_mission_mixed_lane as build_coord_mission_mixed_lane
+
 from pathlib import Path
 
 import pytest
 
-from tests.terminus.conftest import (
-    build_coord_mission_mixed_lane,
-    run_terminus,
-    sha_reachable,
-)
+from tests.terminus.conftest import run_terminus, sha_reachable
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo, pytest.mark.regression]
 

@@ -903,6 +903,7 @@ def build_coord_mission_mixed_lane_canceled(
     wp02_final: Literal["canceled", "approved"] = "canceled",
     mid8: str = "01M5046A",
     extra_base_files: Mapping[str, str] | None = None,
+    target_branch: str = "main",
 ) -> CoordMission:
     """One shared lane holding a real committed-then-canceled WP02 beside an
     approved WP01 (FR-007, SC-005, T003) — the fixture that reproduces #5046's
@@ -1000,7 +1001,7 @@ def build_coord_mission_mixed_lane_canceled(
     from specify_cli.lanes.models import ExecutionLane, LanesManifest
     from specify_cli.lanes.persistence import write_lanes_json
 
-    mission = _init_fixture_repo(tmp_path, mid8=mid8, slug=slug, target_branch="main", extra_base_files=extra_base_files)
+    mission = _init_fixture_repo(tmp_path, mid8=mid8, slug=slug, target_branch=target_branch, extra_base_files=extra_base_files)
 
     (mission.feature_dir / "tasks").mkdir(parents=True)
     _write_meta(mission)
@@ -1416,7 +1417,8 @@ def run_terminus(
     process_env = _cli_env(mission.home)
     if env is not None:
         process_env.update(env)
-    return subprocess.run(
+    primary_before = git_rev(mission.repo, "main") if mission.target_branch != "main" else None
+    result = subprocess.run(
         [sys.executable, "-m", "specify_cli", *args],
         cwd=str(mission.repo),
         env=process_env,
@@ -1425,6 +1427,9 @@ def run_terminus(
         check=False,
         timeout=180,
     )
+    if primary_before and args and args[0] == "consolidate":
+        assert git_rev(mission.repo, "main") == primary_before, "Feature consolidation advanced the actual primary branch"
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -1453,6 +1458,7 @@ def build_coord_mission_mixed_lane_with_dependency(
     *,
     canceled_leaks: bool,
     mid8: str = "01M5046D",
+    target_branch: str = "main",
 ) -> CoordMission:
     """A mixed lane (``lane-b``: approved WP01 + canceled WP02) that DEPENDS on
     another lane (``lane-a``: approved WP03) — the governed allocator shape
@@ -1469,7 +1475,7 @@ def build_coord_mission_mixed_lane_with_dependency(
 
     mid8 = mid8.upper()
     slug = f"terminus-{mid8}"
-    mission = _init_fixture_repo(tmp_path, mid8=mid8, slug=slug, target_branch="main")
+    mission = _init_fixture_repo(tmp_path, mid8=mid8, slug=slug, target_branch=target_branch)
     (mission.feature_dir / "tasks").mkdir(parents=True)
     _write_meta(mission)
 

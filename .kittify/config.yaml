@@ -5,7 +5,7 @@ agents:
   - claude
   - codex
   - cursor
-  auto_commit: false
+  auto_commit: true
   lint_on_edit: true
 project:
   uuid: 8a4a7da6-a97c-4bb4-893a-b31664abfee4

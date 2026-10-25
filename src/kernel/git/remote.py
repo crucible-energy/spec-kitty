@@ -16,6 +16,7 @@ an empty result, so a caller cannot mistake "could not ask" for "asked, absent".
 from __future__ import annotations
 
 import os
+import math
 import shlex
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -248,6 +249,50 @@ def fetch_branches(
         return
     refspecs = [f"+refs/heads/{name}:{tracking_ref(remote, name)}" for name in wanted]
     _contact(cwd, remote, timeout, "fetch", "--no-tags", "--no-recurse-submodules", "--no-auto-gc", "--refmap=", remote, *refspecs)
+
+
+def fetch_evidence_ref(
+    cwd: Path,
+    remote: str,
+    source_ref: str,
+    destination_ref: str,
+    *,
+    timeout: float = FETCH_TIMEOUT,
+    env: Mapping[str, str] | None = None,
+) -> None:
+    """Fetch a branch into an isolated evidence ref without moving user branches.
+
+    The destination must be under refs/spec-kitty/. An explicit empty refmap
+    prevents repository-local mirror mappings from moving unrelated refs.
+    Caller credentials may be supplied in the environment; prompting, automatic
+    maintenance, tags and recursive submodule contact remain disabled.
+    """
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("Finite positive fetch timeout required")
+    if not source_ref.startswith("refs/heads/") or not destination_ref.startswith("refs/spec-kitty/"):
+        raise ValueError("Branch source and isolated evidence destination required")
+    contact_env = no_prompt_env(env, cwd=cwd)
+    for ref in (source_ref, destination_ref):
+        run_git(cwd, "check-ref-format", ref, env=contact_env, timeout=timeout)
+    try:
+        run_git(
+            cwd,
+            "-c",
+            "maintenance.auto=false",
+            "-c",
+            "gc.auto=0",
+            "fetch",
+            "--no-tags",
+            "--no-recurse-submodules",
+            "--no-auto-maintenance",
+            "--refmap=",
+            remote,
+            f"+{source_ref}:{destination_ref}",
+            env=contact_env,
+            timeout=timeout,
+        )
+    except GitCommandError as exc:
+        raise RemoteUnreachable(remote, exc) from exc
 
 
 @dataclass(frozen=True)

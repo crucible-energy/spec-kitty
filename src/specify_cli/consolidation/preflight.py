@@ -268,6 +268,10 @@ def _enforce_pr_only_target(repo_root: Path, target_branch: str) -> str:
     primary = resolve_primary_branch(repo_root, bias=False)
     if policy.is_protected_target(branch, primary_branch=primary, allow_bypass=False):
         console.print(f"[red]PR-only consolidation:[/red] target '{branch}' is protected. Consolidate on a feature/integration branch, then open a PR.")
+        console.print(
+            "[yellow]If this is an interrupted consolidation, inspect its saved state and use "
+            "'spec-kitty consolidate --abort' for guarded recovery; this refusal does not undo earlier mutations.[/yellow]"
+        )
         raise typer.Exit(1)
     return branch
 
