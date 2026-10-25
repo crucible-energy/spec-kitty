@@ -400,7 +400,7 @@ def _runtime_result(
     *,
     provider: str,
     stage: str,
-    observed: int,
+    observed: int | None,
     started: float,
 ) -> tuple[bool, bool]:
     if (diagnostic := _runtime_diagnostic.get()) is not None:
@@ -421,7 +421,8 @@ def _runtime_state(root: Path) -> tuple[bool, bool]:
     """
     started = time.monotonic()
     provider = "lsof" if sys.platform == "darwin" else "psutil" if sys.platform == "linux" else "unsupported"
-    stage, observed = "start", 0
+    stage = "start"
+    observed: int | None = 0 if sys.platform == "linux" else None
 
     def result(held: bool, complete: bool, outcome: str, error: BaseException | None = None) -> tuple[bool, bool]:
         return _runtime_result(held, complete, outcome, error, provider=provider, stage=stage, observed=observed, started=started)
@@ -476,6 +477,15 @@ def _runtime_state(root: Path) -> tuple[bool, bool]:
         return result(False, False, "unavailable", error)
 
 
+def _metadata_visibility_failure(outcome: str, error: BaseException | None = None) -> None:
+    """An identity check has no process-count or elapsed-scan measurement."""
+    if (diagnostic := _runtime_diagnostic.get()) is not None:
+        diagnostic.clear()
+        diagnostic.update(provider="git", scope="git_admin", stage="identity", complete=False, outcome=outcome, processes_observed=None, elapsed_seconds=None)
+        if error is not None:
+            diagnostic["error_type"] = type(error).__name__
+
+
 def _creator_runtime_state(identity: Identity) -> tuple[bool, bool]:
     """Include this checkout's Git administration, without blocking siblings.
 
@@ -493,19 +503,16 @@ def _creator_runtime_state(identity: Identity) -> tuple[bool, bool]:
         raw = run_git(root, "rev-parse", "--absolute-git-dir", env=_git_env(), timeout=5).stdout
         metadata = Path(os.fsdecode(raw.removesuffix(b"\n")))
         if not metadata.is_absolute() or metadata.parent != Path(identity.common_dir) / "worktrees":
-            if diagnostic is not None:
-                diagnostic.update(scope="git_admin", stage="identity", complete=False, outcome="invalid_metadata")
+            _metadata_visibility_failure("invalid_metadata")
             return False, False
         if any(path.is_symlink() for path in (metadata, *metadata.parents)) or not stat.S_ISDIR(metadata.lstat().st_mode):
-            if diagnostic is not None:
-                diagnostic.update(scope="git_admin", stage="identity", complete=False, outcome="invalid_metadata")
+            _metadata_visibility_failure("invalid_metadata")
             return False, False
         if diagnostic is not None:
             diagnostic["scope"] = "git_admin"
         return _runtime_state(metadata)
     except (GitCommandError, OSError, ValueError) as error:
-        if diagnostic is not None:
-            diagnostic.update(scope="git_admin", stage="identity", complete=False, outcome="unavailable", error_type=type(error).__name__)
+        _metadata_visibility_failure("unavailable", error)
         return False, False
 
 

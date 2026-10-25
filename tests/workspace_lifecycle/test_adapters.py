@@ -255,9 +255,17 @@ def test_runtime_observation_distinguishes_no_holders_from_unavailable_visibilit
         assert kwargs["timeout"] == 5
         return subprocess.CompletedProcess(argv, code, stdout, stderr)
 
-    monkeypatch.setattr(adapters.sys, "platform", "darwin")
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(adapters, "sys", SimpleNamespace(platform="darwin"))
     monkeypatch.setattr(adapters, "bounded_run", observe)
-    assert adapters._runtime_state(Path("/private/task")) == expected
+    diagnostic: dict[str, object] = {}
+    token = adapters._runtime_diagnostic.set(diagnostic)
+    try:
+        assert adapters._runtime_state(Path("/private/task")) == expected
+    finally:
+        adapters._runtime_diagnostic.reset(token)
+    assert diagnostic["processes_observed"] is None, "Uninstrumented lsof process count must remain unknown."
 
 
 def test_unavailable_runtime_visibility_preserves_released_creator(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -736,7 +744,7 @@ def test_review_pagination_never_turns_partial_or_changed_evidence_into_disposit
     assert len(calls) <= 10
 
 
-@pytest.mark.parametrize("case", ["none", "cwd", "exe", "file", "denied", "denied_cwd", "denied_exe", "denied_files", "exited", "other_user", "expired"])
+@pytest.mark.parametrize("case", ["none", "cwd", "exe", "file", "denied", "denied_cwd", "denied_exe", "denied_files", "exited", "other_user", "expired", "empty"])
 def test_linux_runtime_guard_preserves_dependencies_and_unknown_visibility(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str) -> None:
     import os
     import time
@@ -769,7 +777,7 @@ def test_linux_runtime_guard_preserves_dependencies_and_unknown_visibility(tmp_p
 
     monkeypatch.setattr(adapters, "sys", SimpleNamespace(platform="linux"))
     monkeypatch.setattr(adapters.os, "getuid", lambda: 1000, raising=False)
-    monkeypatch.setattr(adapters.psutil, "process_iter", lambda: iter([Process()]))
+    monkeypatch.setattr(adapters.psutil, "process_iter", lambda: iter([] if case == "empty" else [Process()]))
     if case == "expired":
         monkeypatch.setattr(adapters, "process_deadline", lambda: time.monotonic() - 1)
     diagnostic: dict[str, object] = {}
@@ -787,6 +795,7 @@ def test_linux_runtime_guard_preserves_dependencies_and_unknown_visibility(tmp_p
     )
     assert diagnostic["provider"] == "psutil"
     assert diagnostic["complete"] is actual[1]
+    assert diagnostic["processes_observed"] == (0 if case == "empty" else 1)
     if case.startswith("denied"):
         assert diagnostic["stage"] == {"denied": "uids", "denied_cwd": "cwd", "denied_exe": "exe", "denied_files": "open_files"}[case]
         assert diagnostic["error_type"] == "AccessDenied"
@@ -1022,3 +1031,39 @@ def test_worker_explains_visibility_retention_without_authorizing_cleanup(tmp_pa
     assert Path(owner.identity.path).exists()
     assert git(repo, "rev-parse", "task") == owner.identity.head
     assert not list(ledger.root.glob("recovery-*.json"))
+
+
+def test_unsupported_runtime_provider_has_unknown_process_count(monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+    from specify_cli.workspace_lifecycle import adapters
+
+    monkeypatch.setattr(adapters, "sys", SimpleNamespace(platform="unsupported"))
+    diagnostic: dict[str, object] = {}
+    token = adapters._runtime_diagnostic.set(diagnostic)
+    try:
+        assert adapters._runtime_state(Path("/unobserved")) == (False, False)
+    finally:
+        adapters._runtime_diagnostic.reset(token)
+    assert diagnostic["processes_observed"] is None
+
+
+def test_metadata_failure_does_not_relabel_checkout_process_measurements(monkeypatch: pytest.MonkeyPatch) -> None:
+    from kernel.git import GitResult
+    from specify_cli.workspace_lifecycle import adapters
+
+    diagnostic: dict[str, object] = {}
+
+    def visible(path: Path) -> tuple[bool, bool]:
+        diagnostic.update(provider="psutil", processes_observed=17, elapsed_seconds=0.25)
+        return False, True
+
+    monkeypatch.setattr(adapters, "_runtime_state", visible)
+    monkeypatch.setattr(adapters, "run_git", lambda *args, **kwargs: GitResult(0, b"relative-metadata\n", b""))
+    token = adapters._runtime_diagnostic.set(diagnostic)
+    try:
+        assert adapters._creator_runtime_state(identity()) == (False, False)
+    finally:
+        adapters._runtime_diagnostic.reset(token)
+    assert diagnostic["scope"] == "git_admin"
+    assert diagnostic["processes_observed"] is None
+    assert diagnostic["elapsed_seconds"] is None

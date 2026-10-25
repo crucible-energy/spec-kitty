@@ -91,3 +91,27 @@ Runtime observations now attach a private-context diagnostic to an inspection an
 ### Validation and limitations
 
 The first focused receipt has 18 passing controls, with all five frozen modified source files unchanged and the producer joined. The earlier eight-case run was named “red” but loaded implementation edits before collection; it is a passing exploratory result, not a before-repair reproduction. The actual hosted failures remain the red evidence. The diagnostic-only change is not a Linux cause repair, a full owning gate, installed distribution, cleanup of real project work, or organization adoption. Actual Linux observation and independent review remain required.
+
+## WP13 — live stacked source and immutable default history
+
+### User experience findings
+
+The hosted archive job incorrectly froze a live mission newly introduced on its non-default integration branch. A real-Git fixture reproduced the same `ordinary archive history changed` refusal before guard implementation. Earlier acceptance metadata was a retained snapshot, while the work packages remained nonterminal; it was not new approval.
+
+Self-review then reproduced three overly permissive cases in the initial correction: a legacy slug-based archive identity, metadata formatting changes, and local Git grafts hiding formerly published identity history. Those results were retained as failures, then corrected; they are not passing validation. The diagnostic follow-up separately passed the complete 117 adapter/event/original cleanup checks with all frozen source hashes unchanged and the producer joined.
+
+### Engineering decisions
+
+Preserve the validated event's exact review frontier and all four historical roots. The new classification uses immutable BASE identity and nonterminal state, exact unchanged metadata, matching canonical path/UUID/MID8/target, absence from BASE/current archive registry, old event-byte prefixes, actual canonical status replay, and index/disk parity. Only those preexisting paths in the qualified mission are admitted. Deletions, unknown visibility, identity changes and forged snapshots remain frozen.
+
+Actual own-default identity is independently checked through the matching remote's live HEAD symref/SHA and exact available local default commit. The bounded joined Git transport reads complete, non-shallow/non-partial history, disables replacement/graft views and lazy fetching, and searches by UUID/MID8 across all historical roots and the canonical archive registry. A moved, deleted or legacy default identity remains frozen. No fetch, Git rewrite, fixture waiver, runtime repair, host operation or broad prefix exemption grants eligibility.
+
+### Known limitations and gates
+
+This bounded classifier also retains metadata edits, including formatting, until a separate reviewed workflow qualifies them. It intentionally refuses on unavailable/stale default identity or unsupported history, rather than guessing. New tests use real local Git with an explicitly private remote stand-in; their results do not establish hosted execution, default-branch delivery, installed runtime adoption or organization cleanup. The complete affected guard file, existing frontier/ratchet controls, independent review, required combined source/publication gates and actual Linux result remain outstanding. Organization verified execution adoption remains zero.
+
+### Complete guard result and independent diagnostic finding
+
+The full affected archive file completed with 89 passing checks and one failure at the actual local default frontier, before live-stack classification. Canonical replay of the pinned cyclic-lane dossier attributes three duplicate terminal transitions to their earlier event IDs/times, while the immutable committed snapshot attributes the later duplicates. No snapshot, archive proof pin, default frontier or guard exemption was changed. The installed test dependency is spec-kitty-events10.5.1, within current source requirements; actual default66b requires6.x and has no copy of this dossier. Attribution and compatibility repair remain open through the existing release/status owner; this is not labeled an actual-default failure or a passing full gate.
+
+The independent owner review found uninstrumented lsof/unsupported counts were incorrectly emitted as zero, and a metadata-only failure could carry the previous checkout's count/time. Seven new assertions reproduced the issue before correction. Those measurements now remain null when unknown; metadata-only observations identify the Git identity stage and clear unrelated scan values. Linux observations retain measured enumeration counts, including a genuinely empty enumeration. All retirement predicates and bounds are unchanged. The follow-up requires exact-source validation and reviewer disposition; it does not resolve the actual hosted Linux visibility cause.
