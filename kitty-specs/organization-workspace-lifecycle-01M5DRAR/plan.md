@@ -99,3 +99,7 @@ The retained creator delivery/recovery safety repair is WP11, independently gate
 ## Hosted integration follow-through
 
 WP12 owns missed branch-first fixture propagation, the inherited canonical OS-door predicate and explicit internal checkout-identity omission in the status contract. Root retains disjoint generator/CI wiring repairs. This bounded source follow-through precedes final distribution qualification; it does not alter default-branch protection or erase earlier approvals. Required full owning gates and independent review remain mandatory before rollout.
+
+### Hosted publication safety correction
+
+WP13 independently reviews and implements the real stacked-live-mission/archive boundary. New-to-default, unnumbered/nonterminal/unarchived BASE state requires exact correlated identity and canonical replay; published/default/terminal history never becomes live because the candidate says so. This preserves the existing review frontier and all source/history. WP11 separately diagnoses actual Linux runtime-visibility refusal before any eligibility-policy change. Existing approvals remain historical facts; canonical task finalization and claims own new runtime state.
