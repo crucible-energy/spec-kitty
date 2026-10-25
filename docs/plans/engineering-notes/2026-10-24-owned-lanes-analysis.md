@@ -455,3 +455,42 @@ all 35,360 file/link entries verified, then the exact private tree retired.
 Its source, failure logs and restore manifest remain recoverable externally;
 no shared cache or worktree was pruned. HELD/v5 and Fast-mode preferences stay
 preserved; no fit, unhold or canonical source operation occurred.
+
+## 2026-10-25 — Reduce canonical index ordering work without caching
+
+### User Experience Findings
+
+A generated-data profile of the real reference Project reader found repeated
+full Path comparisons inside the canonical Mission index walk. With 20 and
+40 generated Missions, the existing path performed 3,780 and 18,840 such
+comparisons. A deterministic regression through the public filesystem resolver
+reproduced that ordering cost while asserting the independently computed Path
+order. This does not establish the cause of the separate hosted 120.921-second
+corpus result.
+
+### Engineering Decisions
+
+Keep the same single filesystem enumeration primitive, fresh metadata reads,
+resolver precedence, injections and missing/ambiguous-identity behavior. Compute
+each child name's platform-normalized ordering key once; all entries have the
+same parent, so this preserves full Path order and leaves actual directory
+spellings untouched. Do not add a result/index cache, literal-handle shortcut,
+parallel resolver, timeout change or admission exemption.
+
+The same generated fixtures returned identical Project output hashes afterward.
+Index builds, metadata reads and actual resolver-call counts stayed equal;
+full Path comparisons fell to zero. The regression passed, as did all 175
+context tests and the focused canonical-walker checks. Final qualification is
+recorded externally against frozen inputs.
+
+### Known Limitations and Retained Obligations
+
+These are generated local operation-count and output-equivalence observations,
+not a hardware or wall-clock speedup, full-corpus timing success or production
+reader/admission receipt. Actual new-head CI remains required; the 120-second
+budget is unchanged. Actual Windows execution was not performed locally.
+Failed profiling setup attempts and the partial fixture are retained separately
+from successful reads; all profiling producers are joined. The lifecycle owner
+has captured the published Linux failure and retains its cause/repair lane.
+The public run was preserved until that capture. HELD/v5 and current Source/
+native custody remain untouched, with no fit, unhold or faster-tier change.

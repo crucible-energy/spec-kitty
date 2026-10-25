@@ -40,6 +40,7 @@ from __future__ import annotations
 
 from specify_cli.core.constants import KITTY_SPECS_DIR
 import re
+from os.path import normcase
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -233,7 +234,9 @@ def _iter_mission_dirs(repo_root: Path) -> Iterator[Path]:
     specs_dir = repo_root / KITTY_SPECS_DIR
     if not specs_dir.exists():
         return
-    for entry in sorted(specs_dir.iterdir()):
+    # All entries share a parent: normalize each child name once instead of
+    # repeatedly comparing full Paths. normcase preserves platform ordering.
+    for entry in sorted(specs_dir.iterdir(), key=lambda path: normcase(path.name)):
         if entry.is_dir():
             yield entry
 
