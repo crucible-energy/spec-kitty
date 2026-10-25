@@ -209,3 +209,85 @@ external receipts. Another actual hosted Linux observation is required before
 selecting a runtime repair. Runtime admission and every-repository execution
 qualification remain incomplete; the production worker stays disabled. Useful
 work, uncertain resources and their recovery obligations remain protected.
+
+## October 25 — protected procfs observation, before any policy repair
+
+### User experience findings
+
+Published integration `2214f39c` reached Linux core_misc shard 2: four failures,
+1,128 passes and four skips in 256.60 seconds. The exact decoded log is retained
+externally. The denied PID was 970, sleeping, with real/effective/saved UIDs all
+matching the caller. Its cwd remained unavailable. This is not an observation
+of a vanished, zombie or foreign-effective-UID process. Shards 3 and 4 were
+cancelled by matrix fail-fast, not passing. Process purpose and security policy
+remain unknown; no inference from its PID or apparent age authorizes removal.
+
+### Engineering decisions
+
+The Linux kernel documents that cwd link reads use ptrace credential checks and
+procfs ownership can differ after protection/credential changes. These explain
+possible mechanisms, not this process's established cause. Add one non-follow
+directory-metadata observation after the existing denial, only with a valid PID,
+an observed live state and remaining original deadline. Emit only whether its
+owner matches the caller or root, plus sanitized unavailability; no names,
+paths, command lines, exception text, new privilege or extra UID query. Reject
+relative proc roots, non-directory leaves and invalid PIDs. These observations
+remain outside identity, evidence, release and eligibility. Dead/unknown state,
+no diagnostic context and expired time cannot cause an additional filesystem
+query. Elapsed accounting includes the optional metadata read.
+
+Test-before-code retained ten missing-field/helper failures and one no-context
+pass with unchanged source/toolchain and a joined producer. All 34 focused old
+and new controls then passed, including exact metadata observation, symlink and
+invalid-PID refusal, missing state, no-context/deadline, stale-data clearing,
+privacy, unchanged retention and elapsed time. Full owning and strict checks
+belong to the new frozen candidate's external receipts; they are not inferred
+from the earlier 255-case pass. Newest non-yanked prerelease resolved again to
+4.0.0rc7; the explicitly addressed qualified runtime was verified, not replaced.
+
+### Known limitations
+
+The actual Linux procfs ownership and denial mechanism still need a new hosted
+observation before a repair is selected. No platform visibility rule, creator
+fence, deadline or removal predicate changed. Default delivery, installed
+ordinary native ingress and per-repository execution adoption remain unfinished.
+No project, host, cache or uncertain registration was retired.
+
+### Controlled Linux reproduction admission
+
+The local shell and independent Node runtime both report Darwin/arm64; neither
+can establish a Linux kernel result. Add a real Linux-only control to this
+existing retained-runtime test scope, not another service or an invented local
+pass. A sole explicitly owned child first exposes a readable cwd, then changes
+only its own dumpability through `prctl`. Test both a cwd inside the candidate
+and a separate owned outside directory. Real psutil reads must reproduce
+same-UID access denial and protected procfs ownership in both cases, while the
+adapter retains unknown visibility. Enumeration is explicitly limited to that
+known child for the control; this does not qualify full-host visibility or
+identify the original PID 970.
+
+The child has a dedicated process group, bounded handshakes, a self-expiry alarm
+and joined stdin completion; timeout force is restricted to that owned group.
+Its admission/result receipt remains in the retained fixture. The normal Linux
+CI input must execute these cases. Darwin compiles the literal fixture program
+but declares the Linux cases skipped; those skips are not Linux passes. A
+privileged/unsupported caller is not silently treated as a successful denial
+control. No existing positive cleanup assertion is changed or weakened.
+
+### Review finding — whole-frame deadline
+
+The independent owner found that readiness followed by blocking `readline`
+did not bound the whole response. The extracted unchanged pattern reproduced
+four real pipe-control failures: an unterminated response survived until the
+four-second child watchdog, slow partial output outlived the requested frame
+deadline, oversized output was accepted and EOF was misclassified. The normal
+ready response passed. All producer outcomes were retained and joined.
+
+Use one absolute monotonic deadline with nonblocking short raw reads, a
+1,024-byte frame bound and explicit EOF/oversize/deadline failures. Preserve
+exclusive stdout ownership, restore descriptor flags, and reject trailing
+frames. Both Linux protocol stages share the same three-second deadline;
+partial reads and later stages cannot restart it. The watchdog remains a
+separate last-resort child lifetime bound. Six real POSIX controls now pass,
+including an already-expired deadline and descriptor-mode restoration. These
+transport results do not establish a Linux kernel or full-host visibility pass.

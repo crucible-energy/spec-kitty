@@ -921,6 +921,311 @@ def test_denied_process_observation_never_grants_visibility(tmp_path: Path, monk
         adapters._runtime_diagnostic.reset(token)
 
 
+@pytest.mark.parametrize("case", ["owner", "root", "foreign", "unavailable", "gone", "deadline", "no_context", "invalid_pid", "timed_probe", "state_deadline"])
+def test_denied_process_directory_observation_is_bounded_and_non_authoritative(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str) -> None:
+    import time
+    from types import SimpleNamespace
+
+    import psutil
+
+    from specify_cli.workspace_lifecycle import adapters
+
+    clock = [10.0]
+    probes: list[int] = []
+
+    class Process:
+        pid = True if case == "invalid_pid" else 321
+
+        def uids(self) -> SimpleNamespace:
+            return SimpleNamespace(real=1000, effective=1000, saved=1000)
+
+        def cwd(self) -> NoReturn:
+            if case == "deadline":
+                clock[0] = 16.0
+            raise psutil.AccessDenied(321, name=str(tmp_path))
+
+        def status(self) -> str:
+            if case == "gone":
+                raise psutil.NoSuchProcess(321)
+            if case == "state_deadline":
+                clock[0] = 16.0
+            return "sleeping"
+
+    def process_directory_owner(pid: int) -> int:
+        probes.append(pid)
+        if case == "unavailable":
+            raise PermissionError(str(tmp_path))
+        if case == "timed_probe":
+            clock[0] = 12.5
+        return 0 if case == "root" else 2000 if case == "foreign" else 1000
+
+    monkeypatch.setattr(adapters, "sys", SimpleNamespace(platform="linux"))
+    monkeypatch.setattr(os, "getuid", lambda: 1000, raising=False)
+    monkeypatch.setattr(time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(psutil, "process_iter", lambda: iter([Process()]))
+    monkeypatch.setattr(adapters, "_process_directory_owner", process_directory_owner, raising=False)
+    diagnostic: dict[str, object] = {}
+    token = adapters._runtime_diagnostic.set(None if case == "no_context" else diagnostic)
+    try:
+        assert adapters._runtime_state(tmp_path) == (False, False)
+        if case == "no_context":
+            assert not diagnostic and not probes
+            return
+        directory = object_at(object_at(diagnostic, "denied_process_observation"), "process_directory")
+        if case in {"deadline", "state_deadline", "gone", "invalid_pid"}:
+            assert not probes
+            assert directory == {"observation": "process_unavailable" if case == "gone" else "invalid_pid" if case == "invalid_pid" else "deadline"}
+        else:
+            assert probes == [321]
+            if case == "unavailable":
+                assert directory == {"observation": "unavailable", "error_type": "PermissionError"}
+            else:
+                assert directory == {"observation": "observed", "owner_uid_matches": case != "root" and case != "foreign", "root_uid_matches": case == "root"}
+        if case == "timed_probe":
+            assert diagnostic["elapsed_seconds"] == 2.5
+        assert str(tmp_path) not in json.dumps(diagnostic)
+        monkeypatch.setattr(psutil, "process_iter", lambda: iter([]))
+        assert adapters._runtime_state(tmp_path) == (False, True)
+        assert "denied_process_observation" not in diagnostic
+    finally:
+        adapters._runtime_diagnostic.reset(token)
+
+
+def test_process_directory_owner_observes_only_a_real_pid_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import psutil
+
+    from specify_cli.workspace_lifecycle import adapters
+
+    process_directory = tmp_path / "321"
+    process_directory.mkdir()
+    (tmp_path / "322").symlink_to(process_directory, target_is_directory=True)
+    monkeypatch.setattr(psutil, "PROCFS_PATH", str(tmp_path), raising=False)
+    assert adapters._process_directory_owner(321) == process_directory.lstat().st_uid
+    for invalid_pid in (True, 0, -1):
+        with pytest.raises(ValueError, match="Process directory observation unavailable"):
+            adapters._process_directory_owner(invalid_pid)
+    with pytest.raises(ValueError, match="Process directory observation unavailable"):
+        adapters._process_directory_owner(322)
+    monkeypatch.setattr(psutil, "PROCFS_PATH", "relative/proc")
+    with pytest.raises(ValueError, match="Process directory observation unavailable"):
+        adapters._process_directory_owner(321)
+
+
+def _read_owned_control_frame(fd: int, *, deadline: float) -> dict[str, Any]:
+    import select
+    import time
+
+    if time.monotonic() >= deadline:
+        raise TimeoutError("Owned control frame deadline exceeded")
+    blocking = os.get_blocking(fd)
+    os.set_blocking(fd, False)
+    frame = bytearray()
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not select.select([fd], [], [], max(0.0, remaining))[0] or time.monotonic() >= deadline:
+                raise TimeoutError("Owned control frame deadline exceeded")
+            try:
+                chunk = os.read(fd, min(256, 1025 - len(frame)))
+            except BlockingIOError:
+                continue
+            if not chunk:
+                raise EOFError("Owned control frame ended before newline")
+            frame.extend(chunk)
+            if len(frame) > 1024:
+                raise ValueError("Owned control frame too large")
+            if b"\n" in frame:
+                if not frame.endswith(b"\n") or frame.count(b"\n") != 1:
+                    raise ValueError("Unexpected trailing control frame")
+                value = object_at(json.loads(frame.decode("utf-8")))
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("Owned control frame deadline exceeded")
+                return value
+    finally:
+        os.set_blocking(fd, blocking)
+
+
+@pytest.mark.parametrize("case", ["ready", "eof", "unterminated", "oversize", "trickle", "expired"])
+def test_owned_control_frame_has_one_bounded_deadline(tmp_path: Path, case: str) -> None:
+    import inspect
+
+    from kernel.owned_process import bounded_run
+
+    if os.name != "posix":
+        pytest.skip("This Linux-control pipe transport requires POSIX descriptors")
+    program = (
+        "from __future__ import annotations\nimport os,json,signal,sys,threading,time\n"
+        + inspect.getsource(object_at)
+        + "\n"
+        + inspect.getsource(_read_owned_control_frame)
+        + """
+signal.signal(signal.SIGALRM,signal.SIG_DFL)
+signal.alarm(4)
+case=sys.argv[1]
+reader,writer=os.pipe()
+stop=threading.Event()
+thread=None
+if case=='trickle':
+    def drip():
+        try:
+            for part in (b'{',b'"ready":',b'true',b'}\\n'):
+                if stop.wait(0.06):
+                    break
+                os.write(writer,part)
+        finally:
+            os.close(writer)
+    thread=threading.Thread(target=drip)
+    thread.start()
+elif case=='eof':
+    os.close(writer)
+else:
+    payload=b'{"ready":true}'+(b'\\n' if case in {'ready','expired'} else b'')
+    if case=='oversize':
+        payload=b'{"padding":"'+b'x'*2048+b'"}\\n'
+    os.write(writer,payload)
+try:
+    try:
+        value=_read_owned_control_frame(reader,deadline=time.monotonic()+(-1 if case=='expired' else 0.1))
+        outcome='accepted'
+    except (TimeoutError,EOFError,ValueError) as error:
+        outcome=type(error).__name__
+    print(json.dumps({'outcome':outcome,'blocking_restored':os.get_blocking(reader)}),flush=True)
+finally:
+    stop.set()
+    if thread is not None:
+        thread.join(timeout=0.5)
+        assert not thread.is_alive()
+    elif case!='eof':
+        os.close(writer)
+    os.close(reader)
+"""
+    )
+    custody = {
+        "owner": "lifecycle bounded control-frame counterexample",
+        "case": case,
+        "program": program,
+        "executable": sys.executable,
+        "environment": {"LC_ALL": "C"},
+        "cwd": str(tmp_path),
+        "next_action": "Join exact bounded_run child, retain result and fixture for control review",
+        "review_event": "Frame-reader finding disposition and final owning gate",
+        "joined": False,
+    }
+    receipt = tmp_path / "frame-control-custody.json"
+    receipt.write_text(json.dumps(custody))
+    result = bounded_run([sys.executable, "-I", "-S", "-c", program, case], cwd=tmp_path, env={"LC_ALL": "C"}, timeout=5)
+    custody.update(joined=True, returncode=result.returncode, stdout=result.stdout.decode(), stderr=result.stderr.decode())
+    receipt.write_text(json.dumps(custody))
+    assert result.returncode == 0, "Owned frame reader outlived its deadline or failed; the watchdog is not a frame deadline."
+    expected = "accepted" if case == "ready" else "EOFError" if case == "eof" else "ValueError" if case == "oversize" else "TimeoutError"
+    assert object_at(json.loads(result.stdout)) == {"outcome": expected, "blocking_restored": True}
+
+
+@pytest.mark.parametrize("inside_candidate", [True, False])
+def test_actual_linux_same_uid_non_dumpable_child_retains_unknown_visibility(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, inside_candidate: bool) -> None:
+    import time
+    import psutil
+
+    from kernel.owned_process import signal_owned_process_tree
+    from specify_cli.workspace_lifecycle import adapters
+
+    program = """import ctypes,json,os,signal,sys
+signal.signal(signal.SIGALRM,signal.SIG_DFL)
+signal.alarm(20)
+libc=ctypes.CDLL(None,use_errno=True)
+libc.prctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_ulong,ctypes.c_ulong,ctypes.c_ulong]
+libc.prctl.restype=ctypes.c_int
+PR_GET_DUMPABLE,PR_SET_DUMPABLE=3,4
+def set_dumpable(value):
+    if libc.prctl(PR_SET_DUMPABLE,value,0,0,0)!=0:
+        raise OSError(ctypes.get_errno(),'owned fixture prctl failed')
+    return libc.prctl(PR_GET_DUMPABLE,0,0,0,0)
+print(json.dumps({'pid':os.getpid(),'dumpable':set_dumpable(1)}),flush=True)
+if sys.stdin.readline().strip()=='protect':
+    print(json.dumps({'pid':os.getpid(),'dumpable':set_dumpable(0)}),flush=True)
+    sys.stdin.readline()
+"""
+    compile(program, "<owned-linux-visibility-control>", "exec")
+    if sys.platform != "linux":
+        pytest.skip("Requires actual Linux prctl/procfs; other-platform passes do not qualify this control")
+    assert os.getuid() == os.geteuid() != 0, "This denial control requires the ordinary unprivileged Linux caller profile."
+    candidate = tmp_path / "candidate"
+    outside = tmp_path / "outside"
+    candidate.mkdir()
+    outside.mkdir()
+    cwd = candidate if inside_candidate else outside
+    custody = {
+        "owner": "workspace-lifecycle Linux visibility control",
+        "purpose": "Reproduce same-UID protection before considering any visibility-policy repair",
+        "scope": "Only this exact child is enumerated; not full-host visibility or cleanup qualification",
+        "inside_candidate": inside_candidate,
+        "cwd": str(cwd),
+        "executable": str(Path(sys.executable).absolute()),
+        "isolated_program": program,
+        "environment": {"LC_ALL": "C"},
+        "next_action": "Join the owned child through stdin; force only its dedicated process group on timeout",
+        "review_event": "Test terminal outcome and Linux CI evidence review",
+        "joined": False,
+    }
+    receipt = tmp_path / "linux-process-custody.json"
+    receipt.write_text(json.dumps(custody))
+    child = subprocess.Popen(
+        [sys.executable, "-I", "-S", "-c", program],
+        cwd=cwd,
+        env={"LC_ALL": "C"},
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+        bufsize=0,
+    )
+    try:
+        custody["child_pid"] = child.pid
+        receipt.write_text(json.dumps(custody))
+        assert child.stdout is not None and child.stdin is not None
+        handshake_deadline = time.monotonic() + 3
+
+        def stage() -> dict[str, Any]:
+            assert child.stdout is not None
+            return _read_owned_control_frame(child.stdout.fileno(), deadline=handshake_deadline)
+
+        assert stage() == {"pid": child.pid, "dumpable": 1}
+        process = psutil.Process(child.pid)
+        assert process.cwd() == str(cwd)
+        original_uids = process.uids()
+        assert original_uids.real == original_uids.effective == original_uids.saved == os.getuid()
+        monkeypatch.setattr(psutil, "process_iter", lambda: iter([process]))
+        assert adapters._runtime_state(candidate) == (inside_candidate, True)
+        child.stdin.write(b"protect\n")
+        child.stdin.flush()
+        assert stage() == {"pid": child.pid, "dumpable": 0}
+        assert child.poll() is None and process.uids() == original_uids
+        with pytest.raises(psutil.AccessDenied):
+            process.cwd()
+        diagnostic: dict[str, object] = {}
+        token = adapters._runtime_diagnostic.set(diagnostic)
+        try:
+            assert adapters._runtime_state(candidate) == (False, False)
+        finally:
+            adapters._runtime_diagnostic.reset(token)
+        assert diagnostic["stage"] == "cwd" and diagnostic["error_type"] == "AccessDenied"
+        denied = object_at(diagnostic, "denied_process_observation")
+        assert denied["pid"] == child.pid and denied["uid_matches_owner"] == dict.fromkeys(("real", "effective", "saved"), True)
+        assert denied["process_directory"] == {"observation": "observed", "owner_uid_matches": False, "root_uid_matches": True}
+        custody["protected_observation"] = diagnostic
+    finally:
+        try:
+            child.communicate(input=b"done\n", timeout=3)
+        except subprocess.TimeoutExpired:
+            signal_owned_process_tree(child, force=True)
+            child.communicate(timeout=3)
+            raise
+        finally:
+            custody["joined"] = child.returncode is not None
+            receipt.write_text(json.dumps(custody))
+    assert child.returncode == 0 and custody["joined"]
+
+
 @pytest.mark.parametrize("previous", ["exited", "other_user"])
 def test_enumeration_failure_does_not_attribute_the_previous_process(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, previous: str) -> None:
     from collections.abc import Iterator
