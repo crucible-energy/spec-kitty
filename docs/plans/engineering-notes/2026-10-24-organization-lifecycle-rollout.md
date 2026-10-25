@@ -291,3 +291,39 @@ partial reads and later stages cannot restart it. The watchdog remains a
 separate last-resort child lifetime bound. Six real POSIX controls now pass,
 including an already-expired deadline and descriptor-mode restoration. These
 transport results do not establish a Linux kernel or full-host visibility pass.
+
+## Actual Linux control: distinguish directory metadata from visibility
+
+### User Experience Findings
+
+The first real Linux executions reached both controlled cases on the unchanged
+integration candidate. Each child set its own dumpability to zero, preserved
+its UID credentials and reproduced a real cwd access denial. The adapter
+retained unknown visibility for both the inside and outside candidate cases.
+Both controls then failed the assumption that the PID directory must become
+root-owned. The complete shards remain failed results, not successful cleanup
+or platform qualification.
+
+### Engineering Decisions
+
+Compare the diagnostic ownership fields with an independent, non-following
+`os.stat` observation of the exact owned child's directory. Preserve the real
+dumpability, UID, cwd-denial and unknown-visibility assertions and all child
+lifetime bounds. No production eligibility, process exclusion or permission
+changes. Directory ownership is diagnostic data, never retirement authority.
+
+The [Linux v6.11 implementation](https://github.com/torvalds/linux/blob/v6.11/fs/proc/base.c#L1707-L1760)
+preserves effective ownership for world-readable and executable process
+directories. Ownership rules for contained proc entries therefore do not imply
+the same ownership change for the PID directory itself. This reference explains
+the reproduced observation; it does not establish the runner's kernel version
+or the security state of an unrelated opaque process.
+
+### Known Limitations
+
+The original whole-host visibility failures remain unresolved. A matching
+directory owner cannot classify an opaque process as safe or identify its
+dumpability. New actual Linux validation of this corrected control, complete
+owning gates, ordinary native creator ingress and every-repository installed
+execution remain required. Production cleanup remains disabled. Preserve the
+earlier failed controls, exact artifacts and recovery obligations.

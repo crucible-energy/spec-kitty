@@ -1211,7 +1211,15 @@ if sys.stdin.readline().strip()=='protect':
         assert diagnostic["stage"] == "cwd" and diagnostic["error_type"] == "AccessDenied"
         denied = object_at(diagnostic, "denied_process_observation")
         assert denied["pid"] == child.pid and denied["uid_matches_owner"] == dict.fromkeys(("real", "effective", "saved"), True)
-        assert denied["process_directory"] == {"observation": "observed", "owner_uid_matches": False, "root_uid_matches": True}
+        # The PID directory can keep process ownership after dumpability changes.
+        # Compare independent kernel metadata; ownership never grants visibility.
+        directory_owner = os.stat(Path("/proc") / str(child.pid), follow_symlinks=False).st_uid
+        assert denied["process_directory"] == {
+            "observation": "observed",
+            "owner_uid_matches": directory_owner == os.geteuid(),
+            "root_uid_matches": directory_owner == 0,
+        }
+        custody["directory_owner_uid"] = directory_owner
         custody["protected_observation"] = diagnostic
     finally:
         try:
