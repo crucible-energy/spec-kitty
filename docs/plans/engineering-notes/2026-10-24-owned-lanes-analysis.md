@@ -705,3 +705,63 @@ Retain its raw failure and successful Linux evidence separately. Qualify the
 next frozen candidate through normal checks; do not dispatch the cancelled old
 candidate just before a new source push. This test-only correction grants no
 runtime, cleanup, Source, Store or HELD/v5 authority.
+
+## 2026-10-25 — Preserve project intent across the charter cutover
+
+### User Experience Findings
+
+The next Linux charter shard exposed two distinct problems. The earlier RC7
+upgrade intentionally reset selections equal to released defaults and explicit
+empty opt-outs, but the migration workflow accepted that reset without preserving
+this project's original selection. Separately, a manual workaround enabled
+automatic commits project-wide when an owned status transition needed an atomic
+commit. The original paradigm parity guard correctly detected missing configured
+intent. It remains unchanged.
+
+The no-op render fixture still required the retired `.kittify/doctrine` tree
+after its legitimate move to `.kittify/charter-packs`. Local ignore rules cannot
+hide edits to tracked files; the fixture must establish actual tracked artifact
+bodies and then prove its status check detects a real edit.
+
+### Engineering Decisions
+
+Restore exactly the previously configured eight paradigms, explicit empty
+mission-step-contract/glossary selections, and `agents.auto_commit: false`.
+Use the canonical explicitly rooted activation/YAML writers after qualification
+in a real linked-worktree fixture. Verify input identities, pointer-drift refusal,
+unrelated-field preservation, idempotence, and unchanged shared-checkout bytes.
+Apply the activation plan before changing its config-pointer input. Do not alter
+the migration ledger or the intentional released reset contract.
+
+For future upgrade intake, retain the exact configured selection and agent
+preference before applying the migration. Review semantic changes separately
+from structural relocation before accepting the upgraded project. Deliberate
+post-cutover selections must survive read-only migration detection; an applied
+ledger is not permission to discard restored user intent. Worktree recovery
+must use explicitly rooted canonical APIs: the agent-config CLI resolves the
+shared repository-root checkout and is unsuitable for this lane-local repair.
+Reject unknown agent fields before using a writer that only preserves known
+agent fields.
+
+Keep the owned transition's atomic-commit guard. Use the existing per-command
+`move-task --auto-commit` override when that transition is intended, rather than
+enabling persistent automatic commits. Exercise the real linked-worktree
+command both without the override (refusal without effects) and with it
+(committed transition), preserving the false preference and other checkouts.
+
+Resolve the render fixture's artifact root through
+`kernel.doctrine_root.resolve_doctrine_read_root`. Require tracked artifact
+bodies, preserve both actual render calls, and add a tracked-file mutation
+witness. This follows the canonical/legacy read contract without weakening
+the cleanliness assertion or hardcoding another path.
+
+### Known Limitations and Retained Obligations
+
+The earlier Linux run remains failed; cancelled shards are not passes.
+Prepared/applied recovery receipts, original failures, independent owner review,
+and final frozen-candidate validation live outside the checkout. Exact project
+roots are distinct from any required transitive doctrine closure. This repair
+does not install the lifecycle worker, complete PDB package acceptance, or grant
+Source/Store/serving authority. HELD/v5, the Native platform hold, and standard
+processing remain unchanged. Retain the small recovery fixtures until reviewed
+closeout; no shared pruning or duplicate owner lane is introduced.
