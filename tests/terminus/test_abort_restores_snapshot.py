@@ -53,7 +53,7 @@ from tests.terminus.conftest import (
     blob_present_at,
     run_terminus,
 )
-from tests.terminus.lanes_fixture import build_lanes_mission
+from tests._support.feature_landing import build_feature_lanes_mission
 from tests.terminus.rollback_harness import (
     flat,
     ref_shas,
@@ -109,7 +109,7 @@ def _run_hard_killed(mission: CoordMission, args: Sequence[str]) -> subprocess.C
 
 def _crashed_lanes_run(tmp_path: Path, mid8: str) -> tuple[CoordMission, dict[str, str]]:
     """Real feature consolidation hard-killed at the rollback door after recorded mutations."""
-    mission = build_lanes_mission(tmp_path, wps=("WP01", "WP02"), target_branch="feature/integration", mid8=mid8)
+    mission = build_feature_lanes_mission(tmp_path, wps=("WP01", "WP02"), mid8=mid8)
     before = ref_shas(mission)
     result = _run_hard_killed(mission, ["consolidate", "--mission", mission.slug, "--yes"])
     output = flat(result)

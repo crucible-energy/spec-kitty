@@ -40,7 +40,8 @@ import typer
 from specify_cli.consolidation import executor
 from specify_cli.consolidation.reconciliation import Divergence, MergeOutcomeVerifier, VerifyResult
 from specify_cli.consolidation.state import get_state_path
-from tests.terminus.conftest import CoordMission, blob_present_at, build_coord_mission, run_terminus
+from tests.terminus.conftest import CoordMission, blob_present_at, run_terminus
+from tests._support.feature_landing import build_feature_coord_mission, build_feature_lanes_mission
 from tests.terminus.lanes_fixture import build_lanes_mission
 from tests.terminus.rollback_harness import flat, ref_shas, reflog_shas
 
@@ -119,7 +120,7 @@ def _assert_moved_and_restored(mission: CoordMission, branch: str, pre: str, ref
 def test_failure_in_a_post_mutation_phase_restores_every_movable_branch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], phase: str, kind: str
 ) -> None:
-    mission = build_lanes_mission(tmp_path, wps=("WP01", "WP02"), target_branch="feature/integration", mid8=_mid8(phase, kind))
+    mission = build_feature_lanes_mission(tmp_path, wps=("WP01", "WP02"), mid8=_mid8(phase, kind))
     before = ref_shas(mission)
     target_reflog = len(reflog_shas(mission, mission.target_branch))
     mission_reflog = len(reflog_shas(mission, mission.coord_branch))
@@ -150,7 +151,7 @@ def test_dirty_target_checkout_is_reported_not_restored_and_the_record_is_kept(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """The porcelain invariant trips on a real dirty target checkout; the rollback never overwrites it."""
-    mission = build_lanes_mission(tmp_path, wps=("WP01", "WP02"), target_branch="feature/integration", mid8="01M5385D")
+    mission = build_feature_lanes_mission(tmp_path, wps=("WP01", "WP02"), mid8="01M5385D")
     before = ref_shas(mission)
     original = executor._phase_capture_and_baseline
 
@@ -176,7 +177,7 @@ def test_dirty_target_checkout_is_reported_not_restored_and_the_record_is_kept(
 
 def test_record_is_truthful_after_rollback_and_a_rerun_succeeds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     """The kept record claims nothing, and a re-run after removing the cause lands both lanes."""
-    mission = build_lanes_mission(tmp_path, wps=("WP01", "WP02"), target_branch="feature/integration", mid8="01M5385S")
+    mission = build_feature_lanes_mission(tmp_path, wps=("WP01", "WP02"), mid8="01M5385S")
     before = ref_shas(mission)
     with monkeypatch.context() as patch:
         _inject_after(patch, "_phase_record_done_and_project", _planted)
@@ -215,8 +216,8 @@ def test_protected_main_lanes_mission_never_leaves_main_advanced(tmp_path: Path)
 
 def _build(topology: str, tmp_path: Path, mid8: str) -> CoordMission:
     if topology == "lanes":
-        return build_lanes_mission(tmp_path, wps=("WP01", "WP02"), target_branch="feature/integration", mid8=mid8)
-    return build_coord_mission(tmp_path, wps=("WP01", "WP02"), mid8=mid8)
+        return build_feature_lanes_mission(tmp_path, wps=("WP01", "WP02"), mid8=mid8)
+    return build_feature_coord_mission(tmp_path, wps=("WP01", "WP02"), mid8=mid8)
 
 
 def _force_gate_fail(monkeypatch: pytest.MonkeyPatch) -> None:

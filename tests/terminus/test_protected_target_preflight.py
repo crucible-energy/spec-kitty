@@ -22,6 +22,7 @@ from specify_cli.lanes.persistence import write_lanes_json
 from tests.terminus.conftest import CoordMission, _approve_events, _event, _now_iso, blob_present_at, build_coord_mission, run_terminus
 from tests.terminus.conftest import _git as git
 from tests.terminus.lanes_fixture import build_lanes_mission
+from tests._support.feature_landing import build_feature_lanes_mission
 from tests.terminus.rollback_harness import flat, ref_shas, reflog_shas
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
@@ -116,7 +117,7 @@ def test_target_override_cannot_launder_the_recorded_protected_target(tmp_path: 
 
 
 def test_control_unprotected_target_consolidates(tmp_path: Path) -> None:
-    mission = build_lanes_mission(tmp_path, wps=("WP01", "WP02"), target_branch="feature/integration", mid8="01M5385U")
+    mission = build_feature_lanes_mission(tmp_path, wps=("WP01", "WP02"), mid8="01M5385U")
 
     result = _consolidate(mission)
 

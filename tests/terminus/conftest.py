@@ -467,10 +467,6 @@ def _init_fixture_repo(
         staged.append(rel_path)
     _git(repo, "add", *staged)
     _git(repo, "commit", "-qm", "init")
-    # A feature target must not become primary merely because it is the only
-    # branch in this synthetic repository. Keep a distinct real primary tip.
-    if target_branch != "main":
-        _git(repo, "branch", "main")
     return mission
 
 
@@ -533,7 +529,7 @@ def build_coord_mission(
     tmp_path: Path,
     *,
     wps: Sequence[str] = ("WP01",),
-    target_branch: str = "feature/integration",
+    target_branch: str = "main",
     mid8: str = "01M5001A",
     extra_base_files: dict[str, str] | None = None,
 ) -> CoordMission:
@@ -635,7 +631,7 @@ def build_coord_mission_mixed_lane(
     *,
     survivor_wp: str = "WP01",
     canceled_wp: str = "WP02",
-    target_branch: str = "feature/integration",
+    target_branch: str = "main",
     mid8: str = "01M5018A",
 ) -> CoordMission:
     """A SINGLE write-scope lane holding an approved survivor + a canceled sibling (#5018).
@@ -729,7 +725,7 @@ def build_coord_mission_shared_file(
     *,
     wps: Sequence[str],
     edits: Mapping[str, tuple[int, str]],
-    target_branch: str = "feature/integration",
+    target_branch: str = "main",
     mid8: str = "01M5051A",
     shared_path: str = "src/pkg/shared.py",
     initial_lines: Sequence[str] | None = None,
@@ -1004,7 +1000,7 @@ def build_coord_mission_mixed_lane_canceled(
     from specify_cli.lanes.models import ExecutionLane, LanesManifest
     from specify_cli.lanes.persistence import write_lanes_json
 
-    mission = _init_fixture_repo(tmp_path, mid8=mid8, slug=slug, target_branch="feature/integration", extra_base_files=extra_base_files)
+    mission = _init_fixture_repo(tmp_path, mid8=mid8, slug=slug, target_branch="main", extra_base_files=extra_base_files)
 
     (mission.feature_dir / "tasks").mkdir(parents=True)
     _write_meta(mission)
@@ -1430,7 +1426,7 @@ def run_terminus(
         check=False,
         timeout=180,
     )
-    if primary_before is not None and args and args[0] == "consolidate":
+    if primary_before and args and args[0] == "consolidate":
         assert git_rev(mission.repo, "main") == primary_before, "Feature consolidation advanced the actual primary branch"
     return result
 
@@ -1477,7 +1473,7 @@ def build_coord_mission_mixed_lane_with_dependency(
 
     mid8 = mid8.upper()
     slug = f"terminus-{mid8}"
-    mission = _init_fixture_repo(tmp_path, mid8=mid8, slug=slug, target_branch="feature/integration")
+    mission = _init_fixture_repo(tmp_path, mid8=mid8, slug=slug, target_branch="main")
     (mission.feature_dir / "tasks").mkdir(parents=True)
     _write_meta(mission)
 
