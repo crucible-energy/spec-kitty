@@ -494,3 +494,41 @@ from successful reads; all profiling producers are joined. The lifecycle owner
 has captured the published Linux failure and retains its cause/repair lane.
 The public run was preserved until that capture. HELD/v5 and current Source/
 native custody remain untouched, with no fit, unhold or faster-tier change.
+
+## 2026-10-25 — Review the actual control deadline and release inventory
+
+### User Experience Findings
+
+The migration owner's Linux mechanism control bounded pipe readiness, then used
+a blocking line read. That did not bound receipt of a complete frame. The owner
+reproduced the gap with actual owned pipe children and supplied a correction;
+Root reviewed its exact bytes independently before final qualification.
+
+The first release comparison covered tracked `src/` files only. A separate
+repository-wide tracked-native inventory identifies fourteen additional paths;
+the earlier zero native rows do not establish native release closure.
+
+### Engineering Decisions
+
+Keep the correction in the existing migration lane: one absolute monotonic
+deadline, bounded nonblocking reads, explicit EOF/size/trailing-data refusal and
+restoration of the prior descriptor mode. Retain isolated child environments,
+independent watchdogs and joined cleanup. Do not change production visibility
+or retirement predicates to make a control pass.
+
+Preserve the earlier inventory and add a hash-bound correction. Archive the
+three owned generated profiling repositories, verify every regular file against
+the archives, and check for open consumers before retiring those exact private
+trees. Raw failures, profiles, original bytes and restoration manifests remain
+available; no shared cache or worktree was pruned.
+
+### Known Limitations and Retained Obligations
+
+The corrected Source child still needs its final owning/strict results, explicit
+release, merged qualification and actual new-head Linux checks. Local review is
+not Linux execution or complete-host visibility. Release inventory is not asset,
+dependency or packaging closure. The separate PDB Host composition still needs
+a genuine owning installation and independently current authority; a healthy
+source-unproven incumbent or an Auth provider module does not supply either.
+HELD/v5, Source's exclusive Store custody and processing-tier preferences remain
+unchanged; no fit, unhold, source query, enrollment or runtime action occurred.
