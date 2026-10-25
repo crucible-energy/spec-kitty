@@ -1,40 +1,50 @@
-# Register the existing single-shard diagnostic workflow
+---
+title: Qualified single-shard workflow registration
+description: Records the registration-only manual workflow, exact selected-ref prerequisites, direct contract validation, and preserved runtime and custody boundaries.
+doc_status: implemented
+updated: '2026-10-25'
+version_tag: internal
+type: explanation
+owning_workstream: organization-workspace-lifecycle
+---
+# Register the qualified single-shard continuation
 
 ## User Experience Findings
 
 A cancelled reusable-matrix job could be retried, but its inherited failing
-sibling cancelled it again before pytest. An unchanged candidate already has
-an independent single-shard workflow, yet it was absent from the default branch
-and GitHub returned 404 for its workflow registration. That blocked the supported
-manual continuation; a candidate-only declaration was insufficient.
+sibling cancelled it again before pytest. GitHub also returned 404 for the
+qualified branch's existing manual workflow because it was absent from the
+default branch. The first proposed full-file backport passed the default's
+19 baseline tests but failed two direct workflow-catalog contracts: it added
+an executor outside that older layout's gate model. Retain those failed results.
 
 ## Engineering Decisions
 
-Register the byte-identical existing module-tests workflow through a small
-normal PR. Do not import the larger integration history, CI helpers, registry,
-application source, runtime release or branch-protection changes. Its one job
-uses the canonical selector, unchanged coverage, failure status and time limit.
-The owning migration lane dispatches only the exact core_misc4/5 and5/5 rows,
-sequentially, with modepr and no custom test filter.
+Register only the workflow-dispatch entrypoint on the older default branch.
+Preserve the exact seven input definitions from the qualified canonical runner.
+This anchor has zero token permissions, no checkout, helpers or test executor;
+its one job exits 64 with an explicit unsupported-ref diagnostic. Do not add a
+dynamic manual shard to the default's automatic coverage model, weaken its
+catalog guards, or import the larger migration history to register a name.
 
-The selected source ref is an explicit prerequisite. For this continuation,
-use codex/owned-lanes-analysis only while it resolves to the qualified immutable
-24856332d5bfd7a4ddd71bbcb561172889a4c7d9, then independently verify the resulting
-run head and one-job shape before admitting the next job. Required helpers and
-registry exist there; they are not supplied to the older default runtime by
-this registration. A run against the default's older layout is not qualified.
+The owning migration lane selects codex/owned-lanes-analysis only while it
+resolves to reviewed 24856332d5bfd7a4ddd71bbcb561172889a4c7d9. GitHub loads that
+selected ref's unchanged full workflow, helpers and registry. Independently
+verify the resulting run head and one-job shape before proceeding. Run the
+unchanged core_misc 4/5 then 5/5 registry rows sequentially in pr mode, without
+a custom test filter. Selecting this older default must refuse, never fall back.
 
-Repository token policy is currently read-only with PR-review approval disabled.
-Check that policy again before dispatch; do not change settings or infer another
-capability from workflow availability. No key, grant, source Store or service is
-installed. The platform-held Native lane is not retried or probed through this
-independent Spec Kitty lifecycle diagnostic.
+The selected workflow has no explicit token permissions. Recheck the actual
+repository read-only default and disabled PR-review approval before dispatch;
+do not infer contents-only inheritance or change settings. Exact-candidate
+self-review and objective local checks follow Sam's direction not to wait on
+Blacksmith or CodeRabbit; queued hosted jobs are not passes or approvals.
 
 ## Known Limitations and Retained Obligations
 
-Registration is not default RC7 adoption, successful Linux control execution,
-complete host visibility or a passing parent matrix. Preserve the earlier failed
-and cancelled runs. Actual workflow registration, selected-ref checkout, exact
-JUnit cases and results must be verified after the normal PR delivery. Keep
-HELD/v5 and all Source/native custody intact, with no fit, unhold or faster-tier
-change. Validation and closeout receipts remain external to frozen candidates.
+Registration is not default RC7 adoption, Linux control execution, complete
+host visibility or a passing parent matrix. Verify actual registered identity,
+selected-ref execution and exact JUnit cases after normal PR delivery. Preserve
+failed/cancelled evidence and the platform-held Native lane without workaround.
+Keep HELD/v5 and Source custody intact: no Store action, fit, unhold or faster
+tier. Keep validation and resource-closeout receipts outside frozen candidates.
