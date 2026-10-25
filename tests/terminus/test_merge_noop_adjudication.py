@@ -49,6 +49,7 @@ def test_merge_strategy_noop_refuses_when_target_tree_lost_mission_content(tmp_p
     git(mission.repo, "commit", "-q", "-m", "commit the phantom staged deletions (mis-remedy)")
 
     result = run_terminus(mission, ["consolidate", "--resume", "--strategy", "merge", "--yes"])
+    assert "PR-only consolidation" not in result.stdout + result.stderr, "fixture must reach recovery, not refuse its target"
 
     assert result.returncode != 0, (
         f"a merge-strategy no-op that would leave the target tree missing approved content must REFUSE (rc != 0), got rc=0\nstdout:\n{result.stdout}"

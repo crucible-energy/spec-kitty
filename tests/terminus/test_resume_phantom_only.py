@@ -33,6 +33,7 @@ def test_resume_refuses_and_preserves_a_genuine_edit_in_the_behind_head_window(t
     readme.write_text(readme.read_text(encoding="utf-8") + sentinel, encoding="utf-8")
 
     result = run_terminus(mission, ["consolidate", "--resume", "--yes"])
+    assert "PR-only consolidation" not in result.stdout + result.stderr, "fixture must reach the actual recovery boundary"
 
     assert result.returncode != 0, (
         f"merge --resume must REFUSE (fail-closed) when the behind-own-HEAD window also carries a genuine edit, got rc=0\nstdout:\n{result.stdout}"
@@ -57,6 +58,7 @@ def test_resume_refuses_and_preserves_an_untracked_file_colliding_with_a_restore
     collide.write_text(sentinel, encoding="utf-8")
 
     result = run_terminus(mission, ["consolidate", "--resume", "--yes"])
+    assert "PR-only consolidation" not in result.stdout + result.stderr, "fixture must reach the actual recovery boundary"
 
     assert result.returncode != 0, (
         f"merge --resume must REFUSE when an untracked file would be clobbered by the behind-own-HEAD reset, got rc=0\nstdout:\n{result.stdout}"
@@ -104,6 +106,7 @@ def test_resume_refuses_and_preserves_a_gitignored_file_the_mission_force_added(
     secret.write_text(sentinel, encoding="utf-8")
 
     result = run_terminus(mission, ["consolidate", "--resume", "--yes"])
+    assert "PR-only consolidation" not in result.stdout + result.stderr, "fixture must reach the actual recovery boundary"
 
     assert result.returncode != 0, (
         f"merge --resume must REFUSE when a gitignored file the operator owns collides "
