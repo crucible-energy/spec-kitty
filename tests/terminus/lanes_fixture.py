@@ -89,6 +89,8 @@ def _init_repo(repo: Path, target_branch: str) -> None:
     (repo / "README.md").write_text("init\n")
     _git(repo, "add", ".")
     _git(repo, "commit", "-qm", "init")
+    if target_branch != "main":
+        _git(repo, "branch", "main")
 
 
 def _write_meta(m: CoordMission, target_branch: str) -> None:
@@ -129,7 +131,7 @@ def build_lanes_mission(
     tmp_path: Path,
     *,
     wps: Sequence[str] = ("WP01",),
-    target_branch: str = "develop",
+    target_branch: str = "feature/integration",
     mid8: str = "01M5318L",
     with_planning_lane_wp: bool = False,
     planning_depends_on_code: bool = True,
@@ -268,7 +270,7 @@ def build_lanes_mission_canceled_dependency(tmp_path: Path, *, cancel_dependency
         mission_id=mission_id,
         mid8=mid8,
         coord_branch=mission_branch,
-        target_branch="develop",
+        target_branch="feature/integration",
     )
     m.home.mkdir(parents=True, exist_ok=True)
     _init_repo(m.repo, m.target_branch)

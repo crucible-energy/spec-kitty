@@ -124,14 +124,14 @@ def test_target_override_cannot_launder_the_recorded_protected_target(tmp_path: 
 
 
 def test_control_unprotected_target_consolidates(tmp_path: Path) -> None:
-    mission = build_lanes_mission(tmp_path, wps=("WP01", "WP02"), target_branch="develop", mid8="01M5385U")
+    mission = build_lanes_mission(tmp_path, wps=("WP01", "WP02"), target_branch="feature/integration", mid8="01M5385U")
 
     result = _consolidate(mission)
 
     output = flat(result)
     assert result.returncode == 0, output
     assert _REFUSAL_CODE not in output, output
-    assert blob_present_at(mission.repo, "develop", "src/pkg/wp02.py"), output
+    assert blob_present_at(mission.repo, mission.target_branch, "src/pkg/wp02.py"), output
 
 
 def test_control_operator_hatch_is_not_refused(tmp_path: Path) -> None:
