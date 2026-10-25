@@ -1020,6 +1020,7 @@ def test_actual_linux_same_uid_non_dumpable_child_retains_unknown_visibility(tmp
     from specify_cli.workspace_lifecycle import adapters
 
     program = """import ctypes,json,os,signal,sys
+signal.signal(signal.SIGALRM,signal.SIG_DFL)
 signal.alarm(20)
 libc=ctypes.CDLL(None,use_errno=True)
 libc.prctl.argtypes=[ctypes.c_int,ctypes.c_ulong,ctypes.c_ulong,ctypes.c_ulong,ctypes.c_ulong]
@@ -1051,6 +1052,7 @@ if sys.stdin.readline().strip()=='protect':
         "cwd": str(cwd),
         "executable": str(Path(sys.executable).absolute()),
         "isolated_program": program,
+        "environment": {"LC_ALL": "C"},
         "next_action": "Join the owned child through stdin; force only its dedicated process group on timeout",
         "review_event": "Test terminal outcome and Linux CI evidence review",
         "joined": False,
@@ -1058,7 +1060,13 @@ if sys.stdin.readline().strip()=='protect':
     receipt = tmp_path / "linux-process-custody.json"
     receipt.write_text(json.dumps(custody))
     child = subprocess.Popen(
-        [sys.executable, "-I", "-c", program], cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True
+        [sys.executable, "-I", "-S", "-c", program],
+        cwd=cwd,
+        env={"LC_ALL": "C"},
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
     )
     try:
         custody["child_pid"] = child.pid
