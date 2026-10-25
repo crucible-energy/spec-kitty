@@ -677,3 +677,31 @@ Retain the original shard failures, independent review, focused failures and
 frozen final receipts. Source still owns the canonical Store, HELD/v5 remains
 unchanged, and neither fit, unhold, Native platform-gate bypass, shared pruning
 nor faster processing is authorized by this test repair.
+
+## 2026-10-25 — Keep review recovery tied to the recorded claim
+
+### User Experience Findings
+
+The B88 Linux lifecycle shard passed. The execution-context shard instead
+reported one failure: an existing guard test expected obsolete instructions
+to edit the planning pin. The production diagnostic already directed recovery
+through the recorded claim or validated legacy base, explicitly prohibiting a
+planning-pin change. Both production text and stale test predate this integration
+base; the failure is retained rather than classified as a new runtime regression.
+
+### Engineering Decisions
+
+Replace the stale assertions and misleading test name with the actual safety
+contract. Preserve real Git, the unreadable reference and the refusal; require
+reachable-ancestor recovery guidance, the correct checkout, and the prohibition
+on moving the planning pin. Also verify the refusal creates no replacement
+metadata. Do not change production behavior or restore unsafe advice to satisfy
+an obsolete assertion.
+
+### Known Limitations and Retained Obligations
+
+The failed automatic run remains failed, with unfinished shards cancelled.
+Retain its raw failure and successful Linux evidence separately. Qualify the
+next frozen candidate through normal checks; do not dispatch the cancelled old
+candidate just before a new source push. This test-only correction grants no
+runtime, cleanup, Source, Store or HELD/v5 authority.
