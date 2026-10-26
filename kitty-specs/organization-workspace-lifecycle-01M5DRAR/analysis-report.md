@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-26T08:23:06.506984+00:00'
+generated_at: '2026-10-26T08:39:06.734110+00:00'
 analyzer_agent: codex-lifecycle-source-owner
 input_artifacts:
   spec.md:
@@ -1647,7 +1647,7 @@ input_artifacts:
     sha256: 5be833ee03b540a942d83d42f9d3ccd1aeac80d6f03fff3dc2d1ec4eee4a7db0
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP14-post-squash-review-source-reconciliation.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP14-post-squash-review-source-reconciliation.md
-    sha256: fb68c9848cd3d98110fadab5bf1eac4271f83305fb0b539441fb72c1186b7d8e
+    sha256: d88ae73626b4deb52ad52e86406e51b04dc8fb5f2f642de4db8609b2a13b3e2a
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md
     sha256: b43ef5eeacc904f6a0ed29cb7097a0d954ec347379c41c2b4aae73c9192fadaf
@@ -1884,13 +1884,13 @@ input_artifacts:
     sha256: 44a2804f83b0661d3d7e952c450c6e1a39fc6d6eaf3e9efd887b8b860833efb5
 verdict: ready
 issue_counts:
+  critical: 0
   low: 0
   medium: 0
   high: 0
-  critical: 0
   info: 0
 findings: []
-report_transaction: 9b2f9f6314224d1d93442ffdd75b65ff
+report_transaction: f62a43883a4342a7bfe3cf10911fa57d
 material_manifest_version: 1
 ---
 
@@ -1970,3 +1970,7 @@ Current authenticated repository-ID/property audit remains119, unchanged and wit
 Root requested only the existing docs/changelog/CHANGELOG.md path for the mandatory user-facing PR release note. Canonical task validation admits this tenth exact WP14 file after WP06/WP07, disjoint from WP09 and without any ownership warning or rejected requirement reference. Canonical apply b7303bb48fded74a1eeb2366e5bb28811a347b46 preserves all14state bytes and full event bytes; WP14 remains in progress, WP11 not approved, WP09 not admitted. Root imports Source metadata only after its current producer joins through the existing normal feature/review route. No Source direct integration push.
 
 The narrow WP14-S1 focused correction has independently checked16passes. WP14-S2 hidden-index red proved actual for_review admission in disposable fixtures and its focused six-case green is under independent exact-source review. Root reports further boundary/normalization/type results; they are not accepted here merely from owner counts. Broader owning/static/baseline gates and qualified installed R6 replay remain mandatory, followed by actual ordinary automatic lifecycle integration and all119current-repository installed execution. These implementation gates are explicit assigned obligations, not unresolved planning contradictions or an approved release.
+
+### Exact CLI help fixture scope follow-up
+
+Canonical WP14 scope now additionally admits only tests/specify_cli/cli/commands/agent/fixtures/tasks_cli/help/move-task.help to represent the two newly introduced paired options. All existing help items and comparison assertions stay binding. No dependencies, ownership authority, implementation state, verdict or event history changes. The task subsystem hook-safety failure remains a separate owning-run profile diagnosis, not a waived assertion or a passing gate; corrected selected-interpreter PATH must be demonstrated against the exact unchanged relevant source. Root imports both Source scope increments only after its producer joins. Broader baseline, final revision, qualified R6 and downstream ordinary cleanup/organization installed proof remain open. No cross-artifact planning contradiction identified from this narrow required-fixture addition.
