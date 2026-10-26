@@ -24,8 +24,6 @@ agent_profile: implementer-ivan
 authoritative_surface: src/specify_cli/workspace_lifecycle/worker.py
 create_intent:
 - tools/zig/workspace_ingress.zig
-- tests/lanes/test_lane_tip_record_points.py
-- tests/specify_cli/lanes/test_worktree_allocator_recovery.py
 execution_mode: code_change
 owned_files:
 - src/specify_cli/workspace_lifecycle/worker.py
@@ -35,6 +33,8 @@ owned_files:
 - src/specify_cli/invocation/writer.py
 - src/specify_cli/invocation/lifecycle.py
 - tools/zig/workspace_ingress.zig
+- tests/lanes/test_lane_tip_record_points.py
+- tests/specify_cli/lanes/test_worktree_allocator_recovery.py
 tags: []
 task_type: implement
 tracker_refs: []
