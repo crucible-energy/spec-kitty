@@ -37,6 +37,8 @@ owned_files:
 - docs/changelog/CHANGELOG.md
 - tests/specify_cli/cli/commands/agent/fixtures/tasks_cli/help/move-task.help
 - pyproject.toml
+- tests/contract/_mission_status_detail.py
+- tests/contract/test_mission_status_detail.py
 role: implementer
 tags: []
 task_type: implement
@@ -169,3 +171,19 @@ from [tool.ruff.format].exclude in pyproject.toml. Preserve the ratchet test,
 all other exclusions and all formatter/CI gates. Do not reintroduce formatting
 drift or widen exclusions to evade the check. The existing Root owner performs
 this narrow configuration correction and validates the new exact candidate.
+
+## Independent reference-consumer matcher fidelity
+
+PR122 contract-tools job reproduced a stale independent reader/test expectation
+for authored ./src/foo/** after the reviewed canonical writer began normalizing
+both paths and authored patterns. Amend only the existing two contract files.
+Preserve an independent reference implementation and explicit expected table;
+do not replace the reference oracle with an import or equality to production.
+Normalize authored slash/one-leading-dot spelling consistently with the writer,
+without widening fnmatch, directory-prefix, segment-boundary or raw commit-guard
+semantics. Pin intentional raw commit-guard divergences, Windows authored
+patterns and negative segment controls. Retain the original red and kill an
+old path-only-normalization mutant; full affected reader/test and unchanged
+relevant guards remain required. No production matcher rollback, policy waiver
+or reinterpretation of a failed suite as passing. Existing Root owns this same
+lane and waits for its frozen formatter producer to join before edits/tests.
