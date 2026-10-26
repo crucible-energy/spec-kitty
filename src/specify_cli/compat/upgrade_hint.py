@@ -137,6 +137,7 @@ def build_upgrade_hint(
     *,
     package: str | None = None,
     target_version: str | None = None,
+    installed_version: str | None = None,
 ) -> UpgradeHint:
     """Return the :class:`UpgradeHint` for *install_method*.
 
@@ -155,6 +156,8 @@ def build_upgrade_hint(
             uses the active :class:`DistributionProfile` package name.
         target_version: Optional latest version.  For uv-tool installs this
             is used to build a pinned upgrade command.
+        installed_version: When known by the caller, refuse a command for an
+            older target or an uncomparable version instead of suggesting a downgrade.
 
     Returns:
         A :class:`UpgradeHint` whose ``command`` / ``note`` is identical to
@@ -180,6 +183,27 @@ def build_upgrade_hint(
             command=None,
             note=_DEGRADED_PROFILE_NOTE,
         )
+
+    if target_version is not None and installed_version is not None:
+        from packaging.version import InvalidVersion, Version
+
+        try:
+            older = Version(target_version) < Version(installed_version)
+        except InvalidVersion:
+            return UpgradeHint(
+                install_method=install_method,
+                command=None,
+                note="The installed and selected CLI versions cannot be compared. Verify the installed package and selected release before upgrading.",
+            )
+        if older:
+            return UpgradeHint(
+                install_method=install_method,
+                command=None,
+                note=(
+                    "The selected release is older than the installed CLI. Keep the current installation; "
+                    "review the release channel and package provenance before changing it."
+                ),
+            )
 
     package_name = profile.package_name if package is None else package
 

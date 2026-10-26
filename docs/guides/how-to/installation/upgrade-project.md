@@ -62,6 +62,20 @@ preview-only owner plan use:
 spec-kitty upgrade --plan-json
 ```
 
+In a linked checkout, run the preview from that checkout's root. The legacy
+JSON compatibility envelope and too-new-schema refusal describe that selected
+checkout, not the separate repository root checkout. Add `--no-worktrees` to
+exclude sibling upgrade targets. Neither preview upgrades or commits a sibling
+checkout. The compatibility `safety` field classifies the command; it does not
+report whether a Git working tree is clean.
+
+The selected CLI release channel remains explicit. If its latest release is
+older than the installed CLI (for example, a stable release below an installed
+release candidate), the upgrade hint is a manual note, not a downgrade command.
+This does not change channels, replace a private package, or authorize migration
+of a legacy charter layout. Resolve any separate legacy-layout refusal through
+the project owner's supported migration workflow.
+
 The full plan reports roots, exact physical effects, preserved dispositions,
 diagnostics, apply-only temporary artifacts, and commit policy. It cannot be
 replayed or used as consent. `--yes` and `--force` never make a preview write.
