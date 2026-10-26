@@ -1032,3 +1032,122 @@ no-holder and source-recovery checks: 175,980,544 allocated bytes. Their source,
 Git fixtures, raw logs, failed runs and receipts remain retained.
 HELD/v5 and all other owners' source, Store, processes and recovery state are
 unchanged; validation uses only declared private Git fixtures.
+
+## 2026-10-26 — Retire two earned frontmatter formatter exemptions
+
+### User Experience Findings
+
+PR122 at source0d2 failed the existing Linux formatter-debt ratchet: 798
+architectural checks passed, one skipped, one failed. Its exact two findings
+were the now-formatted canonical frontmatter implementation and owning unit
+test. The focused unchanged guard reproduced locally: five passed, one failed.
+Keep both original failures; the earlier formatting check did not prove this
+shrink-only configuration invariant.
+
+### Engineering Decisions
+
+Import Source's supported WP14 ownership/analysis amendment0eb645 through a
+normal feature merge, preserving all14 task-state and full event bytes. Remove
+only `src/specify_cli/frontmatter.py` and `tests/tasks/test_frontmatter_unit.py`
+from the formatter-debt exclusion list, as its existing rule requires. No new
+rule, baseline increase, test edit, CI/hook/budget change, guard waiver or
+restored formatting debt. Both files now remain enrolled in the ordinary gate.
+
+Product/runtime/test bytes remain exactly0d2; the already reviewed immutable
+R6r2 wheel and installed Source-shaped qualification retain their original
+source pins, including the measured undeclared-gate skipped distinction. Reuse
+only their unchanged relevant byte/dependency/profile scope. Freeze this exact
+config/docs increment, rerun the actual unchanged ratchet and required baseline,
+and retain final results externally under the existing governance-recovery
+evidence root so recording validation does not mutate the tested candidate.
+
+### Known Limitations and Retained Obligations
+
+New-head hosted checks, exact config-diff/owner review and normal PR122 delivery
+remain mandatory. No earlier receipt is relabeled as a newer-head full gate.
+Broader retired-API SDK failures remain red/unqualified; actual Source canonical
+replay, default-main/package convergence and organization adoption remain
+separate. Preserve HELD/v5, no fit/unhold, frozen runtimes, Source producer and
+all recovery evidence; no shared-resource or runtime action is authorized.
+
+## 2026-10-26 — Keep the independent detail-reader matcher faithful
+
+### User Experience Findings
+
+The same0d2 hosted contract-tools run exposed a stale test-side reader and
+expected table: 2272 passed,37 skipped,one failed. The reviewed canonical writer
+normalizes both path and authored pattern to close the demonstrated hidden-byte
+inspection gap, while the reference still left its pattern raw. Unchanged local
+matcher checks reproduced one failure/42passes. New explicit leading-dot and
+Windows-pattern cases against the unchanged reference then failed four checks
+with46passing, including the unmutated-reader controls. Keep these real REDs.
+
+### Engineering Decisions
+
+Normally import Source's exact two-file reference/test ownership amendment26c132
+without changing existing dirty bytes, task states or full event history. Keep
+this reader independent: normalize its pattern as well as its path, retain
+fnmatch platform behavior, directory-prefix segment bounds and exactly one
+leading-dot removal. Do not call the writer to derive expected values. Explicit
+cases preserve the original path divergences from the raw Git commit guard and
+add the authored-pattern divergences and negative sibling-segment controls.
+
+Add a path-only-normalization mutant reproducing the old reader; both its clean
+control and planted-fault detection must pass after the repair. Grow the explicit
+mutation-registry count by exactly this one added mutant, preserving every old
+mutation. No production/runtime matcher, commit-guard policy, contract schema,
+assertion strength, required check, baseline or installed runtime changes.
+
+### Known Limitations and Retained Obligations
+
+The formatter increment's required baseline2452pass/5skip, docs/lint/3507-file
+format/lock/diff checks are terminal/joined on their exact retained source; that
+receipt is not proof of these later reference edits. Run the full affected reader
+and its corpus caller, unchanged architectural guards, final baseline and docs
+checks on the new frozen inputs before normal PR122 publication. Existing0d2
+runtime/installed qualification keeps its original pins and narrow scope.
+Current-head hosted checks and independent final source review remain gates;
+Source canonical replay/default-main/adoption are not inferred. Preserve all
+failed receipts, HELD/v5, Source custody and frozen runtimes; no fit or unhold.
+
+## 2026-10-26 — Qualify the corpus in its supported primary context
+
+### User Experience Findings
+
+The expanded local reader/corpus/guard run completed1055pass/1skip/10fail;
+retain the full FAILED result. Exact JUnit separates247changed-reader passes
+and81unchanged architecture passes from the untouched Reality caller's
+727passes/1skip/10fail. Its strict drift scan refuses data resolved outside the
+selected linked checkout; Project records551outside-root fallbacks. Local
+Project190.776s/combined203.649s also exceeded the unchanged120s limits.
+
+### Engineering Decisions
+
+Keep the boundary fail-closed: MissionStatus.load documents a PRIMARY checkout
+argument. Read-only named-entry diagnostics return paths inside originalprimary
+but outside this linkedRoot, followed by strict ReadDirOutsideRoot, without ever
+importing the changed detail reference. A separate explicit archived-source
+control verifies all366executed product module bytes against pre-WP14e848 Git
+objects, including actual originalfrontmatter; it reproduces the same typed
+boundary without Rootfile/ref/status mutation. This is NOT an installed SDK or
+whole-corpus performance pass. The initial control's mistaken loaded-module
+assertion stays failed; corrected instrumentation reports actual module usage.
+
+The existing Source owner independently ratified the supported qualification
+route. Do not duplicate CI with another repository clone or silently use the
+dirty live primary. Finish exact-input mandatory local checks and require actual
+NEWHEAD hosted PRIMARY-context fullcorpus, contract and protection checks before
+merge. No skip, floor, cold-index, fallback, timing limit, test or policy is
+weakened. Reuse only unchanged relevant original runtime/owning gate evidence.
+
+### Known Limitations and Retained Obligations
+
+Local linked-corpus qualification remains FAILED; the two local timing bounds
+remain unqualified and are not attributed away by the narrow functional control.
+Root's existing validation lane retains the linked-profile/timing investigation,
+with Source owning the canonical primary-context boundary. Next review event is
+WP14 delivery or the next relevant corpus increment, whichever comes first.
+The proposed standalone validation clone was withdrawn before materialization;
+no new checkout/resource was created. Actual Source replay, default-main,
+runtime/admission and general SDK compatibility remain separate. Preserve
+HELD/v5, no fit/unhold, Source custody, all failures and frozen runtimes.

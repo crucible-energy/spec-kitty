@@ -859,12 +859,16 @@ GLOB_CASES: list[tuple[str, str, bool]] = [
     ("src/{a,b}.py", "src/a.py", False),
     ("src/{a,b}.py", "src/{a,b}.py", True),
 ]
-# (pattern, path, expected, the commit guard's copy agrees): four normalisation cases; the two it does not normalise are the known divergences.
+# (pattern, path, expected, the raw commit guard agrees): independent expected values, including both-side normalisation and negative segment bounds.
 NORMALISATION_CASES: list[tuple[str, str, bool, bool]] = [
     ("src/foo/**", "./src/foo/x.py", True, False),
     ("src/foo/**", f"src{BACKSLASH}foo{BACKSLASH}x.py", True, False),
     ("src/foo/**", "././src/foo/x.py", False, True),  # only one leading ./ is removed
-    ("./src/foo/**", "src/foo/x.py", False, True),  # the pattern is used as authored
+    ("./src/foo/**", "src/foo/x.py", True, False),
+    (f"src{BACKSLASH}foo{BACKSLASH}**", "src/foo/x.py", True, False),
+    ("./src/foo/**", "src/foobar/x.py", False, True),
+    (f"src{BACKSLASH}foo{BACKSLASH}**", "src/foobar/x.py", False, True),
+    ("././src/foo/**", "src/foo/x.py", False, True),  # only one leading ./ is removed from the pattern
 ]
 
 
@@ -881,16 +885,21 @@ def test_the_matcher_agrees_with_both_repository_copies_on_every_glob_case(patte
 
 
 @pytest.mark.parametrize(("pattern", "path", "expected", "guard_agrees"), NORMALISATION_CASES)
-def test_the_matcher_normalises_like_the_move_task_copy_and_the_two_known_divergences_are_pinned(
+def test_the_matcher_normalises_both_sides_like_move_task_and_pins_raw_commit_guard_differences(
     pattern: str, path: str, expected: bool, guard_agrees: bool
 ) -> None:
     assert det.matches_owned_file(path, pattern) is expected
-    assert _mt_matches_owned_file(path, (pattern,)) is expected, "the reader reproduces the move-task copy, which normalises inside"
+    assert _mt_matches_owned_file(path, (pattern,)) is expected, "the independent reader and canonical move-task matcher normalise both sides"
     assert (_matches_any_glob(path, [pattern]) is expected) is guard_agrees, "the commit-guard copy receives git-relative paths and does not normalise"
 
 
-def test_exactly_two_normalisation_cases_diverge_from_the_commit_guard_copy() -> None:
-    assert [(case[0], case[1]) for case in NORMALISATION_CASES if not case[3]] == [NORMALISATION_CASES[0][:2], NORMALISATION_CASES[1][:2]]
+def test_the_exact_normalisation_divergences_from_the_raw_commit_guard_are_pinned() -> None:
+    assert [(case[0], case[1]) for case in NORMALISATION_CASES if not case[3]] == [
+        ("src/foo/**", "./src/foo/x.py"),
+        ("src/foo/**", f"src{BACKSLASH}foo{BACKSLASH}x.py"),
+        ("./src/foo/**", "src/foo/x.py"),
+        (f"src{BACKSLASH}foo{BACKSLASH}**", "src/foo/x.py"),
+    ]
 
 
 def test_the_matcher_is_not_fnmatchcase_a_case_difference_follows_the_platform_like_the_copies() -> None:
@@ -1662,6 +1671,12 @@ def _prefix_of_a_trailing_star_only(path: str, pattern: str) -> bool:
     return fnmatch.fnmatch(_normalised(path), pattern) or bool(prefix and _normalised(path).startswith(prefix + "/"))
 
 
+def _without_pattern_normalisation(path: str, pattern: str) -> bool:
+    """Recreate the stale reference: path-only normalisation must be caught."""
+    prefix = pattern.replace("/**", "").replace("/*", "").rstrip("/")
+    return fnmatch.fnmatch(_normalised(path), pattern) or bool(prefix and _normalised(path).startswith(prefix + "/"))
+
+
 def _without_normalisation(path: str, pattern: str) -> bool:
     prefix = pattern.replace("/**", "").replace("/*", "").rstrip("/")
     return fnmatch.fnmatch(path, pattern) or bool(prefix and path.startswith(prefix + "/"))
@@ -1744,6 +1759,7 @@ MUTATIONS: dict[str, tuple[Any, Any]] = {
     "a prefix without the segment boundary": (_matcher_mutation(_prefix_without_a_segment_boundary), _check_matcher),
     "a prefix rule for a trailing star only": (_matcher_mutation(_prefix_of_a_trailing_star_only), _check_matcher),
     "a matcher that normalises nothing": (_matcher_mutation(_without_normalisation), _check_matcher),
+    "a matcher that normalises only the path": (_matcher_mutation(_without_pattern_normalisation), _check_matcher),
     "worktreePresent decided by existence alone": (_mutate_worktree_present_by_existence_alone, _check_planning_worktree),
     **{f"the guard removed for {kind}": (_remove_guard(FAULT_GUARDS[kind]), _fault_check(kind)) for kind in FAULTS},
 }
@@ -1758,6 +1774,7 @@ SPEC_MUTATION_KEYWORDS = (
     "segment boundary",
     "trailing star only",
     "normalises nothing",
+    "normalises only the path",
     "brace pattern matched literally",
     "brace pattern expanded",
     "detached",
@@ -1769,7 +1786,7 @@ def test_the_mutation_list_covers_every_mutation_the_specification_names() -> No
     names = " | ".join(MUTATIONS)
     missing = [needle for needle in SPEC_MUTATION_KEYWORDS if needle not in names]
     assert missing == [], f"no mutation covers: {missing}"
-    assert len(MUTATIONS) == 15 + len(FAULTS)
+    assert len(MUTATIONS) == 16 + len(FAULTS)
 
 
 @pytest.mark.parametrize("name", sorted(MUTATIONS))
