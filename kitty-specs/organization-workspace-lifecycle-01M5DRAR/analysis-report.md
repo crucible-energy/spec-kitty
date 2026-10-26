@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-26T13:12:28.694956+00:00'
+generated_at: '2026-10-26T21:01:07.506045+00:00'
 analyzer_agent: codex-lifecycle-source-owner
 input_artifacts:
   spec.md:
@@ -1620,7 +1620,7 @@ input_artifacts:
     sha256: 51982b1661e69cc6e56342c8b6ba3291cc6743e2a9244db4ffaaf457a270ec16
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
-    sha256: 94e6cdde29a19381705c2b7896b2ca69d3e72c89b307b9abb69d73a29bd2a44e
+    sha256: 3cdc12e68db7dd218c59952f120ea2571290d878d990a6aca81c08bb17b4bdab
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
     sha256: a8ce616e70aa2b618ddfcd3c4760704409492ea70022f7b5c6dabaf82524f604
@@ -1893,25 +1893,23 @@ input_artifacts:
     sha256: 5101763d7244c3a0115d0a0677d45d467f30c8428bdd648d083b95fa5a42eb63
 verdict: ready
 issue_counts:
-  medium: 0
-  critical: 0
   high: 0
+  medium: 0
   low: 0
+  critical: 0
   info: 0
 findings: []
-report_transaction: 4d90e185648f42cab25f4e86329515eb
+report_transaction: dbc28adf8103463a9bb4384c7b44310f
 material_manifest_version: 1
 ---
 
-# Current lifecycle mission analysis — October 26 canonical review boundary
+# Lifecycle planning consistency — ordinary creator binding increment
 
 ### Summary
 
-The specification, plan and fourteen finalized work packages remain consistent. No new planning conflict or unassigned requirement is identified. This assessment admits the next bounded implementation increment; it is not mission acceptance or installed rollout proof.
+This is a fresh planning consistency assessment for the current WP09 prompt, not mission acceptance or runtime adoption. I compared the current spec, plan and task scope after its canonical dependency-ordered additions. WP09 remains in progress; approved WP08/WP11 permit bounded existing-adapter/native integration. No requirement is orphaned and no planning conflict is identified. Sealed core/producer/finalizer custody remains outside Source changes and with the existing Root owner.
 
-PR122 source45701 and integration squash e4b0cb39 have identical d10e985c trees. The exact published candidate finished required supported-context CI:80success and6declared skips, no pending or failed checks. Actual default b9474e1c does not contain this feature integration. Source normal merge ee06 retained all21 unique local commits; subsequent canonical events preserved the entire prior event-log prefix.
-
-WP11 is now canonically approved by durable event01M5W56QZZQ6NY0QAV4VB3BFM7. Source recorded the existing independent Lynn R2 plus Root bounded review, without inventing a new independent reviewer. WP14 is canonically approved by durable event01M5W5934ER8WNB850RJVTV797 after independent Source review of Root-owned implementation and verification of all14 owned entry identities against reviewed45701. Prior rejected review remains retained; no force, skip, fake source touch, retrospective receipt repin or manual verdict was used. Explicit qualified isolated R6r2 latest-RC7 runtime executed these transitions and all owned command groups joined. The repository declares no pre-review test command, so that particular CLI gate reports skipped, not passed; actual validation evidence remains separately bound to its producer and candidate.
+The prior f1b98506f increment is an immutable review candidate: exact-parent adapter, generation-bound native obligation journal, legacy-ID preservation and data-only startup/completion/recovery. It has20native passes,278owning-subsystem passes/2skips and2452fast passes/5skips. The native compile-only fixture correction has separate proof; Python fast-gate inputs remained identical. These facts do not establish installed ordinary release or organization deployment. R6r2 is qualified for owned-review/governance; its absent workspaces command is an older artifact-scope limitation, not a Source registration defect. Actual Source root workspaces help passes.
 
 ### Coverage Summary Table
 
@@ -1945,22 +1943,27 @@ WP11 is now canonically approved by durable event01M5W56QZZQ6NY0QAV4VB3BFM7. Sou
 | SC-006 closeout proof | T010, T011 | Source/install/enablement/execution/capacity remain distinct. |
 
 
+
 ### Charter Alignment Issues
 
-None identified for bounded WP09 admission. Existing Source owns ordinary creator integration; existing Root owns core/finalizer/default/distribution convergence. No competing lane or producer is required. New ingress and its new tests remain Zig; existing Python changes are bounded migration glue. Retain sealed OperationRoot and existing dispatch/close/executor authorities. The no-numerical-cap lifecycle requirement remains binding. Required publication hooks, independent review, current-head validation, delivery and recovery checks remain mandatory.
+None for the bounded creator-binding increment: current WP09 owns adapters.py and workspace_ingress.zig, with dependencies on completed native finish and delivery/recovery safety work. New behavior tests remain Zig, exercising existing Python adapter as migration glue. No new Python service, runtime installation replacement, remote mutation, sealed OperationRoot edit, new model/Store/HELD operation or competing lane is admitted by this assessment.
 
-### Unmapped Tasks
+### Current Increment and Release Boundary
 
-None in the fourteen-package requirement map. WP09's dependencies WP08 and WP11 are approved. WP10 still depends on WP09. The active WP12/default delivery obligation belongs to the existing Root and must not be silently marked complete. Approved packages are implementation dispositions, not evidence of organization installation or resource release.
+Add explicit ordinary creator identity/accountable owner and immutable starting commit to new private pending records before effects, preserving exact legacy creator decoding. Native admission must consume data-only receipt while pending custody is durably present. A callback failure retains the pending obligation and cannot create or adopt a workspace. Existing managed-run behavior and all old positive/retention checks remain. Ordinary release must remain refused until Root supplies the separately qualified original-capability lifetime contract. Completion/event labels cannot reconstruct capability, joined producer evidence or delivery. No new capability is stored in callback JSON.
+
+The core owner has accepted the release-lifetime follow-on, after its currently required same-owner active-lane resume repair. That external implementation dependency remains open. This assessment does not scope or approve a speculative replacement core contract. Source retains allocator/creator/native integration and Root retains core/finalizer/default/distribution convergence.
 
 ### Implementation Findings and Remaining Gates
 
-WP09 must reproduce and repair ordinary allocator crash-recovery broad pruning, without changing unrelated missing registrations. Worker launch inherits candidate CWD and must use a qualified outside CWD while respecting actual process holders. Ordinary creation must bind an exact creator generation before effects; reuse must not adopt ownership. Completion records are wake-up hints, never delivery/release/join evidence. Prove bounded asynchronous ordinary startup/completion/recovery, success/failure/cancellation, at-most-once eligible closeout and preservation with current package identity outside the source checkout. No manual managed-run substitute or blanket runtime qualification is allowed.
+The current prompt's broad-prune and candidate-CWD defects were reproduced and repaired; prior red evidence and exact source ancestry remain preserved. Native obligations distinguish generations and refuse changed source/store/ref/owner, missing generation and forged release without state change. Actual ordinary allocator callbacks, producer completion/recovery integration, installed packaging, asynchronous cleanup/preservation, current-default delivery and organization rollout remain incomplete. No manual managed-run substitute is accepted as ordinary integration proof.
 
-Local linked-context full corpus remains FAILED (1055pass/1skip/10fail); untouched original-source functional controls and passed supported PRIMARY CI are distinct facts. The exact linked-profile/timing follow-up remains with Root in wp14-linked-validation-retained-obligation.json; no assertions, deadlines, coverage floors or index bounds were weakened. The12 baseline failures are closed through identical-case red/green after removing only two leaked runner environment overrides; checks were not weakened.
+The latest authenticated R13 audit contains119unique current repository IDs with both required policy values and no scope gaps. Independently verified installed organization execution adoption remains0 for this mission; other-owner adoption is unknown. Policy values do not prove runtime installation or cleanup.
 
-Last authenticated organization audit has119 current repository IDs and required property values with no gaps. This establishes policy scope only; installed automatic execution adoption remains unproved. Refresh current membership and per-repository default/runtime identity at rollout. Historical missing checkout working-tree/ignored state remains unresolved and protected.
+The local validation temporary-layout incident is operationally reconciled through canonical hosted_posture.set_repo_drain: only accidental home-root hosted.drain changed true to false under Sam authority and Root review; actual personal hosted flag is unset at /Users/sam/.spec-kitty/config.toml, effective posture is OFF without narrowing. Moments bytes and every other key remain unchanged; original incident copies are retained. Historical prior bytes remain unknown, not declared restored. No existing Time Machine snapshot or machine backup was found.
+
+Original linked-context failure and historical missing-working-tree/ignored-state obligations remain retained rather than relabeled. Required changed-statement coverage, focused checks, mandatory publication gates and independent review remain binding. Existing canonical review approvals, Source ancestry and event prefix must not be rewritten.
 
 ### Next Actions
 
-Record this fresh analysis through the canonical owned report transaction, then query next and honor actual guard outcomes. Claim WP09 only through its supported owned workflow, implement and validate the finite ordinary ingress increment, independently review and publish through the existing owner's workflow. Complete default/source/distributable convergence and per-current-repository execution proof before considering WP10 or the mission complete. No host/Docker/cloud/Store/model effect or resource retirement follows from this report.
+Record this report through the canonical owned transaction; requery the actual next guard state. Proceed only with the existing WP09 creator/native surfaces and fail-closed ordinary release boundary. Publish coherent validated increments through the existing owner. Implement the qualified core contract only after its actual reviewed pin is available, then prove installed automatic cleanup and preservation before fresh per-repository rollout admission.
