@@ -66,7 +66,6 @@ this module, so a patch on that name keeps intercepting.
 
 from __future__ import annotations
 
-import fnmatch
 import json
 import logging
 from collections.abc import Iterable
@@ -288,6 +287,8 @@ class _MoveTaskState:
     profile: str | None = None
     invocation_id: str | None = None
     owned: OwnedCheckout | None = None
+    review_source_commit: str | None = None
+    review_delivery_commit: str | None = None
     # --- phase A: resolved targets ---
     target_lane: Lane = Lane.PLANNED
     repo_root: Path = field(default_factory=Path)
@@ -638,6 +639,16 @@ def _mt_resolve_targets(st: _MoveTaskState, ports: TasksPorts) -> None:
     st.feature_dir = st.mt_feature_dir
     if st.owned is not None and st.target_lane in (Lane.FOR_REVIEW, Lane.APPROVED):
         st.review_base_ref = _mt_resolve_owned_review_base(st)
+    if st.review_source_commit is not None or st.review_delivery_commit is not None:
+        if st.owned is None or st.target_lane not in (Lane.FOR_REVIEW, Lane.APPROVED) or not st.review_source_commit or not st.review_delivery_commit:
+            raise ActionContextError(
+                "OWNED_REVIEW_SOURCE_INVALID",
+                "Paired review-source and delivery commits require owned for_review or approved admission.",
+            )
+        # Inspect before a deferred deliverable commit or verdict write. The
+        # explicit history proof cannot turn pending implementation into a
+        # delivered source, even when ordinary auto-commit is enabled.
+        _mt_require_owned_implementation(st)
     # FR-007 / IC-04: prior-owner attribution is snapshot-sourced (the WP file no
     # longer carries the ``agent`` runtime field post-cutover) — read via the
     # ungated snapshot accessor in an extracted helper, not
@@ -897,21 +908,17 @@ def _mt_owned_file_patterns(st: _MoveTaskState) -> tuple[str, ...]:
 
 def _mt_matches_owned_file(path: str, patterns: tuple[str, ...]) -> bool:
     """Match a repository-relative path with commit-guard-compatible globs."""
-    normalized = path.replace("\\", "/").removeprefix("./")
-    for pattern in patterns:
-        if fnmatch.fnmatch(normalized, pattern):
-            return True
-        prefix = pattern.replace("/**", "").replace("/*", "").rstrip("/")
-        if prefix and normalized.startswith(prefix + "/"):
-            return True
-    return False
+    from specify_cli.core.owned_mission import matches_owned_file
+
+    return matches_owned_file(path, patterns)
 
 
 def _mt_require_owned_implementation(st: _MoveTaskState) -> None:
     """Require a committed implementation delta in the WP's authored scope."""
     assert st.owned is not None
     assert st.review_base_ref is not None
-    patterns = _mt_owned_file_patterns(st)
+    source_commit: str | None = getattr(st, "review_source_commit", None)
+    patterns = () if source_commit is not None else _mt_owned_file_patterns(st)
     changed = merge_base_changed_files_checked(
         st.owned.owned_root,
         st.review_base_ref,
@@ -926,6 +933,24 @@ def _mt_require_owned_implementation(st: _MoveTaskState) -> None:
             "Restore the recorded base through the owning claim or planning recovery workflow, "
             "verify it is reachable and an ancestor of this checkout, then retry; do not move the mission planning pin to repair a claim base.",
         )
+    if source_commit is not None:
+        from specify_cli.core.owned_mission import resolve_owned_review_source
+
+        assert st.review_delivery_commit is not None
+        assert st.wp is not None
+        proof = resolve_owned_review_source(st.owned, st.wp.path, source_commit, st.review_delivery_commit, st.target_branch)
+        patterns = tuple(pattern.replace("\\", "/").removeprefix("./") for pattern in proof.owned_files if pattern.strip())
+        if (
+            proof.task_id != st.task_id
+            or not patterns
+            or not any(_mt_matches_owned_file(path, patterns) for path in proof.source_changes)
+            or any(_mt_matches_owned_file(path, patterns) for path in (*proof.current_changes, *proof.dirty_paths))
+        ):
+            raise ActionContextError(
+                "OWNED_REVIEW_SOURCE_INVALID",
+                "Review-source evidence requires original owned implementation and unchanged current committed/index/worktree entries.",
+            )
+        return
     if not patterns or not any(_mt_matches_owned_file(path, patterns) for path in changed):
         raise ActionContextError(
             "OWNED_IMPLEMENTATION_MISSING",
@@ -1565,6 +1590,8 @@ class _MoveTaskArgs:
     profile: str | None = None
     invocation_id: str | None = None
     owned: OwnedCheckout | None = None
+    review_source_commit: str | None = None
+    review_delivery_commit: str | None = None
 
 
 def _do_move_task(args: _MoveTaskArgs, *, ports: TasksPorts | None = None) -> None:
@@ -1600,6 +1627,8 @@ def _do_move_task(args: _MoveTaskArgs, *, ports: TasksPorts | None = None) -> No
 
     ports = ports or _default_move_task_ports()
     st = _MoveTaskState(
+        review_source_commit=args.review_source_commit,
+        review_delivery_commit=args.review_delivery_commit,
         task_id=args.task_id,
         to=args.to,
         mission=args.mission,
