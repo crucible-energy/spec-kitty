@@ -1,3 +1,11 @@
+---
+title: Linked upgrade compatibility scope and version guidance
+description: Explain checkout-bound compatibility previews and downgrade-safe CLI hints while preserving package provenance, release channels and separate migration authority.
+type: explanation
+doc_status: active
+updated: '2026-10-26'
+---
+
 # Linked upgrade compatibility scope and version guidance
 
 ## User Experience Findings
@@ -38,3 +46,8 @@ execution; its own controller stopped and joined its children. It is not red
 or green evidence. The unchanged second run reproduced both downgrade hints.
 The first implementation commit retained a line-length failure; it was fixed
 before qualification and delivery checks. All failed outputs remain retained.
+
+The first hosted documentation suite caught missing front matter on this new
+published note. Add the required metadata and validate the existing description,
+SEO and structural tests; do not weaken their published-page requirements. The
+failed hosted run remains evidence, separate from the corrected documentation.
