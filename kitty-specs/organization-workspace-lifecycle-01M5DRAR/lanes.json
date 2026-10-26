@@ -46,6 +46,7 @@
         "src/specify_cli/consolidation/**",
         "src/specify_cli/consolidation/preflight.py",
         "src/specify_cli/core/owned_mission.py",
+        "src/specify_cli/frontmatter.py",
         "src/specify_cli/git/ref_advance.py",
         "src/specify_cli/invocation/executor.py",
         "src/specify_cli/invocation/lifecycle.py",
@@ -77,6 +78,7 @@
         "tests/specify_cli/cli/commands/test_doctor_cli_surface_golden.py",
         "tests/specify_cli/consolidation/test_single_branch_consolidate_e2e.py",
         "tests/specify_cli/invocation/cli/test_owned_checkout.py",
+        "tests/tasks/test_frontmatter_unit.py",
         "tests/terminus/**",
         "tests/workspace_lifecycle/test_acceptance.py",
         "tests/workspace_lifecycle/test_adapters.py",
@@ -94,10 +96,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-26T06:07:44.699647+00:00",
+  "computed_at": "2026-10-26T07:13:22.692499+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "47061ae571486cdd168d6951801131318bdfb850"
+  "planning_commit_sha": "ea39e648a103222e60fcbadf596803fcc34c1bee"
 }
