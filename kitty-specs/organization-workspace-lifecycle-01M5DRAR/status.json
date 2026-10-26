@@ -352,7 +352,8 @@
       "last_transition_at": "2026-10-26T13:08:49.740980+00:00",
       "model": "__resolved_model_absent__",
       "notes": [
-        "Existing Root core owner requested and accepts this disjoint repair; actual Source canonical next selectsWP14 with no guards after fresh14-package analysis821b7a9. Root uses existing spec-kitty-owned-lanes-analysis checkout; no new workspace or duplicated producer. Current published runtime propagation remains separately qualified; local-charter profile mode asserts no correlated Op/model."
+        "Existing Root core owner requested and accepts this disjoint repair; actual Source canonical next selectsWP14 with no guards after fresh14-package analysis821b7a9. Root uses existing spec-kitty-owned-lanes-analysis checkout; no new workspace or duplicated producer. Current published runtime propagation remains separately qualified; local-charter profile mode asserts no correlated Op/model.",
+        "Submit Root-owned WP14 implementation delivered by PR122 for independent Source review. Exact current-head CI passed; preserve linked-context failed-run obligation. No force, skip, artificial code touch or planning-policy change."
       ],
       "provider": "__resolved_provider_absent__",
       "role": "implementer",
