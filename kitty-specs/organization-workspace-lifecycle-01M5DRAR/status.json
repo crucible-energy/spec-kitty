@@ -1,7 +1,7 @@
 {
-  "event_count": 82,
-  "last_event_id": "01M5W5934ER8WNB850RJVTV797",
-  "materialized_at": "2026-10-26T13:09:29.358646+00:00",
+  "event_count": 83,
+  "last_event_id": "01M5W5F51SK4D8QJ0M6B36MT12",
+  "materialized_at": "2026-10-26T13:12:47.929927+00:00",
   "mission_number": "",
   "mission_slug": "organization-workspace-lifecycle-01M5DRAR",
   "mission_type": "software-dev",
@@ -10,12 +10,12 @@
     "approved": 11,
     "blocked": 0,
     "canceled": 0,
-    "claimed": 0,
+    "claimed": 1,
     "done": 0,
     "for_review": 0,
     "in_progress": 1,
     "in_review": 0,
-    "planned": 2
+    "planned": 1
   },
   "work_packages": {
     "WP01": {
@@ -251,11 +251,17 @@
       }
     },
     "WP09": {
-      "actor": "finalize-tasks",
+      "actor": "codex",
+      "agent": "codex",
+      "agent_profile": "implementer-ivan",
+      "agent_profile_version": "1.0",
       "force_count": 0,
-      "lane": "planned",
-      "last_event_id": "01M5QVB086RHS1EH00007T3C52",
-      "last_transition_at": "2026-10-24T20:58:48.454911+00:00"
+      "lane": "claimed",
+      "last_event_id": "01M5W5F51SK4D8QJ0M6B36MT12",
+      "last_transition_at": "2026-10-26T13:12:47.929927+00:00",
+      "model": "__resolved_model_absent__",
+      "provider": "__resolved_provider_absent__",
+      "role": "implementer"
     },
     "WP10": {
       "actor": "finalize-tasks",
