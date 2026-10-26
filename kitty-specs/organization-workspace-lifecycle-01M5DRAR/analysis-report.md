@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-26T08:39:06.734110+00:00'
+generated_at: '2026-10-26T10:58:11.338016+00:00'
 analyzer_agent: codex-lifecycle-source-owner
 input_artifacts:
   spec.md:
@@ -1647,7 +1647,7 @@ input_artifacts:
     sha256: 5be833ee03b540a942d83d42f9d3ccd1aeac80d6f03fff3dc2d1ec4eee4a7db0
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP14-post-squash-review-source-reconciliation.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP14-post-squash-review-source-reconciliation.md
-    sha256: d88ae73626b4deb52ad52e86406e51b04dc8fb5f2f642de4db8609b2a13b3e2a
+    sha256: fd617bc590338a8504a94eaac4f7ab9f08d460e021d749a587803c1687939245
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md
     sha256: b43ef5eeacc904f6a0ed29cb7097a0d954ec347379c41c2b4aae73c9192fadaf
@@ -1884,13 +1884,13 @@ input_artifacts:
     sha256: 44a2804f83b0661d3d7e952c450c6e1a39fc6d6eaf3e9efd887b8b860833efb5
 verdict: ready
 issue_counts:
-  critical: 0
-  low: 0
   medium: 0
+  low: 0
+  critical: 0
   high: 0
   info: 0
 findings: []
-report_transaction: f62a43883a4342a7bfe3cf10911fa57d
+report_transaction: 90b36505d4b24a6f8f79050482ecb0e8
 material_manifest_version: 1
 ---
 
@@ -1974,3 +1974,7 @@ The narrow WP14-S1 focused correction has independently checked16passes. WP14-S2
 ### Exact CLI help fixture scope follow-up
 
 Canonical WP14 scope now additionally admits only tests/specify_cli/cli/commands/agent/fixtures/tasks_cli/help/move-task.help to represent the two newly introduced paired options. All existing help items and comparison assertions stay binding. No dependencies, ownership authority, implementation state, verdict or event history changes. The task subsystem hook-safety failure remains a separate owning-run profile diagnosis, not a waived assertion or a passing gate; corrected selected-interpreter PATH must be demonstrated against the exact unchanged relevant source. Root imports both Source scope increments only after its producer joins. Broader baseline, final revision, qualified R6 and downstream ordinary cleanup/organization installed proof remain open. No cross-artifact planning contradiction identified from this narrow required-fixture addition.
+
+### Earned formatter-exclusion correction after real PR122 failure
+
+The current-head hosted architecture ratchet actually fails because the two touched frontmatter implementation/test files are now formatted but remain excluded. WP14 now admits only pyproject.toml for removing exactly those two obsolete exclusions, strengthening formatter coverage. The test and all other policies remain unchanged. This is an assigned narrow implementation/publication blocker, not a planning exception or a waiver. Source state/history bytes remain unchanged. Independent scoped Source-shaped R6r2 review supports the observed local review/Op surfaces; broad SDK/organization adoption is unproved. Actual measured Source gate selection is skipped/not-declared, not the earlier incorrectly inferred no_coverage. PR122 remains unmerged with mandatory current-head CI still pending/red. Root must reproduce, repair, validate and publish a new coherent candidate through the same PR, then recheck all required gates before merge and actual Source replay. No cross-artifact planning contradiction introduced by this exact same-owner dependency-ordered path addition.
