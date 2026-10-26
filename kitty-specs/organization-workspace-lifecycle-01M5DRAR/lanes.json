@@ -20,7 +20,8 @@
         "WP09",
         "WP10",
         "WP12",
-        "WP13"
+        "WP13",
+        "WP14"
       ],
       "write_scope": [
         ".kittify/charter/charter.md",
@@ -29,12 +30,14 @@
         "docs/guides/how-to/workspace-lifecycle.md",
         "docs/plans/engineering-notes/2026-10-24-lifecycle-integration-contracts.md",
         "docs/plans/engineering-notes/2026-10-24-organization-lifecycle-rollout.md",
+        "docs/plans/engineering-notes/2026-10-24-owned-lanes-analysis.md",
         "docs/reports/organization-workspace-lifecycle/**",
         "packs/built-in/missions/mission-steps/**",
         "src/kernel/git/remote.py",
         "src/kernel/git_topology.py",
         "src/specify_cli/acceptance/gates_core.py",
         "src/specify_cli/cli/commands/_organization_workspaces_doctor.py",
+        "src/specify_cli/cli/commands/agent/tasks.py",
         "src/specify_cli/cli/commands/agent/tasks_move_task.py",
         "src/specify_cli/cli/commands/dispatch.py",
         "src/specify_cli/cli/commands/doctor.py",
@@ -91,7 +94,7 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-25T05:14:44.036104+00:00",
+  "computed_at": "2026-10-26T06:05:54.398078+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
