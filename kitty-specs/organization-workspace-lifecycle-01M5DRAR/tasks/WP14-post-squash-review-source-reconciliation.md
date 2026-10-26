@@ -34,6 +34,7 @@ owned_files:
 - tests/specify_cli/invocation/cli/test_owned_checkout.py
 - tests/tasks/test_frontmatter_unit.py
 - docs/plans/engineering-notes/2026-10-24-owned-lanes-analysis.md
+- docs/changelog/CHANGELOG.md
 role: implementer
 tags: []
 task_type: implement
@@ -139,3 +140,12 @@ canonical Source replay. Review eligibility is not release/deletion authority.
 ## Activity Log
 
 - 2026-10-26T06:03:41Z — codex — Authored from the canonically resolved task prompt template at the existing Root owner's request; canonical admission remains required.
+
+## Required user-facing release note
+
+The existing Root owner may update only docs/changelog/CHANGELOG.md for this
+repair through the normal PR template and publication gate. Describe the actual
+review-source reconciliation and refusal guarantees; do not claim default-branch
+delivery, installed runtime qualification, automatic cleanup or rollout before
+those facts are verified. This exact scope addition changes no task state,
+review verdict, owner release or required validation.
