@@ -2007,10 +2007,11 @@ class TestIsTransientGitWorktreeContention:
         [
             "fatal: failed to read /repo/.git/worktrees/sibling/commondir: Success",
             "fatal: failed to read /repo/.git/worktrees/sibling/commondir: Undefined error: 0",
+            "fatal: failed to read /repo/.git/worktrees/sibling/commondir: Result too large",
             "fatal: Invalid path '/repo/.git/worktrees/sibling': No such file or directory",
             "fatal: failed to read C:\\repo\\.git\\worktrees\\sibling\\commondir: Success",
         ],
-        ids=["empty-commondir-mid-add", "darwin-zero-errno", "entry-vanished-mid-remove", "windows-separators"],
+        ids=["empty-commondir-mid-add", "darwin-zero-errno", "darwin-empty-commondir-erange", "entry-vanished-mid-remove", "windows-separators"],
     )
     def test_sibling_registry_entry_in_flight_is_transient(self, stderr: str) -> None:
         """#5894: ``git worktree list`` reads every registered entry; a
@@ -2032,6 +2033,8 @@ class TestIsTransientGitWorktreeContention:
             "fatal: failed to read /repo/.git/worktrees/s/commondir: Permission denied",
             "fatal: failed to read /repo/.git/worktrees/s/commondir: Undefined error: 1",
             "fatal: Invalid path '/repo/src/a.py'\nnote: see /repo/.git/worktrees/s",
+            "fatal: failed to read /repo/src/commondir: Result too large",
+            "fatal: failed to read /repo/.worktrees/s/commondir: Result too large",
         ],
         ids=[
             "read-failure-outside-registry",
@@ -2040,6 +2043,8 @@ class TestIsTransientGitWorktreeContention:
             "commondir-read-failure-is-not-in-flight",
             "nonzero-errno-is-not-in-flight",
             "invalid-path-and-registry-mention-on-different-lines",
+            "erange-outside-registry",
+            "erange-in-checkout-not-registry",
         ],
     )
     def test_registry_wording_outside_the_worktree_registry_is_not_transient(self, stderr: str) -> None:
