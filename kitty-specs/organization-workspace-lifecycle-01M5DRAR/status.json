@@ -266,7 +266,7 @@
     },
     "WP11": {
       "actor": "reviewer-renata",
-      "agent": "codex",
+      "agent": "reviewer-renata",
       "agent_profile": "reviewer-renata",
       "agent_profile_version": "1.0",
       "assignee": "crucible-workspace-closeout",
@@ -278,7 +278,8 @@
       "notes": [
         "Independent retained-runtime safety repair: fresh delivery/recovery/runtime preservation before rollout; WP08 review proceeds separately.",
         "Frozen source597207757:208 targeted behavior/architecture controls pass, strict mypy/Ruff pass, required changed-statement gate93.8% (exact ratio in external report), external evidence under closeout outputs/lifecycle-wp11-*-r7.*. Independent review requested; not approved, released or deployed.",
-        "Submit delivered WP11 repair for canonical independent review; preserve prior rejection and source ancestry. Exact original source and identical-tree squash are supplied without force or regression-gate skip."
+        "Submit delivered WP11 repair for canonical independent review; preserve prior rejection and source ancestry. Exact original source and identical-tree squash are supplied without force or regression-gate skip.",
+        "Record review continuation for existing independent Lynn R2 and Root bounded review; Source is the event recorder, not a new independent reviewer. Prior changes-requested history remains."
       ],
       "provider": "__resolved_provider_absent__",
       "review": null,
