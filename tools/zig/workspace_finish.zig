@@ -468,10 +468,12 @@ test "legacy history without creator field survives extension and conflicting pe
     bound.creator = .{ .kind = .ordinary_git, .generation = "a" ** 32 };
     const extended = try append(a, decoded, 1, bound);
     try std.testing.expectEqualStrings(decoded.events[0].obligation_id, extended.events[0].obligation_id);
-    const updated = try append(a, extended, 2, bound);
+    var updated = try append(a, extended, 2, bound);
     var forged = bound;
     forged.source.path = "/private/changed";
-    updated.events[2] = .{ .sequence = 3, .obligation_id = try obligationIdentity(a, forged), .obligation = forged };
+    const forged_events = try a.dupe(Event, updated.events);
+    forged_events[2] = .{ .sequence = 3, .obligation_id = try obligationIdentity(a, forged), .obligation = forged };
+    updated.events = forged_events;
     try std.testing.expectError(error.InvalidHistory, validateState(a, updated));
 }
 
