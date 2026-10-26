@@ -76,3 +76,17 @@ The red-test commit's formatting check reported a required reformat before the
 commit command continued. The formatting defect was corrected in the source
 increment; final format, lint and relevant gates must validate the frozen
 candidate. That earlier check is not recorded as passing.
+
+The first hosted architectural fast gate caught this increment importing the
+event filename directly from the internal status store. The constant already
+exists on the public status interface, so route the import through that existing
+export. No public symbol, exception, allowlist, threshold or boundary test is
+changed. The failed hosted result remains retained; the named status-boundary
+gate and affected source qualifications must validate the corrected candidate.
+
+Private qualification reuse first stopped before installation because the prior
+exclusive installation log already existed. The subsequent probe correctly
+rejected the unchanged old version; its six behavioral passes are not new-version
+proof. Preserve those failures and the original log, resume the exact prepared
+wheel with a distinct installation receipt, and verify that all pinned dependency
+versions remain unchanged before qualifying the new subject.

@@ -364,8 +364,7 @@ def _wp_task_surface_error(task_board_dir: Path, status_dir: Path, mission_slug:
     retained events as authority or reconstructing approvals.
     """
     from runtime.next.prompt_builder import read_wp_task
-    from specify_cli.status import CanonicalStatusNotFoundError, Lane, get_all_wp_lanes
-    from specify_cli.status.store import EVENTS_FILENAME
+    from specify_cli.status import EVENTS_FILENAME, CanonicalStatusNotFoundError, Lane, get_all_wp_lanes
 
     try:
         wp_lanes = get_all_wp_lanes(status_dir)
