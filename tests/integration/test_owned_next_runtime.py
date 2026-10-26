@@ -154,16 +154,15 @@ class TestFr023RuntimeTwin:
         snap.assert_unchanged(before, snap.take())
 
 
-@pytest.mark.parametrize("canonical_log", ["missing", "empty"])
-def test_owned_coord_query_names_retained_history_reconciliation(
-    make_owned_checkouts, monkeypatch: pytest.MonkeyPatch, canonical_log: str
-) -> None:
+@pytest.mark.parametrize("canonical_log", ["missing", "empty", "current", "empty_retained", "corrupt_retained", "corrupt_canonical"])
+def test_owned_coord_query_names_retained_history_reconciliation(make_owned_checkouts, monkeypatch: pytest.MonkeyPatch, canonical_log: str) -> None:
     """Retained progress is neither canonical progress nor a new empty board."""
     import json
 
     from mission_runtime import MissionArtifactKind, mission_context_for
     from runtime.next.runtime_bridge import query_current_state
     from specify_cli.coordination.workspace import CoordinationWorkspace
+    from specify_cli.status.store import StoreError
     from tests._owned_tree_hash import hash_tree
 
     checkouts = make_owned_checkouts(topology="coord")
@@ -184,19 +183,35 @@ def test_owned_coord_query_names_retained_history_reconciliation(
     status_dir.mkdir(parents=True, exist_ok=True)
     if canonical_log == "empty":
         (status_dir / "status.events.jsonl").write_text("")
+    elif canonical_log == "current":
+        seed_wp_lane(status_dir, checkouts.mission_slug, "WP01", "in_progress")
+    elif canonical_log == "empty_retained":
+        (checkouts.mission_dir / "status.events.jsonl").write_text("")
+    elif canonical_log == "corrupt_retained":
+        (checkouts.mission_dir / "status.events.jsonl").write_text("{invalid-retained-history}\n")
+    elif canonical_log == "corrupt_canonical":
+        (status_dir / "status.events.jsonl").write_text("{invalid-canonical-history}\n")
     monkeypatch.chdir(checkouts.repository_root)
     roots = (checkouts.repository_root, checkouts.owned_root, checkouts.sibling)
     before = [hash_tree(root) for root in roots]
     heads = [subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root) for root in roots]
     indexes = [subprocess.check_output(["git", "ls-files", "--stage"], cwd=root) for root in roots]
 
-    decision = query_current_state("codex", checkouts.mission_slug, checkouts.repository_root, owned=fact)
-
-    assert decision.kind == "query"
-    assert decision.mission_state == "blocked"
-    assert "retained_status_reconciliation_required" in (decision.reason or "")
-    assert decision.progress is None
-    assert decision.preview_step is None
+    if canonical_log == "corrupt_canonical":
+        with pytest.raises(StoreError, match="Invalid JSON"):
+            query_current_state("codex", checkouts.mission_slug, checkouts.repository_root, owned=fact)
+    else:
+        decision = query_current_state("codex", checkouts.mission_slug, checkouts.repository_root, owned=fact)
+        assert decision.kind == "query"
+        if canonical_log in {"current", "empty_retained"}:
+            assert "retained_status_reconciliation_required" not in (decision.reason or "")
+            assert decision.progress is not None
+            assert decision.progress["in_progress_wps"] == (1 if canonical_log == "current" else 0)
+        else:
+            assert decision.mission_state == "blocked"
+            assert "retained_status_reconciliation_required" in (decision.reason or "")
+            assert decision.progress is None
+            assert decision.preview_step is None
     assert [hash_tree(root) for root in roots] == before
     assert [subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root) for root in roots] == heads
     assert [subprocess.check_output(["git", "ls-files", "--stage"], cwd=root) for root in roots] == indexes

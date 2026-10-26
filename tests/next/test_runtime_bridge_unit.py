@@ -1936,7 +1936,14 @@ class TestOwnedCoordWorkspaceRetry:
         assert result == expected
         assert _TransientWorkspace.calls == 3
 
-    def test_persistent_contention_reraises_the_exact_error_after_bound(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        "diagnostic",
+        [
+            "fatal: could not lock config file .git/config: File exists",
+            "fatal: failed to read /repo/.git/worktrees/sibling/commondir: Result too large",
+        ],
+    )
+    def test_persistent_contention_reraises_the_exact_error_after_bound(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, diagnostic: str) -> None:
         """Persistent recognized contention keeps its terminal exception
         identity after exhausting all 20 attempts — never silently swallowed."""
         from runtime.next.runtime_bridge import _resolve_owned_coordination_workspace
@@ -1944,7 +1951,7 @@ class TestOwnedCoordWorkspaceRetry:
         terminal = subprocess.CalledProcessError(
             128,
             ["git", "worktree", "add"],
-            stderr="fatal: could not lock config file .git/config: File exists",
+            stderr=diagnostic,
         )
 
         class _PersistentlyContendedWorkspace:
