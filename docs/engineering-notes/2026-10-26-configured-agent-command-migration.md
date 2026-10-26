@@ -9,6 +9,7 @@ updated: '2026-10-26'
 
 Owner: Dream Walker dependency recovery, `codex/issue-127-agent-migration`.
 Tracker: [issue 127](https://github.com/crucible-energy/spec-kitty/issues/127).
+Follow-up: [issue 129](https://github.com/crucible-energy/spec-kitty/issues/129).
 
 ## User Experience Findings
 
@@ -34,6 +35,19 @@ not-applicable result; no metadata success is manufactured by the caller. Tests
 also cover real template copying, dry-run preservation and existing legacy roots.
 This is a bounded correctness repair to retained Python, not a second migration
 implementation. The eventual Zig parity surface must preserve these contracts.
+
+The actual isolated RC7-derived consumer upgrade passed that migration and then
+exposed a second defect: the earlier canonical-context runner stripped an
+existing assignment before the later runtime-state cutover could verify it.
+The runner now calls the sole seed/verify/phase-flip helper for every mission
+before stripping any frontmatter. A refusal restores its existing backup;
+neither rebuilding lane transitions nor an existing seed substitutes for verified
+runtime-state cutover. A real corrupt assignment seed exercises rollback with
+the original mission files preserved. The existing migration commit helper also
+retried rejected hooks with verification disabled; a real rejecting-hook
+regression reproduces that bypass, and the helper now returns failure after the
+normal attempt. These are bounded retained-Python safety repairs, with the same
+ordering and hook boundaries required of the eventual Zig implementation.
 
 ## Known Limitations
 

@@ -18,12 +18,14 @@ import json
 import subprocess
 import time
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
 import yaml
 
-from specify_cli.migration.runner import (    MigrationReport,
+from specify_cli.migration.runner import (
+    MigrationReport,
     _create_backup,
     _restore_backup,
     _update_gitignore,
@@ -45,7 +47,7 @@ pytestmark = [pytest.mark.non_sandbox, pytest.mark.git_repo]
 
 def _make_legacy_project(
     tmp_path: Path,
-    features: list[dict] | None = None,
+    features: list[dict[str, Any]] | None = None,
     git_init: bool = True,
 ) -> Path:
     """Build a minimal legacy spec-kitty project.
@@ -62,12 +64,14 @@ def _make_legacy_project(
     kittify = root / ".kittify"
     kittify.mkdir()
     (kittify / "metadata.yaml").write_text(
-        yaml.dump({
-            "spec_kitty": {
-                "version": "2.1.0",
-                "initialized_at": "2026-01-01T00:00:00",
+        yaml.dump(
+            {
+                "spec_kitty": {
+                    "version": "2.1.0",
+                    "initialized_at": "2026-01-01T00:00:00",
+                }
             }
-        }),
+        ),
         encoding="utf-8",
     )
     (kittify / "config.yaml").write_text(
@@ -85,30 +89,20 @@ def _make_legacy_project(
     kitty_specs = root / "kitty-specs"
     kitty_specs.mkdir()
 
-    for feat in (features or []):
+    for feat in features or []:
         slug = feat["slug"]
         feature_dir = kitty_specs / slug
         tasks_dir = feature_dir / "tasks"
         tasks_dir.mkdir(parents=True)
 
         meta = {"mission_slug": slug, "title": f"Feature {slug}"}
-        (feature_dir / "meta.json").write_text(
-            json.dumps(meta, indent=2), encoding="utf-8"
-        )
+        (feature_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
         for wp in feat.get("wps", []):
             wp_name = wp["name"]
             lane = wp.get("lane", "planned")
             content = (
-                f"---\n"
-                f"work_package_id: ''\n"
-                f"wp_code: {wp_name!r}\n"
-                f"title: {wp_name} Title\n"
-                f"lane: {lane!r}\n"
-                f"dependencies: []\n"
-                f"subtasks: []\n"
-                f"---\n\n"
-                f"# {wp_name}\n"
+                f"---\nwork_package_id: ''\nwp_code: {wp_name!r}\ntitle: {wp_name} Title\nlane: {lane!r}\ndependencies: []\nsubtasks: []\n---\n\n# {wp_name}\n"
             )
             (tasks_dir / f"{wp_name}-title.md").write_text(content, encoding="utf-8")
 
@@ -117,16 +111,19 @@ def _make_legacy_project(
         subprocess.run(["git", "init"], cwd=root, capture_output=True)
         subprocess.run(
             ["git", "config", "user.email", "test@test.com"],
-            cwd=root, capture_output=True,
+            cwd=root,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "config", "user.name", "Test User"],
-            cwd=root, capture_output=True,
+            cwd=root,
+            capture_output=True,
         )
         subprocess.run(["git", "add", "-A"], cwd=root, capture_output=True)
         subprocess.run(
             ["git", "commit", "-m", "initial"],
-            cwd=root, capture_output=True,
+            cwd=root,
+            capture_output=True,
         )
 
     return root
@@ -174,6 +171,21 @@ def migrated_project(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Mi
 # ---------------------------------------------------------------------------
 
 
+def test_migration_commit_preserves_rejecting_hook(tmp_path: Path) -> None:
+    from specify_cli.migration.runner import _git_commit
+
+    root = _make_legacy_project(tmp_path)
+    before = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, check=True).stdout
+    (root / "pending.md").write_text("Pending migration\n")
+    subprocess.run(["git", "add", "pending.md"], cwd=root, check=True, capture_output=True)
+    hook = root / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\nexit 1\n")
+    hook.chmod(0o700)
+    assert not _git_commit(root, "test migration hook refusal")
+    after = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, check=True).stdout
+    assert after == before
+
+
 class TestFullMigration:
     def test_migration_succeeds_on_legacy_project(self, tmp_path: Path) -> None:
         """Full migration completes without errors."""
@@ -202,9 +214,7 @@ class TestFullMigration:
         assert report.features_migrated == 2
         assert not report.failed_step
 
-    def test_schema_version_updated(
-        self, migrated_project: tuple[Path, MigrationReport]
-    ) -> None:
+    def test_schema_version_updated(self, migrated_project: tuple[Path, MigrationReport]) -> None:
         """After migration, metadata.yaml has schema_version=3.
 
         Read-only inspection of the shared ``migrated_project`` (T010).
@@ -215,9 +225,7 @@ class TestFullMigration:
         assert data["spec_kitty"]["schema_version"] == 3
         assert "canonical_context" in data["spec_kitty"]["schema_capabilities"]
 
-    def test_gitignore_updated(
-        self, migrated_project: tuple[Path, MigrationReport]
-    ) -> None:
+    def test_gitignore_updated(self, migrated_project: tuple[Path, MigrationReport]) -> None:
         """After migration, .gitignore contains the new entries.
 
         Read-only inspection of the shared ``migrated_project`` (T010).
@@ -227,9 +235,7 @@ class TestFullMigration:
         for entry in [".kittify/derived/", ".kittify/.migration-backup/"]:
             assert entry in gitignore_content, f"Expected {entry!r} in .gitignore"
 
-    def test_backup_cleaned_up_after_success(
-        self, migrated_project: tuple[Path, MigrationReport]
-    ) -> None:
+    def test_backup_cleaned_up_after_success(self, migrated_project: tuple[Path, MigrationReport]) -> None:
         """Backup directory is removed after successful migration.
 
         Read-only inspection of the shared ``migrated_project`` (T010).
@@ -246,6 +252,62 @@ class TestFullMigration:
 
 
 class TestMidFlightFeatures:
+    def test_corrupt_runtime_seed_restores_before_strip(self, tmp_path: Path) -> None:
+        from specify_cli.migration.backfill_identity import backfill_mission_ids, backfill_wp_ids
+        from specify_cli.migration.backfill_runtime_state import backfill_runtime_state
+        from specify_cli.migration.mission_state import rebuild_mission_event_log
+        from tests.unit.migration._backfill_fixture import corrupt_seed_value
+
+        root = _make_legacy_project(
+            tmp_path,
+            features=[{"slug": "001-corrupt", "wps": [{"name": "WP01", "lane": "in_progress"}]}],
+        )
+        mission = root / "kitty-specs" / "001-corrupt"
+        wp = mission / "tasks" / "WP01-title.md"
+        wp.write_text(wp.read_text().replace("dependencies: []", "assignee: codex\ndependencies: []"))
+        identities = backfill_mission_ids(root)
+        wp_ids = backfill_wp_ids(mission, identities[mission.name])
+        rebuild_mission_event_log(mission, mission.name, wp_id_map=wp_ids)
+        assert backfill_runtime_state(mission).action == "wrote"
+        corrupt_seed_value(mission, field_name="assignee", slot_name="assignee", value="wrong-owner")
+        before = {p: p.read_bytes() for p in mission.rglob("*") if p.is_file()}
+        report = run_migration(root)
+        assert not report.success
+        assert report.failed_step == "runtime_state_cutover"
+        assert any("assignee" in error for error in report.errors)
+        assert all(p.read_bytes() == data for p, data in before.items())
+        assert "status_phase" not in json.loads((mission / "meta.json").read_text())
+
+    def test_runtime_assignment_survives_canonical_migration(self, tmp_path: Path) -> None:
+        """The earlier schema migration must not strip state before cutover."""
+        from specify_cli.migration.backfill_runtime_state import backfill_runtime_state
+        from specify_cli.migration.backfill_identity import backfill_mission_ids, backfill_wp_ids
+        from specify_cli.migration.mission_state import rebuild_mission_event_log
+        from specify_cli.upgrade.migrations.m_zz_runtime_state_backfill import _mission_needs_cutover
+
+        root = _make_legacy_project(
+            tmp_path,
+            features=[{"slug": "001-runtime", "wps": [{"name": "WP01", "lane": "in_progress"}]}],
+        )
+        mission = root / "kitty-specs" / "001-runtime"
+        wp = mission / "tasks" / "WP01-title.md"
+        wp.write_text(wp.read_text().replace("dependencies: []", "assignee: codex\ndependencies: []"))
+        # Existing deterministic seeds are legitimate legacy inputs, as in the
+        # blocked consumer. They cannot authorize stripping unverified state.
+        identities = backfill_mission_ids(root)
+        wp_ids = backfill_wp_ids(mission, identities[mission.name])
+        rebuild_mission_event_log(mission, mission.name, wp_id_map=wp_ids)
+        seed = backfill_runtime_state(mission)
+        assert seed.action == "wrote"
+        report = run_migration(root)
+        assert report.success, report.errors
+        assert json.loads((mission / "meta.json").read_text())["status_phase"] == "1"
+        assert not _mission_needs_cutover(mission)
+        assert "assignee: codex" not in wp.read_text()
+        # Re-entering the earlier runner must preserve existing snapshot
+        # authority; the stripped legacy reader cannot verify it a second time.
+        assert run_migration(root).success
+
     def test_mid_flight_features_preserved(self, tmp_path: Path) -> None:
         """WPs in various lanes are preserved accurately after migration."""
         root = _make_legacy_project(
@@ -348,9 +410,7 @@ class TestRollbackOnSchemaVersionFailure:
         # (.gitignore is outside .kittify/ so it may have been partially updated
         # before the schema_version step failed — the schema_version absence is
         # the authoritative rollback indicator.)
-        restored_data = yaml.safe_load(
-            (root / ".kittify" / "metadata.yaml").read_text(encoding="utf-8")
-        )
+        restored_data = yaml.safe_load((root / ".kittify" / "metadata.yaml").read_text(encoding="utf-8"))
         assert restored_data.get("spec_kitty", {}).get("schema_version") != 3
 
 
@@ -386,8 +446,7 @@ class TestDryRun:
 
         # No schema_version set
         data = yaml.safe_load((root / ".kittify" / "metadata.yaml").read_text(encoding="utf-8"))
-        assert "schema_version" not in data.get("spec_kitty", {}), \
-            "schema_version must not be written in dry run"
+        assert "schema_version" not in data.get("spec_kitty", {}), "schema_version must not be written in dry run"
 
 
 # ---------------------------------------------------------------------------
@@ -397,9 +456,7 @@ class TestDryRun:
 
 class TestPerformance:
     @pytest.mark.slow
-    def test_migration_completes_in_under_10_seconds_for_5_features(
-        self, tmp_path: Path
-    ) -> None:
+    def test_migration_completes_in_under_10_seconds_for_5_features(self, tmp_path: Path) -> None:
         """5 features / 10 WPs each migrates in < 30 seconds.
 
         The threshold is set to 30 s to accommodate shared CI runners, which
@@ -411,10 +468,7 @@ class TestPerformance:
         features = [
             {
                 "slug": f"{i:03d}-perf-feature",
-                "wps": [
-                    {"name": f"WP{j:02d}", "lane": "in_progress"}
-                    for j in range(1, 11)
-                ],
+                "wps": [{"name": f"WP{j:02d}", "lane": "in_progress"} for j in range(1, 11)],
             }
             for i in range(1, 6)
         ]

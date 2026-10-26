@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so a Codex-only upgrade does not require retired Claude templates. Detection
   and application share the same eligible directories; existing custom commands
   and dry-run behavior remain preserved (#127).
+- Verify runtime-state cutover before canonical-context frontmatter stripping,
+  restore the existing backup on verification failure, and preserve migration
+  commit-hook refusals instead of retrying with verification disabled (#129).
 
 - Owned-history recovery compares timezone-aware instants while preserving every
   original timestamp. It refuses JSON numbers that would silently overflow,
