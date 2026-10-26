@@ -68,6 +68,8 @@
         "tests/acceptance/test_owned_code_kind.py",
         "tests/architectural/test_archive_root_byte_identical.py",
         "tests/consolidation/**",
+        "tests/contract/_mission_status_detail.py",
+        "tests/contract/test_mission_status_detail.py",
         "tests/contract/test_mission_status_ops.py",
         "tests/git/test_ref_advance_cas.py",
         "tests/integration/migration/test_wp03_advance_to_approval.py",
@@ -99,10 +101,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-26T10:58:03.381403+00:00",
+  "computed_at": "2026-10-26T11:09:57.433996+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "e84846865c43ffc481dfff60aea0f374261d7829"
+  "planning_commit_sha": "0eb6453679fcf601fc1d68c6f76b4084a827f871"
 }
