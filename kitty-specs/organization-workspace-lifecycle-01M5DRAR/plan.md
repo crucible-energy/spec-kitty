@@ -1,5 +1,18 @@
 # Implementation Plan: Organization workspace lifecycle
 
+## Post-squash review reconciliation amendment — 2026-10-26
+
+Accepted PR120 squash delivery and the supported planning-pin refresh reproduced
+a canonical review-admission gap: real implementation predates the new pin.
+WP14 assigns the bounded correction and latest-runtime propagation to the
+existing Root core owner, dependent on approved WP06/WP07 and disjoint from WP09. Explicit
+original source/delivered tree, ancestry, mission/scope and current-entry evidence
+must preserve all normal no-implementation and uncertainty refusals. No fake
+source touch, historical receipt rewrite or forced event is allowed.
+Canonical finalization must admit this amendment while preserving earlier
+membership, status and approvals; authored planning alone grants no producer,
+review, deployment or cleanup authority.
+
 ## Summary and confirmed scope
 
 Extend Spec Kitty’s existing orchestration tier with organization-wide discovery, durable lifecycle accounting, creator adapters and deterministic recovery. Preserve existing native Zig implementation and routing work. Current feature branch and planning/merge target are `codex/organization-workspace-lifecycle-20261020`; base is the published custody repair PR112. No local or remote main consolidation is permitted. This existing linked checkout owns all mission artifacts.
