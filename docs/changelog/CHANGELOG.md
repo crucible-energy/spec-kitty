@@ -132,7 +132,7 @@ _The 3.2.8 development cycle is open. Entries land here as missions merge._
 - **The pre-review test gate now works correctly for projects that use a custom
   test command, not just pytest (#2873, follow-up to #2535 half A).** When a work
   package moves to `for_review`, Spec Kitty runs the project's tests and flags any
-  failure the change *newly* introduced — comparing against a baseline captured
+  failure the change _newly_ introduced — comparing against a baseline captured
   before the work started. Previously the baseline side and the review side could
   run those tests two different ways, so a project configured with its own
   `review.test_command` (anything other than pytest) got unreliable results: it
@@ -140,7 +140,7 @@ _The 3.2.8 development cycle is open. Entries land here as missions merge._
   genuinely new test failure could slip through unflagged on a clean baseline. Now
   both sides run and interpret the tests through one shared path, so the
   comparison is apples-to-apples and a new failure is reliably caught. When the
-  two sides genuinely *can't* be compared (for example, the test command was
+  two sides genuinely _can't_ be compared (for example, the test command was
   changed in between), the gate now says so with a clear, non-blocking warning
   (shown as `SOURCE_MISMATCH`) instead of guessing — it never silently passes and
   never hard-blocks on that case. The captured baseline is now always saved, so

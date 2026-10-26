@@ -1,3 +1,10 @@
+---
+title: Owned history and authority closeout
+description: Record owned-history recovery decisions, safety checks, validation evidence, and remaining workspace closeout obligations.
+doc_status: active
+updated: '2026-10-26'
+---
+
 # Owned history and authority closeout
 
 Owner: Sam's workspace closeout, Codex Root. Existing lane and
@@ -134,7 +141,6 @@ limits remain in the recovery guides. Newer admission, allocator/DAG issuance,
 canonical export and consumer/production acceptance are separate gates; the
 preserved admission prototype's 24 focused passes do not qualify those claims.
 
-
 Current main also retains the census, surface inventory, old glossary and
 coordination behavioral-guard failures in issue 107. They remain explicit failed
 checks under the repository's baseline-red policy, not passing release proof.
@@ -142,7 +148,6 @@ The separate active issue 91 owner retains the local staged-candidate QA
 migration. No hosted runner or external review service substitutes for this
 lane's self-review, actual command outcomes, changed-code coverage and exact
 built-package acceptance.
-
 
 Numbers outside the supported JSON renderer's exact round-trip capability are
 explicitly unsupported by this recovery door and refuse before any write.

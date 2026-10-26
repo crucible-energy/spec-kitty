@@ -142,6 +142,7 @@ def checkouts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Checkouts:
         "friendly_name": "Historical intake",
     }
     (directory / "meta.json").write_text(json.dumps(meta))
+    # canonical-event-exempt(exception-flow): Minimal historical intake must retain its original bytes through defensive history recovery.
     lifecycle = {
         "event_id": "01M204R7Y759H4DV93ZP8V3000",
         "event_type": "MissionCreated",

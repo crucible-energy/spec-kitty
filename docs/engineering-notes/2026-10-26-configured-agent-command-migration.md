@@ -104,3 +104,33 @@ The upgrade command's `--project --json` combination reports its compatibility
 plan and does not apply it, even with `--yes`; the applying form was run
 separately and its actual output retained. Migration history, preserved shared
 edits and incomplete repair state remain explicit recovery obligations.
+
+Hosted execution then exposed four existing docs without required descriptions
+and two raw historical fixtures flagged by canonical-producer lint. The docs
+receive only the required descriptive frontmatter. The fixtures retain exactly
+the same event bytes and assertions: the decision input exercises an install
+fence and its normal reentrancy control; the historical intake exercises
+defensive recovery of incomplete legacy data. The linter's existing, validated
+`exception-flow` test category documents those inputs. No baseline entry,
+production exemption, producer model or gate rule is added or changed.
+
+The hosted lock-freshness check reproduced a stale editable self-entry:
+`pyproject.toml` already declared 3.2.8, while `uv.lock` retained 3.2.7. The
+canonical offline resolver updates only that self-version; parsed comparison
+verifies every third-party package, artifact hash and other lock field remains
+identical. This does not add or upgrade a third-party dependency.
+
+A superseded PR128 run also retained queued `always()` jobs and held the
+workflow concurrency slot. After capturing its old source identity and proving
+that none of its 54 jobs had an assigned runner or was running, normal cancel
+was attempted. Its queue remained; the supported force-cancel endpoint then
+retired only that obsolete run. Current-source checks subsequently executed.
+No other owner's workflow was cancelled and no required result was replaced
+with a manual success status.
+
+The now-running full pipeline also reports older merge/read-surface regressions
+and vulnerable dependencies. Those remain failed gates, with retained hosted
+logs and a follow-up repair obligation; this metadata/fixture increment does
+not claim to resolve them. Four changelog emphasis delimiters and two excess
+blank lines are corrected to the existing Markdown policy without changing
+their content.
