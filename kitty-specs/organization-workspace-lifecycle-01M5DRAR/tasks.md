@@ -102,3 +102,11 @@ T012 Correct inherited protected-target fixture propagation and canonical OS/sta
 **Requirement Refs**: FR-006, FR-007, FR-009, NFR-003, SC-005
 
 T013 Resolve the measured non-main archive-frontier conflict using immutable base/default identity and canonical live-state evidence, preserving all published/terminal history and adversarial countercases. No review-base override or broad path waiver.
+
+## Work Package WP14: Post-squash review-source reconciliation
+
+**Dependencies**: WP06, WP07
+
+**Requirement Refs**: FR-006, FR-007, FR-009, NFR-001, NFR-003, SC-005, C-001, C-003
+
+T014 Repair the reproduced review-admission failure after accepted squash delivery and supported planning refresh. Existing Root owns the bounded core guard and latest-runtime qualification; preserve normal no-code refusals and require immutable original-source/delivered-tree/ancestry/current-scope evidence. Review-source evidence grants no approval or cleanup authority. WP09 remains disjoint.
