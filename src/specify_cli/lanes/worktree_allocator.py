@@ -1851,8 +1851,9 @@ def _recover_lane_worktree(
     if result.returncode != 0:
         raise RuntimeError(
             f"Failed to recover worktree at {worktree_path}: {result.stderr.strip()} "
-            "Existing registrations and branch history have been retained. "
-            "Restore or disposition the exact missing registration through its owning workflow before retrying; "
+            "No broad prune or forced re-attachment was requested. "
+            "Have the owning workflow inspect current registration, branch and recovery state, "
+            "then restore or disposition the exact missing registration before retrying; "
             "do not prune other worktrees or force re-attachment."
         )
 
