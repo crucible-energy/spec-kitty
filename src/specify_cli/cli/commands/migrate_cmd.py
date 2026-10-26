@@ -58,6 +58,7 @@ from specify_cli.cli.console import console
 from specify_cli.cli.console import err_console
 
 from kernel.paths import is_windows
+from specify_cli.cli.commands._owned_checkout import OwnedCheckoutOption
 from specify_cli.cli.commands.migrate.owned_single_branch import owned_single_branch
 from specify_cli.core.paths import locate_project_root
 from specify_cli.paths import get_runtime_root, render_runtime_path
@@ -1339,6 +1340,7 @@ def backfill_runtime_state_cmd(
         typer.Option(_MISSION_FLAG, help=_MISSION_HELP, metavar=_MISSION_METAVAR),
     ] = None,
     json_output: Annotated[bool, typer.Option(_JSON_FLAG, help=_JSON_HELP)] = False,
+    owned_checkout: OwnedCheckoutOption = None,
 ) -> None:
     """Seed legacy runtime state as events, verify fail-closed, and flip status_phase.
 
@@ -1356,11 +1358,17 @@ def backfill_runtime_state_cmd(
     frontmatter state to seed still flips and is counted there, never as
     "Skipped (already migrated)" (#3212).
 
+    An explicit ``--owned-checkout`` is supported only with ``--mission`` and
+    ``--dry-run``. It previews the retained dossier and history in that checkout,
+    including coordinated missions; it does not select, adopt or repair the live
+    coordination status surface, grant write authority, or create new approvals.
+
     Exit codes:
 
-    - ``0`` — every visited mission flipped or is already migrated (verify ok, no error)
-    - ``1`` — one or more missions failed verify / errored, or ``--mission`` named an
-      unknown handle
+    - ``0`` — a completed dry-run (inspect its result payload for failures), or a
+      live run where every visited mission verified and migrated successfully
+    - non-zero — live verification failed, selection was invalid, or the requested
+      owned mode was refused; selector/usage errors retain their existing codes
 
     Examples:
 
@@ -1369,6 +1377,8 @@ def backfill_runtime_state_cmd(
         spec-kitty migrate backfill-runtime-state --mission my-mission-01ABCD
 
         spec-kitty migrate backfill-runtime-state --json
+
+        spec-kitty migrate backfill-runtime-state --mission my-mission-01ABCD --owned-checkout /path/to/checkout --dry-run --json
     """
     from specify_cli.cli.selector_resolution import resolve_mission_handle
     from specify_cli.migration.runtime_state_cutover import (
@@ -1382,19 +1392,62 @@ def backfill_runtime_state_cmd(
         _error(_NO_PROJECT_ROOT)
         raise typer.Exit(1)
 
-    if mission is not None:
+    owned = None
+    if owned_checkout is not None:
+        from mission_runtime import ActionContextError, OwnedRefusalCode
+        from specify_cli.cli.commands._owned_checkout import emit_owned_refusal, json_error_envelope, resolve_owned_or_refuse
+        from specify_cli.core.owned_mission import NEXT_OWNED_TOPOLOGIES
+
+        if not dry_run:
+            emit_owned_refusal(
+                ActionContextError(
+                    OwnedRefusalCode.OWNED_OPTION_UNSUPPORTED, "--owned-checkout supports only --dry-run; no retained history is adopted or written."
+                ),
+                json_output=json_output,
+                envelope=json_error_envelope,
+            )
+        owned = resolve_owned_or_refuse(
+            repo_root,
+            owned_checkout,
+            mission,
+            cwd=Path.cwd(),
+            allowed_topologies=NEXT_OWNED_TOPOLOGIES,
+            json_output=json_output,
+            envelope=json_error_envelope,
+        )
+        assert owned is not None  # An explicit claim either mints a fact or refuses.
+        results: list[CutoverResult] = [cutover_mission(owned.mission_dir, dry_run=True, owned=owned)]
+    elif mission is not None:
         # Route --mission through the canonical handle resolver so mission_id /
         # mid8 / slug all resolve (a raw kitty-specs/<slug> join matches the
         # literal slug only). resolve_mission_handle prints + sys.exit(2)s on an
         # unknown/ambiguous handle.
         resolved = resolve_mission_handle(mission, repo_root, json_mode=json_output)
-        results: list[CutoverResult] = [cutover_mission(resolved.feature_dir, dry_run=dry_run)]
+        results = [cutover_mission(resolved.feature_dir, dry_run=dry_run)]
     else:
         results = cutover_repo(repo_root, dry_run=dry_run)
 
     if json_output:
-        print(json.dumps(_cutover_payload(results, dry_run=dry_run), indent=2))
+        payload = _cutover_payload(results, dry_run=dry_run)
+        if owned is not None:
+            verification = results[0].verify
+            payload.update(
+                owned_checkout=str(owned.owned_root),
+                read_scope="retained_checkout",
+                canonical_status_adopted=False,
+                retained_verification=None
+                if verification is None
+                else {
+                    "stage": "before_seeding",
+                    "ok": verification.ok,
+                    "runtime_wp_count": verification.wp_count,
+                    "mismatches": list(verification.mismatches),
+                },
+            )
+        print(json.dumps(payload, indent=2))
     else:
+        if owned is not None:
+            console.print("Retained-checkout preview only; no canonical status adoption or writes.")
         _print_cutover_summary(results, dry_run=dry_run)
 
     # Per-mission best-effort (D-03): a live run exits non-zero if any mission
