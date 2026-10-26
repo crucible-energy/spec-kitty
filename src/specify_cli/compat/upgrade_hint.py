@@ -199,7 +199,10 @@ def build_upgrade_hint(
             return UpgradeHint(
                 install_method=install_method,
                 command=None,
-                note="The selected release is older than the installed CLI. Keep the current installation; review the release channel and package provenance before changing it.",
+                note=(
+                    "The selected release is older than the installed CLI. Keep the current installation; "
+                    "review the release channel and package provenance before changing it."
+                ),
             )
 
     package_name = profile.package_name if package is None else package
