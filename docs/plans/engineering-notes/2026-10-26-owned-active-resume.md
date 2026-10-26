@@ -47,3 +47,17 @@ existing query test expected the old generic active-work reason. Read canonical
 history first; retain the planned-only token assertion while checking the more
 specific NEXT owner refusal. The corrected owning run passed 1,009 checks with
 three skips. The original failed receipt remains retained, not relabeled green.
+
+The first hosted architecture run also caught a direct internal status import.
+Use the existing public status facade for the same ownership helper objects;
+add no exemption and change no actor rule. The exact existing boundary test
+reproduced red locally before the import correction. Retain both failed CI and
+local reproduction, and include that boundary module in subsequent validation.
+
+The hosted public-symbol gate found that the new result record did not need a
+public constructor contract. Keep it private; the preview function and its
+consumed fields remain available. Reproduce the exact symbol gate before this
+correction and add its module to focused validation without allowlist changes.
+Only exact, terminal, independently owned bytecode files were closed after the
+previous runs; their measured allocation and identity receipts are retained.
+All raw diagnostics, fixtures, source, private runtimes and recovery survive.
