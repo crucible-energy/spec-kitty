@@ -596,18 +596,46 @@ def test_owned_review_refuses_status_only_commits(finalized_checkouts):
     assert (snapshot(primary), snapshot(sibling)) == other_before
 
 
-def _squashed_review_source(finalized_checkouts: tuple[Path, Path, Path], *, implementation: bool = True) -> tuple[str, str]:
+def _squashed_review_source(
+    finalized_checkouts: tuple[Path, Path, Path], *, implementation: bool = True, second_owned_path: bool = False, preclaim_implementation: bool = False
+) -> tuple[str, str]:
     """Deliver a real source tree by squash, then use the public pin refresh."""
     _primary, owned, _sibling = finalized_checkouts
+    if second_owned_path:
+        from specify_cli.frontmatter import FrontmatterManager
+
+        FrontmatterManager().update_fields(owned / "kitty-specs" / SLUG / "tasks/WP01-test.md", {"owned_files": ["app.py", "other.py"]})
+        (owned / "other.py").write_text("VALUE = 1\n", encoding="utf-8")
+        git(owned, "add", "kitty-specs", "other.py")
+        git(owned, "commit", "-qm", "declare and seed the second owned fixture path")
+    # The original immutable planning base must already carry the canonical
+    # authored contract, rather than pre-finalization fixture text.
+    prepared = invoke("finalize-tasks", owned, "--refresh-planning-commit")
+    assert prepared.exit_code == 0, prepared.output
+    if preclaim_implementation:
+        (owned / "app.py").write_text("VALUE = 2\n", encoding="utf-8")
+        git(owned, "add", "app.py")
+        git(owned, "commit", "-qm", "implementation before this task claim")
     parent = git(owned, "rev-parse", "HEAD")
     started = CliRunner().invoke(
         tasks_app,
         ["move-task", "WP01", "--to", "doing", "--agent", "implementer", "--mission", SLUG, "--owned-checkout", str(owned), "--json"],
     )
     assert started.exit_code == 0, started.output
+    if preclaim_implementation:
+        from specify_cli.lanes.claim_base import record_claim_base
+
+        parent = record_claim_base(_primary, owned, SLUG, "WP01")
+        plan = owned / "kitty-specs" / SLUG / "plan.md"
+        plan.write_text(plan.read_text(encoding="utf-8") + "\nPost-claim planning clarification.\n", encoding="utf-8")
+        git(owned, "add", "kitty-specs")
+        git(owned, "commit", "-qm", "planning-only change after the claim")
     if implementation:
         (owned / "app.py").write_text("VALUE = 2\n", encoding="utf-8")
         git(owned, "add", "app.py")
+        if second_owned_path:
+            (owned / "other.py").write_text("VALUE = 2\n", encoding="utf-8")
+            git(owned, "add", "other.py")
         git(owned, "commit", "-qm", "implement the declared task")
     source = git(owned, "rev-parse", "HEAD")
     git(owned, "branch", "recovery/original-review-source", source)
@@ -675,6 +703,300 @@ def test_explicit_review_source_does_not_turn_status_history_into_implementation
     refused = CliRunner().invoke(tasks_app, _source_review_args(owned, source, delivery))
     assert refused.exit_code == 1, refused.output
     assert json.loads(refused.output)["error_code"] == "OWNED_REVIEW_SOURCE_INVALID"
+    assert tuple(snapshot(root) for root in finalized_checkouts) == before
+
+
+@pytest.mark.parametrize("authority", ["wp", "meta", "lanes"])
+@pytest.mark.parametrize("staged", [False, True], ids=["worktree", "index"])
+def test_review_source_minter_refuses_dirty_authored_authority(finalized_checkouts, authority, staged):
+    from mission_runtime import ActionContextError
+    from specify_cli.core.owned_mission import resolve_owned_mission, resolve_owned_review_source
+    from specify_cli.frontmatter import FrontmatterManager
+
+    source, delivery = _squashed_review_source(finalized_checkouts, second_owned_path=True)
+    primary, owned, _sibling = finalized_checkouts
+    mission = owned / "kitty-specs" / SLUG
+    wp = mission / "tasks/WP01-test.md"
+    fact = resolve_owned_mission(primary, owned, SLUG)
+    if authority == "wp":
+        path = wp
+        FrontmatterManager().update_fields(path, {"owned_files": ["other.py"]})
+    else:
+        path = mission / ("meta.json" if authority == "meta" else "lanes.json")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if authority == "meta":
+            data["purpose_context"] = "changed uncommitted authority"
+        else:
+            data["computed_from"] = "changed uncommitted authority"
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    if staged:
+        git(owned, "add", path.relative_to(owned).as_posix())
+    before = tuple(snapshot(root) for root in finalized_checkouts)
+    with pytest.raises(ActionContextError) as failure:
+        resolve_owned_review_source(fact, wp, source, delivery, TARGET)
+    assert failure.value.code == "OWNED_REVIEW_SOURCE_INVALID"
+    assert tuple(snapshot(root) for root in finalized_checkouts) == before
+
+
+def test_narrowed_dirty_scope_cannot_approve_changed_delivered_code(finalized_checkouts):
+    from specify_cli.frontmatter import FrontmatterManager
+
+    source, delivery = _squashed_review_source(finalized_checkouts, second_owned_path=True)
+    _primary, owned, _sibling = finalized_checkouts
+    submitted = CliRunner().invoke(tasks_app, _source_review_args(owned, source, delivery))
+    assert submitted.exit_code == 0, submitted.output
+    claimed = CliRunner().invoke(
+        tasks_app,
+        ["move-task", "WP01", "--to", "in_review", "--reviewer", "reviewer", "--mission", SLUG, "--owned-checkout", str(owned), "--json"],
+    )
+    assert claimed.exit_code == 0, claimed.output
+    (owned / "app.py").write_text("VALUE = 3\n", encoding="utf-8")
+    git(owned, "add", "app.py")
+    git(owned, "commit", "-qm", "change delivered implementation after review started")
+    FrontmatterManager().update_fields(owned / "kitty-specs" / SLUG / "tasks/WP01-test.md", {"owned_files": ["other.py"]})
+    before = tuple(snapshot(root) for root in finalized_checkouts)
+    approved = CliRunner().invoke(
+        tasks_app,
+        [
+            "move-task",
+            "WP01",
+            "--to",
+            "approved",
+            "--reviewer",
+            "reviewer",
+            "--approval-ref",
+            "local-review",
+            "--mission",
+            SLUG,
+            "--owned-checkout",
+            str(owned),
+            "--review-source-commit",
+            source,
+            "--review-delivery-commit",
+            delivery,
+            "--json",
+        ],
+    )
+    assert approved.exit_code == 1, approved.output
+    assert "OWNED_REVIEW_SOURCE_INVALID" in approved.output, approved.output
+    assert tuple(snapshot(root) for root in finalized_checkouts) == before
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["missing-source", "missing-delivery", "same-commit", "different-tree", "changed-owned", "entry-mode", "scope", "mission", "new-attempt", "shallow"],
+)
+def test_review_source_rejects_changed_identity_history_and_attempt(finalized_checkouts, mutation):
+    from specify_cli.frontmatter import FrontmatterManager
+
+    source, delivery = _squashed_review_source(finalized_checkouts)
+    _primary, owned, _sibling = finalized_checkouts
+    mission = owned / "kitty-specs" / SLUG
+    if mutation == "missing-source":
+        source = "0" * 40
+    elif mutation == "missing-delivery":
+        delivery = "0" * 40
+    elif mutation == "same-commit":
+        delivery = source
+    elif mutation == "different-tree":
+        (owned / "unrelated.md").write_text("different tree\n", encoding="utf-8")
+        git(owned, "add", "unrelated.md")
+        git(owned, "commit", "-qm", "different delivered tree")
+        delivery = git(owned, "rev-parse", "HEAD")
+    elif mutation == "changed-owned":
+        (owned / "app.py").write_text("VALUE = 3\n", encoding="utf-8")
+        git(owned, "add", "app.py")
+        git(owned, "commit", "-qm", "different current implementation")
+    elif mutation == "entry-mode":
+        (owned / "app.py").chmod(0o755)
+        git(owned, "update-index", "--chmod=+x", "--", "app.py")
+        git(owned, "commit", "-qm", "same blob with a different executable mode")
+        assert git(owned, "rev-parse", "HEAD:app.py") == git(owned, "rev-parse", source + ":app.py")
+        assert git(owned, "ls-tree", "HEAD", "app.py").startswith("100755 ")
+    elif mutation == "scope":
+        FrontmatterManager().update_fields(mission / "tasks/WP01-test.md", {"owned_files": ["app.py", "unadmitted.py"]})
+        git(owned, "add", "kitty-specs")
+        git(owned, "commit", "-qm", "different authored scope")
+    elif mutation == "mission":
+        path = mission / "meta.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["purpose_context"] = "different committed mission authority"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        git(owned, "add", "kitty-specs")
+        git(owned, "commit", "-qm", "different mission contract")
+    elif mutation == "new-attempt":
+        feedback = owned.parent / "different-attempt-feedback.md"
+        feedback.write_text("Restore the scoped implementation before another review.\n", encoding="utf-8")
+        for lane in ["planned", "doing"]:
+            actor = ["--reviewer", "reviewer", "--review-feedback-file", str(feedback)] if lane == "planned" else ["--agent", "implementer"]
+            result = CliRunner().invoke(
+                tasks_app,
+                [
+                    "move-task",
+                    "WP01",
+                    "--to",
+                    lane,
+                    *actor,
+                    "--note",
+                    "start a different attempt",
+                    "--mission",
+                    SLUG,
+                    "--owned-checkout",
+                    str(owned),
+                    "--json",
+                ],
+            )
+            assert result.exit_code == 0, result.output
+    else:
+        common = Path(git(owned, "rev-parse", "--git-common-dir"))
+        if not common.is_absolute():
+            common = owned / common
+        (common / "shallow").write_text(source + "\n", encoding="ascii")
+        assert git(owned, "rev-parse", "--is-shallow-repository") == "true"
+    before = tuple(snapshot(root) for root in finalized_checkouts)
+    refused = CliRunner().invoke(tasks_app, _source_review_args(owned, source, delivery))
+    assert refused.exit_code == 1, refused.output
+    assert "OWNED_REVIEW_SOURCE_INVALID" in refused.output, refused.output
+    assert tuple(snapshot(root) for root in finalized_checkouts) == before
+
+
+@pytest.mark.parametrize("flag", ["--assume-unchanged", "--skip-worktree"])
+@pytest.mark.parametrize("boundary", ["minter", "public"])
+def test_review_source_refuses_hidden_owned_working_changes(finalized_checkouts, flag, boundary):
+    from mission_runtime import ActionContextError
+    from specify_cli.core.owned_mission import resolve_owned_mission, resolve_owned_review_source
+
+    source, delivery = _squashed_review_source(finalized_checkouts)
+    primary, owned, _sibling = finalized_checkouts
+    fact = resolve_owned_mission(primary, owned, SLUG)
+    (owned / "app.py").write_text("VALUE = 3\n", encoding="utf-8")
+    git(owned, "update-index", flag, "--", "app.py")
+    assert git(owned, "status", "--porcelain") == ""
+    assert (owned / "app.py").read_text(encoding="utf-8") != git(owned, "show", "HEAD:app.py") + "\n"
+    before = tuple(snapshot(root) for root in finalized_checkouts)
+    if boundary == "minter":
+        with pytest.raises(ActionContextError) as failure:
+            resolve_owned_review_source(fact, owned / "kitty-specs" / SLUG / "tasks/WP01-test.md", source, delivery, TARGET)
+        assert failure.value.code == "OWNED_REVIEW_SOURCE_INVALID"
+    else:
+        refused = CliRunner().invoke(tasks_app, _source_review_args(owned, source, delivery))
+        assert refused.exit_code == 1, refused.output
+        assert "OWNED_REVIEW_SOURCE_INVALID" in refused.output, refused.output
+    assert tuple(snapshot(root) for root in finalized_checkouts) == before
+
+
+def test_review_source_does_not_credit_implementation_before_immutable_claim(finalized_checkouts):
+    from specify_cli.lanes.claim_base import read_claim_base
+
+    source, delivery = _squashed_review_source(finalized_checkouts, implementation=False, preclaim_implementation=True)
+    primary, owned, _sibling = finalized_checkouts
+    claim = read_claim_base(primary, SLUG, "WP01", strict=True)
+    assert claim is not None and claim != source
+    assert git(owned, "diff", "--name-only", claim, source, "--", "app.py") == ""
+    before = tuple(snapshot(root) for root in finalized_checkouts)
+    refused = CliRunner().invoke(tasks_app, _source_review_args(owned, source, delivery))
+    assert refused.exit_code == 1, refused.output
+    assert "OWNED_REVIEW_SOURCE_INVALID" in refused.output, refused.output
+    assert tuple(snapshot(root) for root in finalized_checkouts) == before
+
+
+def test_review_source_inspects_normalized_authored_patterns(finalized_checkouts):
+    from specify_cli.frontmatter import FrontmatterManager
+
+    _primary, owned, _sibling = finalized_checkouts
+    FrontmatterManager().update_fields(owned / "kitty-specs" / SLUG / "tasks/WP01-test.md", {"owned_files": ["./app.py"], "authoritative_surface": "./app.py"})
+    git(owned, "add", "kitty-specs")
+    git(owned, "commit", "-qm", "declare equivalent relative owned path")
+    source, delivery = _squashed_review_source(finalized_checkouts)
+    (owned / "app.py").write_text("VALUE = 3\n", encoding="utf-8")
+    git(owned, "update-index", "--assume-unchanged", "--", "app.py")
+    assert git(owned, "status", "--porcelain") == ""
+    before = tuple(snapshot(root) for root in finalized_checkouts)
+    refused = CliRunner().invoke(tasks_app, _source_review_args(owned, source, delivery))
+    assert refused.exit_code == 1, refused.output
+    assert "OWNED_REVIEW_SOURCE_INVALID" in refused.output, refused.output
+    assert tuple(snapshot(root) for root in finalized_checkouts) == before
+
+
+def test_explicit_review_source_retains_normal_reviewer_and_durable_verdict(finalized_checkouts):
+    source, delivery = _squashed_review_source(finalized_checkouts)
+    primary, owned, sibling = finalized_checkouts
+    others = snapshot(primary), snapshot(sibling)
+    submitted = CliRunner().invoke(tasks_app, _source_review_args(owned, source, delivery))
+    assert submitted.exit_code == 0, submitted.output
+    common = ["move-task", "WP01", "--reviewer", "reviewer", "--mission", SLUG, "--owned-checkout", str(owned), "--json"]
+    claimed = CliRunner().invoke(tasks_app, [*common, "--to", "in_review"])
+    assert claimed.exit_code == 0, claimed.output
+    approved = CliRunner().invoke(
+        tasks_app,
+        [*common, "--to", "approved", "--approval-ref", "local-review", "--review-source-commit", source, "--review-delivery-commit", delivery],
+    )
+    assert approved.exit_code == 0, approved.output
+    assert json.loads(approved.output)["verdict_durably_persisted"] is True
+    mission = owned / "kitty-specs" / SLUG
+    assert (mission / "tasks/WP01-test/review-cycle-1.md").is_file()
+    assert json.loads((mission / "status.json").read_text(encoding="utf-8"))["work_packages"]["WP01"]["lane"] == "approved"
+    assert git(owned, "show", "HEAD:app.py") == "VALUE = 2"
+    assert git(owned, "status", "--porcelain") == ""
+    assert (snapshot(primary), snapshot(sibling)) == others
+
+
+@pytest.mark.parametrize("replace_link", [False, True])
+def test_review_source_preserves_link_entry_identity_without_reading_target(finalized_checkouts, replace_link):
+    from mission_runtime import ActionContextError
+    from specify_cli.core.owned_mission import resolve_owned_mission, resolve_owned_review_source
+    from specify_cli.frontmatter import FrontmatterManager
+
+    primary, owned, _sibling = finalized_checkouts
+    link = owned / "reference"
+    # Target content deliberately differs from the stored link text. The
+    # positive case cannot pass by comparing dereferenced file bytes.
+    (owned / "unowned-source-target").write_text("different target bytes\n", encoding="utf-8")
+    link.symlink_to("unowned-source-target")
+    FrontmatterManager().update_fields(owned / "kitty-specs" / SLUG / "tasks/WP01-test.md", {"owned_files": ["app.py", "reference"]})
+    git(owned, "add", "reference", "unowned-source-target", "kitty-specs")
+    git(owned, "commit", "-qm", "declare owned link identity")
+    source, delivery = _squashed_review_source(finalized_checkouts)
+    fact = resolve_owned_mission(primary, owned, SLUG)
+    if replace_link:
+        link.unlink()
+        link.write_text("unowned-source-target", encoding="utf-8")
+        git(owned, "add", "reference")
+        assert git(owned, "rev-parse", ":reference") == git(owned, "rev-parse", "HEAD:reference")
+    before = tuple(snapshot(root) for root in finalized_checkouts)
+    args = (fact, owned / "kitty-specs" / SLUG / "tasks/WP01-test.md", source, delivery, TARGET)
+    if replace_link:
+        with pytest.raises(ActionContextError) as failure:
+            resolve_owned_review_source(*args)
+        assert failure.value.code == "OWNED_REVIEW_SOURCE_INVALID"
+    else:
+        proof = resolve_owned_review_source(*args)
+        assert proof.owned_files == ("app.py", "reference")
+    assert tuple(snapshot(root) for root in finalized_checkouts) == before
+
+
+@pytest.mark.parametrize("mutation", ["dirty", "staged", "working-mode", "untracked"])
+def test_review_source_refuses_owned_working_drift_without_effects(finalized_checkouts, mutation):
+    source, delivery = _squashed_review_source(finalized_checkouts)
+    _primary, owned, _sibling = finalized_checkouts
+    if mutation == "untracked":
+        # The existing directory-prefix ownership convention includes this path.
+        (owned / "app.py").unlink()
+        (owned / "app.py").mkdir()
+        (owned / "app.py" / "untracked.md").write_text("uncommitted implementation\n", encoding="utf-8")
+    elif mutation == "working-mode":
+        git(owned, "config", "core.filemode", "false")
+        (owned / "app.py").chmod(0o755)
+        assert git(owned, "status", "--porcelain") == ""
+    else:
+        (owned / "app.py").write_text("VALUE = 3\n", encoding="utf-8")
+        if mutation == "staged":
+            git(owned, "add", "app.py")
+    before = tuple(snapshot(root) for root in finalized_checkouts)
+    refused = CliRunner().invoke(tasks_app, _source_review_args(owned, source, delivery))
+    assert refused.exit_code == 1, refused.output
+    expected = "OWNED_INDEX_REFUSED" if mutation == "staged" else "OWNED_REVIEW_SOURCE_INVALID"
+    assert expected in refused.output, refused.output
     assert tuple(snapshot(root) for root in finalized_checkouts) == before
 
 

@@ -417,6 +417,339 @@ def resolve_owned_mission(
 
 _OPERATION_ROOT_TOKEN = object()
 
+_REVIEW_SOURCE_TOKEN = object()
+
+
+def matches_owned_file(path: str, patterns: tuple[str, ...]) -> bool:
+    """Use the same authored ownership semantics for diff and byte inspection."""
+    import fnmatch
+
+    normalized = path.replace("\\", "/").removeprefix("./")
+    for pattern in patterns:
+        pattern = pattern.replace("\\", "/").removeprefix("./")
+        if fnmatch.fnmatch(normalized, pattern):
+            return True
+        prefix = pattern.replace("/**", "").replace("/*", "").rstrip("/")
+        if prefix and normalized.startswith(prefix + "/"):
+            return True
+    return False
+
+
+@dataclass(frozen=True)
+class OwnedReviewSource:
+    """Inspected local source history; not a verdict or verified PR delivery."""
+
+    source_commit: str
+    delivered_commit: str
+    base_commit: str
+    current_head: str
+    task_path: str
+    task_id: str
+    owned_files: tuple[str, ...]
+    source_changes: tuple[str, ...]
+    current_changes: tuple[str, ...]
+    dirty_paths: tuple[str, ...]
+    _token: object = field(default=None, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if self._token is not _REVIEW_SOURCE_TOKEN:
+            raise TypeError("OwnedReviewSource is minted only by resolve_owned_review_source")
+
+
+class _ReviewSourceInspection:
+    """One bounded, read-only Git inspection shared by the source validators."""
+
+    def __init__(self, owned: OwnedCheckout, task_path: Path, source: str, delivery: str, target: str) -> None:
+        import os
+        import time
+
+        self.owned = owned
+        self.task_path = task_path
+        self.source = source
+        self.delivery = delivery
+        self.target = target
+        self.deadline = time.monotonic() + 10
+        self.inspected_bytes = 0
+        self.environment = {**os.environ, "GIT_NO_REPLACE_OBJECTS": "1", "GIT_OPTIONAL_LOCKS": "0"}
+
+    def remaining(self) -> float:
+        import time
+
+        duration = self.deadline - time.monotonic()
+        if duration <= 0:
+            raise ValueError("Review-source inspection exceeded its deadline")
+        return duration
+
+    def git(self, *args: str) -> bytes:
+        from kernel.git.runner import run_git
+
+        output = run_git(self.owned.owned_root, *args, env=self.environment, timeout=self.remaining()).stdout
+        if len(output) > 4 * 1024 * 1024:
+            raise ValueError("Review-source inspection exceeded its byte bound")
+        return output.strip()
+
+    def blob(self, ref: str, path: str) -> bytes:
+        from kernel.git import blob_at
+
+        value = blob_at(self.owned.owned_root, ref, path, env=self.environment, timeout=self.remaining(), max_bytes=4 * 1024 * 1024)
+        if value is None:
+            raise ValueError("Review-source authority is absent from the named history")
+        return value
+
+    @staticmethod
+    def unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        value: dict[str, Any] = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError("Duplicate review-source authority field")
+            value[key] = item
+        return value
+
+    def document(self, ref: str, path: str) -> dict[str, Any]:
+        import json
+
+        value = json.loads(self.blob(ref, path), object_pairs_hook=self.unique)
+        if not isinstance(value, dict):
+            raise ValueError("Review-source authority must be a JSON object")
+        return value
+
+    def working_entry(self, head: str, path: str, mode: str) -> None:
+        """Compare link text or held regular bytes; never dereference a link."""
+        import os
+        import stat
+
+        from kernel.no_follow import open_no_follow
+
+        location = self.owned.owned_root / path
+        parent = self.owned.owned_root
+        for part in location.relative_to(parent).parts[:-1]:
+            parent /= part
+            if not stat.S_ISDIR(parent.lstat().st_mode):
+                raise ValueError("Review-source working entry has a non-directory parent")
+        if mode == "120000":
+            before = location.lstat()
+            if not stat.S_ISLNK(before.st_mode):
+                raise ValueError("Review-source working link has a different type")
+            content = os.fsencode(os.readlink(location))
+            after = location.lstat()
+        elif mode in ("100644", "100755"):
+            descriptor = open_no_follow(location, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
+            try:
+                before = os.fstat(descriptor)
+                if not stat.S_ISREG(before.st_mode) or bool(before.st_mode & 0o111) != (mode == "100755") or before.st_size > 4 * 1024 * 1024:
+                    raise ValueError("Review-source working entry has an unsupported type, mode or size")
+                chunks: list[bytes] = []
+                size = 0
+                while chunk := os.read(descriptor, min(65536, 4 * 1024 * 1024 + 1 - size)):
+                    self.remaining()
+                    chunks.append(chunk)
+                    size += len(chunk)
+                    if size > 4 * 1024 * 1024:
+                        raise ValueError("Review-source working authority exceeds its byte bound")
+                after = os.fstat(descriptor)
+                content = b"".join(chunks)
+            finally:
+                os.close(descriptor)
+        else:
+            raise ValueError("Review-source working entry has an unsupported Git mode")
+        self.inspected_bytes += len(content)
+        self.remaining()
+        if self.inspected_bytes > 64 * 1024 * 1024:
+            raise ValueError("Review-source working entries exceed the aggregate byte bound")
+        if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns, before.st_mode) != (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+            after.st_ctime_ns,
+            after.st_mode,
+        ) or content != self.blob(head, path):
+            raise ValueError("Review-source working entry differs or changed during inspection")
+        named = location.lstat()
+        if (named.st_dev, named.st_ino, named.st_mode, named.st_size, named.st_mtime_ns, named.st_ctime_ns) != (
+            after.st_dev,
+            after.st_ino,
+            after.st_mode,
+            after.st_size,
+            after.st_mtime_ns,
+            after.st_ctime_ns,
+        ):
+            raise ValueError("Review-source working entry was replaced during inspection")
+
+    def authority(self, head: str, paths: tuple[str, ...]) -> None:
+        """Keep committed, indexed and no-follow working authority identical."""
+        from kernel.git import index_entries, tree_entry
+
+        entries = index_entries(self.owned.owned_root, pathspecs=paths, tags=True, env=self.environment, timeout=self.remaining())
+        if len(entries) != len(paths):
+            raise ValueError("Review-source authority index is incomplete or unmerged")
+        for entry in entries:
+            path = str(entry.path)
+            expected = tree_entry(self.owned.owned_root, head, path, env=self.environment, timeout=self.remaining())
+            if expected is None or entry.tag != "H" or entry.stage != 0 or entry.mode != "100644" or (entry.mode, entry.oid) != (expected.mode, expected.oid):
+                raise ValueError("Review-source authority index differs or has hidden flags")
+            self.working_entry(head, path, entry.mode)
+
+    def implementation(self, head: str, patterns: tuple[str, ...]) -> None:
+        """Git status alone cannot reveal assume-unchanged or skip-worktree edits."""
+        from kernel.git import index_entries, tree_entry
+
+        entries = index_entries(self.owned.owned_root, tags=True, env=self.environment, timeout=self.remaining())
+        if len(entries) > 100000:
+            raise ValueError("Review-source index exceeds its entry bound")
+        for entry in entries:
+            path = str(entry.path)
+            if not matches_owned_file(path, patterns):
+                continue
+            expected = tree_entry(self.owned.owned_root, head, path, env=self.environment, timeout=self.remaining())
+            if expected is None or entry.tag != "H" or entry.stage != 0 or (entry.mode, entry.oid) != (expected.mode, expected.oid):
+                raise ValueError("Review-source implementation index differs or has hidden flags")
+            self.working_entry(head, path, entry.mode)
+
+    def history(self) -> str:
+        import os
+        import re
+
+        if any(not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", value) for value in (self.source, self.delivery)):
+            raise ValueError("Review-source and delivery must be full immutable commit IDs")
+        if self.source == self.delivery:
+            raise ValueError("Identical source and delivery commits do not describe a squash")
+        if self.git("rev-parse", "--is-shallow-repository") != b"false":
+            raise ValueError("Review-source history must be complete, not shallow")
+        grafts = Path(os.fsdecode(self.git("rev-parse", "--git-path", "info/grafts")))
+        if not grafts.is_absolute():
+            grafts = self.owned.owned_root / grafts
+        if grafts.exists() or grafts.is_symlink():
+            raise ValueError("Grafted review-source history is not qualified")
+        head = self.git("rev-parse", "--verify", "HEAD^{commit}").decode("ascii")
+        target = self.git("rev-parse", "--verify", f"refs/heads/{self.target}^{{commit}}").decode("ascii")
+        for ref in (self.source, self.delivery):
+            if self.git("rev-parse", "--verify", ref + "^{commit}").decode("ascii") != ref:
+                raise ValueError("Review-source identity did not resolve exactly")
+        self.git("merge-base", "--is-ancestor", self.delivery, target)
+        self.git("merge-base", "--is-ancestor", target, head)
+        if self.git("rev-parse", self.source + "^{tree}") != self.git("rev-parse", self.delivery + "^{tree}"):
+            raise ValueError("Original source and delivered tree differ")
+        return head
+
+    def scope(self, head: str) -> tuple[str, str, str, tuple[str, ...]]:
+        import re
+
+        from kernel.git import tree_entry
+        from specify_cli.lanes.claim_base import read_claim_base
+        from specify_cli.frontmatter import FrontmatterManager
+        from specify_cli.status import WPMetadata
+
+        owned = self.owned
+        owned.files([self.task_path, owned.mission_dir / "meta.json", owned.mission_dir / "lanes.json", owned.mission_dir / "status.events.jsonl"])
+        directory = owned.mission_dir.relative_to(owned.owned_root).as_posix()
+        relative_task = self.task_path.relative_to(owned.owned_root).as_posix()
+        authority_paths = (relative_task, directory + "/meta.json", directory + "/lanes.json", directory + "/status.events.jsonl")
+        self.authority(head, authority_paths)
+        authored, _body = FrontmatterManager().parse(self.blob(self.source, relative_task).decode("utf-8-sig"), source=self.task_path)
+        task = WPMetadata.model_validate(authored, strict=False)
+        manifest = self.document(self.source, directory + "/lanes.json")
+        if manifest.get("mission_slug") != owned.mission_slug or manifest.get("target_branch") != self.target:
+            raise ValueError("Review-source mission manifest does not match")
+        # A present immutable claim outranks planning; a failed read is never
+        # treated as the documented quiet-absence legacy fallback.
+        claimed = read_claim_base(owned.repository_root, owned.mission_slug, task.work_package_id, strict=True)
+        base = claimed if claimed is not None else manifest.get("planning_commit_sha")
+        if not isinstance(base, str) or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", base) or base == self.source:
+            raise ValueError("Original review-source planning base is unavailable or empty")
+        self.git("merge-base", "--is-ancestor", base, self.source)
+        # Exact authored entries bind create-intent/exclusions and the full
+        # mission contract. Never compare a symlink's dereferenced bytes.
+        for path in (relative_task, directory + "/meta.json"):
+            entries = [tree_entry(owned.owned_root, ref, path, env=self.environment, timeout=self.remaining()) for ref in (base, self.source, head)]
+            if entries[0] is None or entries[0].mode != "100644" or any(entry != entries[0] for entry in entries[1:]):
+                raise ValueError("Original and current authored mission or task scope differs")
+        metadata = self.document(self.source, directory + "/meta.json")
+        if (
+            not isinstance(metadata.get("mission_id"), str)
+            or not metadata["mission_id"]
+            or manifest.get("mission_id") != metadata["mission_id"]
+            or metadata.get("mission_slug") != owned.mission_slug
+            or metadata.get("target_branch") != self.target
+            or metadata.get("topology") != owned.topology.value
+        ):
+            raise ValueError("Review-source target or topology differs")
+        return base, relative_task, task.work_package_id, tuple(task.owned_files)
+
+    def attempt(self, head: str, task_id: str) -> None:
+        import json
+
+        path = self.owned.mission_dir.relative_to(self.owned.owned_root).as_posix() + "/status.events.jsonl"
+        original, current = self.blob(self.source, path), self.blob(head, path)
+        if not original or not current.startswith(original):
+            raise ValueError("Current status history does not preserve the original source")
+        events = [json.loads(line, object_pairs_hook=self.unique) for line in original.splitlines()]
+        if any(not isinstance(event, dict) for event in events):
+            raise ValueError("Invalid original status event")
+        transitions = [event for event in events if event.get("wp_id") == task_id and "to_lane" in event]
+        if not transitions or transitions[-1].get("to_lane") not in ("in_progress", "for_review", "in_review"):
+            raise ValueError("Original source does not bind an active task attempt")
+        for line in current[len(original) :].splitlines():
+            event = json.loads(line, object_pairs_hook=self.unique)
+            if not isinstance(event, dict):
+                raise ValueError("Invalid current status event")
+            if event.get("wp_id") != task_id:
+                continue
+            if "to_lane" in event and event["to_lane"] not in ("for_review", "in_review", "approved"):
+                raise ValueError("Original review-source evidence belongs to an earlier task attempt")
+            delta = event.get("delta")
+            review = delta.get("review_result") if isinstance(delta, dict) else None
+            if isinstance(review, dict) and review.get("verdict") != "approved":
+                raise ValueError("Original review-source evidence predates a non-approved review")
+
+
+def resolve_owned_review_source(
+    owned: OwnedCheckout,
+    task_path: Path,
+    source_commit: str,
+    delivered_commit: str,
+    target_branch: str,
+) -> OwnedReviewSource:
+    """Inspect a preserved implementation window, not PR or release authority.
+
+    Ordinary current planning/claim-base checks still run separately. This sole
+    minter supplies only the explicit post-squash implementation-window evidence;
+    existing index/worktree, reviewer and transition guards remain mandatory.
+    """
+    from kernel.git import changed_paths, status_entries
+
+    try:
+        if not isinstance(owned, OwnedCheckout):
+            raise ValueError("Review-source evidence requires a validated owned checkout")
+        inspection = _ReviewSourceInspection(owned, task_path, source_commit, delivered_commit, target_branch)
+        head = inspection.history()
+        base, relative_task, task_id, owned_files = inspection.scope(head)
+        inspection.attempt(head, task_id)
+        inspection.implementation(head, owned_files)
+        source_changes = changed_paths(owned.owned_root, base, source_commit, env=inspection.environment, timeout=inspection.remaining())
+        current_changes = changed_paths(owned.owned_root, delivered_commit, head, env=inspection.environment, timeout=inspection.remaining())
+        dirty = status_entries(owned.owned_root, untracked="all", env=inspection.environment, timeout=inspection.remaining())
+        dirty_paths = tuple(str(path) for entry in dirty for path in (entry.path, entry.orig_path) if path is not None)
+        directory = owned.mission_dir.relative_to(owned.owned_root).as_posix()
+        inspection.authority(head, (relative_task, directory + "/meta.json", directory + "/lanes.json", directory + "/status.events.jsonl"))
+        if inspection.git("rev-parse", "HEAD").decode("ascii") != head:
+            raise ValueError("Checkout changed during review-source inspection")
+        return OwnedReviewSource(
+            source_commit,
+            delivered_commit,
+            base,
+            head,
+            relative_task,
+            task_id,
+            owned_files,
+            tuple(map(str, source_changes)),
+            tuple(map(str, current_changes)),
+            dirty_paths,
+            _token=_REVIEW_SOURCE_TOKEN,
+        )
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise ActionContextError("OWNED_REVIEW_SOURCE_INVALID", str(exc)) from exc
+
 
 @dataclass(frozen=True)
 class OperationRoot:

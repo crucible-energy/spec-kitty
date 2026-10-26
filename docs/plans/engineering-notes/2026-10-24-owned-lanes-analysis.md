@@ -947,3 +947,88 @@ installed qualified runtimes, logs, fixtures, archives and all recovery evidence
 remain retained. Source's rejected cache paths and shared caches were excluded.
 Fresh ordinary capacity must decide publication readiness; these measured cache
 removals do not establish exclusive attribution for filesystem-wide changes.
+
+## WP14 — Post-squash review-source reconciliation
+
+### User Experience Findings
+
+PR #120 delivered the exact tested tree to the existing integration branch.
+The lifecycle owner then legitimately refreshed an orphaned planning pin.
+WP11's implementation was already in the squash, so the new committed window
+contained only planning/status work and correctly failed the ordinary
+`OWNED_IMPLEMENTATION_MISSING` guard. A fake code touch would hide the missing
+history binding instead of repairing it.
+
+The first three-case reproduction also exposed a test mistake: owned review
+does not permit an explicit auto-commit override. That failed run is retained.
+After removing only that unsupported option, the ordinary refusal control
+passed and the two explicit-source cases failed because the new CLI capability
+did not exist. The failing-first test commit precedes the source repair.
+
+Adversarial local Git fixtures then exposed two candidate defects. Mutable
+task/mission authority could mint a source fact despite committed-scope
+equality; the public approval control still refused and was not an approval
+bypass. Separately, assume-unchanged and skip-worktree hid changed owned bytes
+from Git status and allowed a public `for_review` transition. A relative
+`./app.py` spelling reproduced that admission defect until both validators
+used identical pattern normalization. These are private candidate findings,
+not claims about installed runtime exploitation or production approval.
+
+The broader task-command run exposed two validation obligations: its help
+snapshot needed the two additive flags, and a fixture's bare `python` hook
+could not run because the private direct-interpreter profile omitted the
+selected virtual environment from PATH. The hook then exited zero without
+performing its mutation. The unchanged hook regression passed after binding
+PATH to the advertised interpreter; the original two-failure run remains
+retained and is not a passing gate. Both the existing changelog and exact help
+fixture were admitted through the owning canonical scope workflow before edits.
+
+### Engineering Decisions
+
+The explicit `--review-source-commit` and `--review-delivery-commit` pair
+supplies local review-source evidence only. The ordinary current planning and
+claim-base guards still run. The canonical minter inspects full immutable IDs,
+identical source/delivery trees, actual current/target ancestry, and exact
+authored task/mission Git entries. An original present WP claim outranks its
+planning fallback; read errors or invalid claims cannot become absence.
+
+Original and current event history must bind the same attempt. Reclaims,
+rejections, changed scope, unavailable history, changed implementation entries
+and dirty owned paths refuse. Git entry modes matter; a dereferenced file hash
+cannot substitute for a symlink or executable-mode identity. Existing dirty,
+reviewer, regression and event-write guards remain mandatory.
+
+The inspection shares one deadline and bounded blob reader. It mints an
+immutable in-process fact, not a receipt or verdict. It neither verifies PR
+acceptance nor grants owner release, cleanup, default-branch delivery or
+installed runtime adoption. The already accepted explicit dispatch/close
+custody implementation still needs separate newest-RC7 package propagation.
+
+Committed authority, index entries and working bytes are compared independently
+of Git status. Hidden index flags, conflict stages, altered entry identities,
+unsupported types and executable-mode drift refuse. Regular-file reads use a
+held no-follow descriptor; symbolic links compare link text, not target data.
+The reader checks parent directory types and named-entry stability. Inspection
+uses a ten-second deadline, 100,000 index-entry limit, four-MiB per-file limit
+and 64-MiB aggregate inspected-content limit; these are eligibility bounds,
+not a filesystem lock or subsequent-effect authorization.
+
+### Known Limitations
+
+This is a candidate repair. The development-runtime boundary run passed 37
+cases, and the subsequent normalized-pattern plus durable reviewer/verdict
+checks passed two more. Earlier failed fixtures, controller interruptions and
+confirmed RED cases remain retained separately. The controller's disappearing
+temporary-directory race was corrected without changing product behavior.
+Owning regression/typing/architecture and baseline gates, independent review,
+normal PR publication and actual newest-RC7 installed Source replay remain
+required. Focused development results do not establish those later stages.
+The core/parser/migration/invocation and selected architecture run passed
+1,060 tests with one declared performance skip, and strict typing passed all
+six selected production modules. The full task-command and baseline gates
+must finish under the corrected interpreter profile on the final candidate.
+Five terminal private bytecode caches were retired after exact ownership,
+no-holder and source-recovery checks: 175,980,544 allocated bytes. Their source,
+Git fixtures, raw logs, failed runs and receipts remain retained.
+HELD/v5 and all other owners' source, Store, processes and recovery state are
+unchanged; validation uses only declared private Git fixtures.
