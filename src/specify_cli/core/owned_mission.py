@@ -52,6 +52,8 @@ _MISSION_CONTEXT_CONFLICT = MISSION_CONTEXT_CONFLICT
 # operations remain single-branch; analysis and planning finalization can use
 # a plain LANES root. NEXT retains its existing query coverage independently.
 LIFECYCLE_OWNED_TOPOLOGIES: Final[frozenset[MissionTopology]] = frozenset({MissionTopology.SINGLE_BRANCH})
+# A status read validates the selected root without admitting lane mutation.
+STATUS_OWNED_TOPOLOGIES: Final[frozenset[MissionTopology]] = frozenset({MissionTopology.SINGLE_BRANCH, MissionTopology.LANES})
 # Planning finalization can write the selected plain-LANES root without
 # granting lane implementation, acceptance, merge or coordination authority.
 FINALIZATION_OWNED_TOPOLOGIES: Final[frozenset[MissionTopology]] = frozenset({MissionTopology.SINGLE_BRANCH, MissionTopology.LANES})

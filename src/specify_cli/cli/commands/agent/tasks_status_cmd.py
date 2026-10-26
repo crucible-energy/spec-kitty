@@ -195,7 +195,7 @@ def _st_resolve_owned(st: _StatusState, repo_root: Path, explicit_mission: str |
         json_error_envelope,
         resolve_owned_or_adopt,
     )
-    from specify_cli.core.owned_mission import LIFECYCLE_OWNED_TOPOLOGIES
+    from specify_cli.core.owned_mission import STATUS_OWNED_TOPOLOGIES
 
     try:
         owned = resolve_owned_or_adopt(
@@ -203,7 +203,7 @@ def _st_resolve_owned(st: _StatusState, repo_root: Path, explicit_mission: str |
             st.owned_claim,
             explicit_mission,
             cwd=st.cwd,
-            allowed_topologies=LIFECYCLE_OWNED_TOPOLOGIES,
+            allowed_topologies=STATUS_OWNED_TOPOLOGIES,
         )
     except ActionContextError as exc:
         emit_owned_refusal(exc, json_output=st.json_output, envelope=json_error_envelope)

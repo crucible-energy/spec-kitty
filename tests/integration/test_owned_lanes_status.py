@@ -98,3 +98,14 @@ def test_plain_lanes_status_preserves_branch_validation(
     )
     assert result.exit_code != 0
     assert json.loads(result.output)["error_code"] == "OWNED_BRANCH_REFUSED"
+
+
+def test_plain_lanes_explicit_status_requires_mission(
+    make_owned_checkouts: Callable[..., OwnedCheckouts],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    checkouts = make_owned_checkouts(topology="lanes")
+    monkeypatch.chdir(checkouts.repository_root)
+    result = CliRunner().invoke(app, ["status", "--owned-checkout", str(checkouts.owned_root), "--json"])
+    assert result.exit_code != 0
+    assert json.loads(result.output)["error_code"] == "FEATURE_CONTEXT_UNRESOLVED"

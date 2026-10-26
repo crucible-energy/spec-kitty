@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 4.0.0rc6
 
+- **Owned plain-LANES status reads the selected checkout** (#60). `agent tasks status` supports explicit selection and cwd adoption for a validated plain-LANES planning checkout, preserving its canonical events and diagnosing a stale primary copy. General lifecycle mutation, coordination topology and workspace admission remain unchanged; this is inspection, not active-work continuation or retained-history adoption.
+
 - **Linked upgrade previews describe the selected checkout** (#60). The legacy JSON preview and too-new-schema refusal use that checkout's project metadata without changing the general canonical-root resolver or actual apply routing. A separate repository root checkout's future schema no longer poisons a healthy selected checkout. Upgrade hints return a manual note rather than an install command for an older or uncomparable selected release; release-channel selection and package provenance remain unchanged. This is not a legacy-charter migration or consumer admission.
 
 - **Retained runtime history can be previewed in an explicitly owned checkout** (#60). `migrate backfill-runtime-state --mission <handle> --owned-checkout <path> --dry-run` validates the selected checkout and inspects only its retained dossier, including coordinated Missions. The JSON labels that scope and explicitly denies canonical status adoption. Owned live migration and implicit corpus walks refuse; existing calls are unchanged. The recovery guide no longer recommends manually disabling metadata validation to flip `status_phase`. Live coordinated recovery remains a separate open gate.
