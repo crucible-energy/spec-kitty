@@ -33,6 +33,10 @@ owned_files:
 - src/specify_cli/invocation/writer.py
 - src/specify_cli/invocation/lifecycle.py
 - tools/zig/workspace_ingress.zig
+- tests/lanes/test_lane_tip_record_points.py
+- tests/specify_cli/lanes/test_worktree_allocator_recovery.py
+- src/specify_cli/workspace_lifecycle/adapters.py
+- tools/zig/workspace_finish.zig
 tags: []
 task_type: implement
 tracker_refs: []
@@ -80,7 +84,64 @@ does not claim any new implementation or runtime adoption.
 
 ## Validation
 
+### Generation-bound ordinary creator admission
+
+WP09 depends on the completed WP08 native finish store and WP11 creator
+adapter. Extend only these two existing surfaces and the already owned native
+ingress/tests; preserve their existing recovery, delivery and release checks.
+Root's core/finalizer/status-resume work remains independently owned.
+
+- Resolve the ordinary allocator's selected parent reference to an explicit
+  expected starting commit. Preserve existing callers' default HEAD behavior;
+  an ordinary creator must not be mislabeled as a managed creator.
+- Before creation effects, bind creator kind, accountable owner, generation,
+  common Git store, requested path/ref and expected commit in existing creator
+  custody. Native ingress must consume that exact receipt, never adopt an
+  observed workspace or infer ownership from its location.
+- Reuse the native finish store's strict, bounded, revisioned persistence.
+  Completion records convey outcome data only. Owner release still requires
+  independent generation-bound capability; invocation/session labels, callbacks
+  and finish obligations cannot mint it.
+- Retain negative proofs for changed parent/ref/path/store, absent generation
+  or receipt, unknown registration, wrong creator kind and missing release.
+  Validate stale and interrupted events without resetting history or broadening
+  deletion authority. Installed asynchronous closeout remains a separate gate.
+
+This dependency-ordered scope amendment admits bounded migration changes to the
+existing Python adapter and native Zig finish integration. It does not reopen
+WP08/WP11 approvals, authorize unrelated adapter changes, or assert deployment.
+
+The bounded creator API now accepts an optional exact starting commit; omitted
+input preserves the existing caller-HEAD behavior. Symbolic references, absent
+objects and annotated tag objects must refuse before custody/worktree effects.
+Its native refusal witness compares exact existing ledger bytes and entry
+identities, as well as target absence. This API alone does not admit ordinary
+creators or confer release authority.
+
+Native finish obligations bind creator kind and exact generation separately
+from source identity; legacy unbound obligation identifiers remain unchanged.
+Ordinary startup, completion and uncertain-recovery ingress records accountable
+data only. Success waits for delivery, failure remains blocked, cancellation
+returns to useful-work triage, and uncertain recovery stays blocked. No outcome
+can assert accepted delivery, joined descendants, release or retirement. The
+new native command still requires actual creator callbacks, distribution
+packaging and installed acceptance before deployment can be claimed.
+
 Integrate native obligations into supported creator startup/completion/recovery. Python edits are bounded migration glue; new implementation/tests use Zig. Package exact artifacts, refuse unsupported creators, and prove actual asynchronous cleanup plus preservation/interruption. No broad prune or trust bypass.
+
+### Existing recovery-fixture compatibility
+
+The actual public allocator reproduced deletion of an unrelated missing
+registration's staged index. Native Zig tests retain that red and the unknown
+requested/sibling metadata controls. Remove repository-wide prune; an unknown
+requested registration must remain retained pending its owner's recovery.
+The two existing Python recovery test modules are admitted only for fixture
+compatibility: their positive re-attachment scenarios must explicitly dispose
+of their own synthetic requested registration through Git before retrying.
+Preserve every existing branch, tip, clean-state and sparse-checkout assertion;
+do not delete, skip or weaken those positive regression checks. New behavior
+and refusal tests remain in the scoped native Zig file. This amendment grants
+no real missing-registration removal or owner-release authority.
 
 ## Production correctness findings to reproduce before repair
 

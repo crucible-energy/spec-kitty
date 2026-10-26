@@ -53,6 +53,10 @@ class LifecycleService:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
+            # Neither caller cwd nor the private ledger (which may itself be
+            # nested in a candidate) may keep that workspace runtime-held.
+            # Module and state paths are already explicitly distribution-bound.
+            cwd=Path(self.store.root.anchor),
         )
         # Join our exact child if this CLI remains alive; no PID lookup or scan.
         threading.Thread(target=process.wait, daemon=True, name="lifecycle-worker-join").start()

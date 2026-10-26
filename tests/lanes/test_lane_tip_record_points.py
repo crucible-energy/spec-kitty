@@ -394,6 +394,9 @@ def test_crash_recovery_records_tip_despite_foreign_hook(tmp_path: Path) -> None
     # (and its commit) survive in the object store -- the real
     # CRASH_RECOVERY trigger.
     shutil.rmtree(worktree_path)
+    # The fixture owner explicitly disposes of this exact synthetic registration.
+    # Unknown missing registrations must remain untouched by the allocator.
+    _git(repo, "worktree", "remove", "--force", str(worktree_path))
     assert not worktree_path.exists(), "pre-condition: worktree directory gone, branch kept"
 
     recovered_path, recovered_branch = allocate_lane_worktree(

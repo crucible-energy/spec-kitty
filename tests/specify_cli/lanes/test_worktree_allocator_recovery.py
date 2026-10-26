@@ -107,6 +107,9 @@ def test_crash_recovery_reattaches_when_worktree_gone(git_repo: Path) -> None:
     # Simulate the directory being lost (OS kill during sleep, manual rm, etc.).
     import shutil
     shutil.rmtree(worktree_path)
+    # Exact disposable fixture registration is released before re-attachment;
+    # the allocator must never prune unrelated or uncertain recovery custody.
+    _git(git_repo, "worktree", "remove", "--force", str(worktree_path))
     assert not worktree_path.exists(), "pre-condition: worktree gone"
 
     # Recovery allocation must succeed — not raise RuntimeError.
@@ -133,6 +136,9 @@ def test_crash_recovery_worktree_is_clean_after_reattach(git_repo: Path) -> None
 
     import shutil
     shutil.rmtree(worktree_path)
+    # Exact disposable fixture registration is released before re-attachment;
+    # the allocator must never prune unrelated or uncertain recovery custody.
+    _git(git_repo, "worktree", "remove", "--force", str(worktree_path))
 
     recovered_path, _ = allocate_lane_worktree(
         repo_root=git_repo,
@@ -225,6 +231,9 @@ def test_crash_recovery_reregisters_sparse_checkout_for_coord_lane(
     # while the branch survives — the crash-recovery path.
     import shutil
     shutil.rmtree(worktree_path)
+    # Exact disposable fixture registration is released before re-attachment;
+    # the allocator must never prune unrelated or uncertain recovery custody.
+    _git(coord_git_repo, "worktree", "remove", "--force", str(worktree_path))
     assert not worktree_path.exists(), "pre-condition: worktree gone"
 
     recovered_path, recovered_branch = allocate_lane_worktree(
@@ -263,6 +272,9 @@ def test_crash_recovery_noncoord_lane_is_noop(git_repo: Path) -> None:
 
     import shutil
     shutil.rmtree(worktree_path)
+    # Exact disposable fixture registration is released before re-attachment;
+    # the allocator must never prune unrelated or uncertain recovery custody.
+    _git(git_repo, "worktree", "remove", "--force", str(worktree_path))
 
     recovered_path, _ = allocate_lane_worktree(
         repo_root=git_repo,

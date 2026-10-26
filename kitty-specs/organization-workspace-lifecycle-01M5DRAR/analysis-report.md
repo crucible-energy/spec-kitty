@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-26T11:10:04.885627+00:00'
+generated_at: '2026-10-26T21:01:07.506045+00:00'
 analyzer_agent: codex-lifecycle-source-owner
 input_artifacts:
   spec.md:
@@ -1620,7 +1620,7 @@ input_artifacts:
     sha256: 51982b1661e69cc6e56342c8b6ba3291cc6743e2a9244db4ffaaf457a270ec16
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
-    sha256: 94e6cdde29a19381705c2b7896b2ca69d3e72c89b307b9abb69d73a29bd2a44e
+    sha256: 3cdc12e68db7dd218c59952f120ea2571290d878d990a6aca81c08bb17b4bdab
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
     sha256: a8ce616e70aa2b618ddfcd3c4760704409492ea70022f7b5c6dabaf82524f604
@@ -1630,6 +1630,9 @@ input_artifacts:
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP11-retirement-delivery-and-recovery-proof/review-cycle-1.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP11-retirement-delivery-and-recovery-proof/review-cycle-1.md
     sha256: 32299aea9ec0c0aa8e626ccc779dc8f2fd7587ee44c95e2c175d230f2eca58c7
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP11-retirement-delivery-and-recovery-proof/review-cycle-2.md
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP11-retirement-delivery-and-recovery-proof/review-cycle-2.md
+    sha256: 6c31869a78e37a7a48f5192eaf02050abe23e674ec4b1e80232cfa622a0a585f
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP11-retirement-delivery-and-recovery-proof.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP11-retirement-delivery-and-recovery-proof.md
     sha256: 096d0debf45c1bbc9dff743b4e8e5556a99e958cad92b5d31e7382056c9c060a
@@ -1645,6 +1648,12 @@ input_artifacts:
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP13-live-mission-archive-boundary.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP13-live-mission-archive-boundary.md
     sha256: 5be833ee03b540a942d83d42f9d3ccd1aeac80d6f03fff3dc2d1ec4eee4a7db0
+  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP14-post-squash-review-source-reconciliation:
+    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP14-post-squash-review-source-reconciliation
+    sha256: directory
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP14-post-squash-review-source-reconciliation/review-cycle-1.md
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP14-post-squash-review-source-reconciliation/review-cycle-1.md
+    sha256: f1dbce0f8b4e8e451bd90eacfc318c411fe2b96438e68df145bbdf5386432bd9
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP14-post-squash-review-source-reconciliation.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP14-post-squash-review-source-reconciliation.md
     sha256: 3bc9c621358f3b3ccc17e4d214f918b452f228b42757330d1f28cfbcafbabab0
@@ -1878,37 +1887,29 @@ input_artifacts:
     sha256: 3c3a78cf69c6f1bad1c2d4b3758b8ffe9917c4d3319677b60b2faf6f78b33bbd
   template-selection:spec:
     path:
-    sha256: 06b3dafc79975b347711db10e68a5ecb44dea6d3dbebe918b8536058a8901b4b
+    sha256: cd83436712712fed6b7a2db1d31f576f9fc9b99c9b5d0b608953a19edf222813
   template-selection:plan:
     path:
-    sha256: 44a2804f83b0661d3d7e952c450c6e1a39fc6d6eaf3e9efd887b8b860833efb5
+    sha256: 5101763d7244c3a0115d0a0677d45d467f30c8428bdd648d083b95fa5a42eb63
 verdict: ready
 issue_counts:
-  medium: 0
   high: 0
+  medium: 0
   low: 0
   critical: 0
   info: 0
 findings: []
-report_transaction: 6b3813716b2f4e958c4d9f127699e410
+report_transaction: dbc28adf8103463a9bb4384c7b44310f
 material_manifest_version: 1
 ---
 
-## Specification Analysis Report
+# Lifecycle planning consistency — ordinary creator binding increment
 
-Audience: the mission's existing implementers and independent reviewers. This is a fresh assessment of current specification, amended plan, task outline, all fourteen authored package scopes, canonical ownership/dependency validation, and restored charter intent after accepted PR120 squash delivery. It is planning readiness, not implementation acceptance, review approval, default-branch delivery, runtime adoption or cleanup completion.
+### Summary
 
-| ID | Category | Severity | Location(s) | Summary | Recommendation |
-|---|---|---|---|---|---|
-| — | — | — | Current specification/plan/tasks and canonical fourteen-package validation | No unresolved cross-artifact planning contradiction identified in this bounded assessment. The post-squash implementation defect remains explicitly assigned to WP14. | Honor actual dependency/claim/review gates; never substitute this report for their evidence. |
+This is a fresh planning consistency assessment for the current WP09 prompt, not mission acceptance or runtime adoption. I compared the current spec, plan and task scope after its canonical dependency-ordered additions. WP09 remains in progress; approved WP08/WP11 permit bounded existing-adapter/native integration. No requirement is orphaned and no planning conflict is identified. Sealed core/producer/finalizer custody remains outside Source changes and with the existing Root owner.
 
-### Current Authority and Changed Inputs
-
-The real canonical sequence is retained: original Source history58164 remains under recovery/lifecycle-source-before-pr120-58164a961a9d; PR120 squash728dd3 has exactly testedf410 treeeb86d465. Actual default b9474e1 does not contain this delivery. Canonical T011 done eventadb11de4 records the completed implementation subtask, not WP11 approval. The supported orphaned planning refresh0a9d13ef changed only lanes.json and preserved status/event bytes. Review still refuses OWNED_IMPLEMENTATION_MISSING because implementation precedes the refreshed pin. That is an implementation blocker, retained without a fake code touch, historical receipt rewrite or force.
-
-At the existing core owner's request, WP14 now owns the bounded canonical guard and latest-runtime propagation repair. It depends on already approved WP06 and WP07, because its exact paths follow their earlier ownership. Initial validation correctly rejected unordered overlap; the genuine predecessor relationship resolves it without an exception. The final added core authority and owned-invocation tests are disjoint from WP09. Canonical validate/apply admitted fourteen packages with zero ownership warnings. Previous thirteen WP states and event history were preserved when WP14 was appended; all fourteen states and event bytes stayed unchanged in the follow-up scope amendment. The plan amendment was committed through the canonical kind-aware router with a sole-minter OwnedCheckout and expected parent.
-
-WP14's explicit original-source/delivered-tree/history/current-scope evidence may only enable review. It cannot verify generic GitHub PR state, approve a WP, relinquish ownership, authorize deployment or remove a workspace. Existing no-code, dirt, unavailable history, scope drift and foreign identity refusals stay required. Root owns implementation and isolated latest-package qualification; Source owns canonical planning and subsequent WP11/WP09 transitions. No competing producer or checkout is admitted by this report.
+The prior f1b98506f increment is an immutable review candidate: exact-parent adapter, generation-bound native obligation journal, legacy-ID preservation and data-only startup/completion/recovery. It has20native passes,278owning-subsystem passes/2skips and2452fast passes/5skips. The native compile-only fixture correction has separate proof; Python fast-gate inputs remained identical. These facts do not establish installed ordinary release or organization deployment. R6r2 is qualified for owned-review/governance; its absent workspaces command is an older artifact-scope limitation, not a Source registration defect. Actual Source root workspaces help passes.
 
 ### Coverage Summary Table
 
@@ -1941,44 +1942,28 @@ WP14's explicit original-source/delivered-tree/history/current-scope evidence ma
 | SC-005 protected publication | T004, T007, T012–T014 | Preserve accepted/default history and genuine review-source boundaries. |
 | SC-006 closeout proof | T010, T011 | Source/install/enablement/execution/capacity remain distinct. |
 
+
+
 ### Charter Alignment Issues
 
-No charter exception or numerical worktree limit is introduced. Required baseline, owning scopes, strict types, lint, coverage and independent review remain mandatory. Bounded fixes to existing Python authorities are compatibility/correctness repairs; WP09 new ingress remains native Zig. Current user latest-runtime policy supersedes stale stable-only orientation. Fresh index resolution on October26 still selects published non-yanked4.0.0rc7 including prereleases; isolated R4's qualified subset is not the final distributable or ordinary-ingress adoption.
+None for the bounded creator-binding increment: current WP09 owns adapters.py and workspace_ingress.zig, with dependencies on completed native finish and delivery/recovery safety work. New behavior tests remain Zig, exercising existing Python adapter as migration glue. No new Python service, runtime installation replacement, remote mutation, sealed OperationRoot edit, new model/Store/HELD operation or competing lane is admitted by this assessment.
 
-### Unmapped Tasks
+### Current Increment and Release Boundary
 
-None identified in the amended current map. WP14 follows approved WP06/WP07 ownership; it does not overlap WP09. Its source repair must precede a genuine canonical WP11 verdict before WP09 dependency admission. WP10 remains dependent on WP09. Prior approvals remain historical facts; no accepted status or implementation is invented by new planning.
+Add explicit ordinary creator identity/accountable owner and immutable starting commit to new private pending records before effects, preserving exact legacy creator decoding. Native admission must consume data-only receipt while pending custody is durably present. A callback failure retains the pending obligation and cannot create or adopt a workspace. Existing managed-run behavior and all old positive/retention checks remain. Ordinary release must remain refused until Root supplies the separately qualified original-capability lifetime contract. Completion/event labels cannot reconstruct capability, joined producer evidence or delivery. No new capability is stored in callback JSON.
 
-### Measurements and Evidence Boundaries
+The core owner has accepted the release-lifetime follow-on, after its currently required same-owner active-lane resume repair. That external implementation dependency remains open. This assessment does not scope or approve a speculative replacement core contract. Source retains allocator/creator/native integration and Root retains core/finalizer/default/distribution convergence.
 
-The exact twelve baseline failures were reproduced with identical node/interpreter/input identities, then passed when only SPEC_KITTY_HOME and SPEC_KITTY_ASSET_SCOPE overrides were removed. Canonical baseline2452passed/5skipped; native four-module980passed/29declaredskips and prior candidate72passed/3skipped are separate scoped facts. Currentf410 CI has80success/6conditionalskip/zero failure/pending, and PR120 integration tree matches. This is not a generic cross-platform or installed rollout result.
+### Implementation Findings and Remaining Gates
 
-The current authenticated scope last verified119 repository IDs and policy rows with no property gap. No installed automatic cleanup across those repositories is independently proved. Existing owner-scoped private cache closeout359686144allocatedbytes is corroborated; it is earlier recovery, not newly reclaimed here, an exclusive disk delta, or organization adoption. All uncertain historical work remains retained.
+The current prompt's broad-prune and candidate-CWD defects were reproduced and repaired; prior red evidence and exact source ancestry remain preserved. Native obligations distinguish generations and refuse changed source/store/ref/owner, missing generation and forged release without state change. Actual ordinary allocator callbacks, producer completion/recovery integration, installed packaging, asynchronous cleanup/preservation, current-default delivery and organization rollout remain incomplete. No manual managed-run substitute is accepted as ordinary integration proof.
+
+The latest authenticated R13 audit contains119unique current repository IDs with both required policy values and no scope gaps. Independently verified installed organization execution adoption remains0 for this mission; other-owner adoption is unknown. Policy values do not prove runtime installation or cleanup.
+
+The local validation temporary-layout incident is operationally reconciled through canonical hosted_posture.set_repo_drain: only accidental home-root hosted.drain changed true to false under Sam authority and Root review; actual personal hosted flag is unset at /Users/sam/.spec-kitty/config.toml, effective posture is OFF without narrowing. Moments bytes and every other key remain unchanged; original incident copies are retained. Historical prior bytes remain unknown, not declared restored. No existing Time Machine snapshot or machine backup was found.
+
+Original linked-context failure and historical missing-working-tree/ignored-state obligations remain retained rather than relabeled. Required changed-statement coverage, focused checks, mandatory publication gates and independent review remain binding. Existing canonical review approvals, Source ancestry and event prefix must not be rewritten.
 
 ### Next Actions
 
-Record this fresh assessment through the supported owned transaction on current ancestry; preserve the old report and refusal receipts. Query canonical next again and honor actual guards. Have the existing Root owner reproduce, implement, validate, independently review and publish WP14 with exact isolated runtime qualification. Record the resulting genuine WP11 decision through canonical events. Only then admit and implement WP09 ordinary creator startup/completion/recovery, converge source/default/distributable, and execute WP10 installed cleanup/preservation proof for the refreshed organization inventory. No guard bypass, host action or cleanup authority follows from this planning report.
-
-### Reproduced WP14 authority-parser correction
-
-The existing owner reports six real direct-minter cases accepting dirty/staged WP, meta and lanes authorities where refusal was required. The full public approval command refused, so no end-to-end approval bypass is demonstrated. This implementation finding remains open inside WP14, not hidden by planning readiness. Canonical validation admitted only the exact existing frontmatter authority and its unit test as a bounded extension. Root must factor the current parser into a pure content entry point with the same decode, duplicate-key and error behavior; the existing read path delegates, no parallel YAML interpretation or temporary authority file. Current authority/index/no-follow mode and byte fences, immutable original scope, original per-WP claim-base precedence and all refusal controls remain required. Prior fourteen WP states and exact event bytes stayed unchanged through scope admission1e022956.
-
-Current authenticated repository-ID/property audit remains119, unchanged and without gaps; this is policy scope only, not installed automatic execution. All original red and intermediate unknown-analysis records remain in history. This report grants no implementation, approval, publication or resource-release authority.
-
-### Exact changelog scope follow-up (October 26)
-
-Root requested only the existing docs/changelog/CHANGELOG.md path for the mandatory user-facing PR release note. Canonical task validation admits this tenth exact WP14 file after WP06/WP07, disjoint from WP09 and without any ownership warning or rejected requirement reference. Canonical apply b7303bb48fded74a1eeb2366e5bb28811a347b46 preserves all14state bytes and full event bytes; WP14 remains in progress, WP11 not approved, WP09 not admitted. Root imports Source metadata only after its current producer joins through the existing normal feature/review route. No Source direct integration push.
-
-The narrow WP14-S1 focused correction has independently checked16passes. WP14-S2 hidden-index red proved actual for_review admission in disposable fixtures and its focused six-case green is under independent exact-source review. Root reports further boundary/normalization/type results; they are not accepted here merely from owner counts. Broader owning/static/baseline gates and qualified installed R6 replay remain mandatory, followed by actual ordinary automatic lifecycle integration and all119current-repository installed execution. These implementation gates are explicit assigned obligations, not unresolved planning contradictions or an approved release.
-
-### Exact CLI help fixture scope follow-up
-
-Canonical WP14 scope now additionally admits only tests/specify_cli/cli/commands/agent/fixtures/tasks_cli/help/move-task.help to represent the two newly introduced paired options. All existing help items and comparison assertions stay binding. No dependencies, ownership authority, implementation state, verdict or event history changes. The task subsystem hook-safety failure remains a separate owning-run profile diagnosis, not a waived assertion or a passing gate; corrected selected-interpreter PATH must be demonstrated against the exact unchanged relevant source. Root imports both Source scope increments only after its producer joins. Broader baseline, final revision, qualified R6 and downstream ordinary cleanup/organization installed proof remain open. No cross-artifact planning contradiction identified from this narrow required-fixture addition.
-
-### Earned formatter-exclusion correction after real PR122 failure
-
-The current-head hosted architecture ratchet actually fails because the two touched frontmatter implementation/test files are now formatted but remain excluded. WP14 now admits only pyproject.toml for removing exactly those two obsolete exclusions, strengthening formatter coverage. The test and all other policies remain unchanged. This is an assigned narrow implementation/publication blocker, not a planning exception or a waiver. Source state/history bytes remain unchanged. Independent scoped Source-shaped R6r2 review supports the observed local review/Op surfaces; broad SDK/organization adoption is unproved. Actual measured Source gate selection is skipped/not-declared, not the earlier incorrectly inferred no_coverage. PR122 remains unmerged with mandatory current-head CI still pending/red. Root must reproduce, repair, validate and publish a new coherent candidate through the same PR, then recheck all required gates before merge and actual Source replay. No cross-artifact planning contradiction introduced by this exact same-owner dependency-ordered path addition.
-
-### Independent reader/test fidelity follow-up
-
-Actual old0d2 hosted contract-tools2272pass/37skip/1fail exposes the stale reference expectation for authored ./pattern. Canonical writer normalization is already the independently reproduced hidden-drift repair; do not roll it back. Only the two existing reference/test files are now same-owner WP14 scope. Preserve independent computation and explicit expected cases, existing prefix/fnmatch/segment behavior, raw commitguard semantics, and real red/mutant/whole-reader validation. This exact consumer-fidelity work is a retained implementation/publication blocker, not a cross-artifact planning contradiction. All14states/full events remain unchanged. Root owns both repairs serially after its current formatter producer joins; no Source implementation, competing producer, unqualified runtime adoption or inferred green CI. Source WP11/WP09/WP10 remain unadvanced.
+Record this report through the canonical owned transaction; requery the actual next guard state. Proceed only with the existing WP09 creator/native surfaces and fail-closed ordinary release boundary. Publish coherent validated increments through the existing owner. Implement the qualified core contract only after its actual reviewed pin is available, then prove installed automatic cleanup and preservation before fresh per-repository rollout admission.
