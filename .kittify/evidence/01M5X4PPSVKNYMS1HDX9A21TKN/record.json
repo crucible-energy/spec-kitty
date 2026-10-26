@@ -1,0 +1,8 @@
+{
+  "event": "completed",
+  "invocation_id": "01M5X4PPSVKNYMS1HDX9A21TKN",
+  "completed_at": "2026-10-26T22:40:31.912209+00:00",
+  "outcome": "done",
+  "closed_by": "agent",
+  "evidence_ref": "/private/tmp/pdb-mission-control-20261024/governance-recovery/source6ab-independent-review-final-r2.json"
+}

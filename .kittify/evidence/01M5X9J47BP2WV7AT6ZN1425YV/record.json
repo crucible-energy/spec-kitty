@@ -1,0 +1,8 @@
+{
+  "event": "completed",
+  "invocation_id": "01M5X9J47BP2WV7AT6ZN1425YV",
+  "completed_at": "2026-10-26T23:51:48.384422+00:00",
+  "outcome": "done",
+  "closed_by": "agent",
+  "evidence_ref": "/private/tmp/pdb-mission-control-20261024/governance-recovery/source-original-lifetime-decision-r1.json"
+}
