@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Legacy command population now detects only configured command-agent surfaces,
+  so a Codex-only upgrade does not require retired Claude templates. Detection
+  and application share the same eligible directories; existing custom commands
+  and dry-run behavior remain preserved (#127).
+
 - Owned-history recovery compares timezone-aware instants while preserving every
   original timestamp. It refuses JSON numbers that would silently overflow,
   underflow or round during recovery, before any write. Owned coordination uses

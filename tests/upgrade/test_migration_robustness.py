@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import multiprocessing
+from multiprocessing.queues import Queue
+from multiprocessing.synchronize import Event
 import os
 import time
 from datetime import datetime
@@ -13,6 +15,8 @@ import pytest
 
 from specify_cli.upgrade.metadata import ProjectMetadata
 from specify_cli.upgrade.migrations.base import BaseMigration, MigrationResult
+from specify_cli.upgrade.migrations.m_0_10_1_populate_slash_commands import PopulateSlashCommandsMigration
+from specify_cli.core.agent_config import AgentConfigError
 from specify_cli.upgrade.migrations.m_0_12_1_remove_kitty_specs_from_gitignore import (
     RemoveKittySpecsFromGitignoreMigration,
 )
@@ -28,6 +32,66 @@ pytestmark = [pytest.mark.adversarial, pytest.mark.fast]
 
 LOCK_FILENAME = ".upgrade.lock"
 FLAKY_MARKER = ".kittify/.flaky-migration"
+
+
+class TestConfiguredCommandMigrations:
+    def test_codex_only_upgrade_skips_retired_commands_without_templates(self, tmp_path: Path) -> None:
+        config = tmp_path / ".kittify" / "config.yaml"
+        config.parent.mkdir()
+        config.write_text("agents:\n  available: [codex]\n", encoding="utf-8")
+        (tmp_path / ".github" / "workflows").mkdir(parents=True)
+        (tmp_path / ".claude").mkdir()  # An unrelated/stale surface is not authority.
+        metadata = ProjectMetadata(version="unknown", initialized_at=datetime.now())
+        result, status = MigrationRunner(tmp_path)._apply_migration(PopulateSlashCommandsMigration(), metadata, dry_run=False)
+        assert result.success, result.errors
+        assert status == "skipped"
+        assert not (tmp_path / ".claude" / "commands").exists()
+        assert not (tmp_path / ".github" / "prompts").exists()
+        assert metadata.applied_migrations[-1].result == "skipped"
+
+    def test_configured_gemini_is_detected_despite_complete_unselected_claude(self, tmp_path: Path) -> None:
+        config = tmp_path / ".kittify" / "config.yaml"
+        config.parent.mkdir()
+        config.write_text("agents:\n  available: [gemini]\n", encoding="utf-8")
+        claude = tmp_path / ".claude" / "commands"
+        claude.mkdir(parents=True)
+        for i in range(8):
+            (claude / f"spec-kitty.old-{i}.md").write_text("preserved", encoding="utf-8")
+        gemini = tmp_path / ".gemini"
+        gemini.mkdir()
+        migration = PopulateSlashCommandsMigration()
+        assert migration.detect(tmp_path)
+        templates = config.parent / "missions" / "software-dev" / "command-templates"
+        templates.mkdir(parents=True)
+        for i in range(8):
+            (templates / f"command-{i}.md").write_text(f"template {i}", encoding="utf-8")
+        commands = gemini / "commands"
+        commands.mkdir()
+        custom = commands / "spec-kitty.command-0.md"
+        custom.write_text("custom command", encoding="utf-8")
+        assert migration.apply(tmp_path, dry_run=True).success
+        assert sorted(p.name for p in commands.iterdir()) == [custom.name]
+        assert migration.apply(tmp_path).success
+        assert custom.read_text(encoding="utf-8") == "custom command"
+        assert len(list(commands.glob("spec-kitty.*.md"))) == 8
+        assert not migration.detect(tmp_path)
+        assert len(list(claude.iterdir())) == 8
+
+    def test_legacy_claude_root_still_requires_real_templates(self, tmp_path: Path) -> None:
+        (tmp_path / ".claude").mkdir()
+        migration = PopulateSlashCommandsMigration()
+        assert migration.detect(tmp_path)
+        applicable, reason = migration.can_apply(tmp_path)
+        assert not applicable
+        assert "No missions directory" in reason
+        assert not (tmp_path / ".claude" / "commands").exists()
+
+    def test_invalid_agent_configuration_is_not_ignored(self, tmp_path: Path) -> None:
+        config = tmp_path / ".kittify" / "config.yaml"
+        config.parent.mkdir()
+        config.write_text("agents:\n  available: [unknown-agent]\n", encoding="utf-8")
+        with pytest.raises(AgentConfigError):
+            PopulateSlashCommandsMigration().detect(tmp_path)
 
 
 class LockingMigration(BaseMigration):
@@ -117,9 +181,9 @@ def _register_migrations(*migrations: type[BaseMigration]) -> None:
 
 def _run_upgrade_concurrent(
     project_path: str,
-    ready_queue: multiprocessing.Queue,
-    go_event: multiprocessing.Event,
-    result_queue: multiprocessing.Queue,
+    ready_queue: Queue[str],
+    go_event: Event,
+    result_queue: Queue[tuple[bool, list[str]]],
 ) -> None:
     _register_migrations(LockingMigration)
     ready_queue.put("ready")
@@ -130,7 +194,7 @@ def _run_upgrade_concurrent(
 
 
 class TestAtomicWrites:
-    def test_metadata_save_interruption_preserves_original(self, tmp_path: Path, monkeypatch):
+    def test_metadata_save_interruption_preserves_original(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Atomic writes preserve the original file when serialization crashes.
 
         With atomic_write(), the crash occurs during StringIO serialization
@@ -154,7 +218,7 @@ class TestAtomicWrites:
 
         import specify_cli.upgrade.metadata as metadata_module
 
-        def _boom(*_args, **_kwargs):
+        def _boom(*_args: object, **_kwargs: object) -> None:
             raise RuntimeError("simulated crash")
 
         monkeypatch.setattr(metadata_module.yaml, "dump", _boom)
@@ -169,12 +233,12 @@ class TestAtomicWrites:
 
 @pytest.mark.slow
 class TestConcurrentMigration:
-    def test_concurrent_upgrade_handled(self, migration_project: Path, registry_restore: Any):
+    def test_concurrent_upgrade_handled(self, migration_project: Path, registry_restore: Any) -> None:
         """Exactly one of two concurrent upgrade processes succeeds; the other is blocked."""
         # Arrange
         ctx = multiprocessing.get_context("spawn")
-        ready_queue: multiprocessing.Queue = ctx.Queue()
-        result_queue: multiprocessing.Queue = ctx.Queue()
+        ready_queue: Queue[str] = ctx.Queue()
+        result_queue: Queue[tuple[bool, list[str]]] = ctx.Queue()
         go_event = ctx.Event()
         # Assumption check
         assert migration_project.exists()
@@ -203,15 +267,11 @@ class TestConcurrentMigration:
         successes = [success for success, _errors in results]
         assert successes.count(True) == 1
         assert successes.count(False) == 1
-        assert any(
-            any("Cannot apply" in err or "Upgrade lock" in err for err in errors)
-            for success, errors in results
-            if not success
-        )
+        assert any(any("Cannot apply" in err or "Upgrade lock" in err for err in errors) for success, errors in results if not success)
 
 
 class TestPartialMigrationRecovery:
-    def test_failed_migration_can_retry(self, migration_project: Path, registry_restore: Any):
+    def test_failed_migration_can_retry(self, migration_project: Path, registry_restore: Any) -> None:
         """A flaky migration that fails on first run succeeds on retry."""
         # Arrange
         _register_migrations(FlakyMigration)
