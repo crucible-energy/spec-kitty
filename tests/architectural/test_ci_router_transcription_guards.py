@@ -116,7 +116,7 @@ def test_router_src_filters_derive_from_scrub_verbatim() -> None:
     scrub roots just as strictly, and no scrub group may be missing from the
     router's filter block.
     """
-    router = load_router()
+    router = load_router(_ROUTER_PATH)
     scrub_roots = _scrub_roots_by_group()
 
     src_groups = set(router.src_backed_groups)
@@ -155,7 +155,7 @@ def test_changes_outputs_cover_every_routing_group() -> None:
     latent zero-gate path cannot open.
     """
     workflow = _router_workflow()
-    router = load_router()
+    router = load_router(_ROUTER_PATH)
 
     declared = _changes_output_groups(workflow)
     routing = set(router.routing_groups)
@@ -177,7 +177,7 @@ def test_unmatched_union_covers_every_src_backed_group() -> None:
     the run-all guarantee (fail-*safe*, but still a silent transcription drift).
     """
     workflow = _router_workflow()
-    router = load_router()
+    router = load_router(_ROUTER_PATH)
 
     union = _unmatched_union_groups(workflow)
     src = set(router.src_backed_groups)
@@ -195,7 +195,7 @@ def test_guards_are_non_vacuous() -> None:
     Proves the three guards above are real bounds, not tautologies that would pass
     against any router.
     """
-    router = load_router()
+    router = load_router(_ROUTER_PATH)
     scrub_roots = _scrub_roots_by_group()
     workflow = _router_workflow()
 

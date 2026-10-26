@@ -12,6 +12,9 @@ The check refuses with ``ORIGIN_STATUS_STALE`` / ``ORIGIN_LANE_STALE`` /
 
 from __future__ import annotations
 
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
+from tests._support.feature_landing import build_feature_lanes_mission as build_lanes_mission
+
 import json
 import subprocess
 from pathlib import Path
@@ -20,8 +23,7 @@ import pytest
 
 from specify_cli.consolidation.state import ConsolidationState, get_state_path, save_state
 from specify_cli.coordination.workspace import CoordinationWorkspace
-from tests.terminus.conftest import CoordMission, _event, build_coord_mission, git_rev, run_terminus
-from tests.terminus.lanes_fixture import build_lanes_mission
+from tests.terminus.conftest import CoordMission, _event, git_rev, run_terminus
 from tests._support.two_clone import attach_and_push, clone_from, isolated_git_env, make_bare_remote, unreachable_remote
 
 pytestmark = [pytest.mark.regression, pytest.mark.integration, pytest.mark.git_repo]
@@ -38,11 +40,11 @@ def _remote_tip(bare: Path, branch: str) -> str:
     return _git(bare, "rev-parse", f"refs/heads/{branch}")
 
 
-def _publish(m: CoordMission, tmp_path: Path, *, head: str) -> Path:
+def _publish(m: CoordMission, tmp_path: Path) -> Path:
     """Push every mission ref of *m* to a new bare remote ``origin`` and return it."""
     bare = make_bare_remote(tmp_path)
-    _git(bare, "symbolic-ref", "HEAD", f"refs/heads/{head}")
-    refs = list(dict.fromkeys([m.target_branch, m.coord_branch, *m.lane_branches.values()]))
+    _git(bare, "symbolic-ref", "HEAD", "refs/heads/main")
+    refs = list(dict.fromkeys(["main", m.target_branch, m.coord_branch, *m.lane_branches.values()]))
     attach_and_push(m.repo, bare, refs)
     return bare
 
@@ -84,13 +86,13 @@ def _isolated(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
 @pytest.fixture
 def coord(tmp_path: Path) -> tuple[CoordMission, Path]:
     m = build_coord_mission(tmp_path, wps=("WP01", "WP02"))
-    return m, _publish(m, tmp_path, head=m.target_branch)
+    return m, _publish(m, tmp_path)
 
 
 @pytest.fixture
 def lanes(tmp_path: Path) -> tuple[CoordMission, Path]:
     m = build_lanes_mission(tmp_path, wps=("WP01", "WP02"))
-    return m, _publish(m, tmp_path, head=m.target_branch)
+    return m, _publish(m, tmp_path)
 
 
 def _consolidate(m: CoordMission, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -110,7 +112,7 @@ def _assert_refused_untouched(m: CoordMission, result: subprocess.CompletedProce
 
 
 def _refs(m: CoordMission) -> dict[str, str]:
-    return {ref: git_rev(m.repo, ref) for ref in [m.target_branch, m.coord_branch, *m.lane_branches.values()]}
+    return {ref: git_rev(m.repo, ref) for ref in ["main", m.target_branch, m.coord_branch, *m.lane_branches.values()]}
 
 
 # --- arm 1 + 2: coordination topology, teammate rejection on the coordination branch ----

@@ -24,19 +24,14 @@ so it is not trimmed; it carries the ``slow`` tier marker (each replay exceeds 3
 
 from __future__ import annotations
 
+from tests.terminus.feature_fixture_support import feature_build_coord_mission_mixed_lane_canceled as build_coord_mission_mixed_lane_canceled
+
 from pathlib import Path
 
 import pytest
 
 from specify_cli.consolidation.canceled_attestation import record_canceled_superseded_attestation
-from tests.terminus.conftest import (
-    CoordMission,
-    PlantedChange,
-    blob_present_at,
-    build_coord_mission_mixed_lane_canceled,
-    git_rev,
-    run_terminus,
-)
+from tests.terminus.conftest import CoordMission, PlantedChange, blob_present_at, git_rev, run_terminus
 from tests.terminus.conftest import _git as git
 from tests.terminus.mixed_lane_support import ATTEST_FLAG, REFUSE_HEADER, collapse, ensure_wp01_subtasks_roster, reapprove_wp01, verdict_block
 

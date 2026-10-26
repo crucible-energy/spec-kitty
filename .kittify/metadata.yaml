@@ -3,10 +3,15 @@
 # DO NOT EDIT MANUALLY
 
 spec_kitty:
-  version: 4.0.0rc6
+  version: 4.0.0rc7
   initialized_at: '2026-04-07T09:10:40.826207'
-  last_upgraded_at: '2026-06-11T05:07:36.243731'
+  last_upgraded_at: '2026-10-24T20:51:08.096995+00:00'
   schema_version: 3
+  schema_capabilities:
+    canonical_context: true
+    event_log_authority: true
+    ownership_manifest: true
+    thin_shims: true
 environment:
   python_version: 3.14.0
   platform: darwin
@@ -351,3 +356,107 @@ migrations:
     applied_at: '2026-08-09T17:54:53.389876'
     result: success
     notes: Backfilled 17 stranded verdict event(s) across 351 mission(s) scanned
+  - id: charter_pack_cutover
+    applied_at: '2026-10-24T20:49:12.431970+00:00'
+    result: success
+    notes: '{"errors": [], "kept_for_review": [".kittify/charter/charter.yaml: activated_directives
+      customised; not changed", ".kittify/charter/charter.yaml: activated_tactics
+      customised; not changed", ".kittify/charter/charter.yaml: activated_styleguides
+      customised; not changed", ".kittify/charter/charter.yaml: activated_toolguides
+      customised; not changed", ".kittify/charter/charter.yaml: activated_procedures
+      customised; not changed", ".kittify/charter/charter.yaml: activated_agent_profiles
+      customised; not changed"], "matches_minimal": [], "moved": [".kittify/doctrine/directive/.provenance/DIRECTIVE_evidence_logs_must_persist.yaml
+      -> .kittify/charter-packs/directive/.provenance/DIRECTIVE_evidence_logs_must_persist.yaml",
+      ".kittify/doctrine/directive/.provenance/DIRECTIVE_terminus_retrospective_always_on.yaml
+      -> .kittify/charter-packs/directive/.provenance/DIRECTIVE_terminus_retrospective_always_on.yaml",
+      ".kittify/doctrine/directive/DIRECTIVE_evidence_logs_must_persist.md -> .kittify/charter-packs/directive/DIRECTIVE_evidence_logs_must_persist.md",
+      ".kittify/doctrine/directive/DIRECTIVE_terminus_retrospective_always_on.md ->
+      .kittify/charter-packs/directive/DIRECTIVE_terminus_retrospective_always_on.md",
+      ".kittify/doctrine/overlays/calibration-documentation.yaml -> .kittify/charter-packs/overlays/calibration-documentation.yaml",
+      ".kittify/doctrine/overlays/calibration-erp-custom.yaml -> .kittify/charter-packs/overlays/calibration-erp-custom.yaml",
+      ".kittify/doctrine/overlays/calibration-research.yaml -> .kittify/charter-packs/overlays/calibration-research.yaml",
+      ".kittify/doctrine/overlays/calibration-software-dev.yaml -> .kittify/charter-packs/overlays/calibration-software-dev.yaml",
+      ".kittify/doctrine/procedure/.provenance/PROCEDURE_cross_namespace_owned_files_autodetect.yaml
+      -> .kittify/charter-packs/procedure/.provenance/PROCEDURE_cross_namespace_owned_files_autodetect.yaml",
+      ".kittify/doctrine/procedure/.provenance/PROCEDURE_issue_matrix_autoscaffold.yaml
+      -> .kittify/charter-packs/procedure/.provenance/PROCEDURE_issue_matrix_autoscaffold.yaml",
+      ".kittify/doctrine/procedure/PROCEDURE_cross_namespace_owned_files_autodetect.md
+      -> .kittify/charter-packs/procedure/PROCEDURE_cross_namespace_owned_files_autodetect.md",
+      ".kittify/doctrine/procedure/PROCEDURE_issue_matrix_autoscaffold.md -> .kittify/charter-packs/procedure/PROCEDURE_issue_matrix_autoscaffold.md",
+      ".kittify/doctrine/tactic/.provenance/TACTIC_mirror_external_issue_numbering.yaml
+      -> .kittify/charter-packs/tactic/.provenance/TACTIC_mirror_external_issue_numbering.yaml",
+      ".kittify/doctrine/tactic/TACTIC_mirror_external_issue_numbering.md -> .kittify/charter-packs/tactic/TACTIC_mirror_external_issue_numbering.md"],
+      "reset": [".kittify/charter/charter.yaml: activated_paradigms (matched a released
+      default list; now absent, every built-in available)", ".kittify/charter/charter.yaml:
+      activated_mission_step_contracts was [] (nothing active); now absent (all mission
+      step contracts available)", ".kittify/charter/charter.yaml: activated_glossary_packs
+      was [] (nothing active); now absent (all glossary packs available)"], "rewritten":
+      [".gitignore: rule .kittify/doctrine/** -> .kittify/charter-packs/**", ".gitignore:
+      rule !.kittify/doctrine/directive/ -> !.kittify/charter-packs/directive/", ".gitignore:
+      rule !.kittify/doctrine/directive/** -> !.kittify/charter-packs/directive/**",
+      ".gitignore: rule !.kittify/doctrine/tactic/ -> !.kittify/charter-packs/tactic/",
+      ".gitignore: rule !.kittify/doctrine/tactic/** -> !.kittify/charter-packs/tactic/**",
+      ".gitignore: rule !.kittify/doctrine/styleguide/ -> !.kittify/charter-packs/styleguide/",
+      ".gitignore: rule !.kittify/doctrine/styleguide/** -> !.kittify/charter-packs/styleguide/**",
+      ".gitignore: rule !.kittify/doctrine/procedure/ -> !.kittify/charter-packs/procedure/",
+      ".gitignore: rule !.kittify/doctrine/procedure/** -> !.kittify/charter-packs/procedure/**",
+      ".gitignore: rule !.kittify/doctrine/overlays/ -> !.kittify/charter-packs/overlays/",
+      ".gitignore: rule !.kittify/doctrine/overlays/** -> !.kittify/charter-packs/overlays/**",
+      ".gitignore: rule !.kittify/doctrine/graph.yaml -> !.kittify/charter-packs/graph.yaml",
+      ".gitignore: added !.kittify/charter-packs/pack.yaml (keeps the project pack.yaml
+      tracked under the charter-pack ignore rule)"], "skills_kept": [], "skills_removed":
+      []}; Moved .kittify/doctrine/directive/.provenance/DIRECTIVE_evidence_logs_must_persist.yaml
+      -> .kittify/charter-packs/directive/.provenance/DIRECTIVE_evidence_logs_must_persist.yaml;
+      Moved .kittify/doctrine/directive/.provenance/DIRECTIVE_terminus_retrospective_always_on.yaml
+      -> .kittify/charter-packs/directive/.provenance/DIRECTIVE_terminus_retrospective_always_on.yaml;
+      Moved .kittify/doctrine/directive/DIRECTIVE_evidence_logs_must_persist.md ->
+      .kittify/charter-packs/directive/DIRECTIVE_evidence_logs_must_persist.md; Moved
+      .kittify/doctrine/directive/DIRECTIVE_terminus_retrospective_always_on.md ->
+      .kittify/charter-packs/directive/DIRECTIVE_terminus_retrospective_always_on.md;
+      Moved .kittify/doctrine/overlays/calibration-documentation.yaml -> .kittify/charter-packs/overlays/calibration-documentation.yaml;
+      Moved .kittify/doctrine/overlays/calibration-erp-custom.yaml -> .kittify/charter-packs/overlays/calibration-erp-custom.yaml;
+      Moved .kittify/doctrine/overlays/calibration-research.yaml -> .kittify/charter-packs/overlays/calibration-research.yaml;
+      Moved .kittify/doctrine/overlays/calibration-software-dev.yaml -> .kittify/charter-packs/overlays/calibration-software-dev.yaml;
+      Moved .kittify/doctrine/procedure/.provenance/PROCEDURE_cross_namespace_owned_files_autodetect.yaml
+      -> .kittify/charter-packs/procedure/.provenance/PROCEDURE_cross_namespace_owned_files_autodetect.yaml;
+      Moved .kittify/doctrine/procedure/.provenance/PROCEDURE_issue_matrix_autoscaffold.yaml
+      -> .kittify/charter-packs/procedure/.provenance/PROCEDURE_issue_matrix_autoscaffold.yaml;
+      Moved .kittify/doctrine/procedure/PROCEDURE_cross_namespace_owned_files_autodetect.md
+      -> .kittify/charter-packs/procedure/PROCEDURE_cross_namespace_owned_files_autodetect.md;
+      Moved .kittify/doctrine/procedure/PROCEDURE_issue_matrix_autoscaffold.md ->
+      .kittify/charter-packs/procedure/PROCEDURE_issue_matrix_autoscaffold.md; Moved
+      .kittify/doctrine/tactic/.provenance/TACTIC_mirror_external_issue_numbering.yaml
+      -> .kittify/charter-packs/tactic/.provenance/TACTIC_mirror_external_issue_numbering.yaml;
+      Moved .kittify/doctrine/tactic/TACTIC_mirror_external_issue_numbering.md ->
+      .kittify/charter-packs/tactic/TACTIC_mirror_external_issue_numbering.md; Rewrote
+      .gitignore: rule .kittify/doctrine/** -> .kittify/charter-packs/**; Rewrote
+      .gitignore: rule !.kittify/doctrine/directive/ -> !.kittify/charter-packs/directive/;
+      Rewrote .gitignore: rule !.kittify/doctrine/directive/** -> !.kittify/charter-packs/directive/**;
+      Rewrote .gitignore: rule !.kittify/doctrine/tactic/ -> !.kittify/charter-packs/tactic/;
+      Rewrote .gitignore: rule !.kittify/doctrine/tactic/** -> !.kittify/charter-packs/tactic/**;
+      Rewrote .gitignore: rule !.kittify/doctrine/styleguide/ -> !.kittify/charter-packs/styleguide/;
+      Rewrote .gitignore: rule !.kittify/doctrine/styleguide/** -> !.kittify/charter-packs/styleguide/**;
+      Rewrote .gitignore: rule !.kittify/doctrine/procedure/ -> !.kittify/charter-packs/procedure/;
+      Rewrote .gitignore: rule !.kittify/doctrine/procedure/** -> !.kittify/charter-packs/procedure/**;
+      Rewrote .gitignore: rule !.kittify/doctrine/overlays/ -> !.kittify/charter-packs/overlays/;
+      Rewrote .gitignore: rule !.kittify/doctrine/overlays/** -> !.kittify/charter-packs/overlays/**;
+      Rewrote .gitignore: rule !.kittify/doctrine/graph.yaml -> !.kittify/charter-packs/graph.yaml;
+      Rewrote .gitignore: added !.kittify/charter-packs/pack.yaml (keeps the project
+      pack.yaml tracked under the charter-pack ignore rule); Reset .kittify/charter/charter.yaml:
+      activated_paradigms (matched a released default list; now absent, every built-in
+      available); Reset .kittify/charter/charter.yaml: activated_mission_step_contracts
+      was [] (nothing active); now absent (all mission step contracts available);
+      Reset .kittify/charter/charter.yaml: activated_glossary_packs was [] (nothing
+      active); now absent (all glossary packs available)'
+  - id: 4.0.0rc7_exclude_spec_kitty
+    applied_at: '2026-10-24T20:49:12.501313+00:00'
+    result: success
+    notes: Added .spec-kitty/ to .git/info/exclude
+  - id: 4.0.0rc7_pack_level_backfill
+    applied_at: '2026-10-24T20:49:12.526201+00:00'
+    result: success
+    notes: 'Wrote .kittify/charter-packs/pack.yaml with pack_level: project'
+  - id: 4.0.0rc7_track_charter_pack_yaml
+    applied_at: '2026-10-24T20:49:12.548529+00:00'
+    result: skipped
+    notes: Not applicable

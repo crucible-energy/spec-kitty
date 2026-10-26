@@ -95,9 +95,15 @@ def snapshot(repo: Path) -> dict[str, Any]:
     }
 
 
+def require_candidate_capture_profile() -> None:
+    if sys.platform != "darwin":
+        pytest.skip("Candidate capture/verify qualification is Darwin-only; Linux recipe qualification remains open")
+
+
 def capture(
     binary: Path, repo: Path, tmp_path: Path, environment: dict[str, str] | None = None, **changes: Any
 ) -> tuple[subprocess.CompletedProcess[bytes], dict[str, Any]]:
+    require_candidate_capture_profile()
     request = {"schema_version": 1, "repository": str(repo), "base": "HEAD", "destination": str(tmp_path / "owned evidence"), "git_executable": "/usr/bin/git"}
     request.update(changes)
     request_path = tmp_path / "capture-request.json"
@@ -106,6 +112,33 @@ def capture(
     result = subprocess.run([str(binary), "capture", str(request_path)], env=environment, capture_output=True, timeout=40)
     assert snapshot(repo) == before, "Capture changed live staged, unstaged, untracked, ref, hook, or worktree state"
     return result, request
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Actual Linux unsupported-profile refusal; not Darwin qualification")
+@pytest.mark.parametrize("operation", ["capture", "verify"])
+def test_linux_unqualified_candidate_refuses_before_effects(candidate_binary: Path, repository: Path, tmp_path: Path, operation: str) -> None:
+    destination = tmp_path / "must-not-exist"
+    request = tmp_path / "unsupported-profile.json"
+    # A syntactically valid document reaches the actual platform guard. Verify
+    # has no qualified Linux manifest; it must refuse before consulting fields.
+    document = {
+        "schema_version": 1,
+        "repository": str(repository),
+        "base": "HEAD",
+        "destination": str(destination),
+        "git_executable": "/usr/bin/git",
+    }
+    request.write_text(json.dumps(document if operation == "capture" else {}))
+    before = snapshot(repository)
+    namespace_before = {os.fsencode(path.relative_to(repository)) for path in repository.rglob("*")}
+    request_bytes = request.read_bytes()
+    result = subprocess.run([str(candidate_binary), operation, str(request)], capture_output=True, timeout=30)
+    assert result.returncode != 0 and result.stdout == b""
+    assert b"PlatformUnqualified" in result.stderr, result.stderr
+    assert snapshot(repository) == before
+    assert {os.fsencode(path.relative_to(repository)) for path in repository.rglob("*")} == namespace_before
+    assert request.read_bytes() == request_bytes
+    assert not os.path.lexists(destination)
 
 
 @pytest.mark.parametrize(("staged", "unstaged", "expected"), [("FAIL\n", "PASS\n", 7), ("PASS\n", "FAIL\n", 0)])
@@ -518,6 +551,8 @@ def test_incomplete_or_tampered_candidate_never_reports_current(candidate_binary
 
 @pytest.mark.parametrize("fault", ["unknown", "schema", "empty", "relative", "base-option", "newline-destination", "duplicate-json"])
 def test_malformed_capture_request_refuses_without_live_effect(candidate_binary: Path, repository: Path, tmp_path: Path, fault: str) -> None:
+    if fault != "duplicate-json":
+        require_candidate_capture_profile()
     request: dict[str, Any] = {
         "schema_version": 1,
         "repository": str(repository),
@@ -546,6 +581,8 @@ def test_malformed_capture_request_refuses_without_live_effect(candidate_binary:
     result = subprocess.run([str(candidate_binary), "capture", str(path)], capture_output=True, timeout=30)
     assert snapshot(repository) == before
     assert result.returncode != 0 and result.stdout == b"" and b"candidate refused:" in result.stderr
+    if fault == "duplicate-json":
+        assert b"DuplicateField" in result.stderr, result.stderr
 
 
 @pytest.mark.parametrize(

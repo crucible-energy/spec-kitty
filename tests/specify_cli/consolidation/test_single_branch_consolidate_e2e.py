@@ -1,10 +1,9 @@
-"""End-to-end consolidate of a protected single_branch mission (WP08 review cycle 1, blocker 4).
+"""Protected single-branch source requires PR delivery before local cleanup.
 
-Drives the REAL executor entry point (``_run_lane_based_consolidation``, what
-``spec-kitty consolidate`` calls) -- phases, reconciliation gate (with the
-``authorship_window`` blob source), switch-back and retention are all decided by
-production code, not by the test. Mission built through create -> finalize ->
-implement -> commit -> approve.
+Real create/finalize/implement/approve fixtures retain useful source, current
+checkout and primary identity when PR-only consolidation refuses. Branch
+retention choices cannot grant primary publication. Separate unit controls keep
+legacy write-branch discovery behavior pinned.
 """
 
 from __future__ import annotations
@@ -13,6 +12,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import typer
 
 from specify_cli.consolidation.config import MergeStrategy
 from specify_cli.consolidation.executor import _run_lane_based_consolidation
@@ -64,50 +64,26 @@ def _consolidate(repo: Path, slug: str, *, delete_branch: bool | None = None) ->
     )
 
 
-def test_protected_single_branch_consolidate_lands_and_cleans_up(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    repo, slug, minted = _approved_mission(tmp_path, monkeypatch, "cons-e2e")
+@pytest.mark.parametrize("retention", ["default", "meta-retain", "keep-branch"])
+def test_protected_single_branch_requires_pr_and_preserves_useful_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], retention: str
+) -> None:
+    options = {"retain_branches": True} if retention == "meta-retain" else {}
+    repo, slug, minted = _approved_mission(tmp_path, monkeypatch, "cons-pr-only", **options)
     main_before = _git(repo, "rev-parse", "main")
+    source_before = _git(repo, "rev-parse", minted)
+    status_before = _git(repo, "status", "--porcelain")
 
-    _consolidate(repo, slug)  # a reconciliation refusal (no authored content) would raise typer.Exit
+    with pytest.raises(typer.Exit) as refused:
+        _consolidate(repo, slug, delete_branch=False if retention == "keep-branch" else None)
 
-    assert _git(repo, "rev-parse", "main") != main_before, "the target must have advanced"
-    assert "VALUE = 100" in _git(repo, "show", "main:src/wp01.py"), "the target contains the work"
-    assert _git(repo, "branch", "--show-current") == "main", "write checkout switched back to the target"
-    assert not _branch_exists(repo, minted), "mission_branch deleted"
-    assert (repo / ".git").is_dir() and (repo / "README.md").exists(), "repo root checkout intact"
-
-
-def test_protected_single_branch_consolidate_honours_retain_branches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """meta.json retain_branches: true (decided by resolve_merge_retention, not the test)."""
-    repo, slug, minted = _approved_mission(tmp_path, monkeypatch, "cons-retain", retain_branches=True)
-
-    _consolidate(repo, slug)
-
-    assert "VALUE = 100" in _git(repo, "show", "main:src/wp01.py")
-    assert _git(repo, "branch", "--show-current") == "main"
-    assert _branch_exists(repo, minted), "retain_branches keeps the mission branch"
-    _assert_landed_mission_branch_cleared(repo, slug)
-
-
-def _assert_landed_mission_branch_cleared(repo: Path, slug: str) -> None:
-    """The branch is landed: post-merge writes target ``target_branch``, the tree is clean."""
-    import json
-
-    meta = json.loads((repo / "kitty-specs" / slug / "meta.json").read_text(encoding="utf-8"))
-    assert "mission_branch" not in meta, "a landed (even if retained) mission branch must not stay the write target"
-    assert _git(repo, "status", "--porcelain") == "", "no post-merge write may be left uncommitted"
-
-
-def test_protected_single_branch_consolidate_keep_branch_clears_write_target(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """``--keep-branch`` (delete_branch=False): landed branch kept, but meta stops routing writes to it."""
-    repo, slug, minted = _approved_mission(tmp_path, monkeypatch, "cons-keep")
-
-    _consolidate(repo, slug, delete_branch=False)
-
-    assert "VALUE = 100" in _git(repo, "show", "main:src/wp01.py")
-    assert _git(repo, "branch", "--show-current") == "main"
-    assert _branch_exists(repo, minted), "--keep-branch keeps the mission branch"
-    _assert_landed_mission_branch_cleared(repo, slug)
+    assert refused.value.exit_code == 1
+    assert "PR-only consolidation:" in capsys.readouterr().out
+    assert _git(repo, "rev-parse", "main") == main_before
+    assert _git(repo, "rev-parse", minted) == source_before
+    assert _git(repo, "branch", "--show-current") == minted
+    assert _git(repo, "status", "--porcelain") == status_before
+    assert "VALUE = 100" in _git(repo, "show", f"{minted}:src/wp01.py")
 
 
 def _legacy_repo(tmp_path: Path, meta: dict[str, object]) -> tuple[Path, object]:
@@ -219,15 +195,16 @@ def test_branch_holding_mission_files_finds_the_minted_branch(tmp_path: Path) ->
     assert branch_holding_path(repo, "kitty-specs/other/lanes.json") is None
 
 
-def test_consolidate_from_target_names_the_mission_branch_when_lanes_json_is_absent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Real entry point: on ``main`` (files only on the minted branch) the error names the branch, not ``finalize-tasks``."""
-    from specify_cli.lanes.persistence import MissingLanesError
-
+def test_primary_consolidation_refuses_before_missing_lane_routing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    """A protected primary refuses before downstream missing-lane routing can run."""
     repo, slug, minted = _approved_mission(tmp_path, monkeypatch, "cons-from-main")
     _git(repo, "checkout", "-q", "main")
 
-    with pytest.raises(MissingLanesError) as excinfo:
+    main_before = _git(repo, "rev-parse", "main")
+    with pytest.raises(typer.Exit) as excinfo:
         _consolidate(repo, slug)
 
-    assert minted in str(excinfo.value)
-    assert "git checkout" in str(excinfo.value)
+    assert excinfo.value.exit_code == 1
+    assert "PR-only consolidation:" in capsys.readouterr().out
+    assert _git(repo, "rev-parse", "main") == main_before
+    assert _branch_exists(repo, minted)

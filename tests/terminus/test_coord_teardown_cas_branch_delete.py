@@ -19,6 +19,8 @@ product code is replaced.
 
 from __future__ import annotations
 
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
+
 import json
 import re
 import subprocess
@@ -31,7 +33,7 @@ import pytest
 from specify_cli.consolidation import executor as ex
 from specify_cli.consolidation.state import ConsolidationState
 
-from tests.terminus.conftest import CoordMission, build_coord_mission, run_terminus
+from tests.terminus.conftest import CoordMission, run_terminus
 from tests.terminus.conftest import _cli_env as cli_env
 from tests.terminus.conftest import _git_out as git_out
 from specify_cli.consolidation import (

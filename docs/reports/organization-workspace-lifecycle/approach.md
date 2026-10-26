@@ -1,3 +1,10 @@
+---
+title: Organization workspace lifecycle — implementation log
+description: Retained approach for organization workspace lifecycle.
+doc_status: active
+updated: '2026-10-24'
+---
+
 # Organization workspace lifecycle — implementation log
 
 Owner: this mission coordinator. Branch: `codex/organization-workspace-lifecycle-20261020`. Mission: [organization workspace lifecycle](../../../kitty-specs/organization-workspace-lifecycle-01M5DRAR/spec.md). Start: October20,2026.

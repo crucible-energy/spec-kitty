@@ -244,7 +244,7 @@ def _approved_session(m: CoordMission, wp: str, worktree: Path, path: str) -> li
     return events
 
 
-def build_lanes_mission_canceled_dependency(tmp_path: Path, *, cancel_dependency: bool, mid8: str = "01M5569A") -> CoordMission:
+def build_lanes_mission_canceled_dependency(tmp_path: Path, *, cancel_dependency: bool, mid8: str = "01M5569A", target_branch: str = "develop") -> CoordMission:
     """LANES mission where approved ``WP02`` (``lane-b``) depends on ``WP01`` (``lane-a``) (#5569).
 
     Both lane worktrees come from the REAL allocator
@@ -268,7 +268,7 @@ def build_lanes_mission_canceled_dependency(tmp_path: Path, *, cancel_dependency
         mission_id=mission_id,
         mid8=mid8,
         coord_branch=mission_branch,
-        target_branch="develop",
+        target_branch=target_branch,
     )
     m.home.mkdir(parents=True, exist_ok=True)
     _init_repo(m.repo, m.target_branch)

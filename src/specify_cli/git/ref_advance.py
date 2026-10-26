@@ -70,6 +70,7 @@ from pathlib import Path
 # (absent != present-but-null, C-005) live there and are consumed here.
 from kernel.git import GitCommandError, GitPath, StatusEntry, status_entries, tree_paths
 from kernel.meta_decode import MetaDecodeError, decode_meta
+from kernel.paths import is_windows
 from kernel.vcs_lock import is_vcs_lock_only_change
 
 # Basename of the mission metadata file whose VCS-lock-only changes are tolerated.
@@ -1073,7 +1074,7 @@ def _stop_unjoined_ref_transaction(process: subprocess.Popen[bytes], owned_contr
         with suppress(subprocess.TimeoutExpired):
             process.wait(timeout=0.5)
         os.killpg(os.getpid(), signal.SIGKILL)
-    if owned_controller and os.name == "nt":
+    if owned_controller and is_windows():
         subprocess.run(["taskkill", "/PID", str(os.getpid()), "/T", "/F"], capture_output=True, timeout=5, check=False)
     process.kill()
     process.wait(timeout=5)

@@ -22,31 +22,21 @@ alive for the whole session, and across the ~40k tests of ``make test-full``
 that is enough to exhaust the runner's temp filesystem. The fix for that is
 ``tmp_path_retention_policy = failed`` in ``pytest.ini``, not this module.
 
-**What this is.** A genuinely private, self-reaping basetemp per invocation,
-worth keeping on its own terms regardless of #63: pytest's default puts every
-run — concurrent, sequential, or SIGKILL'd — into one shared
-``pytest-of-<user>`` tree that only ever shrinks through its own locked,
-timeout-gated pruning; on a long-lived box that accumulates stale
-``pytest-<N>`` roots, some with live ``.lock`` files, that nobody notices until
-someone clears them by hand. Giving each invocation its own
-``<temproot>/spec-kitty-pytest-tmp/run-<pid>`` instead:
+**What this is.** A genuinely private basetemp per invocation, under
+``<temproot>/spk-t2/run-<pid>-<nonce>``:
 
-* **Private per run** — nothing else ever creates, scans, locks, or prunes
-  siblings inside that tree.
-* **Wiped per run** — an explicit ``--basetemp`` is removed and recreated by
-  pytest itself at first use (``TempPathFactory.getbasetemp``), so no state ever
-  crosses runs even when a PID is recycled.
-* **Reaped on success, retained on failure** — the controller registers an
-  ``atexit`` handler that removes the run's dir only when the session finished
-  with ``ExitCode.OK``; a session with failures, errors, or an interruption
-  keeps its ``tmp_path`` tree for post-mortem inspection (#76 — retention is
-  gated on outcome, not dropped outright: a bare reap-everything policy would
-  lose exactly the forensics a failed run needs).
-* **Swept for crash leftovers** — dirs older than :data:`STALE_RUN_MAX_AGE_S`
-  (a SIGKILL'd run leaves one with no ``pytest_sessionfinish`` ever firing, so
-  the atexit gate above never ran for it; no live suite runs this long) are
-  removed at controller startup, so hard-killed runs — and retained
-  failure-run trees past their forensic window — do not accumulate forever.
+* **Private per run** — each producer exclusively reserves its leaf and writes
+  a private owner record before test execution. PID reuse cannot select an
+  earlier run's evidence.
+* **Retained until owner/runtime release** — even ``ExitCode.OK`` does not release
+  a child or service holding the exact leaf. The exit callback retains an
+  explicit owner/runtime release obligation and records the pytest outcome.
+  It retains failures, errors, or an interruption too; neither a successful
+  test outcome nor a negative process snapshot is deletion authority.
+* **Other runs retained** — startup never retires another run's tree. Age,
+  silence or an apparently dead PID is not release authority. Eligible cleanup
+  remains an independently verified owner operation through the existing
+  lifecycle workflow, not an inference made by this test launcher.
 
 xdist needs no separate handling: the controller's factory resolves this
 basetemp during worker setup and hands each worker ``<basetemp>/popen-gwN``
@@ -63,10 +53,13 @@ from __future__ import annotations
 
 import atexit
 import contextlib
+import json
+import hashlib
 import os
 import shutil
 import stat
 import tempfile
+import uuid
 from collections.abc import Iterable
 from functools import partial
 from pathlib import Path
@@ -75,13 +68,13 @@ import pytest
 from _pytest.compat import get_user_id
 
 #: Sibling of WP04's ``spec-kitty-test-homes`` under the resolved temproot —
-#: a namespace this repo owns entirely, never shared with pytest's default
-#: ``pytest-of-<user>`` tree or any other tool.
-RUN_TMP_ROOT_NAME = "spec-kitty-pytest-tmp"
+#: A suite namespace, not blanket ownership of other producers' contents.
+#: Each invocation owns only its exclusively reserved leaf.
+# A distinct, shorter v2 namespace also keeps old launchers' unsafe age sweep
+# away from new retained evidence, without lengthening Unix-socket paths.
+RUN_TMP_ROOT_NAME = "spk-t2"
 
-#: A run dir older than this is a crash leftover: no live suite runs this long
-#: (CI's whole four-pass target is bounded well under an hour), so sweeping it
-#: cannot race a concurrent healthy run.
+#: Observational inventory threshold only; never deletion/release authority.
 STALE_RUN_MAX_AGE_S = 24 * 60 * 60
 
 #: ``config`` attribute holding this run's :class:`_SessionOutcome`. Set only
@@ -93,21 +86,22 @@ _OUTCOME_CONFIG_ATTR = "_spec_kitty_run_basetemp_outcome"
 
 
 class _SessionOutcome:
-    """Mutable box the atexit reaper reads at exit and ``pytest_sessionfinish``
-    writes: sessionfinish always runs before atexit callbacks, so by the time
-    the reaper fires this already holds the final verdict."""
+    """Test outcome for the exit record; never a runtime release capability."""
 
     def __init__(self) -> None:
         self.succeeded = False
+        self.owner_pid = os.getpid()
+        self.manifest: Path | None = None
+        self.manifest_bytes: bytes | None = None
 
 
 def mark_session_outcome(config: pytest.Config, *, succeeded: bool) -> None:
-    """Tell this run's atexit reaper whether to keep or remove its tmp tree.
+    """Record this run's pytest outcome without granting runtime release.
 
     Call from ``pytest_sessionfinish`` with ``succeeded=exitstatus ==
     pytest.ExitCode.OK``. A no-op if :func:`install_run_basetemp` never
     installed a reaper against *config* (xdist worker, or an explicit
-    ``--basetemp``) — there is nothing to tell.
+    ``--basetemp``) — there is no installed outcome record.
     """
     outcome = getattr(config, _OUTCOME_CONFIG_ATTR, None)
     if outcome is not None:
@@ -130,13 +124,12 @@ def run_tmp_root() -> Path:
 
 
 def run_basetemp_dir(pid: int | None = None) -> Path:
-    """This invocation's basetemp: unique per controller process.
+    """A fresh candidate, reserved exclusively by ``install_run_basetemp``.
 
-    The controller process IS the run (serial master or xdist controller); two
-    live runs therefore never share a name. A recycled PID collides only with a
-    dead run's leftover, which pytest wipes before recreating the dir anyway.
+    The PID is diagnostic only. A nonce prevents a later invocation from
+    selecting and wiping a failed run's evidence after PID reuse.
     """
-    return run_tmp_root() / f"run-{pid if pid is not None else os.getpid()}"
+    return run_tmp_root() / f"run-{pid if pid is not None else os.getpid()}-{uuid.uuid4().hex[:12]}"
 
 
 def stale_run_dirs(
@@ -147,8 +140,8 @@ def stale_run_dirs(
 ) -> list[Path]:
     """Entries of *root* untouched for longer than *max_age_s*.
 
-    Caller supplies the clock (``kernel.clock.now_epoch`` at the conftest call
-    site) so neither this module nor its tests read wall clock directly.
+    This is observational only. It is not a liveness check or permission to
+    delete anything, and installation never calls it to retire other runs.
     """
     cutoff = now - max_age_s
     stale: list[Path] = []
@@ -169,6 +162,8 @@ def stale_run_dirs(
 def remove_run_dirs(dirs: Iterable[Path]) -> list[Path]:
     """Best-effort removal of *dirs*; returns the ones THIS call removed.
 
+    The caller must independently own/release every supplied resource; age
+    inventory is insufficient. This is never a startup sibling sweep.
     ``ignore_errors`` throughout: cleanup must never be the thing that turns a
     green run red. Inputs that are already absent are skipped — they were not
     removed by this call and are not reported.
@@ -199,9 +194,8 @@ def _validate_existing_root(root: Path) -> None:
     or a symlink) would otherwise be trusted as-is (#77).
 
     Raises :class:`OSError` on a symlinked or wrong-owner root, matching
-    pytest's fail-closed behavior. A world/group-readable root is repaired
-    in place (chmod), matching pytest's own historical-permissiveness
-    fixup rather than rejecting it outright.
+    pytest's fail-closed behavior. A verified owner root is restored to mode 0700 in place, including
+    owner access removed by a restrictive caller umask.
     """
     uid = get_user_id()
     if uid is None:
@@ -212,9 +206,9 @@ def _validate_existing_root(root: Path) -> None:
         raise OSError(f"The temporary directory {root} is a symbolic link. Fix this and try again.")
     if root_stat.st_uid != uid:
         raise OSError(f"The temporary directory {root} is not owned by the current user. Fix this and try again.")
-    if (root_stat.st_mode & 0o077) != 0:
+    if stat.S_IMODE(root_stat.st_mode) != 0o700:
         chmod_follow_symlinks = os.chmod not in os.supports_follow_symlinks
-        root.chmod(root_stat.st_mode & ~0o077, follow_symlinks=chmod_follow_symlinks)
+        root.chmod(0o700, follow_symlinks=chmod_follow_symlinks)
 
 
 def install_run_basetemp(config: pytest.Config, now: float) -> None:
@@ -224,7 +218,7 @@ def install_run_basetemp(config: pytest.Config, now: float) -> None:
     ``config.option.basetemp`` into its ``TempPathFactory`` there, and xdist
     derives every worker's ``popen-gwN`` from the controller's factory value at
     worker setup. Controller-gated (``workerinput is None``) like the session
-    reaper — an xdist worker receives its own nested basetemp over the wire and
+    outcome recorder — an xdist worker receives its own nested basetemp over the wire and
     must not second-guess it.
     """
     if getattr(config, "workerinput", None) is not None:
@@ -237,29 +231,81 @@ def install_run_basetemp(config: pytest.Config, now: float) -> None:
     # intermediate root must exist before the factory first resolves it.
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     _validate_existing_root(root)
-    remove_run_dirs(stale_run_dirs(root, now=now))
-
-    basetemp = run_basetemp_dir()
-    config.option.basetemp = str(basetemp)
-
+    # No sibling scan or age-based removal: another run may still hold an old
+    # directory, or its evidence may be the only retained failure record.
+    basetemp = run_basetemp_dir().absolute()
+    basetemp.mkdir(mode=0o700)  # Exclusive: never reuse a retained path.
+    basetemp.chmod(0o700)  # A restrictive caller umask must not remove owner access.
     outcome = _SessionOutcome()
+    manifest = basetemp.with_name(basetemp.name + ".owner.json")
+    manifest_bytes = (
+        json.dumps(
+            {
+                "owner_pid": outcome.owner_pid,
+                "run_id": basetemp.name,
+                "helper_source": str(Path(__file__).resolve()),
+                "helper_source_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),  # noqa: TID251 - exact non-charter launcher source integrity.
+                "resource": str(basetemp),
+                "purpose": "private pytest scratch and retained diagnostics",
+                "next_action": "owning producer joins runtime dependencies; existing lifecycle owner qualifies exact release before retirement",
+                "review_event": "producer termination followed by independent owner/runtime-release review",
+                "automatic_closeout_obligation": "pending admitted temporary-resource runtime-release adapter; outcome is not release",
+                "retention": "requires independently proven owner/runtime release; test success alone cannot authorize removal",
+            },
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode()
+    # A durable obligation survives a failed or interrupted producer. Neither
+    # this metadata nor a dead PID grants another producer deletion authority.
+    with manifest.open("xb") as handle:
+        handle.write(manifest_bytes)
+        handle.flush()
+        os.fsync(handle.fileno())
+    manifest.chmod(0o600)
+    outcome.manifest = manifest
+    outcome.manifest_bytes = manifest_bytes
+    config.option.basetemp = str(basetemp)
     setattr(config, _OUTCOME_CONFIG_ATTR, outcome)
-    # Reap only if pytest_sessionfinish later marks the session as succeeded
-    # (mark_session_outcome) — a failed/errored/interrupted session, or one
-    # that crashes before sessionfinish ever runs, leaves `outcome.succeeded`
-    # at its False default and keeps its tmp tree for post-mortem inspection.
+    # Retain exact owner/outcome records; pytest success cannot prove a child
+    # or external service has released the leaf. Record after later shutdown
+    # callbacks, without inferring that their execution proves release.
+    # pytest_sessionfinish records success/failure; absence remains unfinished.
+    # Neither outcome authorizes unlinking retained runtime dependencies.
     # Registered during configure — i.e. BEFORE the sessionstart handlers and
     # any service shutdown callbacks registered later — so LIFO ordering runs
     # it last, after everything that might still hold a file open under
     # tmp_path.
-    atexit.register(partial(_reap_if_succeeded, basetemp, outcome))
+    atexit.register(partial(_record_session_outcome, basetemp, outcome))
 
 
-def _reap_if_succeeded(basetemp: Path, outcome: _SessionOutcome) -> None:
-    """The atexit callback :func:`install_run_basetemp` registers.
+def _record_session_outcome(basetemp: Path, outcome: _SessionOutcome) -> None:
+    """Retain the leaf until the owning lifecycle proves runtime release.
 
-    Removes *basetemp* only when *outcome* was marked succeeded; otherwise
-    leaves it for the forensic window bounded by :data:`STALE_RUN_MAX_AGE_S`.
+    The outcome is DATA, not permission to unlink. Failed writes or changed
+    identity leave all existing evidence intact; no sibling probe or sweep runs.
     """
-    if outcome.succeeded:
-        shutil.rmtree(basetemp, ignore_errors=True)
+    if outcome.owner_pid != os.getpid() or outcome.manifest is None:
+        return
+    try:
+        if outcome.manifest.is_symlink() or basetemp.is_symlink():
+            return
+        with outcome.manifest.open("rb") as handle:
+            if handle.read(len(outcome.manifest_bytes or b"") + 1) != outcome.manifest_bytes:
+                return
+        terminal = basetemp.with_name(basetemp.name + ".terminal.json")
+        record = {
+            "owner_pid": outcome.owner_pid,
+            "run_id": basetemp.name,
+            "owner_record_sha256": hashlib.sha256(outcome.manifest_bytes or b"").hexdigest(),  # noqa: TID251 - exact non-charter owner-record byte integrity.
+            "pytest_outcome": "passed" if outcome.succeeded else "unsuccessful_or_unfinished",
+            "runtime_release": "unobserved",
+            "cleanup": "retained_pending_owner_runtime_release",
+        }
+        with terminal.open("xb") as handle:
+            terminal.chmod(0o600)
+            handle.write((json.dumps(record, sort_keys=True) + "\n").encode())
+            handle.flush()
+            os.fsync(handle.fileno())
+    except OSError:
+        return  # Preserve existing owner/evidence records on uncertain closeout.

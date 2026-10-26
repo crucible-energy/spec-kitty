@@ -28,11 +28,12 @@ import pytest
 
 from tests.terminus.conftest import (
     blob_present_at,
-    build_coord_mission,
     output_names_content_fail,
     plant_canceled_deletion,
     run_terminus,
 )
+
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo, pytest.mark.regression]
 

@@ -32,11 +32,11 @@ from tests.terminus.conftest import (
     _init_fixture_repo,
     _STATUS_EVENTS_FILENAME,
     _write_meta,
-    build_coord_mission,
     run_terminus,
     sha_reachable,
 )
-from tests.terminus.lanes_fixture import build_lanes_mission
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
+from tests._support.feature_landing import build_feature_lanes_mission as build_lanes_mission
 from tests.terminus.mixed_lane_support import collapse, transition
 
 Edit = Literal["delete", "rename", "revert", "modify", "none"]

@@ -24,7 +24,14 @@ from specify_cli.workspace_lifecycle.discovery import discover_workspaces
 from specify_cli.workspace_lifecycle.inventory import OrganizationInventoryUnavailable, fetch_repositories
 from specify_cli.workspace_lifecycle.events import Completion, EventQueue
 from specify_cli.workspace_lifecycle.runtime import distribution_argv
-from specify_cli.workspace_lifecycle.state import StateError, StateStore
+from specify_cli.workspace_lifecycle.state import Operation, StateError, StateStore
+
+
+def _operation_observation(creator: ManagedGitCreator, operation: Operation) -> dict[str, object]:
+    row: dict[str, object] = {"creator": creator.authority_id, "status": operation.status, "reason": operation.reason}
+    if operation.reason == "creator_operation_unsupported" and creator.runtime_diagnostic:
+        row["runtime_diagnostic"] = creator.runtime_diagnostic
+    return row
 
 
 class LifecycleService:
@@ -174,7 +181,7 @@ class LifecycleService:
                         )
                         event_id = uncertain.event_id if uncertain is not None else f"wake:{generation}:{token}"
                         operation = coordinator.reconcile(event_id, identity, creator)
-                        results.append({"creator": creator.authority_id, "status": operation.status, "reason": operation.reason})
+                        results.append(_operation_observation(creator, operation))
                         blocked = blocked or operation.status == "unknown"
                     except (StateError, GitCommandError, OSError, ValueError, NoFollowPathError, LockNotAcquired, LockAcquireTimeout) as exc:
                         blocked = True

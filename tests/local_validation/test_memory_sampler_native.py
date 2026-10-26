@@ -1834,6 +1834,11 @@ def retain_linux_fixture_artifacts(inputs: Path, output: Path, directory: Path) 
     shutil.copytree(output, directory / "output", symlinks=True, copy_function=copy_fixture_entry)
 
 
+def require_desktop_container_profile() -> None:
+    if sys.platform != "darwin":
+        pytest.skip("This integration fixture requires Mac Docker Desktop; native Linux sampler controls remain separate")
+
+
 def linux_public_call(
     image: Path,
     directory: Path,
@@ -1845,7 +1850,8 @@ def linux_public_call(
     probe_expectation: str = "success",
     owned_fixture: bool = False,
 ) -> dict[str, Any]:
-    """Own exactly one bounded foreground container; never inspect its arguments or environment."""
+    """Own one foreground Linux container through the pinned Mac Docker Desktop fixture."""
+    require_desktop_container_profile()
     import pwd
 
     docker = shutil.which("docker")

@@ -1,3 +1,10 @@
+---
+title: Design decisions
+description: Retained design decisions for organization workspace lifecycle.
+doc_status: active
+updated: '2026-10-24'
+---
+
 # Design decisions
 
 The independently owned implementation log is [approach.md](approach.md); these are the mission’s architecture tracer notes.

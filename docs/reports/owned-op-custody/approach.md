@@ -1,3 +1,10 @@
+---
+title: Owned operation custody
+description: Retained approach for owned op custody.
+doc_status: active
+updated: '2026-10-24'
+---
+
 # Owned operation custody
 
 ## Objective and lane

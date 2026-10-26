@@ -52,7 +52,15 @@ FILE_COUNT = 10_000
 SLASH = "/"
 HOME_ROOT = SLASH + "ho" + "me" + SLASH
 AT = "@"
-LEFT_OUT_FIELDS = ("request_text", "model_id", "recommended_model_id", "governance_context_hash", "governance_context_available", "router_confidence")
+LEFT_OUT_FIELDS = (
+    "request_text",
+    "model_id",
+    "recommended_model_id",
+    "governance_context_hash",
+    "governance_context_available",
+    "router_confidence",
+    "checkout_branch",
+)
 
 
 class UnexpectedWrite(AssertionError):
@@ -157,6 +165,7 @@ def started_event(
         "started_at": started_at,
         "model_id": "model-of-the-agent",
         "recommended_model_id": "local-advisory-model",
+        "checkout_branch": "feature/private-checkout-custody",
     }
     if mission is not None:
         event["mission_id"] = mission

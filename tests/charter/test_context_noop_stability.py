@@ -12,20 +12,16 @@ Authoritative grounding:
 
 LM-1 — the masking landmine
 ----------------------------
-This working checkout carries a *local*, uncommitted
-``.git/info/exclude`` entry (``.kittify/doctrine/``, ``.kittify/charter/provenance/``)
-that hides doctrine churn from ``git status`` in day-to-day development. The
-*committed* ``.gitignore`` tracks those artifacts (with targeted negations for
-``directive/``, ``tactic/``, ``styleguide/``, ``procedure/``, ``overlays/``,
-``graph.yaml``) — a cleanliness assertion run directly against this checkout
-would be a **false pass**: it can't observe churn that the local exclude is
-already hiding.
+Local ignore rules can hide untracked doctrine artifacts. They do not hide
+changes to already-tracked files. The fixture must prove that the selected
+doctrine artifacts really are tracked, rather than rely on a clean status
+from a checkout with no tracked doctrine.
 
 The fixture below sidesteps the mask by cloning this repo's current commit
 into a throwaway temp directory. ``.git/info/exclude`` lives outside version
 control and is per-checkout — a fresh ``git clone`` never inherits it — so the
 clone observes exactly the committed ``.gitignore`` state, where
-``.kittify/doctrine/**`` and ``.kittify/charter/*`` are genuinely git-tracked.
+the canonical resolver's selected doctrine root and charter are git-tracked.
 ``_assert_doctrine_is_git_tracked`` asserts this precondition explicitly so a
 future regression in the fixture itself (e.g. someone "simplifying" it back
 to the live checkout) fails loudly instead of silently passing vacuously.
@@ -39,6 +35,7 @@ from pathlib import Path
 import pytest
 
 from charter.activation.context import build_charter_context
+from kernel.doctrine_root import resolve_doctrine_read_root
 
 # Real subprocess git clones/checkouts against a throwaway temp repo: not a
 # pure-logic test, and structurally incompatible with mutmut's forked sandbox.
@@ -62,9 +59,14 @@ def _clone_doctrine_tracked_repo(dest: Path) -> Path:
     """Clone this repo's current commit into ``dest``, sans the LM-1 exclude mask.
 
     A fresh ``git clone`` gets a fresh, empty ``.git/info/exclude`` — the
-    local mask that hides doctrine churn in this working checkout is never
+    local ignore configuration from this working checkout is never
     copied. The clone therefore observes the committed ``.gitignore`` state,
-    where ``.kittify/doctrine/**`` and ``.kittify/charter/*`` are tracked.
+    where the selected doctrine root and charter are tracked.
+
+    Only the exact committed tree is an input to this render contract. Use
+    Git's shallow local transport to avoid copying unrelated historical
+    objects into every disposable fixture. Do not share object storage or
+    substitute an exported/untracked tree for a real checkout.
 
     The committed ``charter.yaml`` now carries the WP04 (C-A1)
     ``mission_type_activations`` provisioning key (emitted by the charter
@@ -74,10 +76,13 @@ def _clone_doctrine_tracked_repo(dest: Path) -> Path:
     """
     head_sha = _run_git(["rev-parse", "HEAD"], cwd=_REPO_ROOT).stdout.strip()
     _run_git(
-        ["clone", "--local", "--no-hardlinks", "--no-checkout", "--quiet", str(_REPO_ROOT), str(dest)],
+        ["clone", "--no-local", "--depth", "1", "--no-checkout", "--quiet", str(_REPO_ROOT), str(dest)],
         cwd=_REPO_ROOT,
     )
     _run_git(["checkout", "--quiet", head_sha], cwd=dest)
+    assert _run_git(["rev-parse", "HEAD"], cwd=dest).stdout.strip() == head_sha
+    assert _run_git(["rev-parse", "--is-shallow-repository"], cwd=dest).stdout.strip() == "true"
+    assert not (dest / ".git/objects/info/alternates").exists()
     return dest
 
 
@@ -87,21 +92,19 @@ def _assert_doctrine_is_git_tracked(repo: Path) -> None:
     Reviewer guidance for this WP is explicit: a green cleanliness assertion
     against a fixture that doesn't actually track doctrine is a false pass.
     """
-    tracked_doctrine = _run_git(["ls-files", ".kittify/doctrine"], cwd=repo).stdout.strip().splitlines()
+    doctrine_root = resolve_doctrine_read_root(repo)
+    relative_root = doctrine_root.relative_to(repo).as_posix()
+    tracked_doctrine = _run_git(["ls-files", "--", relative_root], cwd=repo).stdout.strip().splitlines()
     assert tracked_doctrine, (
-        "Fixture is vacuous: .kittify/doctrine/** is not git-tracked in the "
-        "cloned repo. LM-1 requires a doctrine-tracked fixture for this guard "
-        "to mean anything."
+        f"Fixture is vacuous: {relative_root}/** is not git-tracked in the cloned repo. LM-1 requires a doctrine-tracked fixture for this guard to mean anything."
     )
+    assert any(Path(path).suffix == ".md" for path in tracked_doctrine), "Fixture must track doctrine artifact bodies, not only a manifest."
     tracked_charter_yaml = _run_git(["ls-files", ".kittify/charter/charter.yaml"], cwd=repo).stdout.strip()
     assert tracked_charter_yaml, "Fixture is vacuous: .kittify/charter/charter.yaml is not git-tracked."
 
     exclude_path = repo / ".git" / "info" / "exclude"
     exclude_text = exclude_path.read_text(encoding="utf-8") if exclude_path.exists() else ""
-    assert ".kittify/doctrine" not in exclude_text, (
-        "Fixture leaked the LM-1 local exclude mask into the clone; the "
-        "cleanliness assertion below would be vacuous."
-    )
+    assert relative_root not in exclude_text, "Fixture leaked the LM-1 local exclude mask into the clone; the cleanliness assertion below would be vacuous."
 
 
 def _tracked_status_lines(repo: Path) -> list[str]:
@@ -137,6 +140,23 @@ class TestRenderPathNoOpStability:
         fixture ever regresses back to the masked checkout.
         """
         _assert_doctrine_is_git_tracked(doctrine_tracked_repo)
+
+    def test_fixture_detects_tracked_artifact_mutation(self, doctrine_tracked_repo: Path) -> None:
+        """A real tracked artifact edit must make the cleanliness guard fail."""
+        root = resolve_doctrine_read_root(doctrine_tracked_repo)
+        tracked = _run_git(
+            ["ls-files", "--", root.relative_to(doctrine_tracked_repo).as_posix()],
+            cwd=doctrine_tracked_repo,
+        ).stdout.splitlines()
+        artifact = next(path for path in tracked if Path(path).suffix == ".md")
+        path = doctrine_tracked_repo / artifact
+        original = path.read_bytes()
+        try:
+            path.write_bytes(original + b"\nFixture mutation witness.\n")
+            assert any(line[3:] == artifact for line in _tracked_status_lines(doctrine_tracked_repo))
+        finally:
+            path.write_bytes(original)
+        assert _tracked_status_lines(doctrine_tracked_repo) == []
 
     def test_g1_single_render_produces_no_tracked_diff(self, doctrine_tracked_repo: Path) -> None:
         """G1: clean tree, fresh DRG -> render leaves 0 tracked-file diffs."""

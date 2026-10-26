@@ -226,6 +226,54 @@ def test_owned_move_task_completes_with_sync_active(finalized_checkouts, monkeyp
     assert transitions[-1]["to_lane"] == "in_progress"
 
 
+@pytest.mark.parametrize("explicit_auto_commit", [False, True])
+def test_owned_status_commit_override_preserves_project_preference(finalized_checkouts, monkeypatch, explicit_auto_commit):
+    """An atomic status commit need not enable automatic commits project-wide."""
+    from specify_cli.core.agent_config import load_agent_config, save_agent_config
+
+    primary, owned, sibling = finalized_checkouts
+    config = load_agent_config(owned)
+    config.auto_commit = False
+    save_agent_config(owned, config)
+    git(owned, "add", ".kittify/config.yaml")
+    git(owned, "commit", "-qm", "fixture: preserve manual commit preference")
+    config_bytes = (owned / ".kittify/config.yaml").read_bytes()
+    monkeypatch.chdir(owned)
+    monkeypatch.setenv("SPECIFY_REPO_ROOT", str(owned))
+    before = tuple(snapshot(root) for root in finalized_checkouts)
+    args = [
+        "move-task",
+        "WP01",
+        "--to",
+        "doing",
+        "--agent",
+        "codex",
+        "--mission",
+        SLUG,
+        "--owned-checkout",
+        str(owned),
+        "--json",
+    ]
+    if explicit_auto_commit:
+        args.append("--auto-commit")
+    result = CliRunner().invoke(tasks_app, args)
+    assert (snapshot(primary), snapshot(sibling)) == (before[0], before[2])
+    assert (owned / ".kittify/config.yaml").read_bytes() == config_bytes
+    assert load_agent_config(owned).auto_commit is False
+    if not explicit_auto_commit:
+        assert result.exit_code != 0
+        assert "OWNED_OPTION_UNSUPPORTED" in result.output
+        assert snapshot(owned) == before[1]
+        return
+    assert result.exit_code == 0, result.output
+    assert git(owned, "rev-parse", "HEAD") != before[1][0]
+    assert git(owned, "status", "--porcelain") == ""
+    committed = git(owned, "show", f"HEAD:kitty-specs/{SLUG}/status.events.jsonl")
+    events = [json.loads(line) for line in committed.splitlines()]
+    transitions = [row for row in events if row.get("wp_id") == "WP01" and "to_lane" in row]
+    assert transitions[-1]["to_lane"] == "in_progress"
+
+
 @pytest.mark.parametrize(
     "case,code",
     [

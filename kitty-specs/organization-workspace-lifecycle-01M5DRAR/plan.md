@@ -89,3 +89,17 @@ The expanded architecture gate exposed standalone Op routing that bypasses the s
 ### WP06 retained claim-base recovery
 
 Re-finalization advances the mission-wide planning pin but does not erase completed WP source. WP06 additionally owns the existing tasks_move_task review-base adapter and its complete owned-checkout test module. Consume the immutable per-WP claim base already recorded by canonical claim; retain the mission pin as planning evidence and all existing reachability, ancestry and owned-file refusal checks. This amendment adds no worktree, runtime authority, guard bypass, or competing work package.
+
+## October 24 continuation
+
+Reuse the owner-released lane; preserve primary dirty source and migration receipts. Add native Zig durable finish obligations under private no-follow state with revision checks; obligations confer no deletion capability. Integrate through the existing creator and worker boundaries. Package explicit runtime identity, satisfy review and publication gates, and verify per-repository startup/completion plus actual eligible cleanup. Unknown/unsupported creators remain retained with accountable follow-through. External receipts keep validated candidates frozen.
+
+The retained creator delivery/recovery safety repair is WP11, independently gated on WP07; WP09 now waits for both native obligations and that safety repair. Ownership is disjoint, so review of WP08 need not delay a reproduced production-safety fix.
+
+## Hosted integration follow-through
+
+WP12 owns missed branch-first fixture propagation, the inherited canonical OS-door predicate and explicit internal checkout-identity omission in the status contract. Root retains disjoint generator/CI wiring repairs. This bounded source follow-through precedes final distribution qualification; it does not alter default-branch protection or erase earlier approvals. Required full owning gates and independent review remain mandatory before rollout.
+
+### Hosted publication safety correction
+
+WP13 independently reviews and implements the real stacked-live-mission/archive boundary. New-to-default, unnumbered/nonterminal/unarchived BASE state requires exact correlated identity and canonical replay; published/default/terminal history never becomes live because the candidate says so. This preserves the existing review frontier and all source/history. WP11 separately diagnoses actual Linux runtime-visibility refusal before any eligibility-policy change. Existing approvals remain historical facts; canonical task finalization and claims own new runtime state.

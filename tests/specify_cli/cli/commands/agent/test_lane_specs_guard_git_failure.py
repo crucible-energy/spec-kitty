@@ -129,8 +129,8 @@ def test_missing_local_check_branch_refusal_names_the_fallback_ref(tmp_path: Pat
     assert "add `planning_base_branch`" in text
 
 
-def test_owned_review_unreadable_diff_names_the_review_base_and_how_to_repoint_it(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Owned review: a review base the checkout cannot diff against refuses with the ref and the lanes.json fix."""
+def test_owned_review_unreadable_diff_names_claim_recovery_without_moving_planning_pin(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An unreadable claim base refuses with recovery guidance, never a planning-pin edit."""
     repo = _lane_repo(tmp_path, "src/x.py")
     feature_dir = tmp_path / "mission"
     monkeypatch.setattr(move_task_module, "_mt_owned_file_patterns", lambda st: ("src/**",))
@@ -139,11 +139,15 @@ def test_owned_review_unreadable_diff_names_the_review_base_and_how_to_repoint_i
     with pytest.raises(ActionContextError) as excinfo:
         move_task_module._mt_require_owned_implementation(st)
 
+    assert excinfo.value.code == "OWNED_IMPLEMENTATION_MISSING"
     message = str(excinfo.value)
     assert "review base deadbeef" in message
-    assert "`planning_commit_sha`" in message
-    assert str(feature_dir / "lanes.json") in message
+    assert "recorded claim base or validated legacy planning base" in message
+    assert "Restore the recorded base through the owning claim or planning recovery workflow" in message
+    assert "reachable and an ancestor of this checkout" in message
+    assert "do not move the mission planning pin to repair a claim base" in message
     assert str(repo) in message
+    assert not feature_dir.exists(), "A failed guard must not create replacement planning metadata."
 
 
 class TestMergeBaseChangedFilesChecked:

@@ -27,6 +27,8 @@ asserts the coordination event log and ref are byte-identical before and after.
 
 from __future__ import annotations
 
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
+
 import json
 import subprocess
 import sys
@@ -36,7 +38,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.terminus.conftest import CoordMission, _cli_env, build_coord_mission, git_rev, run_terminus
+from tests.terminus.conftest import CoordMission, _cli_env, git_rev, run_terminus
 from tests.terminus.rollback_harness import event_log_bytes, flat, state_path
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]

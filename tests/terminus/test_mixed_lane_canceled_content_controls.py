@@ -25,17 +25,13 @@ check starts flagging what it must pass), in ``tests/consolidation/test_wp_attri
 
 from __future__ import annotations
 
+from tests.terminus.feature_fixture_support import feature_build_coord_mission_mixed_lane_canceled as build_coord_mission_mixed_lane_canceled
+
 from pathlib import Path
 
 import pytest
 
-from tests.terminus.conftest import (
-    CoordMission,
-    PlantedChange,
-    blob_present_at,
-    build_coord_mission_mixed_lane_canceled,
-    run_terminus,
-)
+from tests.terminus.conftest import CoordMission, PlantedChange, blob_present_at, run_terminus
 from tests.terminus.conftest import _git as git
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo, pytest.mark.regression]

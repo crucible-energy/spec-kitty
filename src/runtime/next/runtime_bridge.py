@@ -190,7 +190,9 @@ def _is_git_lock_contention(output: str) -> bool:
 # A shared-registry entry path: ``.../worktrees/<id>``. The lookbehind keeps
 # this repository's own ``.worktrees/<slug>`` checkouts from matching.
 _REGISTRY_ENTRY = r"(?<!\.)/worktrees/[^/'\s]+"
-_EMPTY_COMMONDIR = re.compile(_REGISTRY_ENTRY + r"/commondir: success\b")
+# Git reports errno zero as Success on Linux and Undefined error: 0 on Darwin.
+# Keep actual nonzero read failures durable; this only enables bounded retry.
+_EMPTY_COMMONDIR = re.compile(_REGISTRY_ENTRY + r"/commondir: (?:success|undefined error: 0)\b")
 _VANISHED_ENTRY = re.compile(r"invalid path '[^']*" + _REGISTRY_ENTRY + r"/?'")
 
 
@@ -200,7 +202,7 @@ def _is_sibling_registry_entry_in_flight(output: str) -> bool:
     ``git worktree list`` reads every registered entry. ``git worktree add``
     writes the entry's ``commondir`` last (truncate, then write), so a reader
     can find it zero bytes long (``failed to read .../worktrees/<id>/commondir:
-    Success``); ``git worktree remove`` deletes the entry directory under a
+    Success`` or Darwin's ``Undefined error: 0``); ``git worktree remove`` deletes the entry directory under a
     reader (``Invalid path '.../worktrees/<id>'``). Both are the normal
     in-flight state of another process's entry. Each wording must name a
     registry entry on the same match: a real read failure (``Permission

@@ -204,6 +204,7 @@ jobs:
               - 'src/specify_cli/status/**'
               - 'src/specify_cli/tool_surface/**'
               - 'src/specify_cli/zeitgeist_client/**'
+              - 'src/specify_cli/workspace_lifecycle/**'
             # Test-inventory groups: tests/unit and tests/specify_cli/runtime had
             # no declared home in the module registry. Every glob below is a
             # verbatim copy of one another group already carries (scrub groups
@@ -230,7 +231,6 @@ jobs:
               - 'kitty-specs/**/acceptance-matrix.json'
               - '.kittify/charter/**'
               - '.kittify/glossaries/**'
-              - '.kittify/doctrine/**'
               - 'contracts/**'
               # Intended: an Op-journal commit under kitty-ops/ triggers the corpus job (the Ops read of the reality suite reads it).
               - 'kitty-ops/**'

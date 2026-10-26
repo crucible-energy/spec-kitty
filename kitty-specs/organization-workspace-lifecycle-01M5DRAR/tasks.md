@@ -1,6 +1,6 @@
 # Organization workspace lifecycle — tasks
 
-These packages are authored for the accepted specification. Canonical finalization admitted all five packages; implementation/review transitions remain separate; no runtime claim or done event is inferred from source edits.
+The initial accepted increment covered the original packages; later reviewed amendments add explicit productionization and publication-safety work. Canonical finalization owns package admission, while implementation/review transitions remain separate. Prior approval history is preserved; no runtime rollout or done event is inferred from authored source changes.
 
 ## WP01: Verified organization discovery and accounting
 
@@ -54,3 +54,51 @@ Requirement Refs: FR-005, FR-007, FR-008, SC-003, C-001, C-003
 ## WP07 — Typed operation custody and closeout integration
 
 - [ ] T007 Replace raw operation custody with a canonical opaque fact and repair stale strict-closeout integration fixtures. Depends on WP05. Covers FR-006/FR-007/FR-008, SC-005 and C-001/C-003; validate red-first, full owning/architecture/baseline gates and independent review.
+
+## Work Package WP08: Native durable useful-work finish obligations
+
+**Dependencies**: WP07
+
+**Requirement Refs**: FR-010, NFR-001, NFR-003
+
+T008 Exact owner/purpose/next/review obligations and revisioned history in Zig. Strict bounded schema, private no-follow persistence and durable writes; reject stale updates and implicit missing-history reset. Never grant release/deletion authority. Focused behavior tests and ReleaseSafe build; independent review.
+
+## Work Package WP09: Automatic creator integration and distribution
+
+**Dependencies**: WP08, WP11
+
+**Requirement Refs**: FR-011, FR-003, FR-004, FR-005, NFR-001
+
+T009 Integrate native obligations into supported creator startup/completion/recovery. Python edits are bounded migration glue; new implementation/tests use Zig. Package exact artifacts, refuse unsupported creators, and prove actual asynchronous cleanup plus preservation/interruption. No broad prune or trust bypass.
+
+## Work Package WP10: Organization rollout and observed closeout proof
+
+**Dependencies**: WP09
+
+**Requirement Refs**: FR-012, SC-006, FR-007
+
+T010 Deliver source chain and runtime, admit every authenticated repo by exact ID, record runtime/creator/ingress/execution receipts. Preserve useful historical state with accountable follow-through. No metadata-only pass, concurrent-capacity attribution or protection bypass.
+
+## Work Package WP11: Retirement delivery and recovery proof
+
+**Dependencies**: WP07
+
+**Requirement Refs**: FR-004, FR-005, FR-008, FR-009, FR-011, SC-006, NFR-001, NFR-003
+
+T011 Repair retained creator delivery/recovery safety with real Git counterexamples and independent review. WP09 depends on this safety gate as well as WP08.
+
+## Work Package WP12: Restore branch-first integration acceptance
+
+**Dependencies**: WP04, WP07
+
+**Requirement Refs**: FR-006, FR-009, SC-005, NFR-001
+
+T012 Correct inherited protected-target fixture propagation and canonical OS/status-contract integration without weakening production guards. Preserve exact red evidence, active ownership and original primary/protected cases.
+
+## Work Package WP13: Preserve live stacked missions and frozen archive history
+
+**Dependencies**: WP07
+
+**Requirement Refs**: FR-006, FR-007, FR-009, NFR-003, SC-005
+
+T013 Resolve the measured non-main archive-frontier conflict using immutable base/default identity and canonical live-state evidence, preserving all published/terminal history and adversarial countercases. No review-base override or broad path waiver.

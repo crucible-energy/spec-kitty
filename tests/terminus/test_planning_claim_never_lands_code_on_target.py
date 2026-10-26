@@ -18,6 +18,8 @@ Provenance: #5296.
 
 from __future__ import annotations
 
+from tests._support.feature_landing import build_feature_lanes_mission as build_lanes_mission
+
 import json
 from pathlib import Path
 
@@ -27,7 +29,6 @@ from tests.terminus.conftest import CoordMission, blob_present_at, git_rev, run_
 from tests.terminus.conftest import _event  # noqa: PLC2701 -- shared harness event shape (fixture adapter)
 from tests.terminus.conftest import _git as git
 from tests.terminus.conftest import _git_out as git_out
-from tests.terminus.lanes_fixture import build_lanes_mission
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo, pytest.mark.regression]
 

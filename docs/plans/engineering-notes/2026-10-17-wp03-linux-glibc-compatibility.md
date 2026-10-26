@@ -12,7 +12,7 @@ updated: '2026-10-17'
 This entry extends the WP03 history in
 [`2026-10-16-wp03-native-local-validation.md`](2026-10-16-wp03-native-local-validation.md)
 and its original engineering notes in
-[`2026-10-12-native-local-validation.md`](../plans/engineering-notes/2026-10-12-native-local-validation.md).
+[`2026-10-12-native-local-validation.md`](2026-10-12-native-local-validation.md).
 The active lane is `codex/native-local-validation`, based on
 `d7f7eb5ae3053223898c5b62bf8b8e28680c3ef0` in the existing checkout at
 `/Users/sam/git/crucible/_worktrees/spec-kitty-owned-single-branch-recovery`.

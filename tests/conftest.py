@@ -262,7 +262,7 @@ def pytest_configure(config: pytest.Config) -> None:
     # the same mapping per test for call-time reads.
     _apply_home_env(_worker_home_base(config))
 
-    # Give this run its own private, wiped-per-run pytest temp root instead of
+    # Give this run its own exclusively reserved pytest temp root instead of
     # the shared platform-temp `pytest-of-<user>` numbered tree, which never
     # shrinks except through its own locked, timeout-gated pruning and
     # accumulates stale roots on a long-lived box. See run_basetemp.py's
@@ -2215,12 +2215,12 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     """T007-T009: controller-gated REPO_ROOT reap-then-assert + prompt sweep.
 
-    Also records this session's outcome for run_basetemp.py's (#76)
-    outcome-gated tmp-tree reaper: ``mark_session_outcome`` is called with the
+    Also records this session's outcome for run_basetemp.py's private owner
+    record: ``mark_session_outcome`` is called with the
     incoming *exitstatus* first, then again with ``succeeded=False`` if the
     leaked-residue check below forces a failure — so a run that looked green
     until this hook caught residue still retains its tmp tree. A no-op if
-    ``install_run_basetemp`` never installed a reaper against this config
+    ``install_run_basetemp`` never installed an outcome recorder against this config
     (xdist worker, or an explicit ``--basetemp``).
 
     The N1 test-HOME removal is intentionally NOT done here — it runs from the

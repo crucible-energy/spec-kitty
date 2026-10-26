@@ -1,3 +1,10 @@
+---
+title: Tooling friction
+description: Retained tooling friction for organization workspace lifecycle.
+doc_status: active
+updated: '2026-10-24'
+---
+
 # Tooling friction
 
 The independently owned implementation log is [approach.md](approach.md).

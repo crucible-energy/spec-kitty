@@ -15,7 +15,7 @@ import pytest
 from specify_cli.workspace_lifecycle.coordinator import Coordinator
 from specify_cli.workspace_lifecycle.events import EventQueue
 from specify_cli.workspace_lifecycle.state import StateStore
-from tests.workspace_lifecycle.test_adapters import git, managed_owner
+from tests.workspace_lifecycle.test_adapters import git, managed_owner, object_at, runtime_fixture
 from tests.workspace_lifecycle.test_ledger_cli import invoke
 
 
@@ -32,23 +32,44 @@ def fake_gh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, owner: Any, *, hung
     directory.mkdir()
     marker = tmp_path / "inventory-processes.json"
     repository = {"id": 7, "full_name": "crucible-energy/example", "default_branch": "main"}
+    source = git(Path(owner.identity.path), "rev-parse", "HEAD")
+    # Accepted server delivery is a real bare-remote commit, independent of the
+    # checked-out local default branch and the API fixture response.
+    git(Path(owner.identity.path), "push", str(tmp_path / "origin.git"), "HEAD:refs/heads/main")
+    reviews = {
+        "data": {
+            "repository": {
+                "databaseId": 7,
+                "pullRequest": {
+                    "headRefOid": source,
+                    "headRef": None,
+                    "mergeCommit": {"oid": source},
+                    "reviewThreads": {"nodes": [], "pageInfo": {"hasNextPage": False, "endCursor": None}},
+                },
+            }
+        }
+    }
     pull = {
         "number": 9,
         "merged": True,
         "state": "closed",
         "merged_at": "2026-10-21",
-        "merge_commit_sha": "b" * 40,
+        "merge_commit_sha": source,
         "head": {"ref": owner.identity.branch.removeprefix("refs/heads/"), "sha": git(Path(owner.identity.path), "rev-parse", "HEAD"), "repo": repository},
         "base": {"ref": "main", "repo": repository},
     }
-    script = f"#!{sys.executable}\nimport json,os,subprocess,sys,time\nfrom pathlib import Path\nrepository={repository!r}\npull={pull!r}\n"
+    script = f"#!{sys.executable}\nimport json,os,subprocess,sys,time\nfrom pathlib import Path\nrepository={repository!r}\npull={pull!r}\nreviews={reviews!r}\n"
     if hung:
         script += (
             "child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(5)'])\n"
             f"Path({str(marker)!r}).write_text(json.dumps([os.getpid(),child.pid]))\n"
             "time.sleep(5)\n"
         )
-    script += "endpoint=sys.argv[-1]\nprint(json.dumps([repository] if endpoint.startswith('orgs/') else pull if '/pulls/' in endpoint else repository))\n"
+    script += (
+        "endpoint=sys.argv[-1]\n"
+        "value=[repository] if endpoint.startswith('orgs/') else reviews if endpoint == 'graphql' else pull if '/pulls/' in endpoint else repository\n"
+        "print(json.dumps(value))\n"
+    )
     tool = directory / "gh"
     tool.write_text(script)
     tool.chmod(0o700)
@@ -131,7 +152,7 @@ def test_startup_accounts_non_lane_work_and_retires_released_delivered_creator_o
         assert len(children) == iteration + 1
         assert children[-1].wait(timeout=20) == 0
     report = LifecycleService(store).status()
-    inventory = report["organization_observation"]
+    inventory = object_at(report, "organization_observation")
     assert inventory["status"] == "observed" and inventory["local_scan_complete"] is True
     assert not Path(owner.identity.path).exists() and unknown.exists()
     assert git(repo, "rev-parse", "main") == main
@@ -158,8 +179,8 @@ def test_hung_inventory_records_unknown_diagnostic_and_joins_its_process_tree(tm
     elapsed = time.monotonic() - started
     assert result.returncode == 2, result.stdout + result.stderr
     report = LifecycleService(store).status()
-    assert report["organization_observation"]["status"] == "unknown"
-    assert report["organization_observation"]["reason"] == "inventory_unavailable"
+    assert object_at(report, "organization_observation")["status"] == "unknown"
+    assert object_at(report, "organization_observation")["reason"] == "inventory_unavailable"
     assert report["pending_wakeup"] is True
     assert Path(owner.identity.path).exists()
     assert elapsed < 4, f"Worker deadline did not bound the actual hung inventory: {elapsed}"
@@ -325,6 +346,7 @@ def test_real_spec_kitty_consolidation_is_joined_before_creator_completion_and_c
     from specify_cli.workspace_lifecycle.adapters import GitHubDelivery, ManagedGitCreator
     from tests.terminus.conftest import build_coord_mission
 
+    runtime_fixture(monkeypatch)
     mission = build_coord_mission(tmp_path, target_branch="feature/integration")
     repo = mission.repo
     git(repo, "branch", "main", "feature/integration")
@@ -383,7 +405,7 @@ def test_real_spec_kitty_consolidation_is_joined_before_creator_completion_and_c
     assert owner.identity.head != before
     assert len(children) == 1 and git(repo, "rev-parse", "main") == primary
     assert children[0].wait(timeout=20) == 0
-    assert not Path(owner.identity.path).exists(), store.read().operations
+    assert not Path(owner.identity.path).exists(), (store.read().operations, json.loads((store.root / "worker-result.json").read_text()))
     assert git(repo, "rev-parse", "main") == primary
     assert git(repo, "branch", "--list", "feature/driver") == ""
     assert sum(op.status == "retired" for op in store.read().operations) == 1

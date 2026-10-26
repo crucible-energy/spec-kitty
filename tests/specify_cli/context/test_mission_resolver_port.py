@@ -293,6 +293,26 @@ class TestFakeMissionResolverFsFree:
 
 
 class TestNoCache:
+    def test_listing_preserves_path_order_without_repeated_path_comparisons(self, repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        specs = repo_root / "kitty-specs"
+        _make_mission_dir(specs, "Mixed-case", "01K9C9G2QWM4T8XN3RVB6HZDLP")
+        _make_mission_dir(specs, "lower-case", "01K9CAG2QWM4T8XN3RVB6HZDLP")
+        expected = [p.name for p in sorted(specs.iterdir()) if p.name != "100-legacy-no-id"]
+        original = Path.__lt__
+        comparisons: list[tuple[str, str]] = []
+
+        def counted(left: Path, right: Path) -> bool:
+            if left.parent == specs and right.parent == specs:
+                comparisons.append((left.name, right.name))
+            return original(left, right)
+
+        monkeypatch.setattr(Path, "__lt__", counted)
+
+        found = FsMissionResolver(repo_root).all_missions()
+
+        assert [m.mission_slug for m in found] == expected
+        assert comparisons == [], "Repeated full Path ordering is avoidable per scan; compute each entry's ordering key once."
+
     def test_independent_instances_see_independent_state(self, repo_root: Path) -> None:
         """Two FsMissionResolver instances over the same repo_root each see
         live state -- a mission created after the first instance is

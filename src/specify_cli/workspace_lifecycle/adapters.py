@@ -10,26 +10,32 @@ import re
 import secrets
 import stat
 import subprocess
+import sys
 import threading
+import tempfile
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
+from contextvars import ContextVar
 from dataclasses import asdict, dataclass, fields, replace
 from pathlib import Path
 from typing import cast
 
+import psutil
+
 from kernel.atomic import atomic_write
-from kernel.git import run_git
+from kernel.git import GitCommandError, GitResult, run_git
+from kernel.git.remote import RemoteUnreachable, fetch_evidence_ref
 from kernel.git.listing import status_entries
 from kernel.git.worktree_registry import parse_worktree_records
 from kernel.git_topology import inspect_git_common_dir
 from kernel.locks import machine_file_lock
-from kernel.no_follow import NoFollowPathError
-from kernel.owned_process import bounded_run, budget_active, process_budget, signal_owned_process_tree
+from kernel.no_follow import NoFollowPathError, fd_relative_dir_ops_supported, open_no_follow
+from kernel.owned_process import bounded_run, budget_active, process_budget, process_deadline, signal_owned_process_tree
 from specify_cli.core.git_ops import resolve_primary_branch
 from specify_cli.git.destructive_guard import guarded_worktree_remove
 from specify_cli.git.protection_policy import ProtectionPolicy
-from specify_cli.git.ref_advance import RefDeleteError, delete_branch_ref
+from specify_cli.git.ref_advance import RefAdvanceError, RefDeleteError, advance_branch_ref, delete_branch_ref
 from specify_cli.workspace_lifecycle.coordinator import Recovered, Result
 from specify_cli.workspace_lifecycle.discovery import discover_workspaces
 from specify_cli.workspace_lifecycle.events import Completion
@@ -51,7 +57,7 @@ class GitHubDelivery:
         self.timeout = timeout
 
     @staticmethod
-    def _get(path: str, deadline: float) -> dict[str, object]:
+    def _get(path: str, deadline: float, *, query: str | None = None) -> dict[str, object]:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise StateError("Delivery authority unavailable")
@@ -59,8 +65,11 @@ class GitHubDelivery:
         env["GH_PROMPT_DISABLED"] = "1"
         try:
             executor = bounded_run if budget_active() else subprocess.run
+            argv = ["gh", "api", "--hostname", "github.com", "--method", "POST" if query else "GET"]
+            if query is not None:
+                argv.extend(["-f", "query=" + query])
             result = executor(
-                ["gh", "api", "--hostname", "github.com", "--method", "GET", path],
+                [*argv, path],
                 capture_output=True,
                 check=False,
                 timeout=remaining,
@@ -85,11 +94,9 @@ class GitHubDelivery:
             and value["full_name"].lower() == expected.repository
         )
 
-    def verify(self, expected: Identity, pr: int) -> str | None:
-        """Return an exact accepted-PR identity or no delivery; fail on unavailable authority."""
+    def _accepted(self, expected: Identity, pr: int, deadline: float) -> tuple[str, str, str] | None:
         if type(pr) is not int or pr <= 0:
             raise ValueError("Positive PR number required")
-        deadline = time.monotonic() + self.timeout
         repository = self._get(f"repos/{expected.repository}", deadline)
         if not self._same_repository(repository, expected):
             return None
@@ -118,7 +125,133 @@ class GitHubDelivery:
             or not self._same_repository(base.get("repo"), expected)
         ):
             return None
-        return f"github:{expected.repository_id}:pr:{pr}:merge:{merge_sha}"
+        return default_branch, merge_sha, f"github:{expected.repository_id}:pr:{pr}:merge:{merge_sha}"
+
+    def verify(self, expected: Identity, pr: int) -> str | None:
+        """Read accepted API identity only; creator retirement needs verify_current."""
+        accepted = self._accepted(expected, pr, time.monotonic() + self.timeout)
+        return accepted[2] if accepted else None
+
+    def _reviews(self, expected: Identity, pr: int, merge_sha: str, deadline: float) -> list[dict[str, object]] | None:
+        cursor: str | None = None
+        seen: set[str] = set()
+        threads: list[dict[str, object]] = []
+        for _ in range(10):
+            query = (
+                'query { repository(owner:"crucible-energy",name:'
+                + json.dumps(expected.repository.split("/", 1)[1])
+                + ") { databaseId pullRequest(number:"
+                + str(pr)
+                + ") { headRefOid headRef { target { oid } } mergeCommit { oid } reviewThreads(first:100,after:"
+                + json.dumps(cursor)
+                + ") { nodes { id isResolved } pageInfo { hasNextPage endCursor } } } } }"
+            )
+            response = self._get("graphql", deadline, query=query)
+            data = response.get("data")
+            repository = data.get("repository") if isinstance(data, dict) else None
+            pull = repository.get("pullRequest") if isinstance(repository, dict) else None
+            merge = pull.get("mergeCommit") if isinstance(pull, dict) else None
+            if (
+                response.get("errors")
+                or not isinstance(repository, dict)
+                or type(repository.get("databaseId")) is not int
+                or repository["databaseId"] != expected.repository_id
+            ):
+                return None
+            if not isinstance(pull, dict) or pull.get("headRefOid") != expected.head or not isinstance(merge, dict) or merge.get("oid") != merge_sha:
+                return None
+            if "headRef" not in pull:
+                return None
+            head_ref = pull["headRef"]
+            if head_ref is not None:
+                target = head_ref.get("target") if isinstance(head_ref, dict) else None
+                if not isinstance(target, dict) or target.get("oid") != expected.head:
+                    return None
+            page = pull.get("reviewThreads")
+            if not isinstance(page, dict) or not isinstance(page.get("nodes"), list) or not isinstance(page.get("pageInfo"), dict):
+                return None
+            for thread in page["nodes"]:
+                if not isinstance(thread, dict) or not isinstance(thread.get("id"), str) or not thread["id"] or thread.get("isResolved") is not True:
+                    return None
+                threads.append({"id": thread["id"], "isResolved": True})
+            info = page["pageInfo"]
+            if info.get("hasNextPage") is False:
+                return threads
+            cursor = info.get("endCursor")
+            if info.get("hasNextPage") is not True or not isinstance(cursor, str) or not cursor or cursor in seen:
+                return None
+            seen.add(cursor)
+        return None
+
+    def verify_current(self, expected: Identity, pr: int) -> tuple[str, dict[str, object]] | None:
+        """Bind current fetched default, exact accepted content and review disposition.
+
+        Only a private creator-generation ref advances. Canonical local/default
+        branches and configured remotes are unchanged; credential reuse stays
+        inside GitHub's standard credential helper and is never printed.
+        """
+        deadline = time.monotonic() + self.timeout
+
+        def git(*args: str, check: bool = True) -> GitResult:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise StateError("Delivery authority unavailable")
+            return run_git(Path(expected.path), *args, check=check, env=_git_env(), timeout=remaining)
+
+        try:
+            accepted = self._accepted(expected, pr, deadline)
+            if accepted is None or not re.fullmatch(r"[0-9a-f]{32}", expected.workspace_generation):
+                return None
+            grafts = Path(expected.common_dir) / "info" / "grafts"
+            if grafts.exists() or grafts.is_symlink():
+                return None
+            default, merge_sha, api_receipt = accepted
+            default_ref = f"refs/spec-kitty/lifecycle/{expected.repository_id}/{expected.workspace_generation}/default"
+            contact_env = _git_env()
+            contact_env.update(
+                {
+                    "GIT_CONFIG_COUNT": "2",
+                    "GIT_CONFIG_KEY_0": "credential.helper",
+                    "GIT_CONFIG_VALUE_0": "",
+                    "GIT_CONFIG_KEY_1": "credential.https://github.com.helper",
+                    "GIT_CONFIG_VALUE_1": "!gh auth git-credential",
+                }
+            )
+            fetch_evidence_ref(
+                Path(expected.path),
+                f"https://github.com/{expected.repository}.git",
+                f"refs/heads/{default}",
+                default_ref,
+                timeout=max(0.001, deadline - time.monotonic()),
+                env=contact_env,
+            )
+            tip = git("rev-parse", "--verify", default_ref + "^{commit}").stdout.decode().strip()
+            if git("merge-base", "--is-ancestor", merge_sha, tip, check=False).returncode != 0:
+                return None
+            source_tree = git("rev-parse", "--verify", expected.head + "^{tree}").stdout.decode().strip()
+            merge_tree = git("rev-parse", "--verify", merge_sha + "^{tree}").stdout.decode().strip()
+            ancestry = git("merge-base", "--is-ancestor", expected.head, tip, check=False).returncode
+            if ancestry not in (0, 1) or (ancestry == 1 and source_tree != merge_tree):
+                return None
+            threads = self._reviews(expected, pr, merge_sha, deadline)
+            if threads is None:
+                return None
+            proof: dict[str, object] = {
+                "repository_id": expected.repository_id,
+                "source": expected.head,
+                "source_tree": source_tree,
+                "merge": merge_sha,
+                "merge_tree": merge_tree,
+                "default_branch": default,
+                "default_ref": default_ref,
+                "default_head": tip,
+                "source_ancestral": ancestry == 0,
+                "resolved_review_threads": threads,
+            }
+            digest = hashlib.sha256(json.dumps(proof, sort_keys=True, separators=(",", ":")).encode()).hexdigest()  # noqa: TID251 -- delivery integrity, not charter hashing.
+            return api_receipt + ":proof:" + digest, proof
+        except (StateError, GitCommandError, RemoteUnreachable, OSError, ValueError):
+            return None
 
 
 @dataclass(frozen=True)
@@ -220,8 +353,18 @@ def _released(state: _OwnerState) -> bool:
 
 def _git_env() -> dict[str, str]:
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
-    env.update({"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull, "GIT_OPTIONAL_LOCKS": "0"})
+    env.update({"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull, "GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_REPLACE_OBJECTS": "1"})
     return env
+
+
+def _ref_env() -> dict[str, str]:
+    """Bind the Git ref owner's Python child to this loaded distribution.
+
+    The producer environment remains caller-owned. Only our internal ref
+    transaction receives this source path, independent of the foreground cwd
+    or a project-supplied PYTHONPATH.
+    """
+    return {**_git_env(), "PYTHONPATH": str(Path(__file__).resolve().parents[2]), "PYTHONSAFEPATH": "1"}
 
 
 def _nested_state(root: Path) -> tuple[bool, bool]:
@@ -243,6 +386,257 @@ def _nested_state(root: Path) -> tuple[bool, bool]:
                 if entry.is_dir(follow_symlinks=False):
                     pending.append(Path(entry.path))
     return False, True
+
+
+# Observational only: never part of Evidence, release, or recovery authorization.
+_runtime_diagnostic: ContextVar[dict[str, object] | None] = ContextVar("lifecycle_runtime_diagnostic", default=None)
+
+
+def _runtime_result(
+    held: bool,
+    complete: bool,
+    outcome: str,
+    error: BaseException | None,
+    *,
+    provider: str,
+    stage: str,
+    observed: int | None,
+    started: float,
+    denied_process: dict[str, object] | None = None,
+) -> tuple[bool, bool]:
+    if (diagnostic := _runtime_diagnostic.get()) is not None:
+        diagnostic.pop("denied_process_observation", None)
+        diagnostic.update(
+            provider=provider, stage=stage, processes_observed=observed, elapsed_seconds=round(time.monotonic() - started, 6), complete=complete, outcome=outcome
+        )
+        diagnostic.pop("error_type", None)
+        if error is not None:
+            diagnostic["error_type"] = type(error).__name__
+        if denied_process is not None:
+            diagnostic["denied_process_observation"] = denied_process
+    return held, complete
+
+
+def _process_directory_owner(pid: int) -> int:
+    """Read one procfs directory's metadata, never its command or link targets."""
+    procfs = getattr(psutil, "PROCFS_PATH", None)
+    if type(pid) is not int or pid <= 0 or not isinstance(procfs, str) or not Path(procfs).is_absolute():
+        raise ValueError("Process directory observation unavailable")
+    info = (Path(procfs) / str(pid)).lstat()
+    if not stat.S_ISDIR(info.st_mode):
+        raise ValueError("Process directory observation unavailable")
+    return info.st_uid
+
+
+def _observe_denied_process(
+    process: psutil.Process | None, uids: object, owner_uid: int | None, stage: str, deadline: float, error: BaseException
+) -> dict[str, object] | None:
+    """Explain an already-retained result; these facts never establish identity or release."""
+    diagnostic = _runtime_diagnostic.get()
+    if diagnostic is None or process is None or not isinstance(error, psutil.AccessDenied) or stage not in {"uids", "cwd", "exe", "open_files"}:
+        return None
+    uid_matches: dict[str, bool | None] = {}
+    for field in ("real", "effective", "saved"):
+        value = getattr(uids, field, None)
+        uid_matches[field] = value == owner_uid if type(value) is int and owner_uid is not None else None
+    pid = process.pid
+    observation: dict[str, object] = {
+        "pid": pid if type(pid) is int and pid > 0 else None,
+        "uid_matches_owner": uid_matches,
+        "state": None,
+        "state_observation": "deadline",
+    }
+    if time.monotonic() < deadline:
+        try:
+            state = process.status()
+            if isinstance(state, str) and re.fullmatch(r"[a-z-]{1,32}", state):
+                observation.update(state=state, state_observation="observed")
+            else:
+                observation["state_observation"] = "invalid"
+        except (OSError, psutil.Error, AttributeError) as state_error:
+            observation.update(state_observation="unavailable", state_error_type=type(state_error).__name__)
+    directory: dict[str, object] = {"observation": "deadline"}
+    observation["process_directory"] = directory
+    if time.monotonic() < deadline:
+        if type(pid) is not int or pid <= 0:
+            directory["observation"] = "invalid_pid"
+        elif observation["state_observation"] != "observed" or observation["state"] in {"zombie", "dead"}:
+            directory["observation"] = "process_unavailable"
+        else:
+            try:
+                directory_uid = _process_directory_owner(pid)
+                directory.update(
+                    observation="observed", owner_uid_matches=directory_uid == owner_uid if owner_uid is not None else None, root_uid_matches=directory_uid == 0
+                )
+            except (OSError, ValueError) as directory_error:
+                directory.update(observation="unavailable", error_type=type(directory_error).__name__)
+    return observation
+
+
+def _runtime_state(root: Path) -> tuple[bool, bool]:
+    """Observe holders within the existing bounds; explain incomplete visibility.
+
+    Diagnostic fields deliberately exclude paths, command lines and exception
+    messages. They explain retention without changing any eligibility predicate.
+    """
+    started = time.monotonic()
+    provider = "lsof" if sys.platform == "darwin" else "psutil" if sys.platform == "linux" else "unsupported"
+    stage = "start"
+    observed: int | None = 0 if sys.platform == "linux" else None
+
+    def result(held: bool, complete: bool, outcome: str, error: BaseException | None = None, denied_process: dict[str, object] | None = None) -> tuple[bool, bool]:
+        return _runtime_result(held, complete, outcome, error, provider=provider, stage=stage, observed=observed, started=started, denied_process=denied_process)
+
+    if sys.platform == "darwin":
+        stage = "lsof"
+        try:
+            snapshot = bounded_run(
+                ["/usr/sbin/lsof", "-nP", "+D", str(root), "-F0pfnt"],
+                capture_output=True,
+                check=False,
+                timeout=5,
+                env=_git_env(),
+            )
+            if snapshot.stderr or len(snapshot.stdout) > 1024 * 1024:
+                return result(False, False, "incomplete_output")
+            if snapshot.returncode == 1 and not snapshot.stdout:
+                return result(False, True, "no_holders")
+            if snapshot.returncode == 0 and re.search(rb"(?:^|\n)p[0-9]+\0", snapshot.stdout):
+                return result(True, True, "holder_found")
+            return result(False, False, "unrecognized_output")
+        except (OSError, subprocess.SubprocessError) as error:
+            return result(False, False, "unavailable", error)
+    if sys.platform != "linux":
+        return result(False, False, "unsupported_platform")
+    inherited = process_deadline()
+    deadline = min(time.monotonic() + 5, inherited if inherited is not None else float("inf"))
+    observed_process: psutil.Process | None = None
+    observed_uids: object = None
+    observed_owner_uid: int | None = None
+    try:
+        stage = "enumeration"
+        for index, process in enumerate(psutil.process_iter()):
+            observed = index + 1
+            if index >= 10000 or time.monotonic() >= deadline:
+                return result(False, False, "budget_exhausted")
+            observed_process, observed_uids, observed_owner_uid = process, None, None
+            try:
+                stage = "uids"
+                uids = process.uids()
+                observed_uids, observed_owner_uid = uids, os.getuid()
+                if uids.real != observed_owner_uid:
+                    stage = "enumeration"
+                    continue
+                stage = "cwd"
+                cwd = process.cwd()
+                stage = "exe"
+                exe = process.exe()
+                stage = "open_files"
+                paths = [cwd, exe, *(entry.path for entry in process.open_files())]
+                stage = "path_match"
+                if any(path and (Path(path) == root or root in Path(path).parents) for path in paths):
+                    return result(True, True, "holder_found")
+            except psutil.NoSuchProcess:
+                stage = "enumeration"
+                continue
+            stage = "enumeration"
+        return result(False, True, "no_holders")
+    except (OSError, psutil.Error) as error:
+        observation = _observe_denied_process(observed_process, observed_uids, observed_owner_uid, stage, deadline, error)
+        return result(False, False, "unavailable", error, observation)
+
+
+def _metadata_visibility_failure(outcome: str, error: BaseException | None = None) -> None:
+    """An identity check has no process-count or elapsed-scan measurement."""
+    if (diagnostic := _runtime_diagnostic.get()) is not None:
+        diagnostic.clear()
+        diagnostic.update(provider="git", scope="git_admin", stage="identity", complete=False, outcome=outcome, processes_observed=None, elapsed_seconds=None)
+        if error is not None:
+            diagnostic["error_type"] = type(error).__name__
+
+
+def _creator_runtime_state(identity: Identity) -> tuple[bool, bool]:
+    """Include this checkout's Git administration, without blocking siblings.
+
+    Git stores linked-worktree indexes, HEAD and in-progress operations outside
+    the source directory. Holders there are dependencies of this exact creator,
+    unlike a sibling's legitimate use of shared packs or common refs.
+    """
+    root = Path(identity.path)
+    if (diagnostic := _runtime_diagnostic.get()) is not None:
+        diagnostic["scope"] = "checkout"
+    held, complete = _runtime_state(root)
+    if held or not complete:
+        return held, complete
+    try:
+        raw = run_git(root, "rev-parse", "--absolute-git-dir", env=_git_env(), timeout=5).stdout
+        metadata = Path(os.fsdecode(raw.removesuffix(b"\n")))
+        if not metadata.is_absolute() or metadata.parent != Path(identity.common_dir) / "worktrees":
+            _metadata_visibility_failure("invalid_metadata")
+            return False, False
+        if any(path.is_symlink() for path in (metadata, *metadata.parents)) or not stat.S_ISDIR(metadata.lstat().st_mode):
+            _metadata_visibility_failure("invalid_metadata")
+            return False, False
+        if diagnostic is not None:
+            diagnostic["scope"] = "git_admin"
+        return _runtime_state(metadata)
+    except (GitCommandError, OSError, ValueError) as error:
+        _metadata_visibility_failure("unavailable", error)
+        return False, False
+
+
+def _object_custody(identity: Identity) -> bool:
+    """Inspect object storage by descriptors, never following external links.
+
+    A local ref retains a regular local inode, including hard links. It cannot
+    retain a borrowed object directory, loose object, pack or index reached by
+    a symlink. Unknown/oversized/unsupported storage is a recovery obligation.
+    """
+    if not fd_relative_dir_ops_supported():
+        return False
+    inherited = process_deadline()
+    deadline = min(time.monotonic() + 5, inherited if inherited is not None else float("inf"))
+    seen = 0
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+
+    def inspect(directory: int, relative: tuple[str, ...]) -> bool:
+        nonlocal seen
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                seen += 1
+                if seen > 100000 or len(relative) > 32 or time.monotonic() >= deadline:
+                    return False
+                info = entry.stat(follow_symlinks=False)
+                if stat.S_ISDIR(info.st_mode):
+                    child = os.open(entry.name, flags, dir_fd=directory)
+                    try:
+                        actual = os.fstat(child)
+                        if (actual.st_dev, actual.st_ino) != (info.st_dev, info.st_ino) or not inspect(child, (*relative, entry.name)):
+                            return False
+                    finally:
+                        os.close(child)
+                elif (
+                    not stat.S_ISREG(info.st_mode)
+                    or relative == ("info",)
+                    and entry.name in {"alternates", "http-alternates"}
+                    or relative == ("pack",)
+                    and entry.name.endswith(".promisor")
+                ):
+                    return False
+        return True
+
+    try:
+        common = open_no_follow(Path(identity.common_dir), flags)
+        try:
+            objects = os.open("objects", flags, dir_fd=common)
+            try:
+                return inspect(objects, ())
+            finally:
+                os.close(objects)
+        finally:
+            os.close(common)
+    except (NoFollowPathError, OSError, ValueError):
+        return False
 
 
 class ManagedGitCreator:
@@ -276,13 +670,20 @@ class ManagedGitCreator:
         self._unconfirmed_producer = False
         self._held: tuple[int, int] | None = None
         self._last_delivery: str | None = None
+        self._runtime_observation: dict[str, object] = {}
+        self._last_delivery_proof: dict[str, object] | None = None
         info = store.root.lstat()
         self._root_identity = (info.st_dev, info.st_ino)
         self.authority_id = "registered-git:" + token
 
     @property
+    def runtime_diagnostic(self) -> dict[str, object]:
+        """Copy of the last inspection's nonauthoritative visibility explanation."""
+        return dict(self._runtime_observation)
+
+    @property
     def _path(self) -> Path:
-        return self.store.root / f"creator-{self.token}.json"
+        return Path(self.store.root) / f"creator-{self.token}.json"
 
     def _check_root(self) -> None:
         root = self.store.root
@@ -498,11 +899,13 @@ class ManagedGitCreator:
                 raise StateError("Creator hold identity changed")
             self._held = (os.getpid(), threading.get_ident())
             self._last_delivery = None
+            self._last_delivery_proof = None
             try:
                 yield
             finally:
                 self._held = None
                 self._last_delivery = None
+                self._last_delivery_proof = None
 
     def _require_hold(self) -> None:
         if self._held != (os.getpid(), threading.get_ident()):
@@ -517,7 +920,19 @@ class ManagedGitCreator:
         path = Path(fresh.path)
         entries = status_entries(path, untracked="all", ignored=True, optional_locks=False, env=_git_env(), timeout=5)
         nested, complete = _nested_state(path)
-        receipt = self.delivery.verify(fresh, state.pr) if state.pr and _released(state) else None
+        self._runtime_observation = {}
+        token = _runtime_diagnostic.set(self._runtime_observation)
+        try:
+            runtime_held, runtime_complete = _creator_runtime_state(fresh) if complete and not entries and not nested else (False, True)
+        finally:
+            _runtime_diagnostic.reset(token)
+        accepted = (
+            self.delivery.verify_current(fresh, state.pr)
+            if state.pr and _released(state) and complete and not entries and not nested and runtime_complete and not runtime_held
+            else None
+        )
+        receipt = accepted[0] if accepted else None
+        self._last_delivery_proof = accepted[1] if accepted else None
         if receipt is not None and receipt != state.delivery_id:
             self._write(replace(state, delivery_id=receipt))
         self._last_delivery = receipt
@@ -527,13 +942,70 @@ class ManagedGitCreator:
             not entries,
             any(row.is_ignored for row in entries),
             nested,
-            state.status == "active",
+            state.status == "active" or runtime_held,
             state.status == "released",
             state.release_id if _released(state) else None,
             receipt,
             fresh.head if receipt else None,
-            complete,
+            complete and runtime_complete,
         )
+
+    def _recovery(self, state: _OwnerState, intent: Operation, *, create: bool) -> bool:
+        """Pin exact source and restore its index in the preserved canonical store.
+
+        No duplicate object pack is needed. This is explicitly a local-store
+        recovery proof, not an off-host backup. Shallow stores stay retained
+        until a separate workflow proves their boundary/prerequisite recovery.
+        """
+        self._check_root()
+        root = Path(state.repo_root)
+        identity = intent.identity
+        name = f"recovery-{self.token}-{intent.authorization_fingerprint()}.json"
+        path = self.store.root / name
+        branch = f"codex/lifecycle-recovery/{self.token}/{identity.head}"
+        ref = "refs/heads/" + branch
+
+        def git(*args: str, env: dict[str, str] | None = None, check: bool = True) -> GitResult:
+            return run_git(root, *args, env=env or _git_env(), check=check, timeout=5)
+
+        try:
+            partial = git("config", "--get-regexp", r"^(remote\..*\.promisor|extensions\.partialclone)$", check=False)
+            if partial.returncode != 1 or not _object_custody(identity):
+                return False
+            if git("rev-parse", "--is-shallow-repository").stdout.strip() != b"false":
+                return False
+            tree = git("rev-parse", "--verify", identity.head + "^{tree}").stdout.decode().strip()
+            expected = {
+                "schema_version": 1,
+                "source": asdict(identity),
+                "source_tree": tree,
+                "authorization": intent.authorization_fingerprint(),
+                "recovery_ref": ref,
+                "scope": "exact commit ancestry and index restored inside preserved canonical object store; not an off-host backup",
+                "restore_verified": True,
+                "owner": self.authority_id,
+                "purpose": "preserve exact delivered source ancestry",
+                "next_action": "retain canonical object-store custody; verify restoration before backup or compaction",
+                "review_event": "owning mission closeout or explicit recovery-store custody transfer",
+            }
+            if not create:
+                receipt: object = json.loads(self.store.read_private(name, limit=65536))
+                return receipt == expected and git("rev-parse", "--verify", ref + "^{commit}").stdout.decode().strip() == identity.head
+            if path.exists() or path.is_symlink():
+                # Never overwrite a prior conflicting or incomplete recovery.
+                return self._recovery(state, intent, create=False)
+            atomic_write(path, json.dumps({**expected, "restore_verified": False}, sort_keys=True).encode(), durable=True, expected_parent=self._root_identity)
+            advance_branch_ref(root, branch, identity.head, expected_old_sha="0" * len(identity.head), env=_ref_env())
+            git("fsck", "--connectivity-only", "--no-reflogs", "--no-dangling", identity.head)
+            with tempfile.TemporaryDirectory(prefix=f"restore-{self.token}-", dir=self.store.root) as temporary:
+                env = {**_git_env(), "GIT_INDEX_FILE": str(Path(temporary) / "index")}
+                git("read-tree", ref, env=env)
+                if git("write-tree", env=env).stdout.decode().strip() != tree:
+                    return False
+            atomic_write(path, json.dumps(expected, sort_keys=True).encode(), durable=True, expected_parent=self._root_identity)
+            return self._recovery(state, intent, create=False)
+        except (StateError, GitCommandError, RefAdvanceError, OSError, ValueError):
+            return False
 
     def retire(self, intent: Operation) -> Result:
         self._require_hold()
@@ -552,6 +1024,17 @@ class ManagedGitCreator:
             or intent.status != "intent"
         ):
             return Result("retained", "authorizing_intent_changed")
+        runtime_held, runtime_complete = _creator_runtime_state(identity)
+        nested, nested_complete = _nested_state(Path(identity.path))
+        if runtime_held or not runtime_complete or nested or not nested_complete:
+            return Result("retained", "runtime_or_nested_state_changed")
+        if self._last_delivery_proof is None or not self._recovery(state, intent, create=True):
+            return Result("retained", "exact_source_recovery_unconfirmed")
+        if self._fresh(state) != identity:
+            return Result("retained", "creator_identity_changed_after_recovery")
+        runtime_held, runtime_complete = _creator_runtime_state(identity)
+        if runtime_held or not runtime_complete:
+            return Result("retained", "runtime_changed_after_recovery")
         guarded_worktree_remove(Path(identity.path), retain=False, is_residue=lambda _: False, env=_git_env(), preserve_ignored=True)
         disposition = "local_retained;remote_retained"
         try:
@@ -559,7 +1042,7 @@ class ManagedGitCreator:
             if not ProtectionPolicy.resolve(Path(state.repo_root)).is_protected_target(
                 branch, primary_branch=resolve_primary_branch(Path(state.repo_root), bias=False), allow_bypass=False
             ):
-                delete_branch_ref(Path(state.repo_root), branch, identity.head, env=_git_env())
+                delete_branch_ref(Path(state.repo_root), branch, identity.head, env=_ref_env())
                 disposition = "local_retired;remote_retained"
         except (RefDeleteError, OSError):
             pass
@@ -593,6 +1076,6 @@ class ManagedGitCreator:
         except FileNotFoundError:
             pass
         raw = run_git(Path(state.repo_root), "worktree", "list", "--porcelain", "-z", env=_git_env(), timeout=5).stdout
-        if not any(str(row.path) == intent.identity.path for row in parse_worktree_records(raw)):
+        if not any(str(row.path) == intent.identity.path for row in parse_worktree_records(raw)) and self._recovery(state, intent, create=False):
             result = Result("retired", "creator_receipt_confirmed;" + state.branch_disposition)
         return Recovered(intent, result)
