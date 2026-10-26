@@ -35,6 +35,8 @@ owned_files:
 - tools/zig/workspace_ingress.zig
 - tests/lanes/test_lane_tip_record_points.py
 - tests/specify_cli/lanes/test_worktree_allocator_recovery.py
+- src/specify_cli/workspace_lifecycle/adapters.py
+- tools/zig/workspace_finish.zig
 tags: []
 task_type: implement
 tracker_refs: []
@@ -81,6 +83,33 @@ does not claim any new implementation or runtime adoption.
   supported archive operation and release are qualified.
 
 ## Validation
+
+### Generation-bound ordinary creator admission
+
+WP09 depends on the completed WP08 native finish store and WP11 creator
+adapter. Extend only these two existing surfaces and the already owned native
+ingress/tests; preserve their existing recovery, delivery and release checks.
+Root's core/finalizer/status-resume work remains independently owned.
+
+- Resolve the ordinary allocator's selected parent reference to an explicit
+  expected starting commit. Preserve existing callers' default HEAD behavior;
+  an ordinary creator must not be mislabeled as a managed creator.
+- Before creation effects, bind creator kind, accountable owner, generation,
+  common Git store, requested path/ref and expected commit in existing creator
+  custody. Native ingress must consume that exact receipt, never adopt an
+  observed workspace or infer ownership from its location.
+- Reuse the native finish store's strict, bounded, revisioned persistence.
+  Completion records convey outcome data only. Owner release still requires
+  independent generation-bound capability; invocation/session labels, callbacks
+  and finish obligations cannot mint it.
+- Retain negative proofs for changed parent/ref/path/store, absent generation
+  or receipt, unknown registration, wrong creator kind and missing release.
+  Validate stale and interrupted events without resetting history or broadening
+  deletion authority. Installed asynchronous closeout remains a separate gate.
+
+This dependency-ordered scope amendment admits bounded migration changes to the
+existing Python adapter and native Zig finish integration. It does not reopen
+WP08/WP11 approvals, authorize unrelated adapter changes, or assert deployment.
 
 Integrate native obligations into supported creator startup/completion/recovery. Python edits are bounded migration glue; new implementation/tests use Zig. Package exact artifacts, refuse unsupported creators, and prove actual asynchronous cleanup plus preservation/interruption. No broad prune or trust bypass.
 
