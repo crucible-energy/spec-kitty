@@ -94,10 +94,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-26T06:05:54.398078+00:00",
+  "computed_at": "2026-10-26T06:07:44.699647+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "adb11de4a0b3eb0a150ac5cc78fcc68d57c9796b"
+  "planning_commit_sha": "47061ae571486cdd168d6951801131318bdfb850"
 }

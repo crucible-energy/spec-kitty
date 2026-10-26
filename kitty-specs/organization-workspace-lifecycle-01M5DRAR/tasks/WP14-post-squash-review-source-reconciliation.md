@@ -25,10 +25,12 @@ authoritative_surface: src/specify_cli/cli/commands/agent/tasks_move_task.py
 create_intent: []
 execution_mode: code_change
 owned_files:
+- src/specify_cli/core/owned_mission.py
 - src/specify_cli/cli/commands/agent/tasks_move_task.py
 - src/specify_cli/cli/commands/agent/tasks.py
 - tests/specify_cli/cli/commands/agent/test_owned_checkout_move_task.py
 - tests/integration/migration/test_wp03_advance_to_approval.py
+- tests/specify_cli/invocation/cli/test_owned_checkout.py
 - docs/plans/engineering-notes/2026-10-24-owned-lanes-analysis.md
 role: implementer
 tags: []
@@ -99,7 +101,8 @@ Default/source/distribution convergence remains separate.
 
 ## Test Strategy
 
-Run both owned existing test surfaces, strict typing, relevant architectural
+Run the declared existing task-review, migration and owned-invocation test surfaces,
+strict typing, relevant architectural
 guards, lint/format and mandatory baseline under project policy. Retain real red
 and positive/negative cases for changed tree/owned source, staged/worktree dirt,
 mode/type substitution, foreign/missing/shallow history, no implementation and
