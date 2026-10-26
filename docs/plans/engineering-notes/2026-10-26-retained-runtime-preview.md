@@ -1,5 +1,6 @@
 ---
 title: Retained runtime-state preview
+description: Explain how owned runtime previews preserve retained history, expose pre-seed verification, and keep coordinated adoption behind its existing owner gates.
 type: explanation
 doc_status: active
 updated: '2026-10-26'
@@ -61,6 +62,18 @@ synthetic altered-seed regression reproduced the missing diagnostic. The
 owned-only `retained_verification` field now preserves exact pre-seed findings
 and their anchored-runtime denominator; unavailable verification stays null.
 The old non-owned payload and dry-run exit/summary semantics remain unchanged.
+
+The first hosted gate at source `5fb291be8` caught a stale generated completion
+manifest (one failure, 798 passes, one declared skip). The canonical completion
+generator changes exactly the `migrate/backfill-runtime-state` help entry;
+neither the generator nor its freshness gate is changed. The failed hosted
+receipt remains retained. Completion's targeted freshness and fast-path checks
+must qualify this generated-data correction before publication.
+
+The same hosted source also exposed the new note's missing required description
+(two documentation failures, 1,783 passes, two declared skips). Add the unique
+description and rerun the existing description and SEO checks; do not exempt
+the page or relax the publication rules.
 
 Root retains this source lane and its external run receipts through publication
 and post-merge verification. The Source owner retains ordinary lifecycle/native
