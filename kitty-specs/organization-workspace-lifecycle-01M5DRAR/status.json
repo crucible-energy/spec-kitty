@@ -255,11 +255,15 @@
       "agent": "codex",
       "agent_profile": "implementer-ivan",
       "agent_profile_version": "1.0",
+      "assignee": "crucible-workspace-closeout",
       "force_count": 0,
       "lane": "in_progress",
       "last_event_id": "01M5W5F5E1XM2VW255MRXBEEBD",
       "last_transition_at": "2026-10-26T13:12:48.321192+00:00",
       "model": "__resolved_model_absent__",
+      "notes": [
+        "Existing Source owner begins canonically scoped ordinary allocator/completion/recovery integration after actual WP08/WP11 approval and fresh analysis. Reuse this checkout; Root retains sealed core/finalizer/default/distribution. First reproduce unsafe broad prune and inherited worker cwd; new ingress/tests remain Zig, existing Python only bounded glue. No source or resource release inferred."
+      ],
       "provider": "__resolved_provider_absent__",
       "role": "implementer"
     },
