@@ -879,3 +879,71 @@ establish a production data-loss event. Validate both the recovered paths and
 protected-target negative controls before publication. Old red CI and local
 environment failures remain distinct retained evidence; passing controls do not
 grant installed runtime, cleanup or canonical Store authority.
+
+## 2026-10-25 — Separate native fixture profiles from platform qualification
+
+### User Experience Findings
+
+The next independent Linux module run reached existing native validation tests
+that assumed Darwin candidate capture, a dyld/process-group producer, or a Mac
+Docker Desktop container fixture. Those assumptions obscured the declared
+`PlatformUnqualified` boundary with unrelated setup and downstream failures.
+The native guard is unchanged from the integration base; passing governance
+checks does not qualify the missing Linux recipe implementation.
+
+### Engineering Decisions
+
+Declare the profile at the narrow capture/producer/container helper boundary,
+before its platform-specific effects. Keep raw executable construction, source
+integrity, platform-neutral commands and native Linux sampler controls live.
+Missing prerequisites on the declared Darwin/Desktop profile still fail; there
+is no opportunistic missing-tool skip, endpoint replacement or image pull.
+Add real Linux capture and verify refusal controls through the raw candidate
+executable, retaining Git/file state, request bytes and namespace absence checks.
+Independent review caught two witness gaps: a dangling destination symlink and
+empty repository directories. Use no-follow destination absence plus a separate
+repository namespace comparison rather than weakening the existing snapshot.
+The duplicate-JSON parser case remains platform-neutral: parsing precedes the
+native platform guard, so it must assert `DuplicateField` on Linux too. A
+generic refusal would allow an unrelated platform refusal to hide parser drift.
+
+### Known Limitations and Retained Obligations
+
+These are fixture-context classifications, not Linux recipe qualification or a
+release waiver. Native-local-validation WP03's Linux, coverage and subsequent
+platform requirements remain open. Actual Darwin functional results and actual
+Linux refusal results must be reported separately. No production guards, CI
+workflow, protected branch, budget, Source Store or native authority changes are
+part of this repair. Preserve the independent failed Linux run and every skipped
+context as unqualified; cancelled shards are not passing evidence.
+
+Root-owned old render clones may be retired only after terminal ownership,
+byte-preserving archives, actual restore checks and fresh no-holder evidence.
+Retain raw failures, source pins and recovery receipts. Filesystem free-space
+changes include concurrent producers and are not wholly attributable savings.
+
+Closeout verified and retired twelve released original clones across the two
+bounded recovery runs, retaining archives and actual restored source-pin proofs.
+The full-clone restore initially failed because the standard safe extraction
+filter added owner-write permission to three read-only Git pack files. Preserve
+that failure; restoring exactly the archived modes made the full byte/mode
+comparison pass without relaxing it. All owned recovery producers are joined.
+The retained Source writer's qualified recovery has priority over new native
+test allocations. Resume validation only after its custody release event and a
+fresh capacity check; no Source Store or process intervention belongs here.
+
+The first bounded actual Darwin candidate-file validation completed with
+72 passes and three explicit skips: the two Linux-only refusal controls and
+the filesystem's unsupported non-UTF-8 filename case. Retain those limitations;
+this does not qualify Linux or the remaining native modules. The source and
+repository HEAD stayed unchanged during the check. Its observed peak private
+allocation stayed below the admitted budget, with all observed descendants
+joined. Keep the exact tested executable, source/compiler binding and raw
+result artifacts for the remaining owning-module validation.
+
+Closed the current run's private derived caches and three older Root-only
+checker cache prefixes after terminal-producer and no-holder checks. Source,
+installed qualified runtimes, logs, fixtures, archives and all recovery evidence
+remain retained. Source's rejected cache paths and shared caches were excluded.
+Fresh ordinary capacity must decide publication readiness; these measured cache
+removals do not establish exclusive attribution for filesystem-wide changes.

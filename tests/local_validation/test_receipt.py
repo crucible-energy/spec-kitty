@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from tests.local_validation.test_candidate import ROOT, capture, digest, git, snapshot
+from tests.local_validation.test_candidate import ROOT, capture, digest, git, require_candidate_capture_profile, snapshot
 from tests.local_validation.test_candidate import candidate_binary as candidate_binary
 from tests.local_validation.test_candidate import repository as repository
 
@@ -73,6 +73,7 @@ def receipt_call(binary: Path, operation: str, path: Path, environment: dict[str
 
 @pytest.fixture
 def bound_inputs(candidate_binary: Path, receipt_binary: Path, repository: Path, tmp_path: Path) -> dict[str, Any]:
+    require_candidate_capture_profile()
     tools = repository / "tools/zig"
     tools.mkdir(parents=True)
     for source in NATIVE_SOURCES:
@@ -364,6 +365,8 @@ def file_pin(path: Path) -> dict[str, Any]:
 
 @pytest.fixture(scope="session")
 def qualified_producer(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
+    if sys.platform != "darwin":
+        pytest.skip("This producer pins Darwin dyld and process-group observations; not Linux producer qualification")
     assert digest(OWNER_SOURCE.read_bytes()) == OWNER_SHA256
     directory = tmp_path_factory.mktemp("closed-native-producer")
     (directory / "owned_process_group.zig").write_bytes(OWNER_SOURCE.read_bytes())
