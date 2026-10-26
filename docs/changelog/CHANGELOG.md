@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 4.0.0rc6
 
+- **Retained runtime history can be previewed in an explicitly owned checkout** (#60). `migrate backfill-runtime-state --mission <handle> --owned-checkout <path> --dry-run` validates the selected checkout and inspects only its retained dossier, including coordinated Missions. The JSON labels that scope and explicitly denies canonical status adoption. Owned live migration and implicit corpus walks refuse; existing calls are unchanged. The recovery guide no longer recommends manually disabling metadata validation to flip `status_phase`. Live coordinated recovery remains a separate open gate.
+
 - **Owned review can reconcile an identical-tree squash after a planning refresh.** Pair `move-task --review-source-commit <original-commit>` with `--review-delivery-commit <delivery-commit>` on an owned `for_review` or `approved` transition. The local proof checks immutable task/mission scope, original claim precedence, attempt history, entry modes, index flags and working bytes; changed or unavailable evidence refuses. Existing reviewer, index, regression and verdict guards remain mandatory. These flags do not verify PR acceptance or grant release, cleanup or runtime authority.
 
 - **Owned analysis works on a mission's declared LANES target checkout.** `agent mission record-analysis` and `check-prerequisites` accept that target without widening implementation, finalization or merge authority. Report-only recording checks the selected checkout's Git operation state; an unrelated primary checkout's merge no longer blocks it. A merge, rebase or index lock in the selected checkout still refuses the transaction.

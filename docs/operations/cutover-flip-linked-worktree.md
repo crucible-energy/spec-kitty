@@ -2,7 +2,8 @@
 title: 'Recovery: Cutover Flip Fails From a Linked Worktree'
 description: 'Recovery when the runtime-state cutover flip fails closed with PlacementMismatchError inside a linked git worktree, even though migration events seeded.'
 doc_status: active
-updated: '2026-08-15'
+type: how-to
+updated: '2026-10-26'
 related:
 - docs/operations/recovery-index.md
 - docs/archive/plans/engineering-notes/coord-splitbrain-rootcause.md
@@ -36,53 +37,60 @@ single worktree expects (it can report `would_flip` for missions already
 flipped on `main`), so trust the CI `cutover-guard` per-mission verdict over
 a whole-corpus dry-run when you're inside a worktree.
 
-## Fix: run from the primary checkout (preferred)
+## Preview a retained owned checkout
 
-The simplest fix is to not run the flip from the worktree at all — `cd` into
-the primary checkout and re-run:
+When the retained Mission is absent from a busy repository root checkout,
+inspect that retained checkout explicitly instead of copying its history into
+the root. Check the selected executable's command help for `--owned-checkout`;
+an older installed package may not contain this source change.
 
 ```bash
-spec-kitty migrate backfill-runtime-state --mission <slug>
+spec-kitty migrate backfill-runtime-state --mission <handle> --owned-checkout <path> --dry-run --json
 ```
 
-## Fix: apply the flip's exact net write directly (when you can't leave the worktree)
+The command validates the existing checkout claim, Mission identity, branch,
+index and protection rules through the same ownership validator as `next`.
+It previews only that checkout's retained dossier and event history. The JSON
+adds `owned_checkout`, `read_scope: retained_checkout` and
+`canonical_status_adopted: false`. `retained_verification` exposes the exact
+pre-seed runtime verification: `stage: before_seeding`, `ok`,
+`runtime_wp_count` and `mismatches`. It is null when verification could not run,
+for example after an unreadable-history error. The count covers anchored legacy
+runtime entries, not every work package on the board. Missing unwritten seeds
+can produce mismatches, so this field is evidence for inspection rather than
+an adoption decision. It does not select the live coordination
+surface, adopt old approvals, materialize a worktree, change `status_phase`, or
+append events. The migration's existing status mutex can create an empty lock
+file in the Git metadata; it writes no canonical Mission content.
 
-1. Seed the migration events (idempotent if already seeded):
+Read `retained_verification`, each result's `verify_ok`, `failed` and `error`,
+and the summary. The older summary suppresses verification mismatches during
+dry-run; the owned field retains them, including existing seed conflicts.
+As with the existing dry-run command, exit zero means the preview
+completed, not that verification passed. Seeds reported as needed have not been
+written and therefore cannot be counted as verified migration. This is a
+current filesystem inspection, not an immutable source snapshot or a freshness
+guarantee; retain the source revision and input hashes with any recovery review.
 
-   ```python
-   from specify_cli.migration.backfill_runtime_state import run_backfill_and_verify
-   run_backfill_and_verify(mission_dir, dry_run=False)
-   ```
+The explicit owned mode requires both a Mission handle and `--dry-run`.
+Omitting either refuses before migration. It never walks the repository's
+other Missions. Existing invocations without `--owned-checkout` retain their
+original behavior.
 
-2. Apply the flip's exact net write yourself:
+## Keep the cutover closed until recovery is verified
 
-   ```python
-   from specify_cli.core.paths import load_meta_fail_closed
-   from specify_cli.mission_metadata import write_meta
+For coordinated Missions, the retained history and the live coordination
+status home are separate inputs. A retained preview does not authorize moving
+or merging either. The existing lifecycle owner must reconcile their exact
+identities and provenance, verify count and value parity, and use the supported
+migration/adoption workflow before advancing work packages.
 
-   write_meta(
-       mission_dir,
-       {**load_meta_fail_closed(mission_dir), "status_phase": "1"},
-       validate=False,
-   )
-   ```
-
-   `validate=False` is deliberate and narrow here — you're setting only the
-   single `status_phase` field the flip would set; do not reuse this bypass
-   for broader `meta.json` edits.
-
-3. Confirm:
-
-   ```python
-   from specify_cli.status.cutover_eligibility import is_cut_over
-   assert is_cut_over(mission_dir).cut_over is True
-   ```
-
-   ```bash
-   spec-kitty cutover-guard --base-ref upstream/main
-   ```
-
-   The guard should report 0 un-cut-over missions.
+Do not hand-edit `status_phase`, reconstruct approvals, or run an unscoped live
+migration against a dirty root checkout to bypass this boundary. The historical
+manual metadata workaround is withdrawn: setting a flag does not prove that
+the selected reader consumed the preserved history. Issue
+[#60](https://github.com/crucible-energy/spec-kitty/issues/60) tracks the remaining
+coordinated recovery/adoption path; this read-only preview does not close it.
 
 ## Related
 
