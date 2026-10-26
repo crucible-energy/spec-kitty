@@ -111,6 +111,22 @@ This dependency-ordered scope amendment admits bounded migration changes to the
 existing Python adapter and native Zig finish integration. It does not reopen
 WP08/WP11 approvals, authorize unrelated adapter changes, or assert deployment.
 
+The bounded creator API now accepts an optional exact starting commit; omitted
+input preserves the existing caller-HEAD behavior. Symbolic references, absent
+objects and annotated tag objects must refuse before custody/worktree effects.
+Its native refusal witness compares exact existing ledger bytes and entry
+identities, as well as target absence. This API alone does not admit ordinary
+creators or confer release authority.
+
+Native finish obligations bind creator kind and exact generation separately
+from source identity; legacy unbound obligation identifiers remain unchanged.
+Ordinary startup, completion and uncertain-recovery ingress records accountable
+data only. Success waits for delivery, failure remains blocked, cancellation
+returns to useful-work triage, and uncertain recovery stays blocked. No outcome
+can assert accepted delivery, joined descendants, release or retirement. The
+new native command still requires actual creator callbacks, distribution
+packaging and installed acceptance before deployment can be claimed.
+
 Integrate native obligations into supported creator startup/completion/recovery. Python edits are bounded migration glue; new implementation/tests use Zig. Package exact artifacts, refuse unsupported creators, and prove actual asynchronous cleanup plus preservation/interruption. No broad prune or trust bypass.
 
 ### Existing recovery-fixture compatibility
