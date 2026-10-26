@@ -355,7 +355,10 @@
         "Existing Root core owner requested and accepts this disjoint repair; actual Source canonical next selectsWP14 with no guards after fresh14-package analysis821b7a9. Root uses existing spec-kitty-owned-lanes-analysis checkout; no new workspace or duplicated producer. Current published runtime propagation remains separately qualified; local-charter profile mode asserts no correlated Op/model."
       ],
       "provider": "__resolved_provider_absent__",
-      "role": "implementer"
+      "role": "implementer",
+      "subtasks": {
+        "T014": "done"
+      }
     }
   }
 }
