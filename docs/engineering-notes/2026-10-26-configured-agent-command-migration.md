@@ -57,7 +57,50 @@ repair surfaces. This change does not repair all historical migrations or prove
 an entire consumer upgrade; actual isolated downstream upgrade and runtime
 identity verification remain required. The frozen installed runtime is preserved;
 any derived package must be built from pinned source with an honest distinct
-version. Canonical dispatch is currently blocked by the very legacy upgrade
-failure under repair, and no successful Op or governance migration is fabricated.
+version. Canonical dispatch was subsequently admitted in the same owned lane
+after replacing its linked checkout with an independent root at the same path
+and running the supported RC7 project migrations. The dirty shared primary
+remained unchanged. The complete upgrade still reports failure for preserved
+edited global assets and a profile-root repair that needs a fresh plan; project
+admission does not assert complete global upgrade or default-branch adoption.
 No audio consumer, production admission or storage-recovery claim follows from
 these framework tests.
+
+## Hosted check admission
+
+PR128's existing jobs remained unassigned on vendor-specific Ubuntu and Windows
+labels. This lane replaces those labels in the six workflows triggered by the
+repair with standard hosted Ubuntu 24.04 and Windows 2025 labels. No job, check
+name, command, condition, permission, timeout or dependency version is removed
+or weakened. Parsed before/after workflow comparison verifies that only runner
+selection and its matching operating-system matrix entry change. Hosted jobs
+must still execute and pass before delivery; a queued or locally green result
+does not substitute for them.
+
+The canonical invocation executor already emits `op(profile): action [id]`
+commits, covered by its producer contract tests. The existing type registry
+omitted `op` and rejected the real governed record created during this repair.
+The registry now recognizes that domain type. Unknown types, empty types and
+empty subjects remain rejected; no commit-lint rule or job is disabled. The
+actual configured registry contract reproduced the rejection before the change;
+the hosted commitlint invocation remains the final consumer check.
+
+The declared strict bootstrap typecheck also exposed `Any` propagation from
+imports skipped by the configured type analysis. Explicit local `str` and
+`Path` annotations preserve the existing canonical constant and asset-resolver
+contracts across all three return branches. This is a bounded typing repair to
+retained Python: no path coercion, exception suppression or analyzer override
+is introduced. Existing resolver and doctor tests exercise the runtime behavior;
+the unchanged strict typecheck must pass.
+
+The project upgrade's generated governance effects are preserved separately
+from this bounded CI change. They are not a shortcut to importing another
+owner's unpublished platform or CI architecture. The isolated validation
+environment uses the committed frozen dependency lock with third-party builds
+disabled. Python tests import this checkout's source; the governed CLI remains
+the separately identified RC7-derived runtime. No installed wheel is patched.
+
+The upgrade command's `--project --json` combination reports its compatibility
+plan and does not apply it, even with `--yes`; the applying form was run
+separately and its actual output retained. Migration history, preserved shared
+edits and incomplete repair state remain explicit recovery obligations.
