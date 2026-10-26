@@ -1147,16 +1147,11 @@ def allocate_lane_worktree(
     # #2512: crash-recovery path — branch exists but worktree directory was
     # lost (e.g. agent process killed by OS idle-sleep).  Re-attach the
     # worktree to its existing branch instead of creating a new branch (which
-    # would fail with "branch already exists").  Prune stale worktree registry
-    # entries first so git does not reject the re-attachment on the grounds
-    # that the branch is "already checked out" in the now-gone worktree.
+    # would fail with "branch already exists"). Missing registrations retain
+    # recovery custody, including potentially valuable staged indexes. Git
+    # refuses re-attachment until the owning workflow has disposed of that
+    # exact registration; never prune unrelated missing worktrees here.
     if decision.route is LaneAllocationRoute.CRASH_RECOVERY:
-        subprocess.run(
-            ["git", "worktree", "prune"],
-            cwd=str(repo_root),
-            capture_output=True,
-            text=True,
-        )
         _recover_lane_worktree(repo_root, worktree_path, branch)
         _validate_worktree_clean(worktree_path, lane.lane_id)
         # #2514: re-register the sparse-checkout exclusion on recovery too —
@@ -1854,7 +1849,12 @@ def _recover_lane_worktree(
         text=True,
     )
     if result.returncode != 0:
-        raise RuntimeError(f"Failed to recover worktree at {worktree_path}: {result.stderr.strip()}")
+        raise RuntimeError(
+            f"Failed to recover worktree at {worktree_path}: {result.stderr.strip()} "
+            "Existing registrations and branch history have been retained. "
+            "Restore or disposition the exact missing registration through its owning workflow before retrying; "
+            "do not prune other worktrees or force re-attachment."
+        )
 
 
 def _remove_lane_worktree(repo_root: Path, worktree_path: Path) -> None:
