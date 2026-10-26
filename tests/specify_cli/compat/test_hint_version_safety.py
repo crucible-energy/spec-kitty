@@ -37,3 +37,24 @@ def test_selected_stable_channel_never_suggests_downgrade(tmp_path: Path, monkey
     assert result.cli_status.is_outdated is False
     assert result.upgrade_hint.command is None
     assert "older" in result.upgrade_hint.note
+
+
+@pytest.mark.parametrize(("installed", "target"), [("unknown", "4.0.0rc7"), ("4.0.0rc7", "invalid")])
+def test_uncomparable_versions_do_not_offer_install_command(installed: str, target: str) -> None:
+    from specify_cli.compat._detect.install_method import InstallMethod
+    from specify_cli.compat.upgrade_hint import build_upgrade_hint
+
+    hint = build_upgrade_hint(InstallMethod.UV_TOOL, target_version=target, installed_version=installed)
+    assert hint.command is None
+    assert "cannot be compared" in hint.note
+
+
+@pytest.mark.parametrize("target", ["4.0.0rc7", "4.0.0rc8", "4.0.0"])
+def test_equal_or_newer_versions_preserve_existing_hint(target: str) -> None:
+    from specify_cli.compat._detect.install_method import InstallMethod
+    from specify_cli.compat.upgrade_hint import build_upgrade_hint
+
+    assert build_upgrade_hint(InstallMethod.UV_TOOL, target_version=target, installed_version="4.0.0rc7") == build_upgrade_hint(
+        InstallMethod.UV_TOOL,
+        target_version=target,
+    )
