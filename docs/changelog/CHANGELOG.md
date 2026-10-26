@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 4.0.0rc6
 
+- **NEXT resumes active work for its recorded owner** (#60). Finalized-board query and step selection distinguish an existing claim from a new planned claim. The same owner can continue dependency-ready active work while downstream planned packages wait. Other, unknown and anonymous owners refuse; canonical history and existing execution gates remain unchanged.
+
 - **Owned plain-LANES status reads the selected checkout** (#60). `agent tasks status` supports explicit selection and cwd adoption for a validated plain-LANES planning checkout, preserving its canonical events and diagnosing a stale primary copy. General lifecycle mutation, coordination topology and workspace admission remain unchanged; this is inspection, not active-work continuation or retained-history adoption.
 
 - **Linked upgrade previews describe the selected checkout** (#60). The legacy JSON preview and too-new-schema refusal use that checkout's project metadata without changing the general canonical-root resolver or actual apply routing. A separate repository root checkout's future schema no longer poisons a healthy selected checkout. Upgrade hints return a manual note rather than an install command for an older or uncomparable selected release; release-channel selection and package provenance remain unchanged. This is not a legacy-charter migration or consumer admission.

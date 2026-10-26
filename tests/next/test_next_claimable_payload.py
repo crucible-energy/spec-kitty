@@ -393,7 +393,7 @@ def test_next_json_payload_surfaces_selection_reason_when_no_planned_wp(
     """When no WP is claimable, the payload's ``reason`` exposes the structured token."""
     repo = tmp_path / "repo"
     repo.mkdir()
-    _, mission_slug = _scaffold(repo, {"WP01": Lane.IN_PROGRESS})
+    feature_dir, mission_slug = _scaffold(repo, {"WP01": Lane.IN_PROGRESS})
 
     from runtime.next.runtime_bridge import query_current_state
 
@@ -402,9 +402,11 @@ def test_next_json_payload_surfaces_selection_reason_when_no_planned_wp(
     assert decision.kind == DecisionKind.query
     assert decision.mission_state == "implement"
     assert decision.preview_step == "implement"
-    # No planned WP → wp_id remains None and reason carries the stable token.
+    # Planned-only auto-claim retains its token. NEXT cannot resume the
+    # fixture's active work for a different requester.
+    assert preview_claimable_wp(feature_dir).selection_reason == "all_wps_in_progress"
     assert decision.wp_id is None
-    assert decision.reason == "all_wps_in_progress"
+    assert decision.reason == "active_implementation_owner_mismatch_or_unknown"
 
 
 def test_next_json_payload_wire_shape_unchanged_for_non_implement_state(

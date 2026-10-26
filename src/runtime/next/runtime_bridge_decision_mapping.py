@@ -404,17 +404,18 @@ def _resolve_wp_board_implement_action(
     status_dir: Path,
     *,
     owned: OwnedCheckout | None = None,
+    agent: str | None = None,
 ) -> _WpBoardAction:
-    """CT-3 / FR-003: implement-branch WP resolution, mirroring query mode's
-    ``_build_finalized_override_query_decision`` exactly (the same
-    ``preview_claimable_wp`` dependency-aware authority, the same coord-aware
-    ``status_dir``). A ``None`` claimable WP (e.g. the only planned-lane WP
-    is dependency-walled) is a genuine blocked floor here — FR-005 forbids a
-    WP-less ``kind=step`` dispatch."""
-    from runtime.next.discovery import preview_claimable_wp
+    """Select a dependency-ready new claim or the requester's active resume.
+
+    Query and step share the same read-only implementation preview. A failed
+    selection is a named blocked floor, never a WP-less implementation step.
+    Workspace resolution and all execution admission remain separate gates.
+    """
+    from runtime.next.discovery import preview_implementation_wp
     from specify_cli.workspace.context import resolve_workspace_for_wp
 
-    preview = preview_claimable_wp(task_board_dir, status_dir=status_dir)
+    preview = preview_implementation_wp(task_board_dir, status_dir=status_dir, agent=agent)
     if preview.wp_id is None:
         reason = preview.selection_reason or "no claimable work package"
         return _wp_blocked_action(
@@ -450,7 +451,7 @@ def _resolve_wp_board_review_action(
     return _wp_dispatch_action(_STEP_REVIEW, _STEP_REVIEW, wp_id, workspace_path)
 
 
-def _resolve_wp_board_action(*, mission_slug: str, repo_root: Path, owned: OwnedCheckout | None = None) -> _WpBoardAction:
+def _resolve_wp_board_action(*, mission_slug: str, repo_root: Path, owned: OwnedCheckout | None = None, agent: str | None = None) -> _WpBoardAction:
     """The single board-authority-backed WP-iteration action selector
     (NFR-002 / CT-7) both ``_build_wp_iteration_decision`` and
     ``_map_wp_step_decision`` consult instead of the bare ``_state_to_action``
@@ -535,7 +536,7 @@ def _resolve_wp_board_action(*, mission_slug: str, repo_root: Path, owned: Owned
             f"No actionable work package ({sentinel.replace('_', ' ')}). Inspect the board: `{_inspect_board_recovery_command(mission_slug)}`.",
         )
     if board_step == _STEP_IMPLEMENT:
-        return _resolve_wp_board_implement_action(mission_slug, repo_root, task_board_dir, status_dir, owned=owned)
+        return _resolve_wp_board_implement_action(mission_slug, repo_root, task_board_dir, status_dir, owned=owned, agent=agent)
     if board_step == _STEP_REVIEW:
         return _resolve_wp_board_review_action(mission_slug, repo_root, task_board_dir, status_dir, owned=owned)
     return _WP_BOARD_DECLINE  # forward-compat: an unrecognized board step declines rather than guesses
@@ -549,6 +550,7 @@ def _wp_iteration_action_and_state(
     repo_root: Path,
     *,
     owned: OwnedCheckout | None = None,
+    agent: str | None = None,
 ) -> tuple[str | None, str | None, str | None, str | None, str]:
     """Resolve ``(action, wp_id, workspace_path, blocked_reason,
     mission_state)`` for a WP-iteration step through the single board
@@ -566,7 +568,7 @@ def _wp_iteration_action_and_state(
     matching query mode's ``_build_finalized_override_query_decision``
     (data-model.md's "post-fix required: mission_state = board step").
     """
-    board = _resolve_wp_board_action(mission_slug=mission_slug, repo_root=repo_root, owned=owned)
+    board = _resolve_wp_board_action(mission_slug=mission_slug, repo_root=repo_root, owned=owned, agent=agent)
     if board.blocked_reason is not None:
         return None, None, None, board.blocked_reason, step_id
     if board.action is not None:
@@ -599,6 +601,7 @@ def _build_wp_iteration_decision(
         feature_dir,
         repo_root,
         owned=owned,
+        agent=agent,
     )
 
     if blocked_reason is not None:
@@ -740,6 +743,7 @@ def _map_wp_step_decision(
             feature_dir,
             repo_root,
             owned=owned,
+            agent=agent,
         )
     )
     if blocked_reason is not None:

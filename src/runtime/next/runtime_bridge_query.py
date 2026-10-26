@@ -122,7 +122,7 @@ def _build_finalized_override_query_decision(
         reason = None
         if finalized_override == "implement":
             from mission_runtime import MissionArtifactKind, mission_context_for
-            from runtime.next.discovery import preview_claimable_wp
+            from runtime.next.discovery import preview_implementation_wp
 
             mission_context = mission_context_for(
                 repo_root,
@@ -130,9 +130,10 @@ def _build_finalized_override_query_decision(
                 owned=owned,
                 tolerate_unmaterialized_coord=True,  # FR-022: a declared-but-not-yet-created coordination worktree is read/materialised, not refused
             )
-            preview = preview_claimable_wp(
+            preview = preview_implementation_wp(
                 mission_context.artifact(MissionArtifactKind.WORK_PACKAGE_TASK).read_dir,
                 status_dir=mission_context.artifact(MissionArtifactKind.STATUS_STATE).read_dir,
+                agent=agent,
             )
             override_wp_id = preview.wp_id
             if preview.wp_id is None and preview.selection_reason is not None:

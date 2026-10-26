@@ -38,7 +38,7 @@ from specify_cli.status import reduce as _reduce_events
 from specify_cli.status import read_events as _read_events
 from specify_cli.task_utils.support import extract_scalar, split_frontmatter
 
-__all__ = ["ClaimablePreview", "preview_claimable_wp"]
+__all__ = ["ClaimablePreview", "ImplementationPreview", "preview_claimable_wp", "preview_implementation_wp"]
 
 
 # Lanes whose WPs are still moving through the implement → review → approve
@@ -258,3 +258,50 @@ def preview_claimable_wp(
         build_dependency_graph(feature_dir),
         provenance=wp_states,
     )
+
+
+@dataclass(frozen=True)
+class ImplementationPreview:
+    """Read-only selection of a new claim or an existing owner's resume.
+
+    Selection is not a claim, workspace admission, or permission to execute.
+    An anonymous requester cannot establish an active work package owner.
+    """
+
+    wp_id: str | None
+    selection_reason: str | None
+    candidates: tuple[str, ...]
+
+
+def preview_implementation_wp(
+    feature_dir: Path,
+    *,
+    status_dir: Path | None = None,
+    agent: str | None = None,
+) -> ImplementationPreview:
+    """Preserve planned-claim priority, then resume canonical active work.
+
+    Active work has already passed claim-time dependency checks. Compare a
+    named requester with the existing implementer-of-record authority; never
+    reconstruct ownership from cached status, frontmatter, or workspace labels.
+    """
+    from specify_cli.status.review_roles import is_latest_implementer, latest_implementer_actor
+
+    try:
+        events = _read_events(status_dir if status_dir is not None else feature_dir)
+        states = _reduce_events(events).work_packages
+    except Exception:  # noqa: BLE001 — no execution selection without readable canonical history
+        return ImplementationPreview(None, "implementation_history_unavailable", ())
+    planned = preview_claimable_wp(feature_dir, status_dir=status_dir)
+    if planned.wp_id is not None:
+        return ImplementationPreview(planned.wp_id, None, planned.candidates)
+    active = False
+    for lane in (Lane.CLAIMED, Lane.IN_PROGRESS):
+        for wp_id in planned.candidates:
+            if states.get(wp_id, {}).get("lane") != lane.value:
+                continue
+            active = True
+            if is_latest_implementer(latest_implementer_actor(events, wp_id), agent):
+                return ImplementationPreview(wp_id, None, planned.candidates)
+    reason = "active_implementation_owner_mismatch_or_unknown" if active else planned.selection_reason
+    return ImplementationPreview(None, reason, planned.candidates)

@@ -636,7 +636,7 @@ def _dn_finalized_board_override(ctx: DecideNextContext) -> Decision | None:
     """
     if ctx.result != "success" or not _run_is_untouched(ctx.run_dir):
         return None
-    board = _mapping._resolve_wp_board_action(mission_slug=ctx.mission_slug, repo_root=ctx.repo_root, owned=ctx.owned)
+    board = _mapping._resolve_wp_board_action(mission_slug=ctx.mission_slug, repo_root=ctx.repo_root, owned=ctx.owned, agent=ctx.agent)
     if board.action is not None and board.board_step is not None:
         return _mapping._build_wp_iteration_decision(
             board.board_step,
@@ -972,6 +972,7 @@ def _dn_plan_composition_advance(ctx: DecideNextContext, composed_action: str) -
         feature_dir=ctx.feature_dir,
         repo_root=ctx.repo_root,
         owned=ctx.owned,
+        agent=ctx.agent,
     )
     return plan, wp_resolution
 
@@ -1191,6 +1192,7 @@ def _resolve_planned_wp_workspace(
     feature_dir: Path,
     repo_root: Path,
     owned: OwnedCheckout | None,
+    agent: str | None = None,
 ) -> _mapping._WpIterationResolution | None:
     """THE single place a planned WP-iteration step's board action + workspace
     is resolved BEFORE the advance is persisted (FR-008 / R-06), shared by the
@@ -1211,6 +1213,7 @@ def _resolve_planned_wp_workspace(
         feature_dir,
         repo_root,
         owned=owned,
+        agent=agent,
     )
 
 
@@ -1231,6 +1234,7 @@ def _dn_preresolve_wp_workspace(ctx: DecideNextContext) -> tuple[Any, _mapping._
         feature_dir=ctx.feature_dir,
         repo_root=ctx.repo_root,
         owned=ctx.owned,
+        agent=ctx.agent,
     )
     return plan, resolution
 

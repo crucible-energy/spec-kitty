@@ -9,6 +9,7 @@ import pytest
 from mission_runtime import OwnedCheckout
 from runtime.next.runtime_bridge import query_current_state
 from runtime.next.runtime_bridge_decision_mapping import _resolve_wp_board_action
+from runtime.next.discovery import preview_claimable_wp, preview_implementation_wp
 from specify_cli.core.owned_mission import NEXT_OWNED_TOPOLOGIES, resolve_owned_mission
 from specify_cli.status.models import Lane, StatusEvent
 from specify_cli.status.store import append_event
@@ -18,7 +19,7 @@ from tests.integration.conftest import OwnedCheckouts, _git, _write_mission
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
 
 
-def _active_board(checkouts: OwnedCheckouts, *, owner: str = "codex", active_lane: Lane = Lane.IN_PROGRESS) -> OwnedCheckout:
+def _active_board(checkouts: OwnedCheckouts, *, owner: str | dict[str, str | None] = "codex", active_lane: Lane = Lane.IN_PROGRESS) -> OwnedCheckout:
     for wp, dependency in [("WP09", "WP01"), ("WP02", "WP09")]:
         p = checkouts.mission_dir / "tasks" / f"{wp}-owned.md"
         p.write_text(p.read_text().replace("dependencies: []", f"dependencies: [{dependency}]"))
@@ -98,4 +99,55 @@ def test_named_query_does_not_take_over_another_or_unproved_owner(make_owned_che
 
     assert decision.wp_id is None
     assert "owner" in (decision.reason or "")
+    step = _resolve_wp_board_action(mission_slug=checkouts.mission_slug, repo_root=checkouts.repository_root, owned=owned, agent="codex")
+    assert step.wp_id is None
+    assert "owner" in (step.blocked_reason or "")
     assert (checkouts.mission_dir / "status.events.jsonl").read_bytes() == original
+
+
+def test_structured_owner_keeps_exact_history_and_ignores_cached_status(make_owned_checkouts: Callable[..., OwnedCheckouts]) -> None:
+    checkouts = make_owned_checkouts(topology="lanes", wp_ids=("WP01", "WP09", "WP02"))
+    _active_board(checkouts, owner={"tool": "codex", "model": None, "profile": "implementer-ivan", "role": "implementer"})
+    events = (checkouts.mission_dir / "status.events.jsonl").read_bytes()
+    (checkouts.mission_dir / "status.json").write_text('{"work_packages":{"WP09":{"lane":"approved","actor":"other-agent"}}}')
+
+    selected = preview_implementation_wp(checkouts.mission_dir, agent="codex")
+
+    assert selected.wp_id == "WP09"
+    assert selected.selection_reason is None
+    assert (checkouts.mission_dir / "status.events.jsonl").read_bytes() == events
+
+
+def test_resume_does_not_widen_planned_only_claim_or_anonymous_execution(make_owned_checkouts: Callable[..., OwnedCheckouts]) -> None:
+    checkouts = make_owned_checkouts(topology="lanes", wp_ids=("WP01", "WP09", "WP02"))
+    _active_board(checkouts)
+
+    assert preview_claimable_wp(checkouts.mission_dir).wp_id is None
+    anonymous = preview_implementation_wp(checkouts.mission_dir)
+    assert anonymous.wp_id is None
+    assert "owner" in (anonymous.selection_reason or "")
+
+
+def test_ready_new_claim_keeps_existing_priority(make_owned_checkouts: Callable[..., OwnedCheckouts]) -> None:
+    checkouts = make_owned_checkouts(topology="lanes", wp_ids=("WP01", "WP09", "WP02"))
+    _active_board(checkouts)
+    task = checkouts.mission_dir / "tasks" / "WP02-owned.md"
+    task.write_text(task.read_text().replace("dependencies: [WP09]", "dependencies: []"))
+
+    planned = preview_claimable_wp(checkouts.mission_dir)
+    selected = preview_implementation_wp(checkouts.mission_dir, agent="codex")
+
+    assert planned.wp_id == selected.wp_id == "WP02"
+
+
+def test_unreadable_history_never_resumes(make_owned_checkouts: Callable[..., OwnedCheckouts]) -> None:
+    checkouts = make_owned_checkouts(topology="lanes", wp_ids=("WP01", "WP09", "WP02"))
+    _active_board(checkouts)
+    events = checkouts.mission_dir / "status.events.jsonl"
+    events.write_text("not a status event\n")
+
+    selected = preview_implementation_wp(checkouts.mission_dir, agent="codex")
+
+    assert selected.wp_id is None
+    assert selected.selection_reason == "implementation_history_unavailable"
+    assert events.read_text() == "not a status event\n"
