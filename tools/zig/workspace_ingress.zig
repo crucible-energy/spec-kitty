@@ -1,9 +1,132 @@
 //! Ordinary creator ingress. Missing registrations are retained recovery custody,
 //! never an authorization to prune another creator's Git metadata.
 const std = @import("std");
+const finish = @import("workspace_finish.zig");
+const candidate = @import("validation_candidate.zig");
 const c = @cImport({
     @cInclude("stdlib.h");
 });
+
+const Receipt = struct {
+    source: finish.Source,
+    creator: finish.CreatorBinding,
+    owner: []const u8,
+    purpose: []const u8,
+    next_action: []const u8,
+    review_event: []const u8,
+};
+const Request = struct {
+    operation: enum { startup, completion, recovery },
+    expected_revision: u64,
+    receipt: Receipt,
+    outcome: ?enum { succeeded, failed, cancelled } = null,
+};
+
+fn parseRequest(allocator: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(Request) {
+    if (bytes.len > 65536) return error.InputBoundExceeded;
+    return std.json.parseFromSlice(Request, allocator, bytes, .{ .duplicate_field_behavior = .@"error", .ignore_unknown_fields = false });
+}
+
+fn record(allocator: std.mem.Allocator, root: []const u8, request: Request) !finish.State {
+    // This ingress is for ordinary Git creators only. The existing managed
+    // producer path retains its separate supported release operation.
+    if (request.receipt.creator.kind != .ordinary_git) return error.UnsupportedCreatorKind;
+    if ((request.operation == .completion) != (request.outcome != null)) return error.OutcomeRequiredOnlyForCompletion;
+    const stage: @FieldType(finish.Obligation, "stage") = switch (request.operation) {
+        .startup => .implement,
+        .recovery => .blocked,
+        .completion => switch (request.outcome.?) {
+            .succeeded => .await_delivery,
+            .failed => .blocked,
+            .cancelled => .triage,
+        },
+    };
+    const evidence: []const []const u8 = switch (request.operation) {
+        .startup => &.{"creator-event:startup"},
+        .recovery => &.{"creator-event:recovery-uncertain"},
+        .completion => switch (request.outcome.?) {
+            .succeeded => &.{"producer-outcome:succeeded:data-only"},
+            .failed => &.{"producer-outcome:failed:data-only"},
+            .cancelled => &.{"producer-outcome:cancelled:data-only"},
+        },
+    };
+    return finish.recordCreator(allocator, root, request.expected_revision, .{
+        .source = request.receipt.source,
+        .creator = request.receipt.creator,
+        .owner = request.receipt.owner,
+        .purpose = request.receipt.purpose,
+        .next_action = request.receipt.next_action,
+        .review_event = request.receipt.review_event,
+        .stage = stage,
+        .evidence = evidence,
+    });
+}
+
+pub fn main(init: std.process.Init) void {
+    run(init) catch |failure| std.process.fatal("ordinary creator ingress refused: {s}", .{@errorName(failure)});
+}
+
+fn run(init: std.process.Init) !void {
+    const allocator = init.arena.allocator();
+    const args = try init.minimal.args.toSlice(allocator);
+    if (args.len != 3) return error.InvalidArguments;
+    const request = (try parseRequest(allocator, try candidate.read(allocator, init.io, args[2]))).value;
+    const state = try record(allocator, args[1], request);
+    try std.Io.File.stdout().writeStreamingAll(init.io, try candidate.json(allocator, .{
+        .revision = state.revision,
+        .obligation_id = state.events[state.events.len - 1].obligation_id,
+        .cleanup_authority = false,
+        .cleanup_performed = false,
+    }));
+}
+
+fn exampleReceipt() Receipt {
+    return .{
+        .source = .{ .repository_id = 7, .repository = "crucible-energy/example", .common_dir = "/private/repo/.git", .path = "/private/lane", .head = "a" ** 40, .branch = "refs/heads/useful" },
+        .creator = .{ .kind = .ordinary_git, .generation = "a" ** 32 },
+        .owner = "implementation-owner",
+        .purpose = "finish useful change",
+        .next_action = "reproduce behavior",
+        .review_event = "after focused validation",
+    };
+}
+
+test "ordinary startup completion and uncertain recovery persist data without release" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.setPermissions(std.testing.io, .fromMode(0o700));
+    const path = try tmp.dir.realPathFileAlloc(std.testing.io, ".", a);
+    _ = try finish.initializeStore(a, path);
+    const startup = try record(a, path, .{ .operation = .startup, .expected_revision = 0, .receipt = exampleReceipt() });
+    try std.testing.expectEqual(.implement, startup.events[0].obligation.stage);
+    var revision: u64 = 1;
+    inline for (.{ .succeeded, .failed, .cancelled }) |outcome| {
+        const state = try record(a, path, .{ .operation = .completion, .expected_revision = revision, .receipt = exampleReceipt(), .outcome = outcome });
+        const event = state.events[state.events.len - 1];
+        try std.testing.expectEqualStrings(startup.events[0].obligation_id, event.obligation_id);
+        try std.testing.expectEqualStrings("implementation-owner", event.obligation.owner);
+        try std.testing.expect(event.obligation.stage != .await_cleanup);
+        revision += 1;
+    }
+    const recovered = try record(a, path, .{ .operation = .recovery, .expected_revision = revision, .receipt = exampleReceipt() });
+    try std.testing.expectEqual(.blocked, recovered.events[recovered.events.len - 1].obligation.stage);
+    try std.testing.expectError(error.StaleRevision, record(a, path, .{ .operation = .startup, .expected_revision = 0, .receipt = exampleReceipt() }));
+}
+
+test "ordinary ingress refuses wrong creator missing receipt and forged release fields" {
+    var request = Request{ .operation = .startup, .expected_revision = 0, .receipt = exampleReceipt() };
+    request.receipt.creator.kind = .managed_git;
+    try std.testing.expectError(error.UnsupportedCreatorKind, record(std.testing.allocator, "/unavailable-not-opened", request));
+    request.receipt.creator.kind = .ordinary_git;
+    request.outcome = .succeeded;
+    try std.testing.expectError(error.OutcomeRequiredOnlyForCompletion, record(std.testing.allocator, "/unavailable-not-opened", request));
+    try std.testing.expectError(error.MissingField, parseRequest(std.testing.allocator, "{\"operation\":\"startup\",\"expected_revision\":0}"));
+    try std.testing.expectError(error.UnknownField, parseRequest(std.testing.allocator, "{\"release_capability\":\"invented\"}"));
+    try std.testing.expectError(error.DuplicateField, parseRequest(std.testing.allocator, "{\"operation\":\"startup\",\"operation\":\"recovery\"}"));
+}
 
 // Exercise the existing Python allocator at its real public boundary. Python
 // supplies only the retained migration adapter and disposable Git fixture; the
@@ -117,7 +240,7 @@ test "ordinary recovery after explicit requested registration disposition preser
 }
 
 const creator_base_fixture =
-    \\import json,pathlib,subprocess,sys,tempfile
+    \\import json,pathlib,stat,subprocess,sys,tempfile
     \\sys.path.insert(0,str(pathlib.Path.cwd()/'src'))
     \\from specify_cli.workspace_lifecycle.adapters import ManagedGitCreator,GitHubDelivery
     \\from specify_cli.workspace_lifecycle.state import StateStore
@@ -130,14 +253,19 @@ const creator_base_fixture =
     \\ git('commit','--allow-empty','-qm','different caller HEAD');caller=git('rev-parse','HEAD')
     \\ git('-c','tag.gpgsign=false','tag','-a','owned-tag','-m','owned annotated tag',base);tag=git('rev-parse','refs/tags/owned-tag')
     \\ ledger=root/'ledger';ledger.mkdir(mode=0o700);store=StateStore.initialize(ledger);target=root/'task'
-    \\ before=set(ledger.iterdir());mode=sys.argv[1];bases={'explicit':base,'symbolic':'main','missing':'0'*40,'tag':tag};kwargs={} if mode=='default' else {'expected_base_commit':bases[mode]}
+    \\ def snapshot():
+    \\  result={}
+    \\  for path in ledger.iterdir():
+    \\   info=path.lstat();result[path.name]=(info.st_dev,info.st_ino,info.st_mode,info.st_nlink,path.read_bytes() if stat.S_ISREG(info.st_mode) else None)
+    \\  return result
+    \\ before=snapshot();mode=sys.argv[1];bases={'explicit':base,'symbolic':'main','missing':'0'*40,'tag':tag};kwargs={} if mode=='default' else {'expected_base_commit':bases[mode]}
     \\ succeeded=False;bound=False;reason=''
     \\ try:
     \\  owner=ManagedGitCreator.create(store,repo_root=repo,path=target,branch='owned-task',repository='crucible-energy/example',repository_id=7,delivery=GitHubDelivery(timeout=1),on_complete=lambda event:None,**kwargs)
     \\  succeeded=True;wanted=caller if mode=='default' else base
     \\  bound=owner.identity.head==wanted and git('-C',str(target),'rev-parse','HEAD')==wanted
     \\ except Exception as error:reason=type(error).__name__+': '+str(error)
-    \\ print(json.dumps({'succeeded':succeeded,'bound_to_selected_base':bound,'target_absent':not target.exists(),'ledger_unchanged':before==set(ledger.iterdir()),'validated_refusal':reason.startswith(('StateError:','GitCommandError:')),'reason':reason}))
+    \\ print(json.dumps({'succeeded':succeeded,'bound_to_selected_base':bound,'target_absent':not target.exists(),'ledger_unchanged':before==snapshot(),'validated_refusal':reason.startswith(('StateError:','GitCommandError:')),'reason':reason}))
 ;
 
 test "creator uses exact selected parent and preserves unchanged caller HEAD default" {

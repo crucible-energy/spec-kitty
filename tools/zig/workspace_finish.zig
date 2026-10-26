@@ -16,7 +16,7 @@ const max_bytes = 4 * 1024 * 1024;
 const max_events = 10000;
 
 const Stage = enum { triage, implement, validate, review, publish, await_delivery, await_release, await_cleanup, blocked };
-const Source = struct {
+pub const Source = struct {
     repository_id: u64,
     repository: []const u8,
     common_dir: []const u8,
@@ -24,7 +24,11 @@ const Source = struct {
     head: []const u8,
     branch: []const u8,
 };
-const Obligation = struct {
+pub const CreatorBinding = struct {
+    kind: enum { ordinary_git, managed_git },
+    generation: []const u8,
+};
+pub const Obligation = struct {
     source: Source,
     owner: []const u8,
     purpose: []const u8,
@@ -32,9 +36,12 @@ const Obligation = struct {
     review_event: []const u8,
     stage: Stage,
     evidence: []const []const u8,
+    // Absent only for legacy/unowned useful-work observations. A binding records
+    // creator identity data; it never grants release or deletion authority.
+    creator: ?CreatorBinding = null,
 };
 const Event = struct { sequence: u64, obligation_id: []const u8, obligation: Obligation };
-const State = struct {
+pub const State = struct {
     // Persisted fields are mandatory. Convenience defaults must never decode
     // truncated history into a valid initial state.
     schema_version: u8,
@@ -79,6 +86,12 @@ fn validate(value: Obligation) !void {
     inline for (.{ "owner", "purpose", "next_action", "review_event" }) |field| try text(@field(value, field));
     if (value.evidence.len > 64) return error.EvidenceBoundExceeded;
     for (value.evidence) |item| try text(item);
+    if (value.creator) |creator| {
+        if (creator.generation.len != 32) return error.ExactCreatorGenerationRequired;
+        for (creator.generation) |ch| {
+            if (!std.ascii.isDigit(ch) and (ch < 'a' or ch > 'f')) return error.ExactCreatorGenerationRequired;
+        }
+    }
 }
 
 fn identity(allocator: Allocator, source: Source) ![]const u8 {
@@ -86,12 +99,40 @@ fn identity(allocator: Allocator, source: Source) ![]const u8 {
     return candidate.hash(allocator, try candidate.json(allocator, source));
 }
 
+fn obligationIdentity(allocator: Allocator, value: Obligation) ![]const u8 {
+    if (value.creator) |creator| {
+        return candidate.hash(allocator, try candidate.json(allocator, .{ .source = value.source, .creator = creator }));
+    }
+    // Preserve every pre-extension identity: adding optional creator metadata
+    // must not re-key old history or silently adopt an observed workspace.
+    return identity(allocator, value.source);
+}
+
+fn sameCreatorReceipt(left: Obligation, right: Obligation) bool {
+    const l = left.creator orelse return false;
+    const r = right.creator orelse return false;
+    if (l.kind != r.kind or !std.mem.eql(u8, l.generation, r.generation) or
+        !std.mem.eql(u8, left.owner, right.owner) or left.source.repository_id != right.source.repository_id) return false;
+    inline for (.{ "repository", "common_dir", "path", "head", "branch" }) |field| {
+        if (!std.mem.eql(u8, @field(left.source, field), @field(right.source, field))) return false;
+    }
+    return true;
+}
+
 fn validateState(allocator: Allocator, state: State) !void {
     if (state.schema_version != 1 or state.revision != state.events.len or state.events.len > max_events) return error.InvalidHistory;
+    var creators = std.StringHashMap(usize).init(allocator);
+    defer creators.deinit();
     for (state.events, 1..) |event, sequence| {
         if (event.sequence != sequence) return error.InvalidHistory;
         try validate(event.obligation);
-        if (!std.mem.eql(u8, event.obligation_id, try identity(allocator, event.obligation.source))) return error.InvalidHistory;
+        if (!std.mem.eql(u8, event.obligation_id, try obligationIdentity(allocator, event.obligation))) return error.InvalidHistory;
+        if (event.obligation.creator) |creator| {
+            const known = try creators.getOrPut(creator.generation);
+            if (known.found_existing) {
+                if (!sameCreatorReceipt(state.events[known.value_ptr.*].obligation, event.obligation)) return error.InvalidHistory;
+            } else known.value_ptr.* = sequence - 1;
+        }
     }
 }
 
@@ -99,10 +140,17 @@ fn append(allocator: Allocator, state: State, expected: u64, obligation: Obligat
     try validateState(allocator, state);
     try validate(obligation);
     if (state.revision != expected) return error.StaleRevision;
+    if (obligation.creator) |creator| {
+        for (state.events) |event| {
+            if (event.obligation.creator) |prior| {
+                if (std.mem.eql(u8, prior.generation, creator.generation) and !sameCreatorReceipt(event.obligation, obligation)) return error.CreatorReceiptChanged;
+            }
+        }
+    }
     if (state.events.len == max_events) return error.HistoryBoundExceeded;
     const events = try allocator.alloc(Event, state.events.len + 1);
     @memcpy(events[0..state.events.len], state.events);
-    events[state.events.len] = .{ .sequence = expected + 1, .obligation_id = try identity(allocator, obligation.source), .obligation = obligation };
+    events[state.events.len] = .{ .sequence = expected + 1, .obligation_id = try obligationIdentity(allocator, obligation), .obligation = obligation };
     return .{ .schema_version = 1, .revision = expected + 1, .events = events };
 }
 
@@ -241,6 +289,19 @@ fn process(allocator: Allocator, root_path: []const u8, request: Request) !State
     }
 }
 
+/// Record an exact creator-bound obligation through the existing fenced store.
+/// Callers supply creator receipt data, not a release capability. Old unowned
+/// observations cannot be promoted to creator custody by this function.
+pub fn recordCreator(allocator: Allocator, root_path: []const u8, expected_revision: u64, obligation: Obligation) !State {
+    if (obligation.creator == null) return error.CreatorReceiptRequired;
+    return process(allocator, root_path, .{ .operation = .record, .expected_revision = expected_revision, .obligation = obligation });
+}
+
+/// Explicit initialization only; existing or partially missing history refuses.
+pub fn initializeStore(allocator: Allocator, root_path: []const u8) !State {
+    return process(allocator, root_path, .{ .operation = .initialize });
+}
+
 pub fn main(init: std.process.Init) void {
     run(init) catch |failure| std.process.fatal("finish obligation refused: {s}", .{@errorName(failure)});
 }
@@ -306,6 +367,112 @@ test "replacement source generation remains a separate obligation and history is
     try std.testing.expect(!std.mem.eql(u8, second.events[0].obligation_id, second.events[1].obligation_id));
     second.revision = 1;
     try std.testing.expectError(error.InvalidHistory, validateState(a, second));
+}
+
+test "creator generations remain distinct at identical source and legacy identities survive" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const legacy = example();
+    const first = try append(a, State.initial(), 0, legacy);
+    const encoded = try candidate.json(a, .{
+        .source = legacy.source,
+        .owner = legacy.owner,
+        .purpose = legacy.purpose,
+        .next_action = legacy.next_action,
+        .review_event = legacy.review_event,
+        .stage = legacy.stage,
+        .evidence = legacy.evidence,
+        .creator = .{ .kind = "ordinary_git", .generation = "a" ** 32 },
+    });
+    const admitted = (try parse(Obligation, a, encoded)).value;
+    const second = try append(a, first, 1, admitted);
+    const changed = try std.mem.replaceOwned(u8, a, encoded, "a" ** 32, "b" ** 32);
+    const replacement = (try parse(Obligation, a, changed)).value;
+    const third = try append(a, second, 2, replacement);
+    try std.testing.expectEqualStrings(try identity(a, legacy.source), third.events[0].obligation_id);
+    try std.testing.expect(!std.mem.eql(u8, third.events[0].obligation_id, third.events[1].obligation_id));
+    try std.testing.expect(!std.mem.eql(u8, third.events[1].obligation_id, third.events[2].obligation_id));
+    try validateState(a, third);
+}
+
+test "creator binding rejects malformed generation and cannot re-key old observations implicitly" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var value = example();
+    value.creator = .{ .kind = .ordinary_git, .generation = "partial" };
+    try std.testing.expectError(error.ExactCreatorGenerationRequired, append(a, State.initial(), 0, value));
+    value.creator.?.generation = "Z" ** 32;
+    try std.testing.expectError(error.ExactCreatorGenerationRequired, append(a, State.initial(), 0, value));
+    value.creator.?.generation = "a" ** 32;
+    const ordinary_id = try obligationIdentity(a, value);
+    value.creator.?.kind = .managed_git;
+    try std.testing.expect(!std.mem.eql(u8, ordinary_id, try obligationIdentity(a, value)));
+    value.creator = null;
+    try std.testing.expectEqualStrings(try identity(a, value.source), try obligationIdentity(a, value));
+    try std.testing.expectError(error.CreatorReceiptRequired, recordCreator(a, "/unavailable-not-opened", 0, value));
+}
+
+test "existing creator generation refuses changed parent path ref store kind and owner" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var original = example();
+    original.creator = .{ .kind = .ordinary_git, .generation = "a" ** 32 };
+    const state = try append(a, State.initial(), 0, original);
+    inline for (.{ "head", "path", "branch", "common_dir", "repository" }) |field| {
+        var changed = original;
+        @field(changed.source, field) = switch (field[0]) {
+            'h' => "b" ** 40,
+            'p' => "/private/other-lane",
+            'b' => "refs/heads/other",
+            'c' => "/private/other/.git",
+            else => "crucible-energy/other",
+        };
+        try std.testing.expectError(error.CreatorReceiptChanged, append(a, state, 1, changed));
+    }
+    var changed = original;
+    changed.source.repository_id = 8;
+    try std.testing.expectError(error.CreatorReceiptChanged, append(a, state, 1, changed));
+    changed = original;
+    changed.creator.?.kind = .managed_git;
+    try std.testing.expectError(error.CreatorReceiptChanged, append(a, state, 1, changed));
+    changed = original;
+    changed.owner = "other-owner";
+    try std.testing.expectError(error.CreatorReceiptChanged, append(a, state, 1, changed));
+}
+
+test "legacy history without creator field survives extension and conflicting persisted custody refuses" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const legacy = example();
+    const legacy_bytes = try candidate.json(a, .{
+        .schema_version = @as(u8, 1),
+        .revision = @as(u64, 1),
+        .events = .{.{ .sequence = @as(u64, 1), .obligation_id = try identity(a, legacy.source), .obligation = .{
+            .source = legacy.source,
+            .owner = legacy.owner,
+            .purpose = legacy.purpose,
+            .next_action = legacy.next_action,
+            .review_event = legacy.review_event,
+            .stage = legacy.stage,
+            .evidence = legacy.evidence,
+        } }},
+    });
+    const decoded = (try parse(State, a, legacy_bytes)).value;
+    try validateState(a, decoded);
+    try std.testing.expect(decoded.events[0].obligation.creator == null);
+    var bound = legacy;
+    bound.creator = .{ .kind = .ordinary_git, .generation = "a" ** 32 };
+    const extended = try append(a, decoded, 1, bound);
+    try std.testing.expectEqualStrings(decoded.events[0].obligation_id, extended.events[0].obligation_id);
+    const updated = try append(a, extended, 2, bound);
+    var forged = bound;
+    forged.source.path = "/private/changed";
+    updated.events[2] = .{ .sequence = 3, .obligation_id = try obligationIdentity(a, forged), .obligation = forged };
+    try std.testing.expectError(error.InvalidHistory, validateState(a, updated));
 }
 
 fn temporaryPath(allocator: Allocator, directory: std.Io.Dir) ![]const u8 {
