@@ -332,6 +332,7 @@ const ordinary_binding_fixture =
     \\ if mode=='unknown-kind':kwargs['creator_kind']='unknown'
     \\ if mode=='managed-with-context':kwargs['creator_kind']='managed_git'
     \\ if mode=='invalid-callback':kwargs['on_admitted']=False
+    \\ if mode in ('unicode-overflow','record-overflow','unicode-valid'):kwargs['accountable_owner']='\U0001f680'*{'unicode-overflow':8192,'record-overflow':5400,'unicode-valid':1000}[mode]
     \\ try:
     \\  owner=ManagedGitCreator.create(store,repo_root=repo,path=target,branch='ordinary-task',repository='crucible-energy/example',repository_id=7,delivery=GitHubDelivery(timeout=1),on_complete=lambda event:None,**kwargs);created=True
     \\  owner.run_producer([sys.executable,'-B','-c',"import subprocess;subprocess.run(['git','commit','--allow-empty','-m','owned result'],check=True)"],timeout=5)
@@ -443,4 +444,21 @@ test "ordinary creator cannot rewrite generation owner parent or resource identi
     defer result.deinit();
     try std.testing.expect(result.value.object.get("created").?.bool);
     try std.testing.expect(result.value.object.get("immutable_receipt_preserved").?.bool);
+}
+
+test "ordinary creator rejects oversized serialized custody before durable record or Git effects" {
+    for ([_][]const u8{ "unicode-overflow", "record-overflow" }) |mode| {
+        var result = try migrationProbe(ordinary_binding_fixture, mode);
+        defer result.deinit();
+        const facts = result.value.object;
+        try std.testing.expect(!facts.get("created").?.bool);
+        try std.testing.expect(facts.get("target_absent").?.bool);
+        try std.testing.expectEqual(@as(i64, 0), facts.get("records").?.integer);
+        try std.testing.expectEqual(@as(i64, 0), facts.get("callback_count").?.integer);
+    }
+    var valid = try migrationProbe(ordinary_binding_fixture, "unicode-valid");
+    defer valid.deinit();
+    try std.testing.expect(valid.value.object.get("created").?.bool);
+    try std.testing.expect(valid.value.object.get("starting_head_preserved").?.bool);
+    try std.testing.expect(valid.value.object.get("release_refused").?.bool);
 }

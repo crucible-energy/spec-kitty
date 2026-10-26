@@ -764,6 +764,8 @@ class ManagedGitCreator:
             for key in _CREATOR_BINDING_FIELDS:
                 del value[key]
         raw = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+        if len(raw) > 65536:
+            raise StateError("Creator record exceeds private read bound")
         _owner_decode(raw)
         if self._path.exists() or self._path.is_symlink():
             if state.status == "creating":
