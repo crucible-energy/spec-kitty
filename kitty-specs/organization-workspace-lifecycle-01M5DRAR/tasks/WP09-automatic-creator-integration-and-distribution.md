@@ -24,6 +24,8 @@ agent_profile: implementer-ivan
 authoritative_surface: src/specify_cli/workspace_lifecycle/worker.py
 create_intent:
 - tools/zig/workspace_ingress.zig
+- tests/lanes/test_lane_tip_record_points.py
+- tests/specify_cli/lanes/test_worktree_allocator_recovery.py
 execution_mode: code_change
 owned_files:
 - src/specify_cli/workspace_lifecycle/worker.py
@@ -81,6 +83,20 @@ does not claim any new implementation or runtime adoption.
 ## Validation
 
 Integrate native obligations into supported creator startup/completion/recovery. Python edits are bounded migration glue; new implementation/tests use Zig. Package exact artifacts, refuse unsupported creators, and prove actual asynchronous cleanup plus preservation/interruption. No broad prune or trust bypass.
+
+### Existing recovery-fixture compatibility
+
+The actual public allocator reproduced deletion of an unrelated missing
+registration's staged index. Native Zig tests retain that red and the unknown
+requested/sibling metadata controls. Remove repository-wide prune; an unknown
+requested registration must remain retained pending its owner's recovery.
+The two existing Python recovery test modules are admitted only for fixture
+compatibility: their positive re-attachment scenarios must explicitly dispose
+of their own synthetic requested registration through Git before retrying.
+Preserve every existing branch, tip, clean-state and sparse-checkout assertion;
+do not delete, skip or weaken those positive regression checks. New behavior
+and refusal tests remain in the scoped native Zig file. This amendment grants
+no real missing-registration removal or owner-release authority.
 
 ## Production correctness findings to reproduce before repair
 
