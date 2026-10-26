@@ -36,6 +36,7 @@ owned_files:
 - docs/plans/engineering-notes/2026-10-24-owned-lanes-analysis.md
 - docs/changelog/CHANGELOG.md
 - tests/specify_cli/cli/commands/agent/fixtures/tasks_cli/help/move-task.help
+- pyproject.toml
 role: implementer
 tags: []
 task_type: implement
@@ -158,3 +159,13 @@ two newly introduced paired review-source options with their actual semantics.
 Preserve all prior command options/help expectations and the existing comparison
 assertion. This scope addition cannot waive the independent hook-safety failure
 or replace its exact-source environment diagnosis and passing rerun.
+
+## Earned formatter exclusion retirement
+
+PR122 actual architectural ratchet found src/specify_cli/frontmatter.py and
+tests/tasks/test_frontmatter_unit.py already formatted while still excluded.
+After reproducing that exact failure, remove only those two earned entries
+from [tool.ruff.format].exclude in pyproject.toml. Preserve the ratchet test,
+all other exclusions and all formatter/CI gates. Do not reintroduce formatting
+drift or widen exclusions to evade the check. The existing Root owner performs
+this narrow configuration correction and validates the new exact candidate.

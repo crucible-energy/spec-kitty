@@ -34,6 +34,7 @@
         "docs/plans/engineering-notes/2026-10-24-owned-lanes-analysis.md",
         "docs/reports/organization-workspace-lifecycle/**",
         "packs/built-in/missions/mission-steps/**",
+        "pyproject.toml",
         "src/kernel/git/remote.py",
         "src/kernel/git_topology.py",
         "src/specify_cli/acceptance/gates_core.py",
@@ -98,10 +99,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-26T08:38:23.796606+00:00",
+  "computed_at": "2026-10-26T10:58:03.381403+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "81810727aead075c12c3be362bfddd96347d38c2"
+  "planning_commit_sha": "e84846865c43ffc481dfff60aea0f374261d7829"
 }
