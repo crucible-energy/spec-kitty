@@ -79,6 +79,16 @@ original behavior.
 
 ## Keep the cutover closed until recovery is verified
 
+When a split coordination status home has no canonical WP state but a
+nonempty retained event log exists, `next` reports
+`retained_status_reconciliation_required` rather than presenting zero classified
+progress as an actionable board. Query mode remains read-only and withholds
+progress and the preview step. The same board check refuses advancing work.
+This detects retained bytes, not their validity or authority: malformed retained
+history also needs inspection. A current canonical WP state remains authoritative;
+retained events never replace it. A new board with no retained history keeps its
+existing genesis behavior, and malformed canonical history still fails visibly.
+
 For coordinated Missions, the retained history and the live coordination
 status home are separate inputs. A retained preview does not authorize moving
 or merging either. The existing lifecycle owner must reconcile their exact

@@ -358,14 +358,29 @@ def _wp_task_surface_error(task_board_dir: Path, status_dir: Path, mission_slug:
     are skipped: canceling is the recorded way to retire a work package whose
     task file was removed on purpose, and a canceled WP never counts toward
     completion.
+
+    A split status home with retained history but no canonical WP state is
+    unresolved custody, not a new board. Detect its presence without reading
+    retained events as authority or reconstructing approvals.
     """
     from runtime.next.prompt_builder import read_wp_task
-    from specify_cli.status import CanonicalStatusNotFoundError, Lane, get_all_wp_lanes
+    from specify_cli.status import EVENTS_FILENAME, CanonicalStatusNotFoundError, Lane, get_all_wp_lanes
 
     try:
         wp_lanes = get_all_wp_lanes(status_dir)
     except CanonicalStatusNotFoundError:
-        return None
+        wp_lanes = {}
+
+    if not wp_lanes and task_board_dir != status_dir:
+        retained_log = task_board_dir / EVENTS_FILENAME
+        if retained_log.is_file() and retained_log.stat().st_size > 0:
+            return (
+                "retained_status_reconciliation_required: canonical coordination status has no WP state, "
+                f"but retained history exists for mission {mission_slug!r}. Preserve both homes; "
+                "use the explicit owned-checkout runtime-state dry-run for inspection, then have the "
+                "existing lifecycle owner verify supported reconciliation before advancing. "
+                "Retained history has not been adopted."
+            )
 
     tasks_dir = task_board_dir / "tasks"
     for wp_id, lane in sorted(wp_lanes.items()):

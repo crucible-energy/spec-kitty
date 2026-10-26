@@ -154,6 +154,69 @@ class TestFr023RuntimeTwin:
         snap.assert_unchanged(before, snap.take())
 
 
+@pytest.mark.parametrize("canonical_log", ["missing", "empty", "current", "empty_retained", "corrupt_retained", "corrupt_canonical"])
+def test_owned_coord_query_names_retained_history_reconciliation(make_owned_checkouts, monkeypatch: pytest.MonkeyPatch, canonical_log: str) -> None:
+    """Retained progress is neither canonical progress nor a new empty board."""
+    import json
+
+    from mission_runtime import MissionArtifactKind, mission_context_for
+    from runtime.next.runtime_bridge import query_current_state
+    from specify_cli.coordination.workspace import CoordinationWorkspace
+    from specify_cli.status.store import StoreError
+    from tests._owned_tree_hash import hash_tree
+
+    checkouts = make_owned_checkouts(topology="coord")
+    _provision_charter(checkouts)
+    branch = CoordinationWorkspace.branch_name(checkouts.mission_slug, checkouts.mid8)
+    meta_path = checkouts.mission_dir / "meta.json"
+    meta = json.loads(meta_path.read_text())
+    meta["coordination_branch"] = branch
+    meta_path.write_text(json.dumps(meta))
+    seed_wp_lane(checkouts.mission_dir, checkouts.mission_slug, "WP01", "in_review")
+    subprocess.run(["git", "branch", branch, "HEAD"], cwd=checkouts.repository_root, check=True, capture_output=True)
+    coord_root = CoordinationWorkspace.resolve(checkouts.repository_root, checkouts.mission_slug, checkouts.mid8)
+    (coord_root / "kitty-specs" / checkouts.mission_slug).mkdir(parents=True, exist_ok=True)
+    fact = _mint(checkouts)
+    context = mission_context_for(checkouts.repository_root, checkouts.mission_slug, owned=fact, tolerate_unmaterialized_coord=True)
+    status_dir = context.artifact(MissionArtifactKind.STATUS_STATE).read_dir
+    assert status_dir != checkouts.mission_dir
+    status_dir.mkdir(parents=True, exist_ok=True)
+    if canonical_log == "empty":
+        (status_dir / "status.events.jsonl").write_text("")
+    elif canonical_log == "current":
+        seed_wp_lane(status_dir, checkouts.mission_slug, "WP01", "in_progress")
+    elif canonical_log == "empty_retained":
+        (checkouts.mission_dir / "status.events.jsonl").write_text("")
+    elif canonical_log == "corrupt_retained":
+        (checkouts.mission_dir / "status.events.jsonl").write_text("{invalid-retained-history}\n")
+    elif canonical_log == "corrupt_canonical":
+        (status_dir / "status.events.jsonl").write_text("{invalid-canonical-history}\n")
+    monkeypatch.chdir(checkouts.repository_root)
+    roots = (checkouts.repository_root, checkouts.owned_root, checkouts.sibling)
+    before = [hash_tree(root) for root in roots]
+    heads = [subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root) for root in roots]
+    indexes = [subprocess.check_output(["git", "ls-files", "--stage"], cwd=root) for root in roots]
+
+    if canonical_log == "corrupt_canonical":
+        with pytest.raises(StoreError, match="Invalid JSON"):
+            query_current_state("codex", checkouts.mission_slug, checkouts.repository_root, owned=fact)
+    else:
+        decision = query_current_state("codex", checkouts.mission_slug, checkouts.repository_root, owned=fact)
+        assert decision.kind == "query"
+        if canonical_log in {"current", "empty_retained"}:
+            assert "retained_status_reconciliation_required" not in (decision.reason or "")
+            assert decision.progress is not None
+            assert decision.progress["in_progress_wps"] == (1 if canonical_log == "current" else 0)
+        else:
+            assert decision.mission_state == "blocked"
+            assert "retained_status_reconciliation_required" in (decision.reason or "")
+            assert decision.progress is None
+            assert decision.preview_step is None
+    assert [hash_tree(root) for root in roots] == before
+    assert [subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root) for root in roots] == heads
+    assert [subprocess.check_output(["git", "ls-files", "--stage"], cwd=root) for root in roots] == indexes
+
+
 class TestFr007StaleRootCopyBoard:
     """FR-007: with a stale copy of M in R, the runtime never consults R --
     driven through ``decide_next`` (review cycle 1 finding 8), asserted
