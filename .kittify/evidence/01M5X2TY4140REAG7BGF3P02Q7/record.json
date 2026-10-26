@@ -1,0 +1,8 @@
+{
+  "event": "completed",
+  "invocation_id": "01M5X2TY4140REAG7BGF3P02Q7",
+  "completed_at": "2026-10-26T21:49:26.094012+00:00",
+  "outcome": "failed",
+  "closed_by": "agent",
+  "evidence_ref": "/private/tmp/pdb-mission-control-20261024/governance-recovery/pr132-architectural-job-r1.log"
+}
