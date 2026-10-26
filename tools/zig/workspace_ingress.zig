@@ -115,3 +115,49 @@ test "ordinary recovery after explicit requested registration disposition preser
     try std.testing.expect(facts.get("quarantine_preserved").?.bool);
     try std.testing.expect(facts.get("branch_preserved").?.bool);
 }
+
+const creator_base_fixture =
+    \\import json,pathlib,subprocess,sys,tempfile
+    \\sys.path.insert(0,str(pathlib.Path.cwd()/'src'))
+    \\from specify_cli.workspace_lifecycle.adapters import ManagedGitCreator,GitHubDelivery
+    \\from specify_cli.workspace_lifecycle.state import StateStore
+    \\with tempfile.TemporaryDirectory(prefix='ingress-base-owned-') as directory:
+    \\ root=pathlib.Path(directory).resolve();repo=root/'repo';repo.mkdir()
+    \\ def git(*args):return subprocess.check_output(['git','-C',str(repo),*args],stderr=subprocess.PIPE,text=True,timeout=10).strip()
+    \\ git('init','-q','-b','main');git('config','user.name','Owned fixture');git('config','user.email','owned@example.invalid');git('config','commit.gpgsign','false');git('config','gc.auto','0')
+    \\ git('commit','--allow-empty','-qm','base');base=git('rev-parse','HEAD')
+    \\ git('remote','add','origin','https://github.com/crucible-energy/example.git');git('symbolic-ref','refs/remotes/origin/HEAD','refs/remotes/origin/main')
+    \\ git('commit','--allow-empty','-qm','different caller HEAD');caller=git('rev-parse','HEAD')
+    \\ git('-c','tag.gpgsign=false','tag','-a','owned-tag','-m','owned annotated tag',base);tag=git('rev-parse','refs/tags/owned-tag')
+    \\ ledger=root/'ledger';ledger.mkdir(mode=0o700);store=StateStore.initialize(ledger);target=root/'task'
+    \\ before=set(ledger.iterdir());mode=sys.argv[1];bases={'explicit':base,'symbolic':'main','missing':'0'*40,'tag':tag};kwargs={} if mode=='default' else {'expected_base_commit':bases[mode]}
+    \\ succeeded=False;bound=False;reason=''
+    \\ try:
+    \\  owner=ManagedGitCreator.create(store,repo_root=repo,path=target,branch='owned-task',repository='crucible-energy/example',repository_id=7,delivery=GitHubDelivery(timeout=1),on_complete=lambda event:None,**kwargs)
+    \\  succeeded=True;wanted=caller if mode=='default' else base
+    \\  bound=owner.identity.head==wanted and git('-C',str(target),'rev-parse','HEAD')==wanted
+    \\ except Exception as error:reason=type(error).__name__+': '+str(error)
+    \\ print(json.dumps({'succeeded':succeeded,'bound_to_selected_base':bound,'target_absent':not target.exists(),'ledger_unchanged':before==set(ledger.iterdir()),'validated_refusal':reason.startswith(('StateError:','GitCommandError:')),'reason':reason}))
+;
+
+test "creator uses exact selected parent and preserves unchanged caller HEAD default" {
+    for ([_][]const u8{ "explicit", "default" }) |mode| {
+        var result = try migrationProbe(creator_base_fixture, mode);
+        defer result.deinit();
+        const facts = result.value.object;
+        try std.testing.expect(facts.get("succeeded").?.bool);
+        try std.testing.expect(facts.get("bound_to_selected_base").?.bool);
+    }
+}
+
+test "creator refuses symbolic absent and peeled tag parents before custody or worktree effects" {
+    for ([_][]const u8{ "symbolic", "missing", "tag" }) |mode| {
+        var result = try migrationProbe(creator_base_fixture, mode);
+        defer result.deinit();
+        const facts = result.value.object;
+        try std.testing.expect(!facts.get("succeeded").?.bool);
+        try std.testing.expect(facts.get("validated_refusal").?.bool);
+        try std.testing.expect(facts.get("target_absent").?.bool);
+        try std.testing.expect(facts.get("ledger_unchanged").?.bool);
+    }
+}

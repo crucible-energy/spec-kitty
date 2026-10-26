@@ -730,6 +730,7 @@ class ManagedGitCreator:
         repository_id: int,
         delivery: GitHubDelivery,
         on_complete: Callable[[Completion], None],
+        expected_base_commit: str | None = None,
     ) -> ManagedGitCreator:
         store.read()
         repo_root, path = repo_root.absolute(), path.absolute()
@@ -743,7 +744,17 @@ class ManagedGitCreator:
         if not any(row["path"] == str(repo_root) and row["common_dir"] == str(common) for row in observed):
             raise StateError("Verified repository origin required")
         run_git(repo_root, "check-ref-format", "--branch", branch, env=env, timeout=5)
-        head = run_git(repo_root, "rev-parse", "HEAD", env=env, timeout=5).stdout.decode().strip()
+        if expected_base_commit is None:
+            head = run_git(repo_root, "rev-parse", "HEAD", env=env, timeout=5).stdout.decode().strip()
+        else:
+            # The ordinary allocator resolves its own parent decision. Do not
+            # silently substitute this checkout's HEAD or a moving ref, and
+            # reject absent/non-commit objects before recording creator custody.
+            if not isinstance(expected_base_commit, str) or not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", expected_base_commit):
+                raise StateError("Exact starting commit required")
+            head = run_git(repo_root, "rev-parse", "--verify", "--end-of-options", expected_base_commit + "^{commit}", env=env, timeout=5).stdout.decode().strip()
+            if head != expected_base_commit:
+                raise StateError("Starting object must be the exact commit")
         token, capability = secrets.token_hex(16), secrets.token_hex(32)
         owner = cls(store, token, delivery=delivery, on_complete=on_complete, capability=capability)
         with owner._fence():
