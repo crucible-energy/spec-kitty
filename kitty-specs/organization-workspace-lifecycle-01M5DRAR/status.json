@@ -279,7 +279,8 @@
         "Independent retained-runtime safety repair: fresh delivery/recovery/runtime preservation before rollout; WP08 review proceeds separately.",
         "Frozen source597207757:208 targeted behavior/architecture controls pass, strict mypy/Ruff pass, required changed-statement gate93.8% (exact ratio in external report), external evidence under closeout outputs/lifecycle-wp11-*-r7.*. Independent review requested; not approved, released or deployed.",
         "Submit delivered WP11 repair for canonical independent review; preserve prior rejection and source ancestry. Exact original source and identical-tree squash are supplied without force or regression-gate skip.",
-        "Record review continuation for existing independent Lynn R2 and Root bounded review; Source is the event recorder, not a new independent reviewer. Prior changes-requested history remains."
+        "Record review continuation for existing independent Lynn R2 and Root bounded review; Source is the event recorder, not a new independent reviewer. Prior changes-requested history remains.",
+        "Record existing independent Lynn R2 plus Root bounded approved disposition, receipt SHA256 9309c0c1c2ca55cebb21d791cb534983383bfffc29134df59f8ba763fe6efc09. Source records that review, does not claim independent self-review. Approves bounded WP11 source only; no default release, owner resource release, installed rollout or ordinary automatic-cleanup proof."
       ],
       "provider": "__resolved_provider_absent__",
       "review": null,
