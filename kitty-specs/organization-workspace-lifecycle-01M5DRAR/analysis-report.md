@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-25T05:16:00.724362+00:00'
+generated_at: '2026-10-26T11:10:04.885627+00:00'
 analyzer_agent: codex-lifecycle-source-owner
 input_artifacts:
   spec.md:
@@ -12,10 +12,10 @@ input_artifacts:
     sha256: 0b7080f987cf40ac9f8eff4533109d31a4585f9e2c4449fc8f64dad2cebff2d0
   plan.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md
-    sha256: 7751d3dd13fd175ad8d1ce35c284f242c504aedd632f85ad4b4de7f8a42fce43
+    sha256: be57e6461ced77baa49bd6da6d540fb568ee524440d1d5b51f47d0b67ca038e8
   tasks.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md
-    sha256: 933450f7e2ab96304c00a95b52f77204a1c687dd81f7d1f3ba23641324891140
+    sha256: b43ef5eeacc904f6a0ed29cb7097a0d954ec347379c41c2b4aae73c9192fadaf
   charter:
     path: .kittify/charter/charter.yaml
     sha256: ea64c01993e97626ecd9494ce5e5816d01f36fd2870169e48504ac86ed114d29
@@ -765,7 +765,7 @@ input_artifacts:
     sha256: d59dd63cbfc6ab75c708c31b9ff5d6da0f80e49469284f665b41285ec8ba81f4
   material:.kittify/charter/charter.yaml:
     path: .kittify/charter/charter.yaml
-    sha256: 809dd8709cfddb27fb22d215296ed2ae109d6011c9cfa25addd7a4b75ca3ccf6
+    sha256: 0771181e79ed9caab69f68dedcbc4cd8f9eb7baacf88e2a71a420212c550902b
   material:.kittify/charter/interview/answers.yaml:
     path: .kittify/charter/interview/answers.yaml
     sha256: 7b0fe84e18c4f9c6f0a8674b5e08e4b17e2074d3c21803cb56acce9dc0ef66fe
@@ -843,7 +843,7 @@ input_artifacts:
     sha256:
   material:.kittify/config.yaml:
     path: .kittify/config.yaml
-    sha256: 13ed92023f70a0eb898baf3688e5dc3c7536b4a404cfe587e01983ef91254b97
+    sha256: 23fca9b821edb886182ece6595946b3261231e0c72e381244a36e38015bc80df
   material:.kittify/missions:
     path: .kittify/missions
     sha256: directory
@@ -1387,6 +1387,9 @@ input_artifacts:
   material:docs/adr/4.x/2026-10-07-3-review-lane-exit-requires-verdict-or-forced-note.md:
     path: docs/adr/4.x/2026-10-07-3-review-lane-exit-requires-verdict-or-forced-note.md
     sha256: d296147990eadcb91938659419f6294270a396a3229c7260a0c4bf2cd9641ae4
+  material:docs/adr/4.x/2026-10-25-1-owned-lanes-planning-finalization.md:
+    path: docs/adr/4.x/2026-10-25-1-owned-lanes-planning-finalization.md
+    sha256: 952c9ab14b09e55428e89330a06c0806d90f28b3438c9f6ce3da03c1c5b59e9f
   material:docs/adr/4.x/index.md:
     path: docs/adr/4.x/index.md
     sha256: a07d27687424288c8d88859c892cf498b9a1a211c2f5c80d7ebec59663081943
@@ -1524,7 +1527,7 @@ input_artifacts:
     sha256: c42a145618d173a160dbdd1898678b047f06c2d2ad95f7e5d73548d5920e5e00
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/plan.md
-    sha256: 7751d3dd13fd175ad8d1ce35c284f242c504aedd632f85ad4b4de7f8a42fce43
+    sha256: be57e6461ced77baa49bd6da6d540fb568ee524440d1d5b51f47d0b67ca038e8
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/spec.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/spec.md
     sha256: 0b7080f987cf40ac9f8eff4533109d31a4585f9e2c4449fc8f64dad2cebff2d0
@@ -1642,9 +1645,12 @@ input_artifacts:
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP13-live-mission-archive-boundary.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP13-live-mission-archive-boundary.md
     sha256: 5be833ee03b540a942d83d42f9d3ccd1aeac80d6f03fff3dc2d1ec4eee4a7db0
+  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP14-post-squash-review-source-reconciliation.md:
+    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP14-post-squash-review-source-reconciliation.md
+    sha256: 3bc9c621358f3b3ccc17e4d214f918b452f228b42757330d1f28cfbcafbabab0
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md
-    sha256: 933450f7e2ab96304c00a95b52f77204a1c687dd81f7d1f3ba23641324891140
+    sha256: b43ef5eeacc904f6a0ed29cb7097a0d954ec347379c41c2b4aae73c9192fadaf
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/wps.yaml:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/wps.yaml
     sha256:
@@ -1872,87 +1878,107 @@ input_artifacts:
     sha256: 3c3a78cf69c6f1bad1c2d4b3758b8ffe9917c4d3319677b60b2faf6f78b33bbd
   template-selection:spec:
     path:
-    sha256: a93a55e225e7924104e075ebc372748a964cb141a7c218636ef45e7c9bcad2ae
+    sha256: 06b3dafc79975b347711db10e68a5ecb44dea6d3dbebe918b8536058a8901b4b
   template-selection:plan:
     path:
-    sha256: fce828766bca81088198e7717d6a7a3761cc8ebf8eb0777c6a5a1d487d7f3f9d
+    sha256: 44a2804f83b0661d3d7e952c450c6e1a39fc6d6eaf3e9efd887b8b860833efb5
 verdict: ready
 issue_counts:
   medium: 0
   high: 0
-  critical: 0
   low: 0
+  critical: 0
   info: 0
 findings: []
-report_transaction: 08e6f0354d234097b2094977ed8954fb
+report_transaction: 6b3813716b2f4e958c4d9f127699e410
 material_manifest_version: 1
 ---
 
 ## Specification Analysis Report
 
-Mission `organization-workspace-lifecycle-01M5DRAR`, analyzed at clean source `64f3e603a0011f7680fdead8573d8774c7f10885`. This is the second full thirteen-package planning assessment after the separately recorded high C1 finding, not a restamp of the former seven-package report. Specification, plan, task outline, package boundaries, lifecycle contract and current canonical primary policy were considered. Readiness means artifact consistency for the declared dependency-ordered work; it does not mean implementation acceptance, Linux success, publication, runtime enablement or organization adoption.
+Audience: the mission's existing implementers and independent reviewers. This is a fresh assessment of current specification, amended plan, task outline, all fourteen authored package scopes, canonical ownership/dependency validation, and restored charter intent after accepted PR120 squash delivery. It is planning readiness, not implementation acceptance, review approval, default-branch delivery, runtime adoption or cleanup completion.
 
 | ID | Category | Severity | Location(s) | Summary | Recommendation |
 |---|---|---|---|---|---|
-| — | — | — | Current thirteen-package artifacts | No unresolved cross-artifact planning finding identified in this bounded assessment. | Keep all implementation, review, exact delivery and installed execution gates open until their actual evidence exists. |
+| — | — | — | Current specification/plan/tasks and canonical fourteen-package validation | No unresolved cross-artifact planning contradiction identified in this bounded assessment. The post-squash implementation defect remains explicitly assigned to WP14. | Honor actual dependency/claim/review gates; never substitute this report for their evidence. |
 
-### C1 Resolution and Authority
+### Current Authority and Changed Inputs
 
-The first supported report was durably recorded at `ea6e701162a78c1829d3a7691a8b005a54824f46` with high C1. In a separate planning step under the user's standing mission authority, the existing core owner released future ordinary allocator/completion ingress to this lifecycle lane. WP09 now explicitly owns `src/specify_cli/lanes/worktree_allocator.py`, `src/specify_cli/invocation/writer.py` and `src/specify_cli/invocation/lifecycle.py`, alongside the existing worker/configuration/command and native module. Its bounded instructions require creator identity before effects, distinguish reused/unknown custody, preserve sealed core bodies, treat completion as wakeup rather than release, and require installed ordinary success/failure/cancellation/recovery proof plus callback budgets.
+The real canonical sequence is retained: original Source history58164 remains under recovery/lifecycle-source-before-pr120-58164a961a9d; PR120 squash728dd3 has exactly testedf410 treeeb86d465. Actual default b9474e1 does not contain this delivery. Canonical T011 done eventadb11de4 records the completed implementation subtask, not WP11 approval. The supported orphaned planning refresh0a9d13ef changed only lanes.json and preserved status/event bytes. Review still refuses OWNED_IMPLEMENTATION_MISSING because implementation precedes the refreshed pin. That is an implementation blocker, retained without a fake code touch, historical receipt rewrite or force.
 
-Supported latest-qualified RC7 finalization validated and then admitted all thirteen packages with zero ownership/requirement warnings. Commit `64f3e603a0011f7680fdead8573d8774c7f10885` changed only the authored WP09 scope and canonical lanes metadata. Prior status/event bytes and acceptance metadata stayed unchanged; no code was implemented by that amendment. Root retains core analysis/finalizer and release convergence. Historical evidence pins and sealed OperationRoot/dispatch/close/executor bodies were not changed.
+At the existing core owner's request, WP14 now owns the bounded canonical guard and latest-runtime propagation repair. It depends on already approved WP06 and WP07, because its exact paths follow their earlier ownership. Initial validation correctly rejected unordered overlap; the genuine predecessor relationship resolves it without an exception. The final added core authority and owned-invocation tests are disjoint from WP09. Canonical validate/apply admitted fourteen packages with zero ownership warnings. Previous thirteen WP states and event history were preserved when WP14 was appended; all fourteen states and event bytes stayed unchanged in the follow-up scope amendment. The plan amendment was committed through the canonical kind-aware router with a sole-minter OwnedCheckout and expected parent.
 
-The initial report-recording refusal was real protection: the shared canonical primary policy was dirty. Retained receipts identified this lifecycle chat's earlier supported primary RC7 migration, rather than a guessed other owner. Local policy commit `de1a2fdf968d9ad67f51b2204da0684e7228e14d` finished that migration on its existing feature branch. Qualified canonical implement-context resolved, archived policy members were independently hash-read, 110 distinct inherited source/evidence files stayed byte-identical, and scoped diff check passed. Only trailing horizontal whitespace was normalized in generated YAML, with exact parsed-object equality. Canonical policy was not redirected to a shadow checkout. Local policy adoption is not default-branch acceptance; delivery remains an explicit source/release obligation.
+WP14's explicit original-source/delivered-tree/history/current-scope evidence may only enable review. It cannot verify generic GitHub PR state, approve a WP, relinquish ownership, authorize deployment or remove a workspace. Existing no-code, dirt, unavailable history, scope drift and foreign identity refusals stay required. Root owns implementation and isolated latest-package qualification; Source owns canonical planning and subsequent WP11/WP09 transitions. No competing producer or checkout is admitted by this report.
 
 ### Coverage Summary Table
 
-| Requirement Key | Has task? | Task IDs | Notes |
-|---|---|---|---|
-| FR-001 organization discovery | Yes | T001, T005, T010 | Paginated accessible IDs and bounded local coverage; rollout must refresh the live denominator. |
-| FR-002 durable accounting | Yes | T001, T002, T008 | Discovery and accountable useful-work obligations remain distinct from authority. |
-| FR-003 creator lifecycle | Yes | T003, T005, T009 | C1 resolved by the bounded canonical WP09 scope amendment; installed proof remains required. |
-| FR-004 safe retirement | Yes | T002, T003, T009, T011 | Fresh preservation, exact delivery and release remain mandatory. |
-| FR-005 replay and recovery | Yes | T002, T003, T005, T006, T009, T011 | Unknown effects retain a recovery obligation; no blind replay. |
-| FR-006 branch first | Yes | T004, T007, T012, T013 | Local integration and mainline PR publication are separate operations. |
-| FR-007 complete closeout | Yes | T002, T005, T006, T007, T010, T013 | Workflow/source completion cannot stand in for verified cleanup. |
-| FR-008 generation and fencing | Yes | T002, T003, T006, T007, T011 | Release and exact creator-generation custody are never inferred from age or session end. |
-| FR-009 branch disposition | Yes | T003, T005, T011, T012, T013 | Local and remote outcomes separate; protected/shared refs retained. |
-| FR-010 useful-work obligations | Yes | T008 | Native durable obligations confer no removal capability. |
-| FR-011 installed automatic ingress | Yes | T009, T011 | Ordinary installed startup, success/failure/cancellation and missed-event recovery must be witnessed. |
-| FR-012 organization adoption | Yes | T010 | Exact repository/runtime/creator/ingress/effect receipts, not guidance-property adoption. |
-| NFR-001 preservation | Yes | T001, T002, T003, T008, T009, T011, T012 | Active, dirty, uncertain, nested, primary and runtime-dependent state stays protected. |
-| NFR-002 bounded execution | Yes | T001, T003, T005 | Plan defines fresh-process callback timing separately from worker deadlines; final installed ingress must satisfy it. |
-| NFR-003 evidence fidelity | Yes | T001, T002, T006, T008, T011, T013 | Exact identities and unknown measurements remain explicit. |
-| NFR-004 validation | Yes | T005, T006, T007 | Required baseline, owning scope, changed-statement coverage and independent review persist for later packages. |
-| C-001 owning layer | Yes | T004, T006, T007 | One supported creator/lock/removal authority; no probabilistic cleanup. |
-| C-002 existing work | Yes | T005 | Reuse the existing lane and coordinate active owners. |
-| C-003 deployment boundary | Yes | T005, T006, T007, T009, T010 | October 24 user amendment permits scoped local lifecycle installation/trust; unrelated host/cloud/Docker/Store operations remain excluded. |
-| C-004 managed creators | Yes | T005, T009, T010 | Managed resources use their supported creator archive interface. |
-| SC-001 real discovery | Yes | T001, T002, T005 | Lane and non-lane resources must both be accounted for. |
-| SC-002 actual retirement | Yes | T003, T005, T009 | Actual disappearance once plus negative preservation; retained-only outcomes are not this positive. |
-| SC-003 crash/replay | Yes | T002, T005, T006, T009 | Exact-once effect and current-fact recovery. |
-| SC-004 production integration | Yes | T003, T005, T009 | Manual wrapper tests alone cannot satisfy it. |
-| SC-005 protected publication | Yes | T004, T007, T012, T013 | Preserve primary branches, frozen archive/history and valid live stacked missions. |
-| SC-006 observed closeout proof | Yes | T010, T011 | Source/install/enabled execution/attributable capacity are separate facts. |
+| Requirement Key | Task coverage | Evidence boundary |
+|---|---|---|
+| FR-001 organization discovery | T001, T005, T010 | Paginated exact IDs and bounded roots; refresh membership at installed rollout completion. |
+| FR-002 durable accounting | T001, T002, T008 | Observation and useful-work obligations grant no resource authority. |
+| FR-003 creator lifecycle | T003, T005, T009 | Ordinary installed creator callbacks still require implementation and actual execution. |
+| FR-004 safe retirement | T002, T003, T009, T011 | Delivery, release, state, runtime and recovery gates remain mandatory. |
+| FR-005 replay/recovery | T002, T003, T005, T006, T009, T011 | Uncertain effects stay retained; no blind replay. |
+| FR-006 branch-first | T004, T007, T012, T013, T014 | Integration, review-source reconciliation and default PR delivery are separate. |
+| FR-007 complete closeout | T002, T005, T006, T007, T010, T013, T014 | Source/workflow completion does not prove cleanup. |
+| FR-008 generation/fencing | T002, T003, T006, T007, T011 | Exact creator and lease identities, never session-end inference. |
+| FR-009 branch disposition | T003, T005, T011, T012, T013, T014 | Preserve protected/shared/changed refs; local and remote outcomes separate. |
+| FR-010 finish obligations | T008 | Durable native obligations confer no deletion capability. |
+| FR-011 automatic ingress | T009, T011 | Actual packaged startup/completion/recovery and safe effects remain required. |
+| FR-012 organization adoption | T010 | Per-current-ID runtime/creator/ingress/effect receipts, not properties alone. |
+| NFR-001 preservation | T001–T005, T008–T012, T014 | Active, dirty, managed, nested, primary and uncertain state stays protected. |
+| NFR-002 bounded execution | T001, T003, T005 | Fresh-process callback budget and separate bounded worker; no performance pass inferred. |
+| NFR-003 evidence fidelity | T001, T002, T006, T008, T011, T013, T014 | Exact source/history and explicit unknown measurements. |
+| NFR-004 validation | T005–T007 and project-wide gates | Required checks and independent review apply to every new implementation. |
+| C-001 owning layer | T004, T006, T007, T014 | Canonical APIs, opaque custody and creator removal authority. |
+| C-002 existing work | T005 and current execution map | Reuse existing Source/Root lanes, preserve other owners. |
+| C-003 deployment boundary | T005–T007, T009, T010, T014 | October24 permits scoped lifecycle rollout; unrelated host/Docker/cloud/Store effects remain excluded. |
+| C-004 managed creators | T005, T009, T010 | Use creator archive interface; unsupported operations stay retained. |
+| SC-001 discovery | T001, T002, T005 | Real lane/non-lane observations and explicit gaps. |
+| SC-002 retirement | T003, T005, T009 | Actual once-only effect plus preservation controls, not retained-only output. |
+| SC-003 crash/replay | T002, T005, T006, T009 | Current-fact recovery and no duplicated retirement. |
+| SC-004 integration | T003, T005, T009 | Installed ordinary creator path, not manual wrapper alone. |
+| SC-005 protected publication | T004, T007, T012–T014 | Preserve accepted/default history and genuine review-source boundaries. |
+| SC-006 closeout proof | T010, T011 | Source/install/enablement/execution/capacity remain distinct. |
 
 ### Charter Alignment Issues
 
-No new charter exception is proposed. Red-first behavior evidence, strict type/lint requirements, required baseline and owning checks, independent review and PR-only primary advancement remain binding. The October 24 user amendment permits scoped local lifecycle installation and trust; unrelated Docker/cloud/host/service/Store operations stay excluded. New implementation/tests follow the current native Zig direction; Python changes are bounded existing compatibility glue. There is no numerical worktree cap. Unknown resource state retains an accountable recovery/finish obligation.
-
-Fresh official index resolution selects non-yanked 4.0.0rc7 including prereleases. The qualified isolated governing CLI and exact project-lock source test environment are separate identities. No live shared runtime was replaced during this assessment. Current canonical primary charter/config are committed and preserved, not ignored to obtain a pass.
+No charter exception or numerical worktree limit is introduced. Required baseline, owning scopes, strict types, lint, coverage and independent review remain mandatory. Bounded fixes to existing Python authorities are compatibility/correctness repairs; WP09 new ingress remains native Zig. Current user latest-runtime policy supersedes stale stable-only orientation. Fresh index resolution on October26 still selects published non-yanked4.0.0rc7 including prereleases; isolated R4's qualified subset is not the final distributable or ordinary-ingress adoption.
 
 ### Unmapped Tasks
 
-None identified. T006/T007 cover strict-closeout/custody defects; T011 retirement safety and actual Linux visibility diagnosis; T012 branch-first integration; T013 the archive/live boundary. T009 remains dependent on T008 and T011; canonical planning admission does not approve either implementation or a dependent producer. T010 still requires every current authenticated repository's real runtime/ingress/effect evidence.
+None identified in the amended current map. WP14 follows approved WP06/WP07 ownership; it does not overlap WP09. Its source repair must precede a genuine canonical WP11 verdict before WP09 dependency admission. WP10 remains dependent on WP09. Prior approvals remain historical facts; no accepted status or implementation is invented by new planning.
 
 ### Measurements and Evidence Boundaries
 
-- Twelve functional requirements, four non-functional requirements, four constraints and six success criteria have nominal task references. This is traceability, not completion or model quality.
-- Thirteen authored tasks; the one high C1 finding was recorded and then resolved by a concrete ownership amendment. No unresolved finding, duplicate requirement or overflow identified in this bounded pass.
-- Source `52586365129840f9929f0997a2c7d8dffcee90b3` passed 353 complete owning checks. The combined owner recorded 2,452 baseline passes/five skips and 722 final documentation passes, with durable independent WP13 approval. Hosted PR120 now tests `c19024d9d37f69426c5946828133b0689268628e`; Linux cause and required terminal platform checks are still pending.
-- Verified organization execution adoption remains zero; production worker enablement remains false. No capacity recovery is attributed to this assessment or policy commit.
-- Earlier reports, failed/refused receipts, review history, archived source and uncertainty remain recoverable. No resources were deleted and no prior approval was converted into deployment authority.
+The exact twelve baseline failures were reproduced with identical node/interpreter/input identities, then passed when only SPEC_KITTY_HOME and SPEC_KITTY_ASSET_SCOPE overrides were removed. Canonical baseline2452passed/5skipped; native four-module980passed/29declaredskips and prior candidate72passed/3skipped are separate scoped facts. Currentf410 CI has80success/6conditionalskip/zero failure/pending, and PR120 integration tree matches. This is not a generic cross-platform or installed rollout result.
+
+The current authenticated scope last verified119 repository IDs and policy rows with no property gap. No installed automatic cleanup across those repositories is independently proved. Existing owner-scoped private cache closeout359686144allocatedbytes is corroborated; it is earlier recovery, not newly reclaimed here, an exclusive disk delta, or organization adoption. All uncertain historical work remains retained.
 
 ### Next Actions
 
-Persist this current assessment through the supported owned `record-analysis` transaction, then query the same canonical mission next step and honor its actual remaining guards. Obtain actual hosted Linux evidence, reproduce the visibility cause before repair, complete independent review and required source delivery, converge on the true newest-release source and qualify an immutable installed artifact. Only then implement the admitted ordinary creator ingress and prove actual eligible cleanup plus preservation across the current organization repository inventory. Existing useful work and uncertain historical state stay protected until their owning workflow closes them safely.
+Record this fresh assessment through the supported owned transaction on current ancestry; preserve the old report and refusal receipts. Query canonical next again and honor actual guards. Have the existing Root owner reproduce, implement, validate, independently review and publish WP14 with exact isolated runtime qualification. Record the resulting genuine WP11 decision through canonical events. Only then admit and implement WP09 ordinary creator startup/completion/recovery, converge source/default/distributable, and execute WP10 installed cleanup/preservation proof for the refreshed organization inventory. No guard bypass, host action or cleanup authority follows from this planning report.
+
+### Reproduced WP14 authority-parser correction
+
+The existing owner reports six real direct-minter cases accepting dirty/staged WP, meta and lanes authorities where refusal was required. The full public approval command refused, so no end-to-end approval bypass is demonstrated. This implementation finding remains open inside WP14, not hidden by planning readiness. Canonical validation admitted only the exact existing frontmatter authority and its unit test as a bounded extension. Root must factor the current parser into a pure content entry point with the same decode, duplicate-key and error behavior; the existing read path delegates, no parallel YAML interpretation or temporary authority file. Current authority/index/no-follow mode and byte fences, immutable original scope, original per-WP claim-base precedence and all refusal controls remain required. Prior fourteen WP states and exact event bytes stayed unchanged through scope admission1e022956.
+
+Current authenticated repository-ID/property audit remains119, unchanged and without gaps; this is policy scope only, not installed automatic execution. All original red and intermediate unknown-analysis records remain in history. This report grants no implementation, approval, publication or resource-release authority.
+
+### Exact changelog scope follow-up (October 26)
+
+Root requested only the existing docs/changelog/CHANGELOG.md path for the mandatory user-facing PR release note. Canonical task validation admits this tenth exact WP14 file after WP06/WP07, disjoint from WP09 and without any ownership warning or rejected requirement reference. Canonical apply b7303bb48fded74a1eeb2366e5bb28811a347b46 preserves all14state bytes and full event bytes; WP14 remains in progress, WP11 not approved, WP09 not admitted. Root imports Source metadata only after its current producer joins through the existing normal feature/review route. No Source direct integration push.
+
+The narrow WP14-S1 focused correction has independently checked16passes. WP14-S2 hidden-index red proved actual for_review admission in disposable fixtures and its focused six-case green is under independent exact-source review. Root reports further boundary/normalization/type results; they are not accepted here merely from owner counts. Broader owning/static/baseline gates and qualified installed R6 replay remain mandatory, followed by actual ordinary automatic lifecycle integration and all119current-repository installed execution. These implementation gates are explicit assigned obligations, not unresolved planning contradictions or an approved release.
+
+### Exact CLI help fixture scope follow-up
+
+Canonical WP14 scope now additionally admits only tests/specify_cli/cli/commands/agent/fixtures/tasks_cli/help/move-task.help to represent the two newly introduced paired options. All existing help items and comparison assertions stay binding. No dependencies, ownership authority, implementation state, verdict or event history changes. The task subsystem hook-safety failure remains a separate owning-run profile diagnosis, not a waived assertion or a passing gate; corrected selected-interpreter PATH must be demonstrated against the exact unchanged relevant source. Root imports both Source scope increments only after its producer joins. Broader baseline, final revision, qualified R6 and downstream ordinary cleanup/organization installed proof remain open. No cross-artifact planning contradiction identified from this narrow required-fixture addition.
+
+### Earned formatter-exclusion correction after real PR122 failure
+
+The current-head hosted architecture ratchet actually fails because the two touched frontmatter implementation/test files are now formatted but remain excluded. WP14 now admits only pyproject.toml for removing exactly those two obsolete exclusions, strengthening formatter coverage. The test and all other policies remain unchanged. This is an assigned narrow implementation/publication blocker, not a planning exception or a waiver. Source state/history bytes remain unchanged. Independent scoped Source-shaped R6r2 review supports the observed local review/Op surfaces; broad SDK/organization adoption is unproved. Actual measured Source gate selection is skipped/not-declared, not the earlier incorrectly inferred no_coverage. PR122 remains unmerged with mandatory current-head CI still pending/red. Root must reproduce, repair, validate and publish a new coherent candidate through the same PR, then recheck all required gates before merge and actual Source replay. No cross-artifact planning contradiction introduced by this exact same-owner dependency-ordered path addition.
+
+### Independent reader/test fidelity follow-up
+
+Actual old0d2 hosted contract-tools2272pass/37skip/1fail exposes the stale reference expectation for authored ./pattern. Canonical writer normalization is already the independently reproduced hidden-drift repair; do not roll it back. Only the two existing reference/test files are now same-owner WP14 scope. Preserve independent computation and explicit expected cases, existing prefix/fnmatch/segment behavior, raw commitguard semantics, and real red/mutant/whole-reader validation. This exact consumer-fidelity work is a retained implementation/publication blocker, not a cross-artifact planning contradiction. All14states/full events remain unchanged. Root owns both repairs serially after its current formatter producer joins; no Source implementation, competing producer, unqualified runtime adoption or inferred green CI. Source WP11/WP09/WP10 remain unadvanced.

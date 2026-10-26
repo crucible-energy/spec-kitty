@@ -21,6 +21,31 @@ def fm() -> FrontmatterManager:
     return FrontmatterManager()
 
 
+@pytest.mark.parametrize("content", ["---\n---\nbody\n", "---\ntitle: Example\nowned_files: [app.py]\n---\nbody\n"])
+def test_parse_immutable_content_matches_read_without_reopening_source(tmp_path: Path, fm: FrontmatterManager, content: str) -> None:
+    source = tmp_path / "WP01-source.md"
+    source.write_bytes(b"\xef\xbb\xbf" + content.encode("utf-8"))
+    expected = fm.read(source)
+    decoded = source.read_text(encoding="utf-8-sig")
+    source.unlink()
+    assert fm.parse(decoded, source=source) == expected
+    assert expected[0]["dependencies"] == []
+    assert not source.exists()
+
+
+@pytest.mark.parametrize("content", ["no frontmatter", "---\ntitle: Unclosed\n", "---\n- item\n---\n", "---\ntitle: First\ntitle: Second\n---\n"])
+def test_parse_preserves_read_failure_and_duplicate_key_diagnostics(tmp_path: Path, fm: FrontmatterManager, content: str) -> None:
+    source = tmp_path / "WP01-source.md"
+    source.write_text(content, encoding="utf-8")
+    with pytest.raises(FrontmatterError) as read_error:
+        fm.read(source)
+    source.unlink()
+    with pytest.raises(FrontmatterError) as parse_error:
+        fm.parse(content, source=source)
+    assert str(parse_error.value) == str(read_error.value)
+    assert not source.exists()
+
+
 class TestReadMalformedInput:
     """FrontmatterManager.read() raises FrontmatterError on bad input."""
 
@@ -106,9 +131,7 @@ class TestReadValidInput:
     def test_reads_simple_fields(self, tmp_path: Path, fm: FrontmatterManager) -> None:
         """Standard WP frontmatter fields round-trip correctly."""
         # Arrange
-        content = (
-            "---\nwork_package_id: WP01\ntitle: Setup\ndependencies: []\n---\n# Setup\n\nBody text.\n"
-        )
+        content = "---\nwork_package_id: WP01\ntitle: Setup\ndependencies: []\n---\n# Setup\n\nBody text.\n"
         f = tmp_path / "WP01.md"
         f.write_text(content, encoding="utf-8")
 

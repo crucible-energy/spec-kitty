@@ -947,3 +947,207 @@ installed qualified runtimes, logs, fixtures, archives and all recovery evidence
 remain retained. Source's rejected cache paths and shared caches were excluded.
 Fresh ordinary capacity must decide publication readiness; these measured cache
 removals do not establish exclusive attribution for filesystem-wide changes.
+
+## WP14 — Post-squash review-source reconciliation
+
+### User Experience Findings
+
+PR #120 delivered the exact tested tree to the existing integration branch.
+The lifecycle owner then legitimately refreshed an orphaned planning pin.
+WP11's implementation was already in the squash, so the new committed window
+contained only planning/status work and correctly failed the ordinary
+`OWNED_IMPLEMENTATION_MISSING` guard. A fake code touch would hide the missing
+history binding instead of repairing it.
+
+The first three-case reproduction also exposed a test mistake: owned review
+does not permit an explicit auto-commit override. That failed run is retained.
+After removing only that unsupported option, the ordinary refusal control
+passed and the two explicit-source cases failed because the new CLI capability
+did not exist. The failing-first test commit precedes the source repair.
+
+Adversarial local Git fixtures then exposed two candidate defects. Mutable
+task/mission authority could mint a source fact despite committed-scope
+equality; the public approval control still refused and was not an approval
+bypass. Separately, assume-unchanged and skip-worktree hid changed owned bytes
+from Git status and allowed a public `for_review` transition. A relative
+`./app.py` spelling reproduced that admission defect until both validators
+used identical pattern normalization. These are private candidate findings,
+not claims about installed runtime exploitation or production approval.
+
+The broader task-command run exposed two validation obligations: its help
+snapshot needed the two additive flags, and a fixture's bare `python` hook
+could not run because the private direct-interpreter profile omitted the
+selected virtual environment from PATH. The hook then exited zero without
+performing its mutation. The unchanged hook regression passed after binding
+PATH to the advertised interpreter; the original two-failure run remains
+retained and is not a passing gate. Both the existing changelog and exact help
+fixture were admitted through the owning canonical scope workflow before edits.
+
+### Engineering Decisions
+
+The explicit `--review-source-commit` and `--review-delivery-commit` pair
+supplies local review-source evidence only. The ordinary current planning and
+claim-base guards still run. The canonical minter inspects full immutable IDs,
+identical source/delivery trees, actual current/target ancestry, and exact
+authored task/mission Git entries. An original present WP claim outranks its
+planning fallback; read errors or invalid claims cannot become absence.
+
+Original and current event history must bind the same attempt. Reclaims,
+rejections, changed scope, unavailable history, changed implementation entries
+and dirty owned paths refuse. Git entry modes matter; a dereferenced file hash
+cannot substitute for a symlink or executable-mode identity. Existing dirty,
+reviewer, regression and event-write guards remain mandatory.
+
+The inspection shares one deadline and bounded blob reader. It mints an
+immutable in-process fact, not a receipt or verdict. It neither verifies PR
+acceptance nor grants owner release, cleanup, default-branch delivery or
+installed runtime adoption. The already accepted explicit dispatch/close
+custody implementation still needs separate newest-RC7 package propagation.
+
+Committed authority, index entries and working bytes are compared independently
+of Git status. Hidden index flags, conflict stages, altered entry identities,
+unsupported types and executable-mode drift refuse. Regular-file reads use a
+held no-follow descriptor; symbolic links compare link text, not target data.
+The reader checks parent directory types and named-entry stability. Inspection
+uses a ten-second deadline, 100,000 index-entry limit, four-MiB per-file limit
+and 64-MiB aggregate inspected-content limit; these are eligibility bounds,
+not a filesystem lock or subsequent-effect authorization.
+
+### Known Limitations
+
+This is a candidate repair. The development-runtime boundary run passed 37
+cases, and the subsequent normalized-pattern plus durable reviewer/verdict
+checks passed two more. Earlier failed fixtures, controller interruptions and
+confirmed RED cases remain retained separately. The controller's disappearing
+temporary-directory race was corrected without changing product behavior.
+Owning regression/typing/architecture and baseline gates, independent review,
+normal PR publication and actual newest-RC7 installed Source replay remain
+required. Focused development results do not establish those later stages.
+The core/parser/migration/invocation and selected architecture run passed
+1,060 tests with one declared performance skip, and strict typing passed all
+six selected production modules. The full task-command and baseline gates
+must finish under the corrected interpreter profile on the final candidate.
+Five terminal private bytecode caches were retired after exact ownership,
+no-holder and source-recovery checks: 175,980,544 allocated bytes. Their source,
+Git fixtures, raw logs, failed runs and receipts remain retained.
+HELD/v5 and all other owners' source, Store, processes and recovery state are
+unchanged; validation uses only declared private Git fixtures.
+
+## 2026-10-26 — Retire two earned frontmatter formatter exemptions
+
+### User Experience Findings
+
+PR122 at source0d2 failed the existing Linux formatter-debt ratchet: 798
+architectural checks passed, one skipped, one failed. Its exact two findings
+were the now-formatted canonical frontmatter implementation and owning unit
+test. The focused unchanged guard reproduced locally: five passed, one failed.
+Keep both original failures; the earlier formatting check did not prove this
+shrink-only configuration invariant.
+
+### Engineering Decisions
+
+Import Source's supported WP14 ownership/analysis amendment0eb645 through a
+normal feature merge, preserving all14 task-state and full event bytes. Remove
+only `src/specify_cli/frontmatter.py` and `tests/tasks/test_frontmatter_unit.py`
+from the formatter-debt exclusion list, as its existing rule requires. No new
+rule, baseline increase, test edit, CI/hook/budget change, guard waiver or
+restored formatting debt. Both files now remain enrolled in the ordinary gate.
+
+Product/runtime/test bytes remain exactly0d2; the already reviewed immutable
+R6r2 wheel and installed Source-shaped qualification retain their original
+source pins, including the measured undeclared-gate skipped distinction. Reuse
+only their unchanged relevant byte/dependency/profile scope. Freeze this exact
+config/docs increment, rerun the actual unchanged ratchet and required baseline,
+and retain final results externally under the existing governance-recovery
+evidence root so recording validation does not mutate the tested candidate.
+
+### Known Limitations and Retained Obligations
+
+New-head hosted checks, exact config-diff/owner review and normal PR122 delivery
+remain mandatory. No earlier receipt is relabeled as a newer-head full gate.
+Broader retired-API SDK failures remain red/unqualified; actual Source canonical
+replay, default-main/package convergence and organization adoption remain
+separate. Preserve HELD/v5, no fit/unhold, frozen runtimes, Source producer and
+all recovery evidence; no shared-resource or runtime action is authorized.
+
+## 2026-10-26 — Keep the independent detail-reader matcher faithful
+
+### User Experience Findings
+
+The same0d2 hosted contract-tools run exposed a stale test-side reader and
+expected table: 2272 passed,37 skipped,one failed. The reviewed canonical writer
+normalizes both path and authored pattern to close the demonstrated hidden-byte
+inspection gap, while the reference still left its pattern raw. Unchanged local
+matcher checks reproduced one failure/42passes. New explicit leading-dot and
+Windows-pattern cases against the unchanged reference then failed four checks
+with46passing, including the unmutated-reader controls. Keep these real REDs.
+
+### Engineering Decisions
+
+Normally import Source's exact two-file reference/test ownership amendment26c132
+without changing existing dirty bytes, task states or full event history. Keep
+this reader independent: normalize its pattern as well as its path, retain
+fnmatch platform behavior, directory-prefix segment bounds and exactly one
+leading-dot removal. Do not call the writer to derive expected values. Explicit
+cases preserve the original path divergences from the raw Git commit guard and
+add the authored-pattern divergences and negative sibling-segment controls.
+
+Add a path-only-normalization mutant reproducing the old reader; both its clean
+control and planted-fault detection must pass after the repair. Grow the explicit
+mutation-registry count by exactly this one added mutant, preserving every old
+mutation. No production/runtime matcher, commit-guard policy, contract schema,
+assertion strength, required check, baseline or installed runtime changes.
+
+### Known Limitations and Retained Obligations
+
+The formatter increment's required baseline2452pass/5skip, docs/lint/3507-file
+format/lock/diff checks are terminal/joined on their exact retained source; that
+receipt is not proof of these later reference edits. Run the full affected reader
+and its corpus caller, unchanged architectural guards, final baseline and docs
+checks on the new frozen inputs before normal PR122 publication. Existing0d2
+runtime/installed qualification keeps its original pins and narrow scope.
+Current-head hosted checks and independent final source review remain gates;
+Source canonical replay/default-main/adoption are not inferred. Preserve all
+failed receipts, HELD/v5, Source custody and frozen runtimes; no fit or unhold.
+
+## 2026-10-26 — Qualify the corpus in its supported primary context
+
+### User Experience Findings
+
+The expanded local reader/corpus/guard run completed1055pass/1skip/10fail;
+retain the full FAILED result. Exact JUnit separates247changed-reader passes
+and81unchanged architecture passes from the untouched Reality caller's
+727passes/1skip/10fail. Its strict drift scan refuses data resolved outside the
+selected linked checkout; Project records551outside-root fallbacks. Local
+Project190.776s/combined203.649s also exceeded the unchanged120s limits.
+
+### Engineering Decisions
+
+Keep the boundary fail-closed: MissionStatus.load documents a PRIMARY checkout
+argument. Read-only named-entry diagnostics return paths inside originalprimary
+but outside this linkedRoot, followed by strict ReadDirOutsideRoot, without ever
+importing the changed detail reference. A separate explicit archived-source
+control verifies all366executed product module bytes against pre-WP14e848 Git
+objects, including actual originalfrontmatter; it reproduces the same typed
+boundary without Rootfile/ref/status mutation. This is NOT an installed SDK or
+whole-corpus performance pass. The initial control's mistaken loaded-module
+assertion stays failed; corrected instrumentation reports actual module usage.
+
+The existing Source owner independently ratified the supported qualification
+route. Do not duplicate CI with another repository clone or silently use the
+dirty live primary. Finish exact-input mandatory local checks and require actual
+NEWHEAD hosted PRIMARY-context fullcorpus, contract and protection checks before
+merge. No skip, floor, cold-index, fallback, timing limit, test or policy is
+weakened. Reuse only unchanged relevant original runtime/owning gate evidence.
+
+### Known Limitations and Retained Obligations
+
+Local linked-corpus qualification remains FAILED; the two local timing bounds
+remain unqualified and are not attributed away by the narrow functional control.
+Root's existing validation lane retains the linked-profile/timing investigation,
+with Source owning the canonical primary-context boundary. Next review event is
+WP14 delivery or the next relevant corpus increment, whichever comes first.
+The proposed standalone validation clone was withdrawn before materialization;
+no new checkout/resource was created. Actual Source replay, default-main,
+runtime/admission and general SDK compatibility remain separate. Preserve
+HELD/v5, no fit/unhold, Source custody, all failures and frozen runtimes.

@@ -856,6 +856,16 @@ def move_task(
             ),
         ),
     ] = None,
+    review_source_commit: Annotated[
+        str | None,
+        typer.Option(
+            "--review-source-commit", help="Exact original implementation commit for post-squash review; requires a paired delivery commit. Not PR verification."
+        ),
+    ] = None,
+    review_delivery_commit: Annotated[
+        str | None,
+        typer.Option("--review-delivery-commit", help="Exact identical-tree delivery ancestor for explicit owned review-source reconciliation."),
+    ] = None,
 ) -> None:
     """Move task between lanes (planned → doing → for_review → approved → done).
 
@@ -893,6 +903,8 @@ def move_task(
     owned = _resolve_task_owned(owned_checkout, mission, json_output=json_output, envelope=flat_error_envelope)
     _do_move_task(
         _MoveTaskArgs(
+            review_source_commit=review_source_commit,
+            review_delivery_commit=review_delivery_commit,
             task_id=task_id,
             to=to,
             mission=mission,

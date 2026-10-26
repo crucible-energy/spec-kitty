@@ -505,11 +505,13 @@ def workspace_of(ctx: ReaderContext, opened: OpenedMission, wp_id: str, host: Ho
 def matches_owned_file(path: str, pattern: str) -> bool:
     """The repository's owned-files matching, reproduced once (D-P3): ``fnmatch`` or the directory-prefix rule.
 
-    The path is normalised as ``_mt_matches_owned_file`` does (backslash to ``/``, one leading ``./`` removed); the
-    pattern is used as authored. ``fnmatch.fnmatch`` (not ``fnmatchcase``) is what both repository copies call, so
-    the parity with them is exact on every platform. A parity test runs both copies over the same cases.
+    Path and authored pattern follow the canonical move-task matcher: backslash to ``/`` and one leading ``./``
+    removed from each. The commit guard still receives raw git-relative spellings; explicit parity cases pin
+    those differences. Keep this reference independent and use ``fnmatch.fnmatch`` (not ``fnmatchcase``), with
+    the same directory-prefix segment boundary and no brace or zero-directory expansion.
     """
     normalized = path.replace("\\", "/").removeprefix("./")
+    pattern = pattern.replace("\\", "/").removeprefix("./")
     if fnmatch.fnmatch(normalized, pattern):
         return True
     prefix = pattern.replace("/**", "").replace("/*", "").rstrip("/")
