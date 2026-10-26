@@ -596,6 +596,88 @@ def test_owned_review_refuses_status_only_commits(finalized_checkouts):
     assert (snapshot(primary), snapshot(sibling)) == other_before
 
 
+def _squashed_review_source(finalized_checkouts: tuple[Path, Path, Path], *, implementation: bool = True) -> tuple[str, str]:
+    """Deliver a real source tree by squash, then use the public pin refresh."""
+    _primary, owned, _sibling = finalized_checkouts
+    parent = git(owned, "rev-parse", "HEAD")
+    started = CliRunner().invoke(
+        tasks_app,
+        ["move-task", "WP01", "--to", "doing", "--agent", "implementer", "--mission", SLUG, "--owned-checkout", str(owned), "--json"],
+    )
+    assert started.exit_code == 0, started.output
+    if implementation:
+        (owned / "app.py").write_text("VALUE = 2\n", encoding="utf-8")
+        git(owned, "add", "app.py")
+        git(owned, "commit", "-qm", "implement the declared task")
+    source = git(owned, "rev-parse", "HEAD")
+    git(owned, "branch", "recovery/original-review-source", source)
+    tree = git(owned, "rev-parse", f"{source}^{{tree}}")
+    delivery = git(owned, "commit-tree", tree, "-p", parent, "-m", "squash delivery")
+    assert source != delivery
+    git(owned, "reset", "--hard", delivery)
+    refreshed = invoke("finalize-tasks", owned, "--refresh-planning-commit")
+    assert refreshed.exit_code == 0, refreshed.output
+    manifest = json.loads((owned / "kitty-specs" / SLUG / "lanes.json").read_text(encoding="utf-8"))
+    assert manifest["planning_commit_sha"] == delivery
+    assert git(owned, "rev-parse", f"{delivery}^{{tree}}") == tree
+    assert git(owned, "status", "--porcelain") == ""
+    return source, delivery
+
+
+def _source_review_args(owned: Path, source: str | None = None, delivery: str | None = None) -> list[str]:
+    args = [
+        "move-task",
+        "WP01",
+        "--to",
+        "for_review",
+        "--agent",
+        "implementer",
+        "--mission",
+        SLUG,
+        "--owned-checkout",
+        str(owned),
+        "--json",
+    ]
+    if source is not None:
+        args.extend(["--review-source-commit", source])
+    if delivery is not None:
+        args.extend(["--review-delivery-commit", delivery])
+    return args
+
+
+def test_squash_then_planning_refresh_still_requires_explicit_review_source(finalized_checkouts):
+    _squashed_review_source(finalized_checkouts)
+    _primary, owned, _sibling = finalized_checkouts
+    before = tuple(snapshot(root) for root in finalized_checkouts)
+    refused = CliRunner().invoke(tasks_app, _source_review_args(owned))
+    assert refused.exit_code == 1, refused.output
+    assert json.loads(refused.output)["error_code"] == "OWNED_IMPLEMENTATION_MISSING"
+    assert tuple(snapshot(root) for root in finalized_checkouts) == before
+
+
+def test_explicit_review_source_reconciles_identical_squash_after_real_pin_refresh(finalized_checkouts):
+    source, delivery = _squashed_review_source(finalized_checkouts)
+    primary, owned, sibling = finalized_checkouts
+    other_before = snapshot(primary), snapshot(sibling)
+    submitted = CliRunner().invoke(tasks_app, _source_review_args(owned, source, delivery))
+    assert submitted.exit_code == 0, submitted.output
+    mission = owned / "kitty-specs" / SLUG
+    events = [json.loads(line) for line in (mission / "status.events.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [row["to_lane"] for row in events if row.get("wp_id") == "WP01" and "to_lane" in row][-1] == "for_review"
+    assert git(owned, "show", "HEAD:app.py") == "VALUE = 2"
+    assert (snapshot(primary), snapshot(sibling)) == other_before
+
+
+def test_explicit_review_source_does_not_turn_status_history_into_implementation(finalized_checkouts):
+    source, delivery = _squashed_review_source(finalized_checkouts, implementation=False)
+    _primary, owned, _sibling = finalized_checkouts
+    before = tuple(snapshot(root) for root in finalized_checkouts)
+    refused = CliRunner().invoke(tasks_app, _source_review_args(owned, source, delivery))
+    assert refused.exit_code == 1, refused.output
+    assert json.loads(refused.output)["error_code"] == "OWNED_REVIEW_SOURCE_INVALID"
+    assert tuple(snapshot(root) for root in finalized_checkouts) == before
+
+
 def test_owned_review_refuses_auto_commit_outside_owned_files(finalized_checkouts):
     primary, owned, sibling = finalized_checkouts
     other_before = snapshot(primary), snapshot(sibling)
