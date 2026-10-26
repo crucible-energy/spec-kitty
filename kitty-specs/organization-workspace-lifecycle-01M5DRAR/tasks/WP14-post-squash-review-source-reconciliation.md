@@ -35,6 +35,7 @@ owned_files:
 - tests/tasks/test_frontmatter_unit.py
 - docs/plans/engineering-notes/2026-10-24-owned-lanes-analysis.md
 - docs/changelog/CHANGELOG.md
+- tests/specify_cli/cli/commands/agent/fixtures/tasks_cli/help/move-task.help
 role: implementer
 tags: []
 task_type: implement
@@ -149,3 +150,11 @@ review-source reconciliation and refusal guarantees; do not claim default-branch
 delivery, installed runtime qualification, automatic cleanup or rollout before
 those facts are verified. This exact scope addition changes no task state,
 review verdict, owner release or required validation.
+
+## Exact CLI help compatibility fixture
+
+The existing tasks_cli/help/move-task.help golden fixture must include only the
+two newly introduced paired review-source options with their actual semantics.
+Preserve all prior command options/help expectations and the existing comparison
+assertion. This scope addition cannot waive the independent hook-safety failure
+or replace its exact-source environment diagnosis and passing rerun.

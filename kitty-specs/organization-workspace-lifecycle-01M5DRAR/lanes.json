@@ -75,6 +75,7 @@
         "tests/integration/test_owned_lifecycle_acceptance_finalize.py",
         "tests/kernel/test_git_remote.py",
         "tests/lanes/test_claim_base.py",
+        "tests/specify_cli/cli/commands/agent/fixtures/tasks_cli/help/move-task.help",
         "tests/specify_cli/cli/commands/agent/test_owned_checkout_move_task.py",
         "tests/specify_cli/cli/commands/test_doctor_cli_surface_golden.py",
         "tests/specify_cli/consolidation/test_single_branch_consolidate_e2e.py",
@@ -97,10 +98,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-26T08:21:53.971175+00:00",
+  "computed_at": "2026-10-26T08:38:23.796606+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "65bae61ead0c5f598b8b2846d4b777a9daaf40cf"
+  "planning_commit_sha": "81810727aead075c12c3be362bfddd96347d38c2"
 }
