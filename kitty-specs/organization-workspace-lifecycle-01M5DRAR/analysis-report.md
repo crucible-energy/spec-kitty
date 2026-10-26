@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-26T06:15:47.775650+00:00'
+generated_at: '2026-10-26T07:14:55.135456+00:00'
 analyzer_agent: codex-lifecycle-source-owner
 input_artifacts:
   spec.md:
@@ -1647,7 +1647,7 @@ input_artifacts:
     sha256: 5be833ee03b540a942d83d42f9d3ccd1aeac80d6f03fff3dc2d1ec4eee4a7db0
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP14-post-squash-review-source-reconciliation.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP14-post-squash-review-source-reconciliation.md
-    sha256: 6855609767f70c7c818d7eea080704f97cd10e5a25c699e7d9fa95c962886dfa
+    sha256: 38bdab4c82c6fbbcd996ce652cc24ce40add66ab9546144f9f6f2bde6f231b53
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md
     sha256: b43ef5eeacc904f6a0ed29cb7097a0d954ec347379c41c2b4aae73c9192fadaf
@@ -1884,13 +1884,13 @@ input_artifacts:
     sha256: 44a2804f83b0661d3d7e952c450c6e1a39fc6d6eaf3e9efd887b8b860833efb5
 verdict: ready
 issue_counts:
-  medium: 0
-  critical: 0
   high: 0
   low: 0
+  medium: 0
+  critical: 0
   info: 0
 findings: []
-report_transaction: b76851efaacb4a268e129927f3fcc2d2
+report_transaction: 5566a534f7184b6b9d047c167c858483
 material_manifest_version: 1
 ---
 
@@ -1958,3 +1958,9 @@ The current authenticated scope last verified119 repository IDs and policy rows 
 ### Next Actions
 
 Record this fresh assessment through the supported owned transaction on current ancestry; preserve the old report and refusal receipts. Query canonical next again and honor actual guards. Have the existing Root owner reproduce, implement, validate, independently review and publish WP14 with exact isolated runtime qualification. Record the resulting genuine WP11 decision through canonical events. Only then admit and implement WP09 ordinary creator startup/completion/recovery, converge source/default/distributable, and execute WP10 installed cleanup/preservation proof for the refreshed organization inventory. No guard bypass, host action or cleanup authority follows from this planning report.
+
+### Reproduced WP14 authority-parser correction
+
+The existing owner reports six real direct-minter cases accepting dirty/staged WP, meta and lanes authorities where refusal was required. The full public approval command refused, so no end-to-end approval bypass is demonstrated. This implementation finding remains open inside WP14, not hidden by planning readiness. Canonical validation admitted only the exact existing frontmatter authority and its unit test as a bounded extension. Root must factor the current parser into a pure content entry point with the same decode, duplicate-key and error behavior; the existing read path delegates, no parallel YAML interpretation or temporary authority file. Current authority/index/no-follow mode and byte fences, immutable original scope, original per-WP claim-base precedence and all refusal controls remain required. Prior fourteen WP states and exact event bytes stayed unchanged through scope admission1e022956.
+
+Current authenticated repository-ID/property audit remains119, unchanged and without gaps; this is policy scope only, not installed automatic execution. All original red and intermediate unknown-analysis records remain in history. This report grants no implementation, approval, publication or resource-release authority.

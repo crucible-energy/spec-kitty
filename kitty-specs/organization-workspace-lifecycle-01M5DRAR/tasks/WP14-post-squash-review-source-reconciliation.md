@@ -25,12 +25,14 @@ authoritative_surface: src/specify_cli/cli/commands/agent/tasks_move_task.py
 create_intent: []
 execution_mode: code_change
 owned_files:
+- src/specify_cli/frontmatter.py
 - src/specify_cli/core/owned_mission.py
 - src/specify_cli/cli/commands/agent/tasks_move_task.py
 - src/specify_cli/cli/commands/agent/tasks.py
 - tests/specify_cli/cli/commands/agent/test_owned_checkout_move_task.py
 - tests/integration/migration/test_wp03_advance_to_approval.py
 - tests/specify_cli/invocation/cli/test_owned_checkout.py
+- tests/tasks/test_frontmatter_unit.py
 - docs/plans/engineering-notes/2026-10-24-owned-lanes-analysis.md
 role: implementer
 tags: []
@@ -98,6 +100,14 @@ Default/source/distribution convergence remains separate.
    logic or PYTHONPATH/editable masquerading.
 7. Return actual canonical WP11 eligibility to Source. No force/skip,
    arbitrary historical base, alternate event writer or forged approval.
+8. The reproduced dirty/staged authority gap requires immutable typed scope.
+   Factor the existing FrontmatterManager post-read parsing into its canonical
+   parse(content, source) entry point; read delegates after the same UTF-8-sig
+   decode. Preserve duplicate-key behavior, exceptions and source diagnostics.
+   Parse original Git authority through that same parser without temporary
+   authority files or a second YAML interpretation. Current authority/index/
+   no-follow mode and byte checks remain required. Preserve original per-WP
+   claim-base precedence, including invalid-present refusal.
 
 ## Test Strategy
 
@@ -110,6 +120,10 @@ mission/target/scope drift. Existing same-head/no-code refusal stays nonvacuous.
 Only identical relevant evidence may be reused; remote current-head checks and
 independent review precede publication. Bound/join exact owned descendants and
 close eligible private outputs, preserving other owners' resources.
+Run the existing frontmatter owning unit tests and unchanged duplicate-key
+regression as well. Six direct minter authority cases reproduced acceptance of
+dirty/staged WP/meta/lanes inputs; the full public approval case refused, so this
+must not be described as a demonstrated approval bypass.
 
 ## Risks & Mitigations
 
