@@ -41,11 +41,15 @@ const allocation_fixture =
 ;
 
 fn allocationProbe(mode: []const u8) !std.json.Parsed(std.json.Value) {
+    return migrationProbe(allocation_fixture, mode);
+}
+
+fn migrationProbe(fixture: []const u8, mode: []const u8) !std.json.Parsed(std.json.Value) {
     const executable = c.getenv("SPEC_KITTY_INGRESS_TEST_PYTHON") orelse return error.ExplicitFixtureInterpreterRequired;
     const python = std.mem.span(executable);
     if (!std.fs.path.isAbsolute(python)) return error.AbsoluteFixtureInterpreterRequired;
     const result = try std.process.run(std.testing.allocator, std.testing.io, .{
-        .argv = &.{ python, "-B", "-c", allocation_fixture, mode },
+        .argv = &.{ python, "-B", "-c", fixture, mode },
         .stdout_limit = .limited(64 * 1024),
         .stderr_limit = .limited(64 * 1024),
         .timeout = .{ .duration = .{ .clock = .awake, .raw = .fromSeconds(45) } },
@@ -57,6 +61,38 @@ fn allocationProbe(mode: []const u8) !std.json.Parsed(std.json.Value) {
         return error.FixtureFailed;
     }
     return std.json.parseFromSlice(std.json.Value, std.testing.allocator, result.stdout, .{});
+}
+
+const launch_fixture =
+    \\import json,os,pathlib,sys,tempfile,threading
+    \\sys.path.insert(0,str(pathlib.Path.cwd()/'src'))
+    \\from specify_cli.workspace_lifecycle.state import StateStore
+    \\from specify_cli.workspace_lifecycle import worker
+    \\with tempfile.TemporaryDirectory(prefix='ingress-owned-') as directory:
+    \\ root=pathlib.Path(directory);candidate=root/'candidate';candidate.mkdir()
+    \\ ledger=(candidate if sys.argv[1]=='nested' else root)/'ledger';ledger.mkdir(mode=0o700)
+    \\ store=StateStore.initialize(ledger);output=root/'child.json'
+    \\ child_code='import json,os,pathlib;pathlib.Path('+repr(str(output))+').write_text(json.dumps({"cwd":os.getcwd()}))'
+    \\ worker.distribution_argv=lambda *args:[sys.executable,'-B','-c',child_code]
+    \\ previous=pathlib.Path.cwd();threads=set(threading.enumerate())
+    \\ try:
+    \\  os.chdir(candidate);worker.LifecycleService(store).launch()
+    \\  for thread in set(threading.enumerate())-threads:thread.join(timeout=10)
+    \\  observed=json.loads(output.read_text())
+    \\ finally:os.chdir(previous)
+    \\ child=pathlib.Path(observed['cwd']);caller=candidate.resolve()
+    \\ print(json.dumps({'child_inside_candidate':child==caller or caller in child.parents,'owned_join_threads_alive':any(t.is_alive() for t in set(threading.enumerate())-threads),'ledger_preserved':ledger.is_dir()}))
+;
+
+test "worker child cwd cannot hold the candidate even with nested state ledger" {
+    for ([_][]const u8{ "sibling", "nested" }) |mode| {
+        var result = try migrationProbe(launch_fixture, mode);
+        defer result.deinit();
+        const facts = result.value.object;
+        try std.testing.expect(!facts.get("child_inside_candidate").?.bool);
+        try std.testing.expect(!facts.get("owned_join_threads_alive").?.bool);
+        try std.testing.expect(facts.get("ledger_preserved").?.bool);
+    }
 }
 
 test "ordinary recovery retains unknown requested and sibling registrations including staged index" {
