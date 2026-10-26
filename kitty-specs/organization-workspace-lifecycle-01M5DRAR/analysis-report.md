@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-26T10:58:11.338016+00:00'
+generated_at: '2026-10-26T11:10:04.885627+00:00'
 analyzer_agent: codex-lifecycle-source-owner
 input_artifacts:
   spec.md:
@@ -1647,7 +1647,7 @@ input_artifacts:
     sha256: 5be833ee03b540a942d83d42f9d3ccd1aeac80d6f03fff3dc2d1ec4eee4a7db0
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP14-post-squash-review-source-reconciliation.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP14-post-squash-review-source-reconciliation.md
-    sha256: fd617bc590338a8504a94eaac4f7ab9f08d460e021d749a587803c1687939245
+    sha256: 3bc9c621358f3b3ccc17e4d214f918b452f228b42757330d1f28cfbcafbabab0
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md
     sha256: b43ef5eeacc904f6a0ed29cb7097a0d954ec347379c41c2b4aae73c9192fadaf
@@ -1885,12 +1885,12 @@ input_artifacts:
 verdict: ready
 issue_counts:
   medium: 0
+  high: 0
   low: 0
   critical: 0
-  high: 0
   info: 0
 findings: []
-report_transaction: 90b36505d4b24a6f8f79050482ecb0e8
+report_transaction: 6b3813716b2f4e958c4d9f127699e410
 material_manifest_version: 1
 ---
 
@@ -1978,3 +1978,7 @@ Canonical WP14 scope now additionally admits only tests/specify_cli/cli/commands
 ### Earned formatter-exclusion correction after real PR122 failure
 
 The current-head hosted architecture ratchet actually fails because the two touched frontmatter implementation/test files are now formatted but remain excluded. WP14 now admits only pyproject.toml for removing exactly those two obsolete exclusions, strengthening formatter coverage. The test and all other policies remain unchanged. This is an assigned narrow implementation/publication blocker, not a planning exception or a waiver. Source state/history bytes remain unchanged. Independent scoped Source-shaped R6r2 review supports the observed local review/Op surfaces; broad SDK/organization adoption is unproved. Actual measured Source gate selection is skipped/not-declared, not the earlier incorrectly inferred no_coverage. PR122 remains unmerged with mandatory current-head CI still pending/red. Root must reproduce, repair, validate and publish a new coherent candidate through the same PR, then recheck all required gates before merge and actual Source replay. No cross-artifact planning contradiction introduced by this exact same-owner dependency-ordered path addition.
+
+### Independent reader/test fidelity follow-up
+
+Actual old0d2 hosted contract-tools2272pass/37skip/1fail exposes the stale reference expectation for authored ./pattern. Canonical writer normalization is already the independently reproduced hidden-drift repair; do not roll it back. Only the two existing reference/test files are now same-owner WP14 scope. Preserve independent computation and explicit expected cases, existing prefix/fnmatch/segment behavior, raw commitguard semantics, and real red/mutant/whole-reader validation. This exact consumer-fidelity work is a retained implementation/publication blocker, not a cross-artifact planning contradiction. All14states/full events remain unchanged. Root owns both repairs serially after its current formatter producer joins; no Source implementation, competing producer, unqualified runtime adoption or inferred green CI. Source WP11/WP09/WP10 remain unadvanced.
