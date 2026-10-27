@@ -471,3 +471,14 @@ This is bounded repair of retained Python contracts; Zig parity must preserve
 the same demand boundary, public identities and all admission/error behavior.
 Other observed positive-fixture and obsolete-husk-helper failures remain owned
 before merge, as do hosted doctor timing and current-head startup qualification.
+
+The last observed acceptance/husk replay is red on current source (six failures,
+59 passes). The acceptance split now materializes its declared coordination
+branch as a real worktree and moves the inherited bare mission directory to the
+existing composed layout, preserving its exact content without a second identity.
+Its missing-primary-planning and coord-only-clarification assertions are unchanged.
+The five husk rows explicitly supply the required coordination metadata; no
+obsolete signature or permissive default is restored. Two paired controls prove
+a verified primary snapshot rejects legacy coordination metadata while matching
+snapshot authority retains the stored topology decision. All 67 checks pass;
+no production resolver, acceptance criterion or original assertion changes.
