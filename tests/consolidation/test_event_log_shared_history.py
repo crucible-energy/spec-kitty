@@ -14,8 +14,8 @@ pytestmark = pytest.mark.fast
 
 def _transition(event_id: str, destination: str) -> dict[str, str]:
     return {
-        "event_id": event_id,
-        "at": event_id,
+        "event_id": event_id.zfill(26),
+        "at": f"2026-10-27T00:00:{event_id}Z",
         "wp_id": "WP01",
         "from_lane": "in_review",
         "to_lane": destination,
@@ -81,3 +81,23 @@ def test_malformed_shared_history_refuses_without_writing(tmp_path: Path) -> Non
         run_event_log_driver(str(base), str(ours), str(theirs))
 
     assert ours.read_bytes() == before
+
+
+def test_forward_only_independent_departures_keep_both_events(tmp_path: Path) -> None:
+    first = {**_transition("01", "in_progress"), "from_lane": "planned"}
+    second = {**_transition("02", "for_review"), "from_lane": "planned"}
+    base, ours, theirs = _inputs(tmp_path, [], [first], [second])
+
+    run_event_log_driver(str(base), str(ours), str(theirs))
+
+    assert [json.loads(line) for line in ours.read_text().splitlines()] == [first, second]
+
+
+def test_decisions_on_different_work_packages_keep_both_events(tmp_path: Path) -> None:
+    first = _transition("01", "planned")
+    second = {**_transition("02", "approved"), "wp_id": "WP02"}
+    base, ours, theirs = _inputs(tmp_path, [], [first], [second])
+
+    run_event_log_driver(str(base), str(ours), str(theirs))
+
+    assert [json.loads(line) for line in ours.read_text().splitlines()] == [first, second]
