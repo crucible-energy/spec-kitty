@@ -35,6 +35,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from tests._support.coordination import materialize_coordination
 
 from specify_cli.retrospective.schema import RetrospectiveRecord
 from specify_cli.retrospective.writer import (
@@ -57,9 +58,7 @@ COORD_BRANCH = f"kitty/mission-{SLUG_WITH_MID8}"
 
 
 def _git(repo_root: Path, *args: str) -> None:
-    subprocess.run(
-        ["git", "-C", str(repo_root), *args], check=True, capture_output=True, text=True
-    )
+    subprocess.run(["git", "-C", str(repo_root), *args], check=True, capture_output=True, text=True)
 
 
 def _init_repo(repo_root: Path) -> None:
@@ -129,6 +128,7 @@ def _seed_divergent_coord_topology(repo_root: Path) -> tuple[Path, Path]:
     # genuine surface divergence. ``coord_feature_dir`` builds the exact path the
     # resolver probes; making it exist flips ``probe_coord_state`` → MATERIALIZED.
     coord_mission_dir = coord_feature_dir(repo_root, SLUG_WITH_MID8, MID8)
+    materialize_coordination(repo_root, coord_mission_dir.parent.parent, COORD_BRANCH)
     coord_mission_dir.mkdir(parents=True, exist_ok=True)
     # A non-meta marker proves the dir is materialized yet lacks the identity files.
     (coord_mission_dir / "status.json").write_text("{}\n", encoding="utf-8")
@@ -158,8 +158,7 @@ def test_red_evidence_old_resolver_leaks_into_coord(tmp_path: Path) -> None:
     leaked = resolve_feature_dir_for_slug(tmp_path, SLUG_WITH_MID8)
 
     assert ".worktrees" in leaked.parts, (
-        "Fixture is NOT genuinely divergent: the old coord-aware resolver must "
-        "leak into .worktrees for the red-first proof to be meaningful (NFR-002)."
+        "Fixture is NOT genuinely divergent: the old coord-aware resolver must leak into .worktrees for the red-first proof to be meaningful (NFR-002)."
     )
     assert leaked.resolve() == coord_mission_dir.resolve()
 
@@ -177,8 +176,7 @@ def test_durable_home_authority_lands_primary_not_coord(tmp_path: Path) -> None:
 
     # The keystone assertion (NFR-002): the home is NOT the coord husk.
     assert ".worktrees" not in resolved.parts, (
-        f"Retrospective home {resolved} re-homed into the coord worktree — the "
-        "#1771 coord-leak. The durable home must be the PRIMARY kitty-specs dir."
+        f"Retrospective home {resolved} re-homed into the coord worktree — the #1771 coord-leak. The durable home must be the PRIMARY kitty-specs dir."
     )
     assert resolved.resolve() == primary_dir.resolve()
     assert resolved.resolve() != coord_mission_dir.resolve()
@@ -197,9 +195,7 @@ def test_write_record_lands_in_durable_primary_home(tmp_path: Path) -> None:
     written = write_record(record, repo_root=tmp_path)
 
     assert written.exists()
-    assert ".worktrees" not in written.parts, (
-        f"write_record wrote the record under {written} — a coord-husk leak (#1771)."
-    )
+    assert ".worktrees" not in written.parts, f"write_record wrote the record under {written} — a coord-husk leak (#1771)."
     assert written.resolve() == (primary_dir / "retrospective.yaml").resolve()
 
 
@@ -221,10 +217,7 @@ def test_runtime_payload_path_equals_actual_durable_home(tmp_path: Path) -> None
     record = _record_for(SLUG_WITH_MID8)
     payload = Path(_record_path_str(record, tmp_path))
 
-    assert ".kittify" not in payload.parts, (
-        "Runtime payload still reports the legacy .kittify/missions/ path — the "
-        "brain is re-split (site #6 not consolidated)."
-    )
+    assert ".kittify" not in payload.parts, "Runtime payload still reports the legacy .kittify/missions/ path — the brain is re-split (site #6 not consolidated)."
     assert ".worktrees" not in payload.parts
     assert payload.resolve() == canonical_record_path(tmp_path, SLUG_WITH_MID8).resolve()
 
@@ -278,6 +271,4 @@ def test_legacy_record_path_back_compat_read_untouched(tmp_path: Path) -> None:
 
     # The tracked durable home does NOT exist → the reader falls back to legacy.
     resolved = resolve_existing_record_path(tmp_path, SLUG_WITH_MID8, MISSION_ID)
-    assert resolved.resolve() == legacy.resolve(), (
-        "Back-compat read regressed: a pre-#1771 legacy record is no longer found."
-    )
+    assert resolved.resolve() == legacy.resolve(), "Back-compat read regressed: a pre-#1771 legacy record is no longer found."

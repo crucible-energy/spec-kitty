@@ -378,3 +378,35 @@ These are fixture qualifications, not additional product acceptance or audio QA.
 The full shard census additionally caught an unclassified fresh-process schema
 regression from the preceding slice. It is explicitly routed to the doctrine
 integration gate; no selector, orphan threshold or assertion is relaxed.
+
+The subsequent 134-test replay exposes six further fixture/parity failures.
+Retrospective divergence now uses a registered worktree with its independent
+event log; the exact warning/handle matrix supplies a registered empty window
+with a live branch instead of an unregistered directory. A first edit hit a
+similarly shaped, different test; the retained partial run caught that mistake,
+and the intended warning case was corrected before publication. Warning and
+deleted-branch assertions remain intact. All 135 checks now pass.
+
+The committed-spec parity harness now follows setup-plan's two actual read steps:
+status-aware mission lookup followed by its kind-aware planning adapter. Its
+coordination fixtures commit distinct primary and stale shadow specs, preserving
+both positive parity verdicts. A new negative control proves a committed shadow
+cannot supply a removed primary spec. This changes no production authority.
+The latest hosted doctrine red also exposes a stale cardinality expectation from
+the graph regeneration already delivered in 5e24a1851: two DIRECTIVE_046
+suggestions have no authored source. The expectation is reconciled by exactly
+those two edges; all node/orphan counts, exact regenerated/shipped edge-set
+equality and the hand-authored overlay remain enforced. Full current hosted
+gates, protection/review/default delivery and audio continuation remain pending.
+Five graph projection/freshness checks pass with the reconciled cardinality,
+and the full shard census reports 18 passes with no orphan or duplicate routing.
+
+The hosted integration ordering exposed three package-default template trials
+that inherited another test's populated global runtime. A private populated-home
+control deterministically reproduces all three failures. Each package-default
+trial now owns an empty runtime home, as the existing software-development trial
+already does; other precedence and unknown-type controls retain their own scope.
+All 75 template-resolution/integration checks pass with the populated outer
+control still present. No production resolver precedence or shared home changes.
+The hosted clean-install gate on 49ab182d8 reports 0.840s median against the
+unchanged 1.050s ceiling; local and hosted timings are separate measurements.

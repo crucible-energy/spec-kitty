@@ -5,8 +5,7 @@ primary-target-branch) parameterised by a ``placement: CommitTarget``. WP07
 (FR-011) **collapsed** that OR to a single check: a file is committed iff it is
 tracked AND present at the ``HEAD`` of the git surface it physically lives on.
 The collapse is safe because the sole non-test caller (setup-plan) feeds the
-READ-resolved ``spec_file``: the coord worktree dir for a materialized
-coordination topology, the primary dir for the #1718 create-window, and the
+kind-resolved ``spec_file`` on PRIMARY for every topology. The
 #1848 coord-deleted case never reaches the check (the read path raises
 ``CoordinationBranchDeleted`` upstream).
 
@@ -52,9 +51,7 @@ def _init_repo(tmp_path: Path) -> str:
 
     Returns the default branch name (``main``).
     """
-    subprocess.run(
-        ["git", "init", "-b", "main", str(tmp_path)], check=True, capture_output=True
-    )
+    subprocess.run(["git", "init", "-b", "main", str(tmp_path)], check=True, capture_output=True)
     subprocess.run(
         ["git", "-C", str(tmp_path), "config", "user.email", "test@test.com"],
         check=True,
@@ -338,9 +335,7 @@ def _envelope_meta(coordination_branch: str | None) -> dict[str, object]:
 
 def _write_envelope_meta(feature_dir: Path, coordination_branch: str | None) -> None:
     feature_dir.mkdir(parents=True, exist_ok=True)
-    (feature_dir / "meta.json").write_text(
-        json.dumps(_envelope_meta(coordination_branch)), encoding="utf-8"
-    )
+    (feature_dir / "meta.json").write_text(json.dumps(_envelope_meta(coordination_branch)), encoding="utf-8")
 
 
 def _git_q(root: Path, *args: str) -> None:
@@ -413,7 +408,7 @@ def _build_lanes(repo_root: Path) -> Path:
 
 
 def _build_coord(repo_root: Path) -> Path:
-    # Coord branch materialised; spec committed ONLY on the coord worktree.
+    # Planning spec on PRIMARY; a distinct committed coord shadow must not win.
     fd = repo_root / "kitty-specs" / _ENVELOPE_SLUG_MID8
     _write_envelope_meta(fd, coordination_branch=_ENVELOPE_COORD)
     _git_q(repo_root, "add", "-A")
@@ -427,8 +422,12 @@ def _build_coord(repo_root: Path) -> Path:
     _write_envelope_meta(coord_fd, coordination_branch=_ENVELOPE_COORD)
     spec = coord_fd / "spec.md"
     spec.write_text("# Spec\n", encoding="utf-8")
+    (coord_fd / "status.events.jsonl").write_text("")
     _git_q(coord_root, "add", "-A")
     _git_q(coord_root, "commit", "-m", "spec on coord")
+    (fd / "spec.md").write_text("# Canonical primary spec\n", encoding="utf-8")
+    _git_q(repo_root, "add", str((fd / "spec.md").relative_to(repo_root)))
+    _git_q(repo_root, "commit", "-m", "canonical spec on primary")
     return spec
 
 
@@ -475,9 +474,10 @@ _REACHABLE_BUILDERS = {
 def _resolve_read_surface_like_caller(repo_root: Path, handle: str) -> Path:
     """Resolve the spec_file exactly as setup-plan does (read path, require_exists)."""
     from specify_cli.missions._read_path_resolver import resolve_handle_to_read_path
+    from specify_cli.cli.commands.agent.mission import _planning_read_dir
 
     feature_dir = resolve_handle_to_read_path(repo_root, handle, require_exists=True)
-    return feature_dir / "spec.md"
+    return _planning_read_dir(repo_root, feature_dir.name, artifact_type="spec") / "spec.md"
 
 
 def _retired_placement_ref(repo_root: Path, handle: str) -> str | None:
@@ -505,9 +505,7 @@ def _retired_placement_ref(repo_root: Path, handle: str) -> str | None:
         ("create-window-1718", True),
     ],
 )
-def test_is_committed_fr011_parity(
-    tmp_path: Path, row: str, expected_verdict: bool
-) -> None:
+def test_is_committed_fr011_parity(tmp_path: Path, row: str, expected_verdict: bool) -> None:
     """FR-011: single-surface verdict == retired 3-leg OR verdict, on the read surface.
 
     For each reachable cell, resolve the READ surface like the caller, then
@@ -533,14 +531,23 @@ def test_is_committed_fr011_parity(
     )
 
     assert single_surface is expected_verdict, (
-        f"[{row}] single-surface is_committed returned {single_surface}, "
-        f"expected {expected_verdict}; diagnostics={diagnostics}"
+        f"[{row}] single-surface is_committed returned {single_surface}, expected {expected_verdict}; diagnostics={diagnostics}"
     )
-    assert single_surface is retired, (
-        f"[{row}] PARITY FAILURE: single-surface={single_surface} but "
-        f"retired-OR={retired} on the read-resolved spec {spec}"
-    )
+    assert single_surface is retired, f"[{row}] PARITY FAILURE: single-surface={single_surface} but retired-OR={retired} on the read-resolved spec {spec}"
     assert diagnostics, f"[{row}] diagnostics sink must enumerate the checked surface(s)"
+
+
+def test_committed_coord_shadow_cannot_supply_missing_primary_spec(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    shadow = _build_coord(tmp_path)
+    primary_spec = tmp_path / "kitty-specs" / _ENVELOPE_SLUG_MID8 / "spec.md"
+    _git_q(tmp_path, "rm", str(primary_spec.relative_to(tmp_path)))
+    _git_q(tmp_path, "commit", "-m", "Private missing-primary control")
+
+    selected = _resolve_read_surface_like_caller(tmp_path, _ENVELOPE_SLUG_MID8)
+    assert selected == primary_spec
+    assert is_committed(shadow, tmp_path) is True
+    assert is_committed(selected, tmp_path) is False
 
 
 def test_is_committed_never_reached_for_coord_deleted_1848(tmp_path: Path) -> None:
