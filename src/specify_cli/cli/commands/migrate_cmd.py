@@ -503,7 +503,7 @@ def normalize_lifecycle(
     - ``0`` — all targeted missions normalized or skipped cleanly
     - ``1`` — one or more missions hit an unrecoverable error
     """
-    from specify_cli.migration.normalize_mission_lifecycle import normalize_repo
+    from specify_cli.migration import normalize_mission_lifecycle_repo as normalize_repo
 
     repo_root = locate_project_root()
     if repo_root is None:

@@ -582,3 +582,14 @@ considered cardinality exemption. Every matching class declaration is included,
 so duplicate declarations in the same file are rejected too. The frozen baseline
 and classifier remain unchanged; the original red is retained. This is a stronger
 ownership invariant, not a waived golden-count site or a whole-pipeline verdict.
+
+The d82 symbol gate exposes one public normalization alias with no visible
+runtime caller after deferred export binding. The real normalization CLI and
+upgrade migration now import that existing public facade. Both receive the same
+original `normalize_repo` function object; their complete non-import AST and
+operation arguments are unchanged. No export is removed, fake caller added or
+allowlist expanded. The exact symbol-gate red is retained; all 38 symbol,
+normalization CLI/upgrade, lifecycle and public-identity checks pass, and full
+mypy again reports zero issues in 1,143 source files. The hosted full candidate
+remains required before merge. Zig parity must retain this single public
+normalization boundary and identical dry-run/mutation/error behavior.
