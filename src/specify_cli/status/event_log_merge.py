@@ -28,10 +28,7 @@ class EventLogMergeError(Exception):
 # this detector exists to catch would be silently merged (exit 0) again.
 _NON_LINEAR_LANES: frozenset[Lane] = NON_DISPLAY_LANES | {Lane.BLOCKED, Lane.CANCELED}
 _NON_LINEAR_LANE_VALUES: frozenset[str] = frozenset(lane.value for lane in _NON_LINEAR_LANES)
-_FORWARD_RANK: dict[str, int] = {
-    lane: rank
-    for rank, lane in enumerate(lane for lane in CANONICAL_LANES if lane not in _NON_LINEAR_LANE_VALUES)
-}
+_FORWARD_RANK: dict[str, int] = {lane: rank for rank, lane in enumerate(lane for lane in CANONICAL_LANES if lane not in _NON_LINEAR_LANE_VALUES)}
 
 
 def _is_decision_destination(from_lane: str, to_lane: str) -> bool:
@@ -63,18 +60,12 @@ def read_event_log_text(text: str, *, source: str = "<memory>") -> list[dict[str
         try:
             payload = json.loads(stripped)
         except json.JSONDecodeError as exc:
-            raise EventLogMergeError(
-                f"{source}: invalid JSON on line {line_number}: {exc}"
-            ) from exc
+            raise EventLogMergeError(f"{source}: invalid JSON on line {line_number}: {exc}") from exc
         if not isinstance(payload, dict):
-            raise EventLogMergeError(
-                f"{source}: line {line_number} is not a JSON object"
-            )
+            raise EventLogMergeError(f"{source}: line {line_number} is not a JSON object")
         event_id = payload.get("event_id")
         if not isinstance(event_id, str) or not event_id.strip():
-            raise EventLogMergeError(
-                f"{source}: line {line_number} is missing a valid event_id"
-            )
+            raise EventLogMergeError(f"{source}: line {line_number} is missing a valid event_id")
         # Non-status event types (e.g. tracker events) may lack 'at' or
         # 'timestamp'; accept them and sort them first via empty-string key.
         events.append(payload)
@@ -86,6 +77,14 @@ def _read_event_file(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
     return read_event_log_text(path.read_text(encoding="utf-8"), source=str(path))
+
+
+def _event_json(event: dict[str, Any]) -> str:
+    """Use the existing canonical rendering for payload identity and output.
+
+    Python equality conflates JSON booleans and numbers, including nested ones.
+    """
+    return json.dumps(event, sort_keys=True)
 
 
 def detect_concurrent_fork(
@@ -134,11 +133,7 @@ def detect_concurrent_fork(
     # sides. Those identical rows are history, not independent departures.
     # Payload equality matters: ID collisions must still reach the union's
     # existing validation rather than being treated as shared history.
-    shared_ids = {
-        event_id
-        for event_id in ours_by_id.keys() & theirs_by_id.keys()
-        if ours_by_id[event_id] == theirs_by_id[event_id]
-    }
+    shared_ids = {event_id for event_id in ours_by_id.keys() & theirs_by_id.keys() if _event_json(ours_by_id[event_id]) == _event_json(theirs_by_id[event_id])}
     history_ids = base_ids | shared_ids
 
     def _departures(events: list[dict[str, Any]]) -> dict[str, dict[str, set[str]]]:
@@ -159,9 +154,7 @@ def detect_concurrent_fork(
     for wp_id in sorted(ours.keys() & theirs.keys()):
         for from_lane in sorted(ours[wp_id].keys() & theirs[wp_id].keys()):
             destinations = ours[wp_id][from_lane] | theirs[wp_id][from_lane]
-            if len(destinations) > 1 and any(
-                _is_decision_destination(from_lane, destination) for destination in destinations
-            ):
+            if len(destinations) > 1 and any(_is_decision_destination(from_lane, destination) for destination in destinations):
                 return (
                     f"work package {wp_id}: concurrent transitions from "
                     f"'{from_lane}' to {sorted(destinations)} were made in two "
@@ -179,10 +172,8 @@ def merge_event_payloads(*event_groups: list[dict[str, Any]]) -> list[dict[str, 
         for event in group:
             event_id = event["event_id"]
             existing = merged.get(event_id)
-            if existing is not None and existing != event:
-                raise EventLogMergeError(
-                    f"Conflicting payloads found for event_id {event_id!r}"
-                )
+            if existing is not None and _event_json(existing) != _event_json(event):
+                raise EventLogMergeError(f"Conflicting payloads found for event_id {event_id!r}")
             merged[event_id] = event
 
     return sorted(
@@ -196,13 +187,8 @@ def merge_event_payloads(*event_groups: list[dict[str, Any]]) -> list[dict[str, 
 
 def merge_event_log_texts(*texts: str) -> str:
     """Union JSONL event-log texts and serialize deterministic JSONL."""
-    merged = merge_event_payloads(
-        *[
-            read_event_log_text(text, source=f"<merge-stage-{idx}>")
-            for idx, text in enumerate(texts, start=1)
-        ]
-    )
-    return "".join(json.dumps(event, sort_keys=True) + "\n" for event in merged)
+    merged = merge_event_payloads(*[read_event_log_text(text, source=f"<merge-stage-{idx}>") for idx, text in enumerate(texts, start=1)])
+    return "".join(_event_json(event) + "\n" for event in merged)
 
 
 def merge_event_log_files(
@@ -222,4 +208,4 @@ def merge_event_log_files(
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", encoding="utf-8") as handle:
         for event in merged:
-            handle.write(json.dumps(event, sort_keys=True) + "\n")
+            handle.write(_event_json(event) + "\n")

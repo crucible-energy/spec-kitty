@@ -21,6 +21,12 @@ in the owning Spec Kitty project; new Subsequent tooling remains Zig.
 
 ## User Experience Findings
 
+- **2026-10-27, final receiving review:** A real maintained-driver reproduction
+  showed same-ID nested JSON `true` and `1` silently merging at `33a4a6c65a`.
+  Python equality conflates their types in both the pre-existing union and the
+  new shared-history classifier. The public P1 finding supersedes earlier
+  bounded zero-finding reviews and blocks merge until corrected and validated.
+
 - **2026-10-27, documentation structure:** Hosted structural checks rejected
   this new log because its original directory was not sanctioned and required
   frontmatter was absent. The earlier spelling/changelog check did not cover
@@ -48,6 +54,14 @@ in the owning Spec Kitty project; new Subsequent tooling remains Zig.
   absence is not evidence that required hooks ran.
 
 ## Engineering Decisions
+
+- **2026-10-27, typed payload identity:** Extract the existing deterministic
+  JSON renderer inside the same event-log module and use it for both payload
+  identity comparisons and output. Preserve JSON type distinctions recursively
+  while retaining key-order-independent deduplication. The actual-driver
+  no-write regression, union scalar/array controls and direct fork-classifier
+  case fail before this repair; equivalent key orders still deduplicate. This
+  is a bounded correctness repair, not a new schema or serializer authority.
 
 - **2026-10-27, log placement correction:** The repository structural contract
   takes precedence over the initially selected implementation-log directory.
@@ -117,6 +131,11 @@ in the owning Spec Kitty project; new Subsequent tooling remains Zig.
   Unrelated consolidation and lifetime refactoring would increase repair risk.
 
 ## Known Limitations
+
+- **2026-10-27, P1 review supersedes earlier local readiness:**
+  [typed-identity thread](https://github.com/crucible-energy/spec-kitty/pull/135#discussion_r4386211366)
+  remains open pending repair validation, publication and explicit reply. The
+  earlier frozen code-gate results do not qualify the changed identity logic.
 
 - **2026-10-27, superseding local readiness:**
   [PR #135](https://github.com/crucible-energy/spec-kitty/pull/135) is published
