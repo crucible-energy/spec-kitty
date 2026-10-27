@@ -211,3 +211,25 @@ other event, path filter, command, condition, permission, dependency and timeout
 Deployment, release-publishing and manual audit workflows keep their separate
 owners; this correction targets the current validation and delivery checks.
 Actual hosted execution and all remaining product findings still gate PR128.
+
+The newly executable release-readiness check found the tracked project metadata
+still declared 3.2.7 while the package, lock and changelog declared 3.2.8. Only
+that release identity is synchronized; migration history and upgrade timestamps
+are not manufactured or refreshed as a release-validation shortcut.
+
+The unchanged #2804 regression reproduces accepted gate evidence being replaced
+by an untouched mission scaffold during a real squash merge. The bounded repair
+pins source and target Git identities, inspects both-side divergence before
+creating a merge workspace, and restores the exact authored blob after Git's
+planning conflict resolution and before committing. Both-authored conflicts,
+deletion conflicts, symlinks and unknown scaffold shapes refuse without advancing
+the target. Only the known empty issue table and single generic AC-001 TODO
+scaffold qualify for automatic preservation; new requirement-specific criteria
+are not discardable placeholders. This does not assess evidence or grant
+acceptance. Other merge strategies keep their existing conflict handling.
+
+This is a bounded correctness repair to existing Python Git integration. A future
+Zig migration must preserve opaque evidence custody and these refusal contracts;
+it must not synthesize QA, merge arbitrary evidence fields, or grant approval.
+The original regression and real Git tests cover both source/target directions,
+ambiguous authored data, deletion, nonregular input and joined workspace cleanup.
