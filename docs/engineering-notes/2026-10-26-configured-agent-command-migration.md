@@ -357,3 +357,24 @@ in its observed timestamp. The unchanged five-run latency gate passes locally
 at 0.645s median against 1.050s. This is Python 3.11 on this host, not the hosted
 clean-install Python 3.13 qualification, render throughput or exclusive savings.
 The hosted gate and other current integration findings remain mandatory.
+
+The next bounded replay reproduces 27 failures among 173 status/CLI/gate checks.
+The positive cases now supply real registered worktrees and explicit canonical
+event logs instead of directory-shaped husks or status cache files. A shared
+private-fixture helper refuses to adopt an existing directory, creates only its
+named branch/worktree, and excludes nested execution workspaces from source Git
+links. The unexpected-empty trials retain their absent mission directory, live
+branch and warning assertion; deleted-branch controls still refuse. No production
+resolver or refusal changes in this slice.
+
+The two-surface net now tests ANALYSIS_REPORT on its already-declared PRIMARY
+partition while retaining every artifact-kind trial and the primary/coordination
+anti-mutant assertions. The review scanner mock is scoped to that scanner's
+process adapter so it cannot intercept unrelated environment/Git probes. Real
+Git fixture modules are classified `git_repo` rather than `fast`. Initial setup
+errors and the original reds are retained; after these repairs all 173 checks
+pass, including the real divergent-surface regressions and dirty-worktree gate.
+These are fixture qualifications, not additional product acceptance or audio QA.
+The full shard census additionally caught an unclassified fresh-process schema
+regression from the preceding slice. It is explicitly routed to the doctrine
+integration gate; no selector, orphan threshold or assertion is relaxed.

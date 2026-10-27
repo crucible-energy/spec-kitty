@@ -20,6 +20,7 @@ matrix's ``coord-empty/slug-mid8`` PRIMARY cell. ``ActionContextError`` translat
 (PR #1850 M6) is still exercised by the genuine fail-closed paths (e.g. the DELETED
 coord-branch carve-out) elsewhere; coord-EMPTY is Option-B primary, not a refusal.
 """
+
 from __future__ import annotations
 
 import json
@@ -28,6 +29,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from tests._support.coordination import materialize_coordination
 
 from mission_runtime import (
     MissionArtifactKind,
@@ -60,9 +62,7 @@ def repo(tmp_path: Path) -> Path:
     _git(r, "config", "user.name", "Test")
     _git(r, "config", "commit.gpgsign", "false")
     (r / ".kittify").mkdir()
-    (r / ".kittify" / "config.yaml").write_text(
-        "agents:\n  available:\n    - claude\n", encoding="utf-8"
-    )
+    (r / ".kittify" / "config.yaml").write_text("agents:\n  available:\n    - claude\n", encoding="utf-8")
     return r
 
 
@@ -103,9 +103,7 @@ def _build_mission(repo: Path, *, dirname: str) -> Path:
         "computed_at": "2026-07-12T00:00:00+00:00",
         "computed_from": "dependency_graph+ownership",
     }
-    (feature_dir / "lanes.json").write_text(
-        json.dumps(lanes_manifest), encoding="utf-8"
-    )
+    (feature_dir / "lanes.json").write_text(json.dumps(lanes_manifest), encoding="utf-8")
     _git(repo, "add", ".")
     _git(repo, "commit", "-q", "-m", "fixture")
     return feature_dir
@@ -115,7 +113,14 @@ def _materialize_coord_root_without_mission_dir(repo: Path, dirname: str) -> Pat
     """The fail-closed window: coord worktree root exists, mission dir absent."""
     composed = dirname if dirname.endswith(f"-{_MID8}") else f"{dirname}-{_MID8}"
     coord_root = repo / ".worktrees" / f"{composed}-coord"
-    coord_root.mkdir(parents=True)
+    materialize_coordination(repo, coord_root, f"kitty/mission-{dirname}")
+    # This is the registered create-window before mission files are published.
+    # The branch exists but the worktree does not yet carry the mission directory.
+    import shutil
+
+    mission_dir = coord_root / "kitty-specs" / dirname
+    if mission_dir.exists():
+        shutil.rmtree(mission_dir)
     return coord_root
 
 
@@ -126,15 +131,12 @@ def _assert_option_b_warning(caplog: pytest.LogCaptureFixture) -> None:
     logger emits the stale-surface warning naming both recovery paths. This keeps
     the convergence honest: the leg resolved PRIMARY *and* announced the risk.
     """
-    assert any(
-        r.name == _SURFACE_LOGGER and r.levelno == logging.WARNING
-        for r in caplog.records
-    ), "coord-empty Option B must emit a logging.WARNING (no silent fallback)"
+    assert any(r.name == _SURFACE_LOGGER and r.levelno == logging.WARNING for r in caplog.records), (
+        "coord-empty Option B must emit a logging.WARNING (no silent fallback)"
+    )
 
 
-def test_action_context_canonical_dirname_resolves_primary_with_warning(
-    repo: Path, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_action_context_canonical_dirname_resolves_primary_with_warning(repo: Path, caplog: pytest.LogCaptureFixture) -> None:
     """``<slug>-<mid8>`` coord-empty folds onto Option B primary+warning (post-WP06).
 
     WP06's read-path boundary absorption (T015) classifies the absent ``topology``
@@ -148,17 +150,13 @@ def test_action_context_canonical_dirname_resolves_primary_with_warning(
     _materialize_coord_root_without_mission_dir(repo, _CANONICAL_DIRNAME)
 
     with caplog.at_level(logging.WARNING, logger=_SURFACE_LOGGER):
-        context = resolve_action_context(
-            repo, action="status", feature=_CANONICAL_DIRNAME
-        )
+        context = resolve_action_context(repo, action="status", feature=_CANONICAL_DIRNAME)
 
     assert context.feature_dir == str(repo / "kitty-specs" / _CANONICAL_DIRNAME)
     _assert_option_b_warning(caplog)
 
 
-def test_action_context_backfilled_dirname_resolves_primary_with_warning(
-    repo: Path, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_action_context_backfilled_dirname_resolves_primary_with_warning(repo: Path, caplog: pytest.LogCaptureFixture) -> None:
     """WP04 Option B: bare-dir coord-empty resolves PRIMARY + loud warning.
 
     The backfilled bare dirname travels status-surface resolution, where Option B
@@ -170,20 +168,15 @@ def test_action_context_backfilled_dirname_resolves_primary_with_warning(
     _materialize_coord_root_without_mission_dir(repo, _BACKFILLED_DIRNAME)
 
     with caplog.at_level(logging.WARNING, logger=_SURFACE_LOGGER):
-        context = resolve_action_context(
-            repo, action="status", feature=_BACKFILLED_DIRNAME
-        )
+        context = resolve_action_context(repo, action="status", feature=_BACKFILLED_DIRNAME)
 
     assert context.feature_dir == str(repo / "kitty-specs" / _BACKFILLED_DIRNAME)
-    assert any(
-        r.name == _SURFACE_LOGGER and r.levelno == logging.WARNING
-        for r in caplog.records
-    ), "coord-empty Option B must emit a logging.WARNING (no silent fallback)"
+    assert any(r.name == _SURFACE_LOGGER and r.levelno == logging.WARNING for r in caplog.records), (
+        "coord-empty Option B must emit a logging.WARNING (no silent fallback)"
+    )
 
 
-def test_placement_only_canonical_dirname_resolves_with_warning(
-    repo: Path, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_placement_only_canonical_dirname_resolves_with_warning(repo: Path, caplog: pytest.LogCaptureFixture) -> None:
     """``<slug>-<mid8>`` coord-empty placement folds onto Option B (post-WP06).
 
     The shared placement fragment builder travels the same status-surface resolution;
@@ -194,17 +187,13 @@ def test_placement_only_canonical_dirname_resolves_with_warning(
     _materialize_coord_root_without_mission_dir(repo, _CANONICAL_DIRNAME)
 
     with caplog.at_level(logging.WARNING, logger=_SURFACE_LOGGER):
-        placement = resolve_placement_only(
-            repo, _CANONICAL_DIRNAME, kind=MissionArtifactKind.STATUS_STATE
-        )
+        placement = resolve_placement_only(repo, _CANONICAL_DIRNAME, kind=MissionArtifactKind.STATUS_STATE)
 
     assert placement is not None
     _assert_option_b_warning(caplog)
 
 
-def test_placement_only_backfilled_dirname_resolves_with_warning(
-    repo: Path, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_placement_only_backfilled_dirname_resolves_with_warning(repo: Path, caplog: pytest.LogCaptureFixture) -> None:
     """WP04 Option B: bare-dir coord-empty placement resolves (no refusal) + warns.
 
     The shared placement fragment builder travels the same status-surface
@@ -215,12 +204,9 @@ def test_placement_only_backfilled_dirname_resolves_with_warning(
     _materialize_coord_root_without_mission_dir(repo, _BACKFILLED_DIRNAME)
 
     with caplog.at_level(logging.WARNING, logger=_SURFACE_LOGGER):
-        placement = resolve_placement_only(
-            repo, _BACKFILLED_DIRNAME, kind=MissionArtifactKind.STATUS_STATE
-        )
+        placement = resolve_placement_only(repo, _BACKFILLED_DIRNAME, kind=MissionArtifactKind.STATUS_STATE)
 
     assert placement is not None
-    assert any(
-        r.name == _SURFACE_LOGGER and r.levelno == logging.WARNING
-        for r in caplog.records
-    ), "coord-empty Option B must emit a logging.WARNING (no silent fallback)"
+    assert any(r.name == _SURFACE_LOGGER and r.levelno == logging.WARNING for r in caplog.records), (
+        "coord-empty Option B must emit a logging.WARNING (no silent fallback)"
+    )

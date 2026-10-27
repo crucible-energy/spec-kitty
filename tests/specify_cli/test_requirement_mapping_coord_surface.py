@@ -42,6 +42,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from tests._support.coordination import materialize_coordination
 
 from mission_runtime import CommitTarget, MissionTopology
 
@@ -116,8 +117,10 @@ def _build_coord_topology(repo_root: Path) -> Path:
     # ``worktree_path`` is annotated ``Any`` upstream — pin the local Path so the
     # derived ``tasks/`` return type stays concrete (no-any-return, boy-scout).
     coord_root: Path = CoordinationWorkspace.worktree_path(repo_root, _SLUG, _MID8)
+    materialize_coordination(repo_root, coord_root, _COORD_BRANCH)
     coord_feature_dir = coord_root / "kitty-specs" / f"{_SLUG}-{_MID8}"
     _write_meta(coord_feature_dir)
+    (coord_feature_dir / "status.events.jsonl").write_text("")
     coord_tasks = coord_feature_dir / "tasks"
     _write_wp(coord_tasks, "WP01", ["FR-001", "FR-002"])
     _write_wp(coord_tasks, "WP02", ["FR-003"])
@@ -153,8 +156,10 @@ def _build_coord_topology_with_primary_planning(repo_root: Path) -> Path:
     # Materialized coordination worktree: identity husk with an EMPTY ``tasks/`` —
     # the stale shadow the pre-#2115 coord-routed read would have surfaced.
     coord_root = CoordinationWorkspace.worktree_path(repo_root, _SLUG, _MID8)
+    materialize_coordination(repo_root, coord_root, _COORD_BRANCH)
     coord_feature_dir = coord_root / "kitty-specs" / f"{_SLUG}-{_MID8}"
     _write_meta(coord_feature_dir)
+    (coord_feature_dir / "status.events.jsonl").write_text("")
     (coord_feature_dir / "tasks").mkdir(parents=True, exist_ok=True)
     return primary_tasks
 
@@ -174,10 +179,7 @@ def test_pre_fix_resolvers_diverge_on_coord_topology(tmp_path: Path) -> None:
     slug_dir = resolve_feature_dir_for_slug(tmp_path, _SLUG)
     mission_dir = resolve_feature_dir_for_mission(tmp_path, _SLUG)
 
-    assert slug_dir != mission_dir, (
-        "Fixture does not reproduce #2064: the divergent resolvers agree, so the "
-        "test would pass even on the buggy tree."
-    )
+    assert slug_dir != mission_dir, "Fixture does not reproduce #2064: the divergent resolvers agree, so the test would pass even on the buggy tree."
     # The divergent path lands on PRIMARY (no coord) — the stale read.
     assert ".worktrees" not in str(slug_dir)
     # The seam finalize uses lands on the coord worktree — the canonical read.
@@ -234,9 +236,7 @@ def test_map_resolves_primary_planning_surface_on_coord_topology(
 # --- T034: FR-005 predicate routing at the review-currency decision site ------
 
 
-def _stub_placement(
-    monkeypatch: pytest.MonkeyPatch, *, coord: bool
-) -> CommitTarget:
+def _stub_placement(monkeypatch: pytest.MonkeyPatch, *, coord: bool) -> CommitTarget:
     """Stub the ref-only placement + the STORED topology the routing decision reads.
 
     FR-001b: ``_review_currency_check_branch`` decides coord-vs-primary from the
@@ -250,9 +250,7 @@ def _stub_placement(
     # ``kind=STATUS_STATE`` (the coord-base read), so the stub must accept ``kind``
     # — a positional-only lambda raises TypeError, gets swallowed by the helper's
     # except arm, and silently falls back to ``target_branch`` (the stale-stub trap).
-    monkeypatch.setattr(
-        tasks_mod, "resolve_placement_only", lambda _root, _slug, *, kind: placement
-    )
+    monkeypatch.setattr(tasks_mod, "resolve_placement_only", lambda _root, _slug, *, kind: placement)
     monkeypatch.setattr(tasks_mod, "resolve_topology", lambda _root, _slug: topology)
     return placement
 

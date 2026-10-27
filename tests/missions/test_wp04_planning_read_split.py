@@ -34,6 +34,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from tests._support.coordination import materialize_coordination
 
 from mission_runtime import MissionArtifactKind, MissionTopology
 from specify_cli.missions._read_path_resolver import (
@@ -57,9 +58,7 @@ STALE_HUSK = "# spec.md — STALE pre-mission coord husk copy\n"
 
 
 def _git(repo_root: Path, *args: str) -> None:
-    subprocess.run(
-        ["git", "-C", str(repo_root), *args], check=True, capture_output=True, text=True
-    )
+    subprocess.run(["git", "-C", str(repo_root), *args], check=True, capture_output=True, text=True)
 
 
 def _init_repo(repo_root: Path) -> None:
@@ -95,10 +94,10 @@ def _seed_coord_topology_with_stale_husk(repo_root: Path) -> tuple[Path, Path]:
     _write_meta(primary_dir, meta)
     (primary_dir / "spec.md").write_text(PRIMARY_TRUTH, encoding="utf-8")
 
-    coord_husk_dir = (
-        repo_root / ".worktrees" / f"{SLUG_WITH_MID8}-coord" / "kitty-specs" / SLUG_WITH_MID8
-    )
+    coord_husk_dir = repo_root / ".worktrees" / f"{SLUG_WITH_MID8}-coord" / "kitty-specs" / SLUG_WITH_MID8
+    materialize_coordination(repo_root, coord_husk_dir.parent.parent, COORD_BRANCH)
     _write_meta(coord_husk_dir, meta)
+    (coord_husk_dir / "status.events.jsonl").write_text("")
     (coord_husk_dir / "spec.md").write_text(STALE_HUSK, encoding="utf-8")
     return primary_dir, coord_husk_dir
 
@@ -116,9 +115,7 @@ def _seed_flattened_with_stale_husk(repo_root: Path) -> tuple[Path, Path]:
     _write_meta(primary_dir, meta)
     (primary_dir / "spec.md").write_text(PRIMARY_TRUTH, encoding="utf-8")
 
-    coord_husk_dir = (
-        repo_root / ".worktrees" / f"{SLUG_WITH_MID8}-coord" / "kitty-specs" / SLUG_WITH_MID8
-    )
+    coord_husk_dir = repo_root / ".worktrees" / f"{SLUG_WITH_MID8}-coord" / "kitty-specs" / SLUG_WITH_MID8
     _write_meta(coord_husk_dir, meta)
     (coord_husk_dir / "spec.md").write_text(STALE_HUSK, encoding="utf-8")
     return primary_dir, coord_husk_dir
@@ -138,9 +135,7 @@ def _seed_flattened_with_stale_husk(repo_root: Path) -> tuple[Path, Path]:
         MissionArtifactKind.RESEARCH,
     ],
 )
-def test_coord_topology_planning_read_resolves_primary_not_stale_husk(
-    tmp_path: Path, kind: MissionArtifactKind
-) -> None:
+def test_coord_topology_planning_read_resolves_primary_not_stale_husk(tmp_path: Path, kind: MissionArtifactKind) -> None:
     """Headline #2062 read-side: a planning read of a coord mission → PRIMARY.
 
     The materialized ``-coord`` husk carries STALE content; the planning read
@@ -164,9 +159,7 @@ def test_flattened_with_stale_husk_planning_read_resolves_primary(
     """A flattened mission with a lingering husk still reads PRIMARY (NFR-001)."""
     primary_dir, coord_husk_dir = _seed_flattened_with_stale_husk(tmp_path)
 
-    resolved = resolve_planning_read_dir(
-        tmp_path, SLUG_WITH_MID8, kind=MissionArtifactKind.SPEC
-    )
+    resolved = resolve_planning_read_dir(tmp_path, SLUG_WITH_MID8, kind=MissionArtifactKind.SPEC)
 
     assert resolved.resolve() == primary_dir.resolve()
     assert (resolved / "spec.md").read_text(encoding="utf-8") == PRIMARY_TRUTH
@@ -180,9 +173,7 @@ def test_planning_read_dir_matches_primary_primitive(tmp_path: Path) -> None:
     """
     _seed_coord_topology_with_stale_husk(tmp_path)
     assert (
-        resolve_planning_read_dir(
-            tmp_path, SLUG_WITH_MID8, kind=MissionArtifactKind.TASKS_INDEX
-        ).resolve()
+        resolve_planning_read_dir(tmp_path, SLUG_WITH_MID8, kind=MissionArtifactKind.TASKS_INDEX).resolve()
         == primary_feature_dir_for_mission(tmp_path, SLUG_WITH_MID8).resolve()
     )
 
@@ -202,9 +193,7 @@ def test_status_kind_keeps_topology_aware_coord_surface(tmp_path: Path) -> None:
     """
     _primary_dir, coord_husk_dir = _seed_coord_topology_with_stale_husk(tmp_path)
 
-    resolved = resolve_planning_read_dir(
-        tmp_path, SLUG_WITH_MID8, kind=MissionArtifactKind.STATUS_STATE
-    )
+    resolved = resolve_planning_read_dir(tmp_path, SLUG_WITH_MID8, kind=MissionArtifactKind.STATUS_STATE)
 
     assert resolved.resolve() == coord_husk_dir.resolve()
 
@@ -220,14 +209,9 @@ def test_keep_c005_probe_transients_unchanged_after_planning_split(
     """
     _init_repo(tmp_path)
     coord_root = tmp_path / ".worktrees" / f"{SLUG_WITH_MID8}-coord"
-    coord_root.mkdir(parents=True)
+    materialize_coordination(tmp_path, coord_root, COORD_BRANCH)
     # EMPTY: coord root materialized, mission dir absent (#1718 family).
     assert probe_coord_state(tmp_path, SLUG_WITH_MID8, MID8) is CoordState.EMPTY
     # DELETED: coord root absent AND declared branch gone (#1848 data-loss guard).
     other = f"deleted-{MID8}"
-    assert (
-        probe_coord_state(
-            tmp_path, other, MID8, coordination_branch="kitty/mission-gone-deadbeef"
-        )
-        is CoordState.DELETED
-    )
+    assert probe_coord_state(tmp_path, other, MID8, coordination_branch="kitty/mission-gone-deadbeef") is CoordState.DELETED

@@ -3,6 +3,10 @@
 import subprocess
 import sys
 
+import pytest
+
+pytestmark = [pytest.mark.integration, pytest.mark.doctrine]
+
 
 def test_repository_imports_do_not_initialize_unused_schema_engine():
     result = subprocess.run(

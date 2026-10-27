@@ -184,8 +184,15 @@ class TestLoadCoordMission:
         coord_worktree_root = repo / ".worktrees" / f"{coord_dir_name}-coord"
         subprocess.run(
             [
-                "git", "-C", str(repo), "worktree", "add", "-q",
-                "-b", coord_branch, str(coord_worktree_root),
+                "git",
+                "-C",
+                str(repo),
+                "worktree",
+                "add",
+                "-q",
+                "-b",
+                coord_branch,
+                str(coord_worktree_root),
             ],
             check=True,
             capture_output=True,
@@ -194,6 +201,7 @@ class TestLoadCoordMission:
         coord_mission_dir = coord_worktree_root / "kitty-specs" / coord_dir_name
         coord_mission_dir.mkdir(parents=True)
         _write_meta(coord_mission_dir, mission_id=mission_id, coordination_branch=coord_branch)
+        (coord_mission_dir / "status.events.jsonl").write_text("")
 
         from specify_cli.status.aggregate import MissionStatus
 
@@ -231,9 +239,7 @@ class TestLoadCoordUnavailableFailsClosed:
         assert ms.read_dir == primary_mission_dir
         assert ms.coordination_branch == f"kitty/mission-{slug}-{mission_id[:8]}"
 
-    def test_bare_modern_slug_uses_composed_primary_dir_before_coord_materialized(
-        self, tmp_path: Path
-    ) -> None:
+    def test_bare_modern_slug_uses_composed_primary_dir_before_coord_materialized(self, tmp_path: Path) -> None:
         """Bare slug mirrors read resolvers: primary dir is ``<slug>-<mid8>``."""
         bare_slug = "demo-feature"
         mission_id = "01ABCDEF1234567890123456"
@@ -253,9 +259,7 @@ class TestLoadCoordUnavailableFailsClosed:
         assert ms.read_dir == primary_mission_dir
         assert ms.mid8 == mid8
 
-    def test_coord_worktree_materialized_but_missing_mission_dir_resolves_primary(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_coord_worktree_materialized_but_missing_mission_dir_resolves_primary(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
         """WP04 Option B (#1716 / FR-003): coord-empty → aggregate inherits PRIMARY.
 
         Previously this hard-failed with ``CoordAuthorityUnavailable``. Under the
@@ -283,27 +287,26 @@ class TestLoadCoordUnavailableFailsClosed:
             coordination_branch=f"kitty/mission-{full_slug}",
             topology="lanes_with_coord",
         )
-        _write_events_file(primary_dir, [
-            _make_event(full_slug, "WP01", "planned", "claimed"),
-        ])
+        _write_events_file(
+            primary_dir,
+            [
+                _make_event(full_slug, "WP01", "planned", "claimed"),
+            ],
+        )
         # Root exists, but kitty-specs/<slug>-<mid8>/ is absent (coord-empty).
         (tmp_path / ".worktrees" / f"{full_slug}-coord").mkdir(parents=True)
 
         from specify_cli.status.aggregate import MissionStatus
 
-        with caplog.at_level(
-            logging.WARNING, logger="specify_cli.coordination.surface_resolver"
-        ):
+        with caplog.at_level(logging.WARNING, logger="specify_cli.coordination.surface_resolver"):
             ms = MissionStatus.load(repo_root=tmp_path, mission_slug=full_slug)
 
         # Option B: the aggregate inherits the PRIMARY checkout (no hard-fail).
         assert ms.read_dir.resolve() == primary_dir.resolve()
         # The fallback is loud (NFR-003): the surface emitted a WARNING.
-        assert any(
-            r.name == "specify_cli.coordination.surface_resolver"
-            and r.levelno == logging.WARNING
-            for r in caplog.records
-        ), "coord-empty Option B must surface a logging.WARNING (no silent fallback)"
+        assert any(r.name == "specify_cli.coordination.surface_resolver" and r.levelno == logging.WARNING for r in caplog.records), (
+            "coord-empty Option B must surface a logging.WARNING (no silent fallback)"
+        )
 
     def test_corrupt_meta_fails_closed_instead_of_legacy_fallback(self, tmp_path: Path) -> None:
         """Existing but corrupt meta.json cannot degrade to a primary-checkout read."""
@@ -313,9 +316,12 @@ class TestLoadCoordUnavailableFailsClosed:
             '{"mission_id":"01CORRUPT12345678901234","coordination_branch":',
             encoding="utf-8",
         )
-        _write_events_file(mission_dir, [
-            _make_event(slug, "WP01", "planned", "claimed"),
-        ])
+        _write_events_file(
+            mission_dir,
+            [
+                _make_event(slug, "WP01", "planned", "claimed"),
+            ],
+        )
 
         from specify_cli.status.aggregate import MissionMetadataUnavailable, MissionStatus
 
@@ -375,10 +381,13 @@ class TestClaimReturnsCorrectLane:
     def test_claim_returns_active_wp_status_for_known_wp(self, tmp_path: Path) -> None:
         slug = "034-claim-test"
         mission_dir = _make_mission_dir(tmp_path, slug)
-        _write_events_file(mission_dir, [
-            _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH01"),
-            _make_event(slug, "WP01", "claimed", "in_progress", event_id="01HXYZ0123456789ABCDEFGH02"),
-        ])
+        _write_events_file(
+            mission_dir,
+            [
+                _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH01"),
+                _make_event(slug, "WP01", "claimed", "in_progress", event_id="01HXYZ0123456789ABCDEFGH02"),
+            ],
+        )
 
         from specify_cli.status import Lane
         from specify_cli.status.aggregate import MissionStatus
@@ -394,9 +403,12 @@ class TestClaimReturnsCorrectLane:
     def test_claim_current_lane_matches_last_event_to_lane(self, tmp_path: Path) -> None:
         slug = "034-lane-verify"
         mission_dir = _make_mission_dir(tmp_path, slug)
-        _write_events_file(mission_dir, [
-            _make_event(slug, "WP02", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH10"),
-        ])
+        _write_events_file(
+            mission_dir,
+            [
+                _make_event(slug, "WP02", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH10"),
+            ],
+        )
 
         from specify_cli.status import Lane
         from specify_cli.status.aggregate import MissionStatus
@@ -596,9 +608,7 @@ class TestTransitionHappyPath:
                 return True
 
             @staticmethod
-            def _infer_implementation_evidence_from_event_stream(
-                event_stream: object, wp_id: str
-            ) -> bool:
+            def _infer_implementation_evidence_from_event_stream(event_stream: object, wp_id: str) -> bool:
                 assert event_stream is not None
                 assert wp_id == "WP07"
                 return True
@@ -619,9 +629,12 @@ class TestTransitionHappyPath:
         """transition() rejects illegal transitions before calling BookkeepingTransaction."""
         slug = "034-transition-test"
         mission_dir = _make_mission_dir(tmp_path, slug)
-        _write_events_file(mission_dir, [
-            _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH01"),
-        ])
+        _write_events_file(
+            mission_dir,
+            [
+                _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH01"),
+            ],
+        )
 
         from specify_cli.status import TransitionRequest
         from specify_cli.status.emit import TransitionError
@@ -647,9 +660,12 @@ class TestTransitionHappyPath:
         """transition() preserves validator diagnostics for illegal moves."""
         slug = "034-invalid-transition"
         mission_dir = _make_mission_dir(tmp_path, slug)
-        _write_events_file(mission_dir, [
-            _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH20"),
-        ])
+        _write_events_file(
+            mission_dir,
+            [
+                _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH20"),
+            ],
+        )
 
         from specify_cli.status import TransitionRequest
         from specify_cli.status.emit import TransitionError
@@ -668,15 +684,16 @@ class TestTransitionHappyPath:
         with pytest.raises(TransitionError, match="Illegal transition: claimed -> done"):
             ms.transition(bad_request)
 
-    def test_transition_coerces_unparseable_lanes_in_error_path(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_transition_coerces_unparseable_lanes_in_error_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """transition() preserves unknown-lane diagnostics instead of crashing."""
         slug = "034-coerce-bogus-lanes"
         mission_dir = _make_mission_dir(tmp_path, slug)
-        _write_events_file(mission_dir, [
-            _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH21"),
-        ])
+        _write_events_file(
+            mission_dir,
+            [
+                _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH21"),
+            ],
+        )
 
         import specify_cli.status as status_pkg
         from specify_cli.status import TransitionRequest
@@ -698,18 +715,19 @@ class TestTransitionHappyPath:
         with pytest.raises(TransitionError, match="Unknown lane"):
             ms.transition(bad_request)
 
-    def test_transition_preserves_guard_error_for_missing_done_evidence(
-        self, tmp_path: Path
-    ) -> None:
+    def test_transition_preserves_guard_error_for_missing_done_evidence(self, tmp_path: Path) -> None:
         """Guard failures keep transactional TransitionError text."""
         slug = "034-done-missing-evidence"
         mission_dir = _make_mission_dir(tmp_path, slug)
-        _write_events_file(mission_dir, [
-            _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH26"),
-            _make_event(slug, "WP01", "claimed", "in_progress", event_id="01HXYZ0123456789ABCDEFGH27"),
-            _make_event(slug, "WP01", "in_progress", "for_review", event_id="01HXYZ0123456789ABCDEFGH28"),
-            _make_event(slug, "WP01", "for_review", "approved", event_id="01HXYZ0123456789ABCDEFGH29"),
-        ])
+        _write_events_file(
+            mission_dir,
+            [
+                _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH26"),
+                _make_event(slug, "WP01", "claimed", "in_progress", event_id="01HXYZ0123456789ABCDEFGH27"),
+                _make_event(slug, "WP01", "in_progress", "for_review", event_id="01HXYZ0123456789ABCDEFGH28"),
+                _make_event(slug, "WP01", "for_review", "approved", event_id="01HXYZ0123456789ABCDEFGH29"),
+            ],
+        )
 
         from specify_cli.status import TransitionRequest
         from specify_cli.status.aggregate import MissionStatus
@@ -731,10 +749,13 @@ class TestTransitionHappyPath:
         """Legacy alias self-transitions remain no-ops through the aggregate."""
         slug = "034-doing-noop"
         mission_dir = _make_mission_dir(tmp_path, slug)
-        _write_events_file(mission_dir, [
-            _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH30"),
-            _make_event(slug, "WP01", "claimed", "in_progress", event_id="01HXYZ0123456789ABCDEFGH31"),
-        ])
+        _write_events_file(
+            mission_dir,
+            [
+                _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH30"),
+                _make_event(slug, "WP01", "claimed", "in_progress", event_id="01HXYZ0123456789ABCDEFGH31"),
+            ],
+        )
         before = (mission_dir / "status.events.jsonl").read_text(encoding="utf-8")
 
         from specify_cli.status import TransitionRequest
@@ -755,9 +776,7 @@ class TestTransitionHappyPath:
         assert str(event.to_lane) == "in_progress"
         assert (mission_dir / "status.events.jsonl").read_text(encoding="utf-8") == before
 
-    def test_transition_validates_against_coord_branch_when_worktree_absent(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_transition_validates_against_coord_branch_when_worktree_absent(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Pre-validation reads coord branch state when no coord worktree exists."""
         slug = "coord-ahead"
         mission_id = "01ABCDEF1234567890123456"
@@ -773,18 +792,24 @@ class TestTransitionHappyPath:
             "---\nwork_package_id: WP01\ndependencies: []\nsubtasks: []\n---\n# WP01\n",
             encoding="utf-8",
         )
-        _write_events_file(primary_dir, [
-            _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH32"),
-        ])
+        _write_events_file(
+            primary_dir,
+            [
+                _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH32"),
+            ],
+        )
         _git(repo, "add", ".")
         _git(repo, "commit", "-m", "primary claimed")
         _git(repo, "checkout", "-b", coord_branch)
         coord_dir = repo / "kitty-specs" / f"{slug}-{mid8}"
         coord_dir.mkdir(parents=True)
-        _write_events_file(coord_dir, [
-            _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH33"),
-            _make_event(slug, "WP01", "claimed", "in_progress", event_id="01HXYZ0123456789ABCDEFGH34"),
-        ])
+        _write_events_file(
+            coord_dir,
+            [
+                _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH33"),
+                _make_event(slug, "WP01", "claimed", "in_progress", event_id="01HXYZ0123456789ABCDEFGH34"),
+            ],
+        )
         _git(repo, "add", ".")
         _git(repo, "commit", "-m", "coord in progress")
         _git(repo, "checkout", "main")
@@ -817,9 +842,7 @@ class TestTransitionHappyPath:
 
         assert result is marker
 
-    def test_transition_rejects_empty_event_log_as_genesis(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_transition_rejects_empty_event_log_as_genesis(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Empty canonical log is unseeded; claim must not bypass genesis."""
         slug = "034-empty-log-transition"
         mission_dir = _make_mission_dir(tmp_path, slug)
@@ -851,15 +874,16 @@ class TestTransitionHappyPath:
                 )
             )
 
-    def test_transition_rejects_unknown_wp_in_nonempty_log_as_genesis(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_transition_rejects_unknown_wp_in_nonempty_log_as_genesis(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Unknown WP rows are unseeded; claim must not bypass genesis."""
         slug = "034-unknown-wp-transition"
         mission_dir = _make_mission_dir(tmp_path, slug)
-        _write_events_file(mission_dir, [
-            _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH22"),
-        ])
+        _write_events_file(
+            mission_dir,
+            [
+                _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH22"),
+            ],
+        )
 
         from specify_cli.status import TransitionRequest
         from specify_cli.status.emit import TransitionError
@@ -887,15 +911,16 @@ class TestTransitionHappyPath:
                 )
             )
 
-    def test_transition_infers_workspace_context_for_claimed_to_in_progress(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_transition_infers_workspace_context_for_claimed_to_in_progress(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Aggregate pre-validation mirrors legacy workspace-context inference."""
         slug = "034-claimed-to-progress"
         mission_dir = _make_mission_dir(tmp_path, slug)
-        _write_events_file(mission_dir, [
-            _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH23"),
-        ])
+        _write_events_file(
+            mission_dir,
+            [
+                _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH23"),
+            ],
+        )
 
         from specify_cli.status import TransitionRequest
         from specify_cli.status.aggregate import MissionStatus
@@ -921,16 +946,17 @@ class TestTransitionHappyPath:
 
         assert result is marker
 
-    def test_transition_infers_for_review_guards(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_transition_infers_for_review_guards(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Aggregate pre-validation mirrors legacy for_review guard inference."""
         slug = "034-progress-to-review"
         mission_dir = _make_mission_dir(tmp_path, slug)
-        _write_events_file(mission_dir, [
-            _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH24"),
-            _make_event(slug, "WP01", "claimed", "in_progress", event_id="01HXYZ0123456789ABCDEFGH25"),
-        ])
+        _write_events_file(
+            mission_dir,
+            [
+                _make_event(slug, "WP01", "planned", "claimed", event_id="01HXYZ0123456789ABCDEFGH24"),
+                _make_event(slug, "WP01", "claimed", "in_progress", event_id="01HXYZ0123456789ABCDEFGH25"),
+            ],
+        )
         (mission_dir / "tasks.md").write_text("# Tasks\n", encoding="utf-8")
         tasks_dir = mission_dir / "tasks"
         tasks_dir.mkdir()
@@ -984,9 +1010,7 @@ class TestTransitionHappyPath:
 
 
 class TestSaveReturnType:
-    def test_save_uses_real_bookkeeping_transaction_and_returns_commit_receipt(
-        self, tmp_path: Path
-    ) -> None:
+    def test_save_uses_real_bookkeeping_transaction_and_returns_commit_receipt(self, tmp_path: Path) -> None:
         """save() commits status artifacts through the real BookkeepingTransaction."""
         slug = "save-modern"
         mission_id = "01SAVE12345678901234567890"
@@ -1020,9 +1044,7 @@ class TestSaveReturnType:
         committed = _git(repo, "show", f"{coord_branch}:kitty-specs/{slug}-{mid8}/status.events.jsonl")
         assert "WP01" in committed
 
-    def test_save_supports_identity_bearing_legacy_mission(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_save_supports_identity_bearing_legacy_mission(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Legacy mission (mission_id, no coord branch) commits on the legacy lane.
 
         WP05 / FR-004 before→after rationale (the prompt flagged this as one of

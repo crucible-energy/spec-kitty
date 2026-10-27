@@ -12,6 +12,7 @@ PRIMARY checkout and emits a loud, actionable WARNING (ADR 2026-06-19-1 amended)
 coord-EMPTY = loud primary fallback; coord-DELETED = hard-fail. The two
 fail-closed states stay distinct.
 """
+
 from __future__ import annotations
 
 import json
@@ -113,9 +114,7 @@ def test_r2_declared_branch_exists_worktree_absent_uses_primary(tmp_path: Path) 
 # ---------------------------------------------------------------------------
 
 
-def test_r2prime_materialized_root_missing_dir_falls_back_to_primary_loudly(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_r2prime_materialized_root_missing_dir_falls_back_to_primary_loudly(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     repo_root = tmp_path / "repo"
     _init_repo(repo_root)
     _git(repo_root, "branch", _COORD_BRANCH)
@@ -123,12 +122,12 @@ def test_r2prime_materialized_root_missing_dir_falls_back_to_primary_loudly(
     # mission WITH lanes hitting an unexpected empty coord). A solo (no-lanes)
     # ``MissionTopology.COORD`` mission stays quiet — see
     # tests/coordination/test_surface_resolver_solo_coord_primary.py.
-    feature_dir = _seed_primary_meta(
-        repo_root, coordination_branch=_COORD_BRANCH, topology="lanes_with_coord"
-    )
+    feature_dir = _seed_primary_meta(repo_root, coordination_branch=_COORD_BRANCH, topology="lanes_with_coord")
     # Coord worktree root exists but lacks the mission dir.
     coord_root = repo_root / ".worktrees" / f"{_MISSION}-{_MID8}-coord"
-    coord_root.mkdir(parents=True)
+    from tests._support.coordination import materialize_coordination
+
+    materialize_coordination(repo_root, coord_root, _COORD_BRANCH)
 
     with caplog.at_level(logging.WARNING, logger="specify_cli.coordination.surface_resolver"):
         result = resolve_status_surface(repo_root, _MISSION)
@@ -208,8 +207,15 @@ def test_r1_declared_materialized_resolves_coord_surface(tmp_path: Path) -> None
     coord_root = repo_root / ".worktrees" / f"{_MISSION}-{_MID8}-coord"
     subprocess.run(
         [
-            "git", "-C", str(repo_root), "worktree", "add", "-q",
-            "-b", _COORD_BRANCH, str(coord_root),
+            "git",
+            "-C",
+            str(repo_root),
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            _COORD_BRANCH,
+            str(coord_root),
         ],
         check=True,
         capture_output=True,
@@ -223,5 +229,6 @@ def test_r1_declared_materialized_resolves_coord_surface(tmp_path: Path) -> None
     )
     _seed_primary_meta(repo_root, coordination_branch=_COORD_BRANCH)
 
+    (coord_feature_dir / "status.events.jsonl").write_text("")
     result = resolve_status_surface(repo_root, _MISSION)
     assert result == coord_feature_dir / "status.events.jsonl"
