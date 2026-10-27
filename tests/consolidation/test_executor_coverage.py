@@ -1501,3 +1501,55 @@ def test_post_mutation_recorder_preserves_callable_types(tmp_path: Path) -> None
     rejected = subprocess.run(command, cwd=repo, env=env, capture_output=True, text=True, timeout=45, check=False)
     assert rejected.returncode == 1, rejected.stdout + rejected.stderr
     assert "arg-type" in rejected.stdout, rejected.stdout + rejected.stderr
+
+
+@pytest.mark.parametrize("evidence_kind", ["manual_qa", "recorded_ni"])
+@pytest.mark.parametrize("complete", [False, True])
+def test_gate_preservation_requires_valid_recorded_evidence(
+    tmp_path: Path,
+    evidence_kind: str,
+    complete: bool,
+) -> None:
+    """A passing result without required evidence cannot replace genuine incoming proof."""
+    from specify_cli.acceptance.matrix import AcceptanceMatrix, validate_matrix_evidence
+
+    run = _make_run(tmp_path)
+    matrix_path = run.target_feature_dir / "acceptance-matrix.json"
+    issue_path = run.target_feature_dir / "issue-matrix.json"
+    matrix_path.parent.mkdir(parents=True, exist_ok=True)
+    incoming = _accepted_gate_bytes()
+    matrix_path.write_bytes(incoming)
+    incoming_issues = b'{"rows":{"#1":{"verdict":"fixed","evidence_ref":"incoming proof"}}}'
+    original_issues = b'{"rows":{"#1":{"verdict":"fixed","evidence_ref":"target proof"}}}'
+    issue_path.write_bytes(incoming_issues)
+    document = json.loads(incoming)
+    if evidence_kind == "manual_qa":
+        criterion = document["criteria"][0]
+        criterion["proof_type"] = "manual_qa"
+        criterion.pop("evidence")
+        if complete:
+            criterion.update(evidence="manual QA receipt", verified_by="reviewer-fixture", verified_at="2026-10-27T00:00:00Z")
+    else:
+        invariant = {
+            "invariant_id": "NI-001",
+            "description": "Recorded absence judgement",
+            "verification_method": "custom_command",
+            "verification_command": "exit 97",
+            "result": "confirmed_absent",
+            "provenance_origin": "recorded",
+        }
+        if complete:
+            invariant.update(verified_ref="f" * 40, verified_surface_kind="consolidated")
+        document["negative_invariants"] = [invariant]
+    original = json.dumps(document).encode()
+    matrix = AcceptanceMatrix.from_dict(document)
+    assert matrix.overall_verdict == "pass", "the computed pass alone must not establish acceptance"
+    assert bool(validate_matrix_evidence(matrix)) is not complete
+    assert original != incoming
+    run.pre_target_gate_artifact_snapshots = {matrix_path: original, issue_path: original_issues}
+
+    phase_advance._restore_regressed_gate_artifacts(run)
+
+    assert matrix_path.read_bytes() == (original if complete else incoming)
+    assert issue_path.read_bytes() == (original_issues if complete else incoming_issues)
+    assert run.gate_artifact_restored_paths == ([matrix_path, issue_path] if complete else [])
