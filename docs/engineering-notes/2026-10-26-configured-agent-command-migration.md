@@ -410,3 +410,26 @@ All 75 template-resolution/integration checks pass with the populated outer
 control still present. No production resolver precedence or shared home changes.
 The hosted clean-install gate on 49ab182d8 reports 0.840s median against the
 unchanged 1.050s ceiling; local and hosted timings are separate measurements.
+
+The long next-shard investigation does not establish a runtime defect. A bounded
+two-worker diagnostic reports 274 passes and three timeouts under an explicitly
+diagnostic 30-second per-case ceiling. Independent observations of the same
+synthetic research fixture show forward progress through all seven steps to
+terminal with no guard failures. Under the original test configuration, all
+three cases pass: 34.63s, 47.15s and 46.75s call time, 162.25s total including
+setup. The whole-process 900s/4GiB/1GiB-swap/32GiB-reserve guard remains unchanged
+and completed with nonzero samples. The 30-second results remain retained
+diagnostics, not product regressions or discarded required-gate failures. No
+runtime code, compat spy, scenario, cap or required selector is changed. Full
+hosted validation remains the merge gate. Private fixture Op records and prompts
+are synthetic test output and confer no real mission, audio or human authority.
+
+The published protect-main contract required clean-install enforcement, but
+fresh live reads showed no branch protection or effective rules. The owning
+admin workflow adds that exact GitHub Actions check context (app 15368), requires
+the PR path with zero reviewer approvals, and enforces it for admins. No existing
+rule was removed, check result overwritten or approval requirement inferred.
+The runbook now distinguishes the displayed check context from its internal
+workflow job identifier. All project-required gates still apply independently;
+this configuration repair is not a PR merge, audio qualification or capacity
+milestone. Review/default-branch delivery and eligible resource custody remain.

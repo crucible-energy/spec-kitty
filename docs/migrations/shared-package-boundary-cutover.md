@@ -79,6 +79,10 @@ spec-kitty next --agent <agent> --mission <mission>
 
 The repo's CI runs an automated equivalent of this check on every PR
 (`clean-install-verification` job in `.github/workflows/ci-quality.yml`).
+The required GitHub check context is **Clean install verification (FR-010)**
+from the GitHub Actions app; branch protection must use that displayed context,
+not the internal job identifier. Pull requests remain required with zero required
+reviewer approvals; this does not waive any project validation gate.
 
 ## Developer workflows
 

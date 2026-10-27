@@ -12,11 +12,13 @@ name: Protect Main Branch
 # The following checks MUST be in that list (in addition to whatever was
 # there before this mission):
 #
-#   - clean-install-verification  (job in .github/workflows/ci-quality.yml)
+#   - Clean install verification (FR-010)  (GitHub Actions check context)
+#     Job identifier: clean-install-verification in ci-quality.yml.
 #
 # When this workflow file is updated, a maintainer with admin access on the
-# repo MUST also add 'clean-install-verification' to the required-checks
-# list. The CLAUDE.md / docs/migrations/shared-package-boundary-cutover.md
+# repo MUST also add the exact check context above (not the job identifier)
+# to the required-checks list. The CLAUDE.md /
+# docs/migrations/shared-package-boundary-cutover.md
 # guide owns the runbook for that change.
 
 on:
