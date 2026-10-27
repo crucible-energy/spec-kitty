@@ -38,7 +38,30 @@ two-module invocation and real valid/invalid callable regression both passed at
 13:37:42 UTC. Preserve the first broader gate's typing failure; baseline and
 owning-subsystem validation still require a fresh run on this corrected candidate.
 
+Both subsequently identified Native authority findings are corrected through
+canonical acceptance-evidence and captured issue-readiness validation. The
+combined strict two-module check and 98 focused tests passed at 14:24:30 UTC,
+with unchanged source and a naturally joined producer. Freeze this correction
+for independent final review before the next complete required delivery gate;
+no ready PR, merge or installed-runtime qualification is established here.
+
 ## User Experience Findings
+
+- The paired issue-artifact boundary needed its own validation: canonical merge
+  gates check the coordination matrix, not a divergent captured target copy.
+  Actual corrected old-helper regressions showed six invalid target issue
+  restorations while two filled controls passed. The initial run proved two
+  no-gating failures but five other cases stopped at a fixture precondition;
+  canonical discovery recognizes two-to-six-digit references, so use `#1582`
+  instead of the fixture's unsupported `#1`. Preserve that initial run without
+  crediting the five setup failures as causal product regressions.
+
+- Native independent review of `ee658fce59` found that the computed passing
+  verdict does not validate required manual-QA evidence or recorded negative
+  invariant provenance. The passing broader gate and earlier bounded reviews
+  missed that evidence-completeness layer. Actual old-helper regressions showed
+  two invalid target restorations while both complete-evidence controls passed.
+  The separate red regression commit precedes the canonical validation call.
 
 - The first broader delivery gate passed formatting and lint but stopped at
   three strict `untyped-decorator` errors before baseline/subsystem tests ran.
@@ -74,6 +97,20 @@ owning-subsystem validation still require a fresh run on this corrected candidat
   must not activate the preservation guard.
 
 ## Engineering Decisions
+
+- Validate each captured issue copy through the existing content-aware domain
+  evaluator. It combines schema/business checks with canonical missing-row and
+  nonterminal checks against current primary requirements. Do not use the
+  approval blocker's zero-gating early return as schema validation, read the
+  post-merge matrix instead of the snapshot, duplicate verdict sets, or create
+  new obligations for missions without gating references. A rejected issue copy
+  leaves incoming issue proof authoritative while valid acceptance remains
+  independently protected. No invariant execution or row reconciliation is added.
+
+- Reuse the pure `validate_matrix_evidence` alongside matching mission identity
+  and the computed ready verdict. Do not duplicate evidence rules or execute
+  negative invariants. Preserve existing legacy/deferred semantics and require
+  real evidenced controls alongside the incomplete manual-QA/recorded-NI cases.
 
 - Root approved one existing mypy module-follow override for the already typed
   consolidation recorder. Following its canonical `ParamSpec` declaration
@@ -111,6 +148,20 @@ owning-subsystem validation still require a fresh run on this corrected candidat
   Runtime identity and source repair delivery remain separate facts.
 
 ## Known Limitations
+
+- Final review must close both Native findings: acceptance evidence completeness
+  and independent captured issue readiness. The historical 90-test focused pass
+  covered only the first correction. Earlier passing checks and bounded reviews
+  did not prove either missing authority layer; retain that review limitation
+  in the external closeout ledger. Validate and review the newly frozen source
+  before another full required gate or ready PR.
+
+- Candidate `ee658fce59` passed the complete R2 local gate and was pushed as a
+  historical validated increment. Native review then exposed the evidence
+  completeness P2; no full PR, merge or runtime qualification was claimed.
+  Publication readiness is held until the correction is validated, reviewed and
+  delivered. Preserve the earlier pass and its review limitation explicitly;
+  it is not acceptance of this newer candidate.
 
 - The first broader gate stopped at inherited strict typing. Formatting/lint
   passed, while baseline/subsystem/remaining gates did not run. After the narrow
