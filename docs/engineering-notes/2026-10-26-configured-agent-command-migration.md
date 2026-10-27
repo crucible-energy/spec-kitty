@@ -433,3 +433,41 @@ The runbook now distinguishes the displayed check context from its internal
 workflow job identifier. All project-required gates still apply independently;
 this configuration repair is not a PR merge, audio qualification or capacity
 milestone. Review/default-branch delivery and eligible resource custody remain.
+
+The next hosted wheel run on fbde8e4a3 misses NFR-003 at 1.245s against the
+unchanged 1.050s ceiling. Its 49 installed package versions match the preceding
+0.840s run, but uncontrolled runner differences prevent an exclusive cause or
+savings claim. The earlier pass is retained, not promoted to delivery. Remaining
+import profiling identifies eager charter compiler/interview initialization and
+the project installer loaded before an already next-only command registration.
+
+The charter package now binds its original public exports on demand. An ordered
+contract captured from the published pre-repair import declarations pins every
+export name, target module and object identity. The existing `sync` function is
+eagerly retained because its name collides with a submodule; both import orders
+keep the original callable identity. Unknown names still raise. Only standard
+per-process code bindings are retained, never project data, governance decisions
+or input-dependent results. Static type exports and full mypy remain intact.
+The catalog import regression is an actual pre-repair red, then green.
+
+An initial trial deferred imports inside the installer and passed 141 checks;
+it was superseded and `init.py` restored exactly. The final root repair instead
+avoids installer registration on the existing next-only route. Its fresh-process
+test is red before that repair. The normal command surface is preserved, and a
+real Typer invocation proves the next-only app still executes pin validation and
+propagates a schema refusal before dispatch. Final charter/compiler/interview/init
+parity passes 141 tests; 11 import/safety checks and the unchanged local doctor
+timing plus removed-alias controls pass. These are local results, not hosted NFR
+qualification. The local five-run next median is 0.614s with concurrent owned
+validation; no causal improvement is inferred from other local runs.
+
+The hosted wheel job now captures a profile and exact decision JSON after the
+original latency samples, including when that measurement fails. Every original
+workflow step, selector, baseline, ceiling and job timeout is unchanged; the two
+diagnostic steps and a step identifier are the sole semantic YAML additions.
+Raw profile artifacts contain only the synthetic clean-install fixture, not
+credentials or production audio. The full hosted gate remains authoritative.
+This is bounded repair of retained Python contracts; Zig parity must preserve
+the same demand boundary, public identities and all admission/error behavior.
+Other observed positive-fixture and obsolete-husk-helper failures remain owned
+before merge, as do hosted doctor timing and current-head startup qualification.

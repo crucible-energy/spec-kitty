@@ -71,10 +71,7 @@ def activate_mission(project_path: Path, mission_type: str, mission_display: str
     if mission_path.exists():
         return f"{mission_display} (per-feature selection)"
     else:
-        console.print(
-            f"[yellow]Note:[/yellow] Mission [cyan]{mission_display}[/cyan] templates will be "
-            f"available when you run [cyan]/spec-kitty.specify[/cyan]."
-        )
+        console.print(f"[yellow]Note:[/yellow] Mission [cyan]{mission_display}[/cyan] templates will be available when you run [cyan]/spec-kitty.specify[/cyan].")
         return f"{mission_display} (templates pending)"
 
 
@@ -92,6 +89,7 @@ def version_callback(value: bool) -> None:
         label = profile.version_label or profile.package_name
         console.print(f"{label} version {__version__}")
         raise typer.Exit()
+
 
 def main_callback(
     ctx: typer.Context,
@@ -141,28 +139,29 @@ def _run_startup_project_gates(ctx: typer.Context) -> None:
 
 
 def _build_app() -> typer.Typer:
-    from specify_cli.cli.commands import register_commands
-    from specify_cli.cli.commands.init import register_init_command
+    from specify_cli.cli.commands import _is_next_fast_path, register_commands
     from specify_cli.cli.helpers import BannerGroup
 
     app = typer.Typer(
         name="spec-kitty",
-        help=(
-            "Setup tool for Spec Kitty spec-driven development projects.\n\n"
-            "Set SPEC_KITTY_NO_UPGRADE_CHECK=1 to disable the upgrade-check notice."
-        ),
+        help=("Setup tool for Spec Kitty spec-driven development projects.\n\nSet SPEC_KITTY_NO_UPGRADE_CHECK=1 to disable the upgrade-check notice."),
         add_completion=False,
         invoke_without_command=True,
         cls=BannerGroup,
     )
     app.callback()(main_callback)
-    register_init_command(
-        app,
-        console=_get_console(),
-        show_banner=_get_show_banner(),
-        activate_mission=activate_mission,
-        ensure_executable_scripts=ensure_executable_scripts,
-    )
+    # register_commands already builds a next-only command surface on this path.
+    # Do not initialize the unrelated project installer before that dispatch.
+    if not _is_next_fast_path(sys.argv):
+        from specify_cli.cli.commands.init import register_init_command
+
+        register_init_command(
+            app,
+            console=_get_console(),
+            show_banner=_get_show_banner(),
+            activate_mission=activate_mission,
+            ensure_executable_scripts=ensure_executable_scripts,
+        )
     register_commands(app)
     return app
 
