@@ -11,6 +11,8 @@ removed). Behaviour-preserving: no executor source is modified.
 from __future__ import annotations
 
 import json
+import os
+import sys
 import subprocess
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -1475,3 +1477,27 @@ def test_orchestrator_execute_lane_merge_non_coord_stays_on_delete_branch_gate(
     assert mission_branch_deletable is True, (
         "a non-coord mission's mission-branch deletion must stay keyed to delete_branch alone, not the coupled teardown_coordination"
     )
+
+
+def test_post_mutation_recorder_preserves_callable_types(tmp_path: Path) -> None:
+    """Check the real decorator's parameter contract, rather than a config literal."""
+    repo = Path(__file__).resolve().parents[2]
+    sample = tmp_path / "recorded_phase.py"
+    valid = (
+        "from specify_cli.consolidation.run_state import _MergeRunState, _records_post_mutation_tips\n"
+        "@_records_post_mutation_tips\n"
+        "def phase(run: _MergeRunState, count: int, *, label: str) -> None:\n"
+        "    del run, count, label\n"
+        "def invoke(run: _MergeRunState) -> None:\n"
+        "    phase(run, 1, label='accepted')\n"
+    )
+    env = {**os.environ, "MYPY_CACHE_DIR": str(tmp_path / "mypy-cache")}
+    command = [sys.executable, "-m", "mypy", "--strict", "--config-file", str(repo / "pyproject.toml"), str(sample)]
+    sample.write_text(valid, encoding="utf-8")
+    accepted = subprocess.run(command, cwd=repo, env=env, capture_output=True, text=True, timeout=45, check=False)
+    assert accepted.returncode == 0, accepted.stdout + accepted.stderr
+
+    sample.write_text(valid.replace("phase(run, 1, label='accepted')", "phase(run, 'bad', label=42)"), encoding="utf-8")
+    rejected = subprocess.run(command, cwd=repo, env=env, capture_output=True, text=True, timeout=45, check=False)
+    assert rejected.returncode == 1, rejected.stdout + rejected.stderr
+    assert "arg-type" in rejected.stdout, rejected.stdout + rejected.stderr
