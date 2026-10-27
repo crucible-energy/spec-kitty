@@ -560,3 +560,15 @@ parsing; a single service constructor is not the measured bottleneck. The
 existing serial timing pole and actual selector coverage must be reconciled
 before claiming that benchmark qualified. No timing ceiling, baseline or failed
 result is discarded, and no performance success is claimed from this diagnosis.
+
+The doctor wall-clock trial was incorrectly inherited into the parallel `fast`
+doctrine suite. It now lives in a timing-only module owned by the existing
+always-on serial timing pole. Its full original class/function AST, exact
+fixture and command helper, strict two-second ceiling and exit-code assertion
+are unchanged. No workflow selector, timeout, baseline or condition is edited.
+An architectural red proves the prior misplaced ownership; the new invariant
+requires exactly one guard, its original ceiling, the serial pole's unconditional
+gate and its mandatory quality-gate dependency. Actual before/after collection
+must retain every other fast node and select this guard once in the serial pole.
+This corrects measurement ownership, not product behavior or a passing verdict;
+the complete serial gate and fresh hosted candidate remain required.

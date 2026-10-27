@@ -21,6 +21,7 @@ on a change to that file.
 from __future__ import annotations
 
 import fnmatch
+import ast
 from pathlib import Path
 from typing import Any
 
@@ -54,13 +55,41 @@ def _load_workflow() -> dict[str, Any]:
     return result
 
 
+def test_doctor_wallclock_guard_has_one_required_serial_owner() -> None:
+    """The original two-second guard must run once in the serial timing pole."""
+    guards = []
+    for path in (_REPO_ROOT / "tests" / "doctrine").glob("test_*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        classes = [n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "TestDoctorDoctrinePerformance"]
+        if classes:
+            guards.append((tree, classes[0]))
+    assert len(guards) == 1, "Doctor timing guard must not disappear or duplicate"
+    tree, guard = guards[0]
+    marks = [n.value for n in tree.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "pytestmark" for t in n.targets)]
+    names = {n.attr for value in marks for n in ast.walk(value) if isinstance(n, ast.Attribute)}
+    assert "timing" in names and "fast" not in names, "Wall-clock NFR belongs to serial timing, not parallel fast work"
+    assert any(
+        isinstance(n, ast.Compare)
+        and isinstance(n.left, ast.Name)
+        and n.left.id == "elapsed"
+        and isinstance(n.ops[0], ast.Lt)
+        and isinstance(n.comparators[0], ast.Constant)
+        and n.comparators[0].value == 2.0
+        for n in ast.walk(guard)
+    ), "Original strict two-second ceiling must remain"
+
+    data = _load_workflow()
+    serial = data["jobs"]["timing-nfr-serial"]
+    assert gc.gate_is_always_on_modulo_full_ci_block(str(serial["if"]), require_always=True)
+    assert not serial.get("needs")
+    script = _run_script_for_step(data, "timing-nfr-serial", "Run timing-marked NFR gates (serial, -m timing)")
+    assert "tests/" in script and "-m timing" in script and "-n0" in script
+    assert "timing-nfr-serial" in data["jobs"]["quality-gate"]["needs"]
+
+
 def _path_filters(data: dict[str, Any]) -> dict[str, list[str]]:
     """Extract the dorny/paths-filter 'filters' map from the changes job."""
-    filter_step = next(
-        step
-        for step in data["jobs"]["changes"]["steps"]
-        if step.get("id") == "filter"
-    )
+    filter_step = next(step for step in data["jobs"]["changes"]["steps"] if step.get("id") == "filter")
     parsed: dict[str, list[str]] = yaml.safe_load(filter_step["with"]["filters"])
     return parsed
 
@@ -95,11 +124,7 @@ def _glob_covers(path_fragment: str, globs: list[str]) -> bool:
 
 
 def _run_script_for_step(data: dict[str, Any], job_name: str, step_name: str) -> str:
-    step = next(
-        s
-        for s in data["jobs"][job_name]["steps"]
-        if s.get("name") == step_name
-    )
+    step = next(s for s in data["jobs"][job_name]["steps"] if s.get("name") == step_name)
     return str(step["run"])
 
 
@@ -119,15 +144,12 @@ def test_guarded_surfaces_in_core_misc_filter() -> None:
     """
     data = _load_workflow()
     globs = _core_misc_globs(data)
-    missing: list[str] = [
-        surface for surface in _GUARDED_SURFACES if not _glob_covers(surface, globs)
-    ]
+    missing: list[str] = [surface for surface in _GUARDED_SURFACES if not _glob_covers(surface, globs)]
 
     assert not missing, (
         "The following guarded surfaces are NOT covered by a core_misc glob — "
         "a change to these paths will NOT trigger integration-tests-core-misc "
-        "(architectural), masking architectural regressions:\n"
-        + "\n".join(f"  {s}" for s in missing)
+        "(architectural), masking architectural regressions:\n" + "\n".join(f"  {s}" for s in missing)
     )
 
 
@@ -140,8 +162,7 @@ def test_tests_architectural_stays_in_core_misc() -> None:
     data = _load_workflow()
     globs = _core_misc_globs(data)
     assert "tests/architectural/**" in globs, (
-        "tests/architectural/** was removed from the core_misc filter. "
-        "Restore it so architectural-guard edits trigger the shard."
+        "tests/architectural/** was removed from the core_misc filter. Restore it so architectural-guard edits trigger the shard."
     )
 
 
@@ -153,10 +174,7 @@ def test_core_misc_filter_not_over_broad() -> None:
     """
     data = _load_workflow()
     globs = _core_misc_globs(data)
-    assert _OVERBROAD_GLOB not in globs, (
-        f"The over-broad glob '{_OVERBROAD_GLOB}' is present in core_misc. "
-        "Remove it — use specific surface globs instead."
-    )
+    assert _OVERBROAD_GLOB not in globs, f"The over-broad glob '{_OVERBROAD_GLOB}' is present in core_misc. Remove it — use specific surface globs instead."
 
 
 # ---------------------------------------------------------------------------
@@ -199,17 +217,14 @@ def test_arch_suite_runs_unconditionally_cannot_be_masked() -> None:
         "suite (the pre-WP03 mask this mission removed)."
     )
     assert "needs.changes.outputs" not in gate, (
-        "arch-adversarial gained a dorny filter-output gate — that re-opens the "
-        "mask. The pole must stay unconditional (mission ci-topology-shrink "
-        "FR-005/FR-013)."
+        "arch-adversarial gained a dorny filter-output gate — that re-opens the mask. The pole must stay unconditional (mission ci-topology-shrink FR-005/FR-013)."
     )
 
     # No fast-lane serialization or filter-gated needs edge either: the pole
     # depends on nothing (de-serialized). Full de-serialization proof lives in
     # test_arch_pole_deserialized.py; here we assert the pole carries no needs.
     assert "needs" not in arch_job or not arch_job.get("needs"), (
-        "arch-adversarial declared a needs edge — it must run standalone so no "
-        "upstream skip/failure can mask the architectural suite."
+        "arch-adversarial declared a needs edge — it must run standalone so no upstream skip/failure can mask the architectural suite."
     )
 
     # The pole positively selects the architectural marker over tests/architectural,
@@ -226,8 +241,7 @@ def test_arch_suite_runs_unconditionally_cannot_be_masked() -> None:
     # unmaskable safety net on top.
     globs = _core_misc_globs(data)
     assert _glob_covers("src/specify_cli/status/some_module.py", globs), (
-        "src/specify_cli/status/** dropped from core_misc — a status change "
-        "would stop routing to the integration core-misc shards."
+        "src/specify_cli/status/** dropped from core_misc — a status change would stop routing to the integration core-misc shards."
     )
 
 
@@ -246,13 +260,8 @@ def test_lifecycle_events_covered_by_core_misc() -> None:
 
     The file must exist on HEAD — if it is renamed/removed, update this path.
     """
-    lifecycle_events_path = (
-        _REPO_ROOT / "src" / "specify_cli" / "status" / "lifecycle_events.py"
-    )
-    assert lifecycle_events_path.exists(), (
-        f"{lifecycle_events_path} does not exist on HEAD. "
-        "Update this path if the file was renamed/moved."
-    )
+    lifecycle_events_path = _REPO_ROOT / "src" / "specify_cli" / "status" / "lifecycle_events.py"
+    assert lifecycle_events_path.exists(), f"{lifecycle_events_path} does not exist on HEAD. Update this path if the file was renamed/moved."
 
     data = _load_workflow()
     globs = _core_misc_globs(data)
