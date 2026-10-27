@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-pytestmark = pytest.mark.fast
+pytestmark = pytest.mark.integration
 
 
 def test_sanitizer_import_does_not_load_optional_adapter():

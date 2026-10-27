@@ -535,3 +535,28 @@ replay passes; further event-lock parity and the complete hosted candidate remai
 delivery gates. This is bounded repair of retained Python contracts and fixture
 custody; Zig migration must preserve their transactional boundaries. No new
 retirement, audio payload, inference or listening approval is credited.
+
+The 583a0ddbf hosted startup gate remains red at 1.225s against 1.050s. Its exact
+post-measurement profile confirms schema admission imports the migration package,
+which eagerly initializes lifecycle normalization and status orchestration even
+though this invocation only checks schema compatibility. The package now binds
+its original 19 exports on demand; the normalization alias keeps its exact target
+object, and the same-named ownership callable remains eagerly bound to preserve
+submodule import-order behavior. A fresh-process schema-gate import is red before
+the repair and no longer initializes writers after it. No gate, migration writer,
+atomic runner or rollback body changes. The mandatory event-library availability
+check remains unchanged despite its measured startup cost. Package ownership and
+fork precedence also remain unchanged; no metadata shortcut is credited. Public
+identity, actual migration/refusal/rollback checks and fresh hosted NFR remain
+required. This retained-Python dependency repair needs the same boundaries in
+the Zig migration and grants no production or audio authority.
+
+The 583 hosted architecture gate correctly rejects two newly added subprocess
+controls mislabeled `fast`. Both now carry `integration`; every assertion stays
+active and shard/marker coverage is rechecked. The independent doctor benchmark
+also remains genuinely red at 2.34s versus 2.0s in the parallel doctrine shard.
+A retained in-process diagnostic attributes its work mainly to YAML graph/profile
+parsing; a single service constructor is not the measured bottleneck. The
+existing serial timing pole and actual selector coverage must be reconciled
+before claiming that benchmark qualified. No timing ceiling, baseline or failed
+result is discarded, and no performance success is claimed from this diagnosis.

@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-pytestmark = pytest.mark.fast
+pytestmark = pytest.mark.integration
 
 
 def test_package_identity_import_does_not_initialize_upgrade_transports():
