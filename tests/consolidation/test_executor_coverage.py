@@ -674,6 +674,24 @@ def test_phase_porcelain_clean_tree_passes(tmp_path: Path) -> None:
 # merely exercised.
 
 
+def _accepted_gate_bytes() -> bytes:
+    return json.dumps(
+        {
+            "mission_slug": "m",
+            "criteria": [
+                {
+                    "criterion_id": "FR-001",
+                    "description": "Preserve gate evidence",
+                    "proof_type": "automated_test",
+                    "pass_fail": "pass",
+                    "evidence": "test receipt",
+                }
+            ],
+            "negative_invariants": [],
+        }
+    ).encode()
+
+
 def test_restore_regressed_gate_artifacts_restores_divergent_target_copy(
     tmp_path: Path,
 ) -> None:
@@ -687,7 +705,7 @@ def test_restore_regressed_gate_artifacts_restores_divergent_target_copy(
     clobbered_path.write_bytes(b'{"clobbered": true}')
     untouched_path = run.target_feature_dir / "issue-matrix.json"
     run.pre_target_gate_artifact_snapshots = {
-        clobbered_path: b'{"accepted": true}',
+        clobbered_path: _accepted_gate_bytes(),
         # Ordinary, non-divergent leg: target held nothing here pre-merge, so
         # the squash merge's output is authoritative -- no restore.
         untouched_path: None,
@@ -695,9 +713,84 @@ def test_restore_regressed_gate_artifacts_restores_divergent_target_copy(
 
     phase_advance._restore_regressed_gate_artifacts(run)
 
-    assert clobbered_path.read_bytes() == b'{"accepted": true}'
+    assert clobbered_path.read_bytes() == _accepted_gate_bytes()
     assert run.gate_artifact_restored_paths == [clobbered_path]
     assert not untouched_path.exists()
+
+
+@pytest.mark.parametrize(
+    "target_kind",
+    [
+        "missing",
+        "malformed",
+        "deep_json",
+        "array",
+        "missing_identity",
+        "pending",
+        "fail",
+        "unknown",
+        "wrong_mission",
+    ],
+)
+def test_unaccepted_target_does_not_activate_gate_preservation(
+    tmp_path: Path,
+    target_kind: str,
+) -> None:
+    run = _make_run(tmp_path)
+    matrix_path = run.target_feature_dir / "acceptance-matrix.json"
+    issue_path = run.target_feature_dir / "issue-matrix.json"
+    matrix_path.parent.mkdir(parents=True, exist_ok=True)
+    incoming = _accepted_gate_bytes()
+    matrix_path.write_bytes(incoming)
+    issue_path.write_bytes(b'{"rows": {"#1": {"verdict": "fixed", "evidence_ref": "new"}}}')
+    incoming_issues = issue_path.read_bytes()
+    document = json.loads(incoming)
+    document["overall_verdict"] = "pass"
+    if target_kind in ("pending", "fail", "unknown"):
+        document["criteria"][0]["pass_fail"] = target_kind
+    if target_kind == "wrong_mission":
+        document["mission_slug"] = "different"
+    original = {
+        "missing": None,
+        "malformed": b"{",
+        "deep_json": b"[" * 2048 + b"]" * 2048,
+        "array": b"[]",
+        "missing_identity": b'{"overall_verdict": "pass"}',
+    }.get(target_kind, json.dumps(document).encode())
+    run.pre_target_gate_artifact_snapshots = {
+        matrix_path: original,
+        issue_path: b'{"rows": {"#1": {"verdict": "unknown"}}}',
+    }
+
+    phase_advance._restore_regressed_gate_artifacts(run)
+
+    assert matrix_path.read_bytes() == incoming
+    assert issue_path.read_bytes() == incoming_issues
+    assert run.gate_artifact_restored_paths == []
+
+
+def test_deferred_negative_invariant_preserves_preconsolidation_acceptance(tmp_path: Path) -> None:
+    run = _make_run(tmp_path)
+    matrix_path = run.target_feature_dir / "acceptance-matrix.json"
+    matrix_path.parent.mkdir(parents=True, exist_ok=True)
+    matrix_path.write_bytes(b'{"clobbered": true}')
+    document = json.loads(_accepted_gate_bytes())
+    document["negative_invariants"] = [
+        {
+            "invariant_id": "NI-001",
+            "description": "Consolidation-only check",
+            "verification_method": "custom_command",
+            "verification_command": "must-not-run",
+            "result": "deferred_to_consolidation",
+        }
+    ]
+    original = json.dumps(document).encode()
+    run.pre_target_gate_artifact_snapshots = {matrix_path: original}
+
+    phase_advance._restore_regressed_gate_artifacts(run)
+
+    assert matrix_path.read_bytes() == original
+    assert run.gate_artifact_restored_paths == [matrix_path]
 
 
 def test_restore_regressed_gate_artifacts_noop_when_current_matches_original(
@@ -708,12 +801,12 @@ def test_restore_regressed_gate_artifacts_noop_when_current_matches_original(
     run = _make_run(tmp_path)
     matching_path = run.target_feature_dir / "acceptance-matrix.json"
     matching_path.parent.mkdir(parents=True, exist_ok=True)
-    matching_path.write_bytes(b'{"accepted": true}')
-    run.pre_target_gate_artifact_snapshots = {matching_path: b'{"accepted": true}'}
+    matching_path.write_bytes(_accepted_gate_bytes())
+    run.pre_target_gate_artifact_snapshots = {matching_path: _accepted_gate_bytes()}
 
     phase_advance._restore_regressed_gate_artifacts(run)
 
-    assert matching_path.read_bytes() == b'{"accepted": true}'
+    assert matching_path.read_bytes() == _accepted_gate_bytes()
     assert run.gate_artifact_restored_paths == []
 
 
