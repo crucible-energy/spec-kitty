@@ -202,3 +202,12 @@ stale resolver-fixture expectations remain owned follow-up work. Full mypy has
 zero issues in 1,143 files, and changed-source/test lint and formatting pass.
 No existing regression assertion, unknown-state refusal or required CI gate was
 relaxed. No audio producer, archive or approval is involved in these fixtures.
+
+Dependency and CLI repairs activated four further PR workflows whose seven
+validation jobs still used the unavailable vendor host. The post-merge
+direct-push compliance check had the same host dependency. Their eight labels
+now select the official Ubuntu 24.04 host. Parsed comparison preserves every
+other event, path filter, command, condition, permission, dependency and timeout.
+Deployment, release-publishing and manual audit workflows keep their separate
+owners; this correction targets the current validation and delivery checks.
+Actual hosted execution and all remaining product findings still gate PR128.

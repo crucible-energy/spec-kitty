@@ -32,7 +32,7 @@ on:
 jobs:
   validate-claude-plugin:
     name: Build and validate Claude Code plugin bundle
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'pr:deferred') && !contains(github.event.pull_request.labels.*.name, 'pr:skip-ci') }}
     steps:
       - uses: actions/checkout@v4
@@ -69,7 +69,7 @@ jobs:
 
   validate-codex-plugin:
     name: Build and validate Codex plugin bundle
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'pr:deferred') && !contains(github.event.pull_request.labels.*.name, 'pr:skip-ci') }}
     # Codex ships no ``codex plugin validate`` CLI, so the bundle's manifest
     # correctness is enforced by the repo's own ``_validate_manifest`` path,
