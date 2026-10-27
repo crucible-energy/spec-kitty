@@ -572,3 +572,13 @@ gate and its mandatory quality-gate dependency. Actual before/after collection
 must retain every other fast node and select this guard once in the serial pole.
 This corrects measurement ownership, not product behavior or a passing verdict;
 the complete serial gate and fresh hosted candidate remain required.
+
+The d82 hosted startup gate passes at 0.865s against the unchanged 1.050s ceiling;
+its full serial timing pole also passes all 11 checks. The architecture ratchet
+then correctly rejects the new guard's unannotated numeric inventory assertion.
+Review found that owner identity matters, so the final repair converts that
+assertion to the exact canonical timing source instead of using the initially
+considered cardinality exemption. Every matching class declaration is included,
+so duplicate declarations in the same file are rejected too. The frozen baseline
+and classifier remain unchanged; the original red is retained. This is a stronger
+ownership invariant, not a waived golden-count site or a whole-pipeline verdict.

@@ -61,10 +61,12 @@ def test_doctor_wallclock_guard_has_one_required_serial_owner() -> None:
     for path in (_REPO_ROOT / "tests" / "doctrine").glob("test_*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         classes = [n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "TestDoctorDoctrinePerformance"]
-        if classes:
-            guards.append((tree, classes[0]))
-    assert len(guards) == 1, "Doctor timing guard must not disappear or duplicate"
-    tree, guard = guards[0]
+        guards.extend((path, tree, guard) for guard in classes)
+    # Assert the actual canonical owner, not an incidental inventory count.
+    # Exact identity also rejects a duplicate declaration in the same file.
+    expected_owner = _REPO_ROOT / "tests" / "doctrine" / "test_doctor_doctrine_timing.py"
+    assert [path for path, _tree, _guard in guards] == [expected_owner], "Doctor timing guard must live once at its canonical serial source"
+    _path, tree, guard = guards[0]
     marks = [n.value for n in tree.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "pytestmark" for t in n.targets)]
     names = {n.attr for value in marks for n in ast.walk(value) if isinstance(n, ast.Attribute)}
     assert "timing" in names and "fast" not in names, "Wall-clock NFR belongs to serial timing, not parallel fast work"
