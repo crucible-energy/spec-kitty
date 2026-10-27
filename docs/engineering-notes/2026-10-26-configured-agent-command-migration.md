@@ -512,3 +512,26 @@ original implementations. Only code imports are deferred, never event capture
 or input validation. The hosted timing limit remains unchanged and must pass on
 the published candidate; this is not an audio milestone or an external model
 quality claim. Zig parity must retain the same public/error and capture rules.
+
+The completed 006 hosted CLI job exposes eight additional failures, reproduced
+locally with 38 passing checks. Four positive coordination trials supplied an
+empty or unregistered surface; their fixtures now own real worktrees and use the
+canonical store to append a typed status event. The modern merge trial likewise
+materializes its actual coordination branch, so pre-target done bookkeeping is
+tested through the real transaction surface and asserted in target history.
+The setup-plan mutant includes its required mission type and retains the exact
+missing-spec refusal. Original primary/coord divergence assertions are preserved.
+Two strict flattened-topology XFAIL rows actually pass under the explicit-root
+transaction target repair, so their markers are retired and all original
+assertions become required passing checks.
+
+The eighth failure is a real cold-import regression: decision and retrospective
+event modules import status orchestration merely to bind its lock. Those two
+imports now occur inside their existing append functions, before any write.
+The exact locks, covered write/count regions, journal formats and sanitization
+remain unchanged. The existing charter cold-import test passes without changing
+its expected absence of status/workspace orchestration. The repaired 46-check
+replay passes; further event-lock parity and the complete hosted candidate remain
+delivery gates. This is bounded repair of retained Python contracts and fixture
+custody; Zig migration must preserve their transactional boundaries. No new
+retirement, audio payload, inference or listening approval is credited.

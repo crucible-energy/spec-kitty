@@ -84,25 +84,8 @@ class _Topology:
     expects_refusal: bool = False
 
 
-# The flattened (legacy, no-coordination-branch) topology is parametrized but
-# marked xfail: the WP05 placement projection resolves it CORRECTLY to the
-# FLATTENED target (see ``test_resolve_placement_only.py``), but a finalize
-# *run* on a legacy mission trips a PRE-EXISTING, out-of-scope status-bootstrap
-# bug — ``bootstrap_canonical_state``'s legacy path derives its commit
-# destination from the process CWD git context instead of the resolved
-# ``repo_root`` (it reports "Legacy mission detected at <cwd>"), so it is not
-# CWD-invariant under the patched-root e2e harness. Every mission ``mission
-# create`` mints today carries a coordination branch (verified in WP05 design),
-# so the catch-22's live shapes are protected-main + coordination, which pass.
-# The flattened run-path belongs to the legacy-bootstrap CWD-invariance surface
-# (coordination/status_transition), not WP05's placement threading.
-_FLATTENED_BOOTSTRAP_CWD_GAP = (
-    "legacy-topology status bootstrap resolves its commit destination from the "
-    "process CWD git context, not the resolved repo_root (tracked: #2802; "
-    "out-of-scope pre-existing gap; placement projection itself resolves "
-    "flattened correctly — see tests/mission_runtime/test_resolve_placement_only.py). "
-    "Closing #2802 fixes the gap and this strict xfail flips to XPASS — retire the marker."
-)
+# The canonical transaction target now resolves the explicit repo root (#2802).
+# Both formerly strict-XFAIL flattened trials pass and run as required checks.
 
 _TOPOLOGIES = [
     _Topology(
@@ -119,19 +102,11 @@ _TOPOLOGIES = [
         coordination_branch=f"kitty/mission-sc6-mission-{_MID8}",
         expected_routes_coord=True,
     ),
-    pytest.param(
-        _Topology(
-            name="flattened",
-            target_branch="feat/non-protected-target",
-            coordination_branch=None,
-            expected_routes_coord=False,
-        ),
-        # WP06 (R9): this legacy-bootstrap CWD gap genuinely xfails today, so the
-        # guard is strict — if the underlying fix lands and the test starts
-        # passing, ``strict=True`` turns the unexpected XPASS into a failure that
-        # forces this marker to be retired rather than silently masking a fixed
-        # bug.
-        marks=pytest.mark.xfail(reason=_FLATTENED_BOOTSTRAP_CWD_GAP, strict=True),
+    _Topology(
+        name="flattened",
+        target_branch="feat/non-protected-target",
+        coordination_branch=None,
+        expected_routes_coord=False,
     ),
 ]
 

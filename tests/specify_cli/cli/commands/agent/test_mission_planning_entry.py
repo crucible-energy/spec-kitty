@@ -227,6 +227,9 @@ def _build_coord_with_mission_dir_spec_on_primary_only(
     coord_spec = coord_worktree / "kitty-specs" / slug / "spec.md"
     _git(coord_worktree, "rm", str(coord_spec.relative_to(coord_worktree)))
     _git(coord_worktree, "commit", "-m", "strip spec on coord branch")
+    from tests._support.coordination import seed_coordination_status
+
+    seed_coordination_status(coord_spec.parent, slug)
 
     # Sanity: spec absent on coord branch, present on main.
     coord_check = subprocess.run(

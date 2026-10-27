@@ -100,6 +100,7 @@ def _seed_coord_topology(repo_root: Path) -> tuple[Path, Path]:
         "mission_id": MISSION_ID,
         "mid8": MID8,
         "mission_slug": SLUG_WITH_MID8,
+        "mission_type": "software-dev",
         "coordination_branch": COORD_BRANCH,
         "topology": MissionTopology.COORD.value,
     }
@@ -113,8 +114,15 @@ def _seed_coord_topology(repo_root: Path) -> tuple[Path, Path]:
     coord_husk_dir = (
         repo_root / ".worktrees" / f"{SLUG_WITH_MID8}-coord" / "kitty-specs" / SLUG_WITH_MID8
     )
+    from tests._support.coordination import materialize_coordination, seed_coordination_status
+
+    materialize_coordination(repo_root, coord_husk_dir.parents[1], COORD_BRANCH)
+    # The registered worktree inherits the primary spec; the trial requires
+    # its genuine absence on the coordination surface.
+    (coord_husk_dir / "spec.md").unlink()
     # Husk carries meta.json but NO spec.md — reading spec off the husk fails.
     _write_meta(coord_husk_dir, meta)
+    seed_coordination_status(coord_husk_dir, SLUG_WITH_MID8)
     return primary_dir, coord_husk_dir
 
 

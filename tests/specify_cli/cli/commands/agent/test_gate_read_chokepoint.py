@@ -95,8 +95,12 @@ def _seed_coord_topology(repo_root: Path) -> tuple[Path, Path]:
     coord_husk_dir = (
         repo_root / ".worktrees" / f"{SLUG_WITH_MID8}-coord" / "kitty-specs" / SLUG_WITH_MID8
     )
+    from tests._support.coordination import materialize_coordination, seed_coordination_status
+
+    materialize_coordination(repo_root, coord_husk_dir.parents[1], COORD_BRANCH)
     _write_meta(coord_husk_dir, meta)
     (coord_husk_dir / "spec.md").write_text(STALE_HUSK, encoding="utf-8")
+    seed_coordination_status(coord_husk_dir, SLUG_WITH_MID8)
     return primary_dir, coord_husk_dir
 
 

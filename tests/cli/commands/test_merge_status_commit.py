@@ -745,6 +745,10 @@ class TestDoneEventsCommittedToGit:
         )
         subprocess.run(["git", "branch", coord_branch], cwd=tmp_path, check=True, capture_output=True)
 
+        from tests._support.coordination import materialize_coordination
+
+        materialize_coordination(tmp_path, tmp_path / ".worktrees" / f"{mission_slug}-coord", coord_branch)
+
         manifest = MagicMock()
         manifest.target_branch = "main"
         manifest.mission_branch = coord_branch

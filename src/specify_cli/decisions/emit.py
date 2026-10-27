@@ -34,7 +34,6 @@ import ulid as _ulid_mod
 
 from specify_cli.decisions.models import IndexEntry
 from specify_cli.events import sanitize_event_for_log
-from specify_cli.status import status_log_write_lock
 from spec_kitty_events.decisionpoint import (
     DECISION_POINT_OPENED,
     DECISION_POINT_RESOLVED,
@@ -85,6 +84,8 @@ def _append_raw_event(events_path: Path, event_dict: dict) -> int:  # type: igno
     PII fields are stripped via :func:`sanitize_event_for_log` before serialization.
     Returns the 1-based line count after the append (lamport proxy).
     """
+    from specify_cli.status import status_log_write_lock
+
     sanitized = sanitize_event_for_log(event_dict)
     line = json.dumps(sanitized, sort_keys=True)
     with status_log_write_lock(events_path.parent):

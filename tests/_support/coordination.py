@@ -4,6 +4,27 @@ import subprocess
 from pathlib import Path
 
 
+def seed_coordination_status(mission_dir: Path, slug: str) -> None:
+    """Write one real canonical fixture event so a worktree is nonempty."""
+    from specify_cli.status.models import Lane, StatusEvent
+    from specify_cli.status.store import append_event
+
+    append_event(
+        mission_dir,
+        StatusEvent(
+            event_id="01KVW9B0XFXPKTBE77QT3KRSW8",
+            mission_slug=slug,
+            wp_id="WP01",
+            from_lane=Lane.PLANNED,
+            to_lane=Lane.IN_PROGRESS,
+            at="2026-04-07T00:00:00+00:00",
+            actor="fixture",
+            force=False,
+            execution_mode="worktree",
+        ),
+    )
+
+
 def materialize_coordination(repo: Path, root: Path, branch: str) -> None:
     """Register an absent fixture root; never adopt or replace an existing husk."""
     assert not root.exists(), root
