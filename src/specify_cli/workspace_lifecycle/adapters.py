@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import math
 import os
@@ -19,7 +20,7 @@ from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass, fields, replace
 from pathlib import Path
-from typing import Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 import psutil
 
@@ -41,6 +42,9 @@ from specify_cli.workspace_lifecycle.discovery import discover_workspaces
 from specify_cli.workspace_lifecycle.events import Completion
 from specify_cli.workspace_lifecycle.policy import Evidence, Identity
 from specify_cli.workspace_lifecycle.state import Operation, StateError, StateStore
+
+if TYPE_CHECKING:
+    from specify_cli.workspace_lifecycle.original_run import OriginalWorkspaceRun
 
 
 class GitHubDelivery:
@@ -274,9 +278,11 @@ class _OwnerState:
     creator_kind: str | None = None
     accountable_owner: str | None = None
     starting_head: str | None = None
+    original_run_release: str | None = None
 
 
 _CREATOR_BINDING_FIELDS = frozenset({"creator_kind", "accountable_owner", "starting_head"})
+_OPTIONAL_OWNER_PROOFS = frozenset({"original_run_release"})
 
 
 def _creator_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -294,7 +300,9 @@ def _validate_creator_shape(value: dict[str, object]) -> None:
         raise ValueError("Unsupported creator schema")
     expected = {f.name for f in fields(_OwnerState)}
     if version == 1:
-        expected -= _CREATOR_BINDING_FIELDS
+        expected -= _CREATOR_BINDING_FIELDS | _OPTIONAL_OWNER_PROOFS
+    else:
+        expected -= _OPTIONAL_OWNER_PROOFS - value.keys()
     if set(value) != expected:
         raise ValueError("Unexpected creator fields")
     if version == 2:
@@ -306,6 +314,9 @@ def _validate_creator_shape(value: dict[str, object]) -> None:
         head = value["starting_head"]
         if not isinstance(head, str) or not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", head):
             raise ValueError("Exact creator starting commit required")
+        proof = value.get("original_run_release")
+        if proof is not None and (not isinstance(proof, str) or not re.fullmatch(r"[0-9a-f]{64}", proof)):
+            raise ValueError("Invalid original-run release proof")
 
 
 def _owner_decode(raw: bytes) -> _OwnerState:
@@ -355,7 +366,8 @@ def _require_owner_proofs(state: _OwnerState) -> None:
     ):
         raise ValueError("Missing retirement receipt binding")
     if state.status in ("creating", "active", "producer_unknown") and any(
-        getattr(state, key) is not None for key in ("release_cap", "release_id", "delivery_id", "pr", "retirement_event_id", "retirement_intent_sha256")
+        getattr(state, key) is not None
+        for key in ("release_cap", "release_id", "delivery_id", "pr", "retirement_event_id", "retirement_intent_sha256", "original_run_release")
     ):
         raise ValueError("Inconsistent unreleased creator history")
     if state.status in ("released", "retired") and not _released(state):
@@ -366,19 +378,41 @@ def _cap_hash(capability: str) -> str:
     return hashlib.sha256(capability.encode()).hexdigest()  # noqa: TID251 -- owner release capability integrity, not charter hashing.
 
 
+def _original_run_release_digest(state: _OwnerState) -> str:
+    if state.release_cap is None:
+        raise ValueError("Original release capability required")
+    binding = {
+        "identity": asdict(state.identity),
+        "creator_kind": state.creator_kind,
+        "accountable_owner": state.accountable_owner,
+        "starting_head": state.starting_head,
+        "repo_root": state.repo_root,
+        "device": state.device,
+        "inode": state.inode,
+        "release_id": state.release_id,
+        "pr": state.pr,
+    }
+    message = b"spec-kitty:original-workspace-run-release:v1\0" + json.dumps(binding, sort_keys=True, separators=(",", ":")).encode()
+    return hmac.digest(state.release_cap.encode(), message, "sha256").hex()
+
+
 def _released(state: _OwnerState) -> bool:
-    # Ordinary callbacks are data only. Until the core owner qualifies original
-    # capability custody across the producer lifetime, no ordinary record can
-    # establish release, including a forged legacy-shaped completed record.
-    if state.creator_kind == "ordinary_git":
-        return False
-    return bool(
+    valid = bool(
         state.producer_succeeded
         and state.release_cap
         and secrets.compare_digest(_cap_hash(state.release_cap), state.release_hash)
         and state.release_id
         and state.pr
     )
+    if not valid:
+        return False
+    if state.creator_kind == "ordinary_git":
+        # Only the original live scope can publish this private, capability-
+        # bound proof. Native/invocation outcomes never carry it or grant release.
+        return bool(
+            state.schema_version == 2 and state.original_run_release and secrets.compare_digest(state.original_run_release, _original_run_release_digest(state))
+        )
+    return state.original_run_release is None
 
 
 def _git_env() -> dict[str, str]:
@@ -759,9 +793,12 @@ class ManagedGitCreator:
         self._check_root()
         value = asdict(state)
         if state.schema_version == 1:
-            if any(value[key] is not None for key in _CREATOR_BINDING_FIELDS):
+            if any(value[key] is not None for key in _CREATOR_BINDING_FIELDS | _OPTIONAL_OWNER_PROOFS):
                 raise StateError("Legacy creator cannot adopt ordinary custody")
             for key in _CREATOR_BINDING_FIELDS:
+                del value[key]
+        for key in _OPTIONAL_OWNER_PROOFS:
+            if value[key] is None:
                 del value[key]
         raw = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
         if len(raw) > 65536:
@@ -984,17 +1021,26 @@ class ManagedGitCreator:
         # Once wait reaps the leader, signalling authority ends. A remaining
         # or escaped producer is unconfirmed; durable producer_unknown retains it.
 
-    def complete(self, *, pr: int | None = None) -> None:
+    def _require_original_run(self, original_run: OriginalWorkspaceRun | None) -> None:
+        from specify_cli.workspace_lifecycle.original_run import OriginalWorkspaceRun
+
+        if type(original_run) is not OriginalWorkspaceRun:
+            raise StateError("Ordinary release requires qualified core custody")
+        original_run.require_joined_for(self)
+
+    def complete(self, *, pr: int | None = None, original_run: OriginalWorkspaceRun | None = None) -> None:
         if os.getpid() != self._pid or not self._capability or self._unconfirmed_producer:
             raise StateError("Creating owner release capability or producer confirmation unavailable")
         if self._creation_kind == "ordinary_git":
-            raise StateError("Ordinary release requires qualified core custody")
+            self._require_original_run(original_run)
+        elif original_run is not None:
+            raise StateError("Original run requires the original ordinary creator")
         if pr is not None and (type(pr) is not int or pr <= 0):
             raise ValueError("Positive PR number required")
         with self._fence(), process_budget(self.operation_timeout):
             state = self._read()
             if state.creator_kind == "ordinary_git":
-                raise StateError("Ordinary release requires qualified core custody")
+                self._require_original_run(original_run)
             if state.status != "active":
                 raise StateError("Creator generation released")
             if not state.producer_succeeded:
@@ -1013,6 +1059,8 @@ class ManagedGitCreator:
             # Release is independent of accepted delivery. The foreground CLI
             # may exit now; worker/startup evidence can establish delivery later.
             state = replace(state, status="released", release_cap=self._capability, release_id=secrets.token_hex(16), pr=pr)
+            if state.creator_kind == "ordinary_git":
+                state = replace(state, original_run_release=_original_run_release_digest(state))
             self._write(state)
         # Enqueue a hint after releasing admission. The durable release remains
         # available to startup recovery if enqueue fails or this process exits.

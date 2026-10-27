@@ -462,3 +462,105 @@ test "ordinary creator rejects oversized serialized custody before durable recor
     try std.testing.expect(valid.value.object.get("starting_head_preserved").?.bool);
     try std.testing.expect(valid.value.object.get("release_refused").?.bool);
 }
+
+const original_scope_adapter_fixture =
+    \\import copy,json,pathlib,sys,tempfile
+    \\from dataclasses import asdict,replace
+    \\import pytest
+    \\from specify_cli.workspace_lifecycle.adapters import ManagedGitCreator,_released,_owner_decode,_original_run_release_digest
+    \\from specify_cli.workspace_lifecycle.original_run import OriginalWorkspaceRun
+    \\from specify_cli.workspace_lifecycle.state import StateError
+    \\from tests.workspace_lifecycle.test_original_run import new_run,ordinary_record
+    \\with tempfile.TemporaryDirectory(prefix='scope-adapter-owned-') as directory,pytest.MonkeyPatch.context() as patch:
+    \\ root=pathlib.Path(directory);run,store,events,other=new_run(root,patch);owner=run._creator;mode=sys.argv[1];record_before=owner._path.read_bytes();initial=owner._read();no_private_proof_initially='original_run_release' not in json.loads(record_before);refusals=0;fake_called=False;reason='';released=False
+    \\ script="from pathlib import Path;import subprocess;Path('actual.md').write_text('joined producer');subprocess.run(['git','add','actual.md'],check=True);subprocess.run(['git','commit','-m','actual result'],check=True)"
+    \\ run.run_producer([sys.executable,'-B','-c',script],timeout=5)
+    \\ joined=owner._read();record_before=owner._path.read_bytes()
+    \\ if mode=='witness-refusals':
+    \\  class Fake:
+    \\   def require_joined_for(self,creator):
+    \\    global fake_called
+    \\    fake_called=True
+    \\  class Derived(OriginalWorkspaceRun):pass
+    \\  for witness in (Fake(),object.__new__(OriginalWorkspaceRun),object.__new__(Derived),run):
+    \\   try:owner.complete(pr=9,original_run=witness)
+    \\   except StateError:refusals+=1
+    \\  try:other.complete(pr=9,original_run=run)
+    \\  except StateError:refusals+=1
+    \\  restored=ManagedGitCreator(store,owner.token,delivery=owner.delivery,on_complete=lambda event:None,capability=owner._capability,creation_kind='ordinary_git')
+    \\  # Private negative fault: exercise exact creator binding in the only allowed
+    \\  # phase. No successful callback or mock establishes producer join.
+    \\  run._phase='completing'
+    \\  try:restored.complete(pr=9,original_run=run)
+    \\  except StateError:refusals+=1
+    \\  finally:run._phase='joined'
+    \\ if mode=='wrong-generation':run._generation=('0' if owner.token[0]!='0' else '1')+owner.token[1:]
+    \\ if mode=='downgraded-registry':
+    \\  data=json.loads(record_before);data['schema_version']=1
+    \\  for key in ('creator_kind','accountable_owner','starting_head'):del data[key]
+    \\  owner._path.write_text(json.dumps(data));record_before=owner._path.read_bytes()
+    \\ if mode=='replaced-path':
+    \\  run.path.rename(root/'preserved-original');run.path.mkdir()
+    \\ if mode in ('wrong-generation','downgraded-registry','replaced-path'):
+    \\  try:run.complete(pr=9)
+    \\  except StateError as error:reason=str(error)
+    \\  unchanged=owner._path.read_bytes()==record_before
+    \\ else:
+    \\  unchanged=owner._path.read_bytes()==record_before
+    \\  run.complete(pr=9);released=True
+    \\ bad_states=0;decoder_refusals=0;legacy_preserved=False;missing_cap_refused=False;no_cap_event=True
+    \\ if released:
+    \\  state=owner._read();proof=state.original_run_release;changed=('0' if proof[0]!='0' else '1')+proof[1:]
+    \\  altered=[replace(state,original_run_release=None),replace(state,original_run_release=changed),replace(state,pr=10),replace(state,release_id='other-release'),replace(state,identity=replace(state.identity,lease_generation='f'*32)),replace(state,identity=replace(state.identity,head='f'*40)),replace(state,accountable_owner='other-owner'),replace(state,release_cap='unknown'),replace(state,status='active')]
+    \\  for entry in altered:
+    \\   if entry.status!='active' and not _released(entry):bad_states+=1
+    \\   raw=asdict(entry)
+    \\   if entry.original_run_release is None:raw.pop('original_run_release')
+    \\   try:_owner_decode(json.dumps(raw).encode())
+    \\   except StateError:decoder_refusals+=1
+    \\  for invalid in (42,'not-a-digest'):
+    \\   raw=asdict(state);raw['original_run_release']=invalid
+    \\   try:_owner_decode(json.dumps(raw).encode())
+    \\   except StateError:decoder_refusals+=1
+    \\  try:_original_run_release_digest(replace(state,release_cap=None))
+    \\  except ValueError:missing_cap_refused=True
+    \\  before_other=other._path.read_bytes()
+    \\  try:other._write(replace(other._read(),original_run_release='a'*64))
+    \\  except StateError:legacy_preserved=other._path.read_bytes()==before_other and 'original_run_release' not in json.loads(before_other)
+    \\  no_cap_event=bool(events) and owner._capability not in json.dumps(asdict(events[0])) and 'original_run_release' not in json.dumps(asdict(events[0]))
+    \\ print(json.dumps({'released':released,'refusals':refusals,'fake_called':fake_called,'unchanged_before_qualified_release':unchanged,'events':len(events),'initial_proof_absent':no_private_proof_initially,'head_advanced':joined.identity.head!=initial.identity.head,'lease_advanced':joined.identity.lease_generation!=initial.identity.lease_generation,'bad_release_states_refused':bad_states,'decoder_refusals':decoder_refusals,'legacy_preserved':legacy_preserved,'missing_cap_refused':missing_cap_refused,'no_cap_event':no_cap_event,'reason':reason,'foreign_target_preserved':mode!='replaced-path' or ((root/'preserved-original/actual.md').read_text()=='joined producer' and not list(run.path.iterdir()))}))
+;
+
+test "original scope uses real joined producer and private capability bound release without leaking authority" {
+    var result = try migrationProbe(original_scope_adapter_fixture, "normal");
+    defer result.deinit();
+    const facts = result.value.object;
+    for ([_][]const u8{ "released", "initial_proof_absent", "head_advanced", "lease_advanced", "legacy_preserved", "missing_cap_refused", "no_cap_event" }) |field| try std.testing.expect(facts.get(field).?.bool);
+    try std.testing.expectEqual(@as(i64, 8), facts.get("bad_release_states_refused").?.integer);
+    try std.testing.expectEqual(@as(i64, 11), facts.get("decoder_refusals").?.integer);
+    try std.testing.expectEqual(@as(i64, 1), facts.get("events").?.integer);
+}
+
+test "ordinary completion refuses lookalike copied restored out of phase and managed witnesses" {
+    var result = try migrationProbe(original_scope_adapter_fixture, "witness-refusals");
+    defer result.deinit();
+    const facts = result.value.object;
+    try std.testing.expectEqual(@as(i64, 6), facts.get("refusals").?.integer);
+    try std.testing.expect(!facts.get("fake_called").?.bool);
+    try std.testing.expect(facts.get("unchanged_before_qualified_release").?.bool);
+    try std.testing.expect(facts.get("released").?.bool);
+    try std.testing.expectEqual(@as(i64, 1), facts.get("events").?.integer);
+}
+
+test "qualified original scope cannot release changed generation downgraded registry or replaced path" {
+    for ([_][]const u8{ "wrong-generation", "downgraded-registry", "replaced-path" }) |mode| {
+        var result = try migrationProbe(original_scope_adapter_fixture, mode);
+        defer result.deinit();
+        const facts = result.value.object;
+        try std.testing.expect(!facts.get("released").?.bool);
+        try std.testing.expect(facts.get("unchanged_before_qualified_release").?.bool);
+        try std.testing.expect(facts.get("foreign_target_preserved").?.bool);
+        try std.testing.expect(facts.get("reason").?.string.len > 0);
+        try std.testing.expectEqual(@as(i64, 0), facts.get("events").?.integer);
+    }
+}
