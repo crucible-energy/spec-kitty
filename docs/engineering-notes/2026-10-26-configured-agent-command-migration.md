@@ -500,3 +500,15 @@ Zig dependency boundaries; it grants no audio, runtime or merge authority.
 Hosted clean-install qualification and all outstanding current-head gates remain
 required. The installed-distribution metadata scan remains a measured follow-up;
 its ownership and fork precedence must not be weakened to improve timing.
+
+The same hosted profile attributes a separate eager model-construction cost to
+the optional event adapter, loaded when the decision log requests only the
+sanitizer submodule. The event package now binds its five existing public
+objects on demand. A fresh-process sanitizer import is red before the repair;
+the identity test pins original ordering and exact adapter/sanitizer objects.
+Adapter availability detection, its missing-library errors, sanitization,
+decision journaling, event emission and startup admission remain in their
+original implementations. Only code imports are deferred, never event capture
+or input validation. The hosted timing limit remains unchanged and must pass on
+the published candidate; this is not an audio milestone or an external model
+quality claim. Zig parity must retain the same public/error and capture rules.
