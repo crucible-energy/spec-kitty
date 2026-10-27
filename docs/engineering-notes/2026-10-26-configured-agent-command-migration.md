@@ -246,3 +246,32 @@ event stream, preserving every original path assertion. A missing coordination
 stream separately keeps primary authority. All 50 checks pass; no production
 resolver, expected refusal, selector, skip or xfail was changed. Remaining legacy
 transaction/read contracts and audit-inventory findings are separate blockers.
+
+Those transaction failures exposed a second physical-path/authority conflation:
+a primary read fallback hid planned events already committed on an unmaterialized
+legacy coordination branch. The transaction classifier now distinguishes fresh
+create windows from existing canonical branch history, using the shared metadata,
+topology and event parser. Explicit phase-1 primary cutover and stored flat
+topology keep primary authority. Legacy history is read at a pinned commit;
+unknown read failures and nonregular blobs refuse. The existing stream reader's
+strict internal option keeps its default compatibility behavior unchanged.
+BookkeepingTransaction still owns real materialization, commit, rollback and
+fanout; no unregistered directory becomes writable authority by path selection.
+
+Deleted-branch read fallback remains distinct from write admission: the read
+shape stays coordination until its existing deleted-ref arm returns primary,
+while a missing bookkeeping branch still refuses writes with no fanout. The
+structured-invalid-root fixture now contains actual committed history, so it
+tests recovery rather than the legitimate empty create window. Shared write-side
+fixtures use canonical branch/path constructors and a real canonical event log,
+replacing an externally placed, incorrectly cased path-only husk. Phase-1 and
+create-window controls, rollback, atomic append, binding and postcommit fanout
+are retained. Earlier partial runs and the original failures remain in receipts.
+
+Architecture inventories are freshened through the recorded composite-identity
+converter. The diagnostic-only untrusted-path row keeps its existing unreachable
+disposition and rationale; only its tool-derived identity is updated. The routed
+metadata floor is tightened, not relaxed. Three glossary casing findings use
+the committed canonical form. These audits keep their undercount, overcount and
+unknown-path tripwires. Remaining hosted findings and complete PR delivery still
+gate adoption; this framework repair is not audio progress.

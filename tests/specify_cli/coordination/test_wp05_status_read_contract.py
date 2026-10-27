@@ -191,12 +191,12 @@ def test_coord_branch_deleted_transient_falls_back_to_primary(tmp_path: Path) ->
     # coord topology intact in meta.json.
     _git(repo, "branch", "-D", _COORD_BRANCH)
     identity = _identity(repo)
-    # The resolver routes the deleted-branch state to the primary checkout.
-    assert st._read_contract_routes_through_coordination(identity) is False
+    # Shape remains coord; only the explicit deleted-ref read arm falls back.
+    # Writes must still refuse the missing bookkeeping branch (tested separately).
+    assert st._read_contract_routes_through_coordination(identity) is True
     contract = st._read_contract_from_transaction_target(identity, _SLUG)
     assert contract == EventLogReadContract.primary_checkout(identity.feature_dir), (
-        "the #1848 coord-deleted transient arm must keep routing to primary even "
-        "though the stored topology shape is coord"
+        "the #1848 coord-deleted transient arm must keep routing to primary even though the stored topology shape is coord"
     )
 
 
@@ -205,6 +205,7 @@ def test_coord_worktree_materialised_transient_reads_coordination(tmp_path: Path
     repo = _make_repo(tmp_path, coord=True)
     worktree = repo / ".worktrees" / f"{_DIRNAME}-coord"
     _git(repo, "worktree", "add", "-q", str(worktree), _COORD_BRANCH)
+    (worktree / "kitty-specs" / _DIRNAME / "status.events.jsonl").write_text("")
     identity = _identity(repo)
     contract = st._read_contract_from_transaction_target(identity, _SLUG)
     # The materialised-worktree transient arm wins (not the primary checkout).
@@ -224,17 +225,13 @@ def test_primary_phase_one_snapshot_beats_materialized_legacy_coord_copy(
 
     worktree = repo / ".worktrees" / f"{_DIRNAME}-coord"
     _git(repo, "worktree", "add", "-q", str(worktree), _COORD_BRANCH)
-    (worktree / "kitty-specs" / _DIRNAME / "status.events.jsonl").write_text(
-        "legacy\n", encoding="utf-8"
-    )
+    (worktree / "kitty-specs" / _DIRNAME / "status.events.jsonl").write_text("legacy\n", encoding="utf-8")
 
     identity = _identity(repo)
 
     assert st._read_contract_routes_through_coordination(identity) is False
     assert st._transaction_topology_available(identity, _SLUG) is False
-    assert st._read_contract_from_transaction_target(identity, _SLUG) == (
-        EventLogReadContract.primary_checkout(identity.feature_dir)
-    )
+    assert st._read_contract_from_transaction_target(identity, _SLUG) == (EventLogReadContract.primary_checkout(identity.feature_dir))
 
 
 # ---------------------------------------------------------------------------
@@ -251,12 +248,7 @@ def test_read_contract_function_has_no_coordination_branch_surface_decision() ->
     """
     source = Path(st.__file__).read_text(encoding="utf-8")
     tree = ast.parse(source)
-    target = next(
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.FunctionDef)
-        and node.name == "_read_contract_from_transaction_target"
-    )
+    target = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == "_read_contract_from_transaction_target")
     for node in ast.walk(target):
         if isinstance(node, ast.Compare) and isinstance(node.left, ast.Attribute):
             attr = node.left

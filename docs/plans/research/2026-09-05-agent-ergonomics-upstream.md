@@ -269,11 +269,11 @@ Three public sources offer useful experiments without adding harness dependencie
   principles to existing Spec Kitty outputs. A concise format is a hypothesis to
   test; neither JSON nor fewer tools is universally optimal.
   [Writing effective tools for agents](https://www.anthropic.com/engineering/writing-tools-for-agents).
-- **Progressive skill loading:** the Agent Skills specification separates discovery
+- **Progressive skill loading:** the agent skills specification separates discovery
   metadata, activated instructions, and supporting resources. This supports
   Spec Kitty's existing disclosure direction. It does not prove any particular
   host loads every file correctly or enforces experimental permission metadata.
-  [Agent Skills specification](https://agentskills.io/specification).
+  [agent skills specification](https://agentskills.io/specification).
 
 An MCP facade, a new implementation language, a larger context window, persistent
 memory, or more agents would not by itself fix lost applicability, inconsistent

@@ -150,31 +150,16 @@ def read_event_log(contract: EventLogReadContract) -> list[StatusEvent]:
         StatusReadSource.PRIMARY_CHECKOUT,
         StatusReadSource.COORDINATION_WORKTREE,
     }:
-        if (
-            contract.source == StatusReadSource.PRIMARY_CHECKOUT
-            and _is_coordination_worktree_path(contract.feature_dir)
-        ):
-            raise StatusContractError(
-                "primary_checkout reads must not target coordination worktree paths"
-            )
-        if (
-            contract.source == StatusReadSource.COORDINATION_WORKTREE
-            and not _is_coordination_worktree_path(contract.feature_dir)
-        ):
-            raise StatusContractError(
-                "coordination_worktree reads require a coordination worktree path"
-            )
+        if contract.source == StatusReadSource.PRIMARY_CHECKOUT and _is_coordination_worktree_path(contract.feature_dir):
+            raise StatusContractError("primary_checkout reads must not target coordination worktree paths")
+        if contract.source == StatusReadSource.COORDINATION_WORKTREE and not _is_coordination_worktree_path(contract.feature_dir):
+            raise StatusContractError("coordination_worktree reads require a coordination worktree path")
         return read_events(contract.feature_dir)
 
     if contract.source == StatusReadSource.COORDINATION_BRANCH_REF:
         if contract.repo_root is None or contract.destination_ref is None:
-            raise StatusContractError(
-                "coordination_branch_ref reads require repo_root and destination_ref"
-            )
-        events_ref = (
-            f"{contract.destination_ref}:"
-            f"kitty-specs/{contract.feature_dir.name}/{EVENTS_FILENAME}"
-        )
+            raise StatusContractError("coordination_branch_ref reads require repo_root and destination_ref")
+        events_ref = f"{contract.destination_ref}:kitty-specs/{contract.feature_dir.name}/{EVENTS_FILENAME}"
         result = subprocess.run(
             ["git", "-C", str(contract.repo_root), "show", events_ref],
             check=False,
@@ -191,12 +176,14 @@ def read_event_log(contract: EventLogReadContract) -> list[StatusEvent]:
     raise StatusContractError(f"unsupported status read source: {contract.source}")
 
 
-def read_event_stream_log(contract: EventLogReadContract) -> EventStream:
+def read_event_stream_log(contract: EventLogReadContract, *, strict_ref_errors: bool = False) -> EventStream:
     """Read transitions and annotations from an explicit status source.
 
     This is the annotation-aware counterpart to :func:`read_event_log`.  It
     preserves the same source-label validation and branch-ref semantics while
     returning the complete event stream required by runtime-state reducers.
+    Authority probes set ``strict_ref_errors`` after independently establishing
+    a pinned blob exists: a failed read must never become an empty-history claim.
     """
     from specify_cli.status import (  # noqa: PLC0415
         EVENTS_FILENAME,
@@ -212,31 +199,16 @@ def read_event_stream_log(contract: EventLogReadContract) -> EventStream:
         StatusReadSource.PRIMARY_CHECKOUT,
         StatusReadSource.COORDINATION_WORKTREE,
     }:
-        if (
-            contract.source == StatusReadSource.PRIMARY_CHECKOUT
-            and _is_coordination_worktree_path(contract.feature_dir)
-        ):
-            raise StatusContractError(
-                "primary_checkout reads must not target coordination worktree paths"
-            )
-        if (
-            contract.source == StatusReadSource.COORDINATION_WORKTREE
-            and not _is_coordination_worktree_path(contract.feature_dir)
-        ):
-            raise StatusContractError(
-                "coordination_worktree reads require a coordination worktree path"
-            )
+        if contract.source == StatusReadSource.PRIMARY_CHECKOUT and _is_coordination_worktree_path(contract.feature_dir):
+            raise StatusContractError("primary_checkout reads must not target coordination worktree paths")
+        if contract.source == StatusReadSource.COORDINATION_WORKTREE and not _is_coordination_worktree_path(contract.feature_dir):
+            raise StatusContractError("coordination_worktree reads require a coordination worktree path")
         return read_event_stream(contract.feature_dir)
 
     if contract.source == StatusReadSource.COORDINATION_BRANCH_REF:
         if contract.repo_root is None or contract.destination_ref is None:
-            raise StatusContractError(
-                "coordination_branch_ref reads require repo_root and destination_ref"
-            )
-        events_ref = (
-            f"{contract.destination_ref}:"
-            f"kitty-specs/{contract.feature_dir.name}/{EVENTS_FILENAME}"
-        )
+            raise StatusContractError("coordination_branch_ref reads require repo_root and destination_ref")
+        events_ref = f"{contract.destination_ref}:kitty-specs/{contract.feature_dir.name}/{EVENTS_FILENAME}"
         result = subprocess.run(
             ["git", "-C", str(contract.repo_root), "show", events_ref],
             check=False,
@@ -246,6 +218,8 @@ def read_event_stream_log(contract: EventLogReadContract) -> EventStream:
             errors="replace",
         )
         if result.returncode != 0:
+            if strict_ref_errors:
+                raise StatusContractError(f"Cannot read pinned coordination history: {result.stderr.strip()}")
             return EventStream()
         parser_feature_dir = contract.parser_feature_dir or contract.feature_dir
         return read_event_stream_from_text(parser_feature_dir, result.stdout)
@@ -314,20 +288,10 @@ def append_event_stream_log(
 
 
 def _validate_write_contract(contract: EventLogWriteContract) -> None:
-    if (
-        contract.target == EventLogWriteTarget.PRIMARY_CHECKOUT_APPEND
-        and _is_coordination_worktree_path(contract.feature_dir)
-    ):
-        raise StatusContractError(
-            "primary_checkout_append must not target coordination worktree paths"
-        )
-    if (
-        contract.target == EventLogWriteTarget.COORDINATION_TRANSACTION_APPEND
-        and not _is_coordination_worktree_path(contract.feature_dir)
-    ):
-        raise StatusContractError(
-            "coordination_transaction_append requires a coordination worktree path"
-        )
+    if contract.target == EventLogWriteTarget.PRIMARY_CHECKOUT_APPEND and _is_coordination_worktree_path(contract.feature_dir):
+        raise StatusContractError("primary_checkout_append must not target coordination worktree paths")
+    if contract.target == EventLogWriteTarget.COORDINATION_TRANSACTION_APPEND and not _is_coordination_worktree_path(contract.feature_dir):
+        raise StatusContractError("coordination_transaction_append requires a coordination worktree path")
 
 
 def merge_append_preserving_coordination_event_log_bytes(
@@ -352,11 +316,7 @@ def merge_append_preserving_coordination_event_log_bytes(
                 return f"id:{event_id}"
         return f"raw:{line}"
 
-    existing_lines = [
-        line
-        for line in existing_coordination.decode("utf-8", "replace").splitlines()
-        if line.strip()
-    ]
+    existing_lines = [line for line in existing_coordination.decode("utf-8", "replace").splitlines() if line.strip()]
     seen = {_key(line) for line in existing_lines}
     merged = list(existing_lines)
     for line in incoming_primary_checkout.decode("utf-8", "replace").splitlines():

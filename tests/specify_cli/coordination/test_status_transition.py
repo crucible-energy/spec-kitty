@@ -310,11 +310,7 @@ def test_review_gate_reads_subtask_annotations_from_unmaterialized_coord_branch(
         repo_root=repo,
     )
     worktrees_dir = repo / ".worktrees"
-    worktrees_before_read = (
-        tuple(sorted(candidate.name for candidate in worktrees_dir.iterdir()))
-        if worktrees_dir.exists()
-        else ()
-    )
+    worktrees_before_read = tuple(sorted(candidate.name for candidate in worktrees_dir.iterdir())) if worktrees_dir.exists() else ()
 
     subtasks_complete, evidence = aggregate._resolve_review_gate_inputs(
         request=transition,
@@ -328,11 +324,7 @@ def test_review_gate_reads_subtask_annotations_from_unmaterialized_coord_branch(
     assert subtasks_complete is True
     assert evidence is True
     assert not (feature_dir / "status.events.jsonl").exists()
-    worktrees_after_read = (
-        tuple(sorted(candidate.name for candidate in worktrees_dir.iterdir()))
-        if worktrees_dir.exists()
-        else ()
-    )
+    worktrees_after_read = tuple(sorted(candidate.name for candidate in worktrees_dir.iterdir())) if worktrees_dir.exists() else ()
     assert worktrees_after_read == worktrees_before_read
 
 
@@ -624,9 +616,7 @@ def test_transactional_batch_rejects_request_without_any_feature_dir(repo: Path)
         repo_root=repo,
     )
 
-    with pytest.raises(
-        TypeError, match="requires feature_dir/mission_dir, mission_slug, and wp_id"
-    ):
+    with pytest.raises(TypeError, match="requires feature_dir/mission_dir, mission_slug, and wp_id"):
         emit_status_transition_batch_transactional([request], sync_dossier=False)
 
 
@@ -791,9 +781,32 @@ def test_transactional_emit_fail_closed_surface_refusal_stays_structured(
     resolution succeeds the transaction refuses with its own structured
     BOOKKEEPING_WORKTREE_MISSING error — never a raw StatusReadPathNotFound.
     """
+    # Existing committed history distinguishes recovery from a fresh primary
+    # create window. The invalid unregistered root must still refuse recovery.
+    _seed_planned_on_coord(repo)
     _materialize_coord_root_without_mission_dir(repo)
 
     with pytest.raises(BookkeepingWorktreeMissing):
-        emit_status_transition_transactional(
-            _canonical_slug_request(repo), sync_dossier=False
-        )
+        emit_status_transition_transactional(_canonical_slug_request(repo), sync_dossier=False)
+
+
+def test_unreadable_committed_history_never_becomes_primary_authority(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from specify_cli.coordination import status_transition
+    from specify_cli.coordination.status_service import StatusContractError
+
+    _seed_planned_on_coord(repo)
+    identity = status_transition._identity_for_request(_request(repo))
+    original_run = subprocess.run
+
+    def fail_history_read(args: list[str], **kwargs: Any) -> Any:
+        if "show" in args and any("status.events.jsonl" in arg for arg in args):
+            return subprocess.CompletedProcess(args, 128, "", "fixture: object unreadable")
+        return original_run(args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", fail_history_read)
+    with pytest.raises(StatusContractError, match="Cannot read pinned"):
+        status_transition._canonical_status_surface_is_primary(identity, MISSION_DIRNAME)
+    assert not (repo / "kitty-specs" / MISSION_DIRNAME / "status.events.jsonl").exists()

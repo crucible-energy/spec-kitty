@@ -157,23 +157,26 @@ def _transaction_topology_available(identity: _TransactionIdentity, mission_slug
 
 
 def _canonical_status_surface_is_primary(identity: _TransactionIdentity, mission_slug: str) -> bool:
-    """True iff the shared status-surface resolver selects the primary log.
+    """True iff primary selection also owns the durable transaction history.
 
     Transactional reads and writes must not revive a separate coordination
-    decision after the canonical resolver has selected primary—for example, in
-    the unmaterialized create window or when a phase-1 primary snapshot outranks
-    a legacy coordination copy. Resolver failures keep the established
-    transaction-specific recovery paths in charge.
+    decision for a fresh create window or verified phase-1 primary cutover.
+    A physical read fallback alone must not erase canonical events already
+    committed on a legacy coordination branch. That branch remains the existing
+    transaction target until cutover; BookkeepingTransaction owns materialization.
+    Resolver failures keep established transaction recovery paths in charge.
 
     The input identity may already name the coordination surface. Its path
     cannot identify the primary role; use the resolver's explicit primary anchor.
     """
     from specify_cli.coordination.surface_resolver import (  # noqa: PLC0415
         CoordinationBranchDeleted,
+        _snapshot_authority_active,
         resolve_status_surface_with_anchor,
     )
     from specify_cli.missions._read_path_resolver import (  # noqa: PLC0415
         StatusReadPathNotFound,
+        stored_topology_from_meta,
     )
 
     try:
@@ -182,7 +185,46 @@ def _canonical_status_surface_is_primary(identity: _TransactionIdentity, mission
         return False
     selected: Path = surface.surface_path.parent
     primary: Path = surface.primary_anchor
-    return selected.resolve() == primary.resolve()
+    if selected.resolve() != primary.resolve():
+        return False
+    meta = load_meta(primary, allow_missing=True, on_malformed="raise")
+    if meta is None or _snapshot_authority_active(meta):
+        return True
+    from mission_runtime import routes_through_coordination  # noqa: PLC0415
+
+    topology = stored_topology_from_meta(meta)
+    if topology is not None and not routes_through_coordination(topology):
+        return True
+    if identity.coordination_branch is None or not _branch_exists(identity.repo_root, identity.destination_ref):
+        return True
+    pinned_ref = subprocess.run(
+        ["git", "-C", str(identity.repo_root), "rev-parse", "--verify", "--end-of-options", f"{identity.destination_ref}^{{commit}}"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    event_path = f"{KITTY_SPECS_DIR}/{_transaction_dir_name(mission_slug, identity.mid8)}/{_EVENTS_FILENAME}"
+    entry = subprocess.run(
+        ["git", "-C", str(identity.repo_root), "ls-tree", "-z", pinned_ref, "--", event_path],
+        check=True,
+        capture_output=True,
+    ).stdout
+    if not entry:
+        return True
+    if not entry.startswith((b"100644 blob ", b"100755 blob ")):
+        from specify_cli.coordination.status_service import StatusContractError  # noqa: PLC0415
+
+        raise StatusContractError("Coordination history must be a regular Git blob")
+    stream = read_event_stream_log(
+        EventLogReadContract.coordination_branch_ref(
+            repo_root=identity.repo_root,
+            destination_ref=pinned_ref,
+            feature_dir=primary.parent / _transaction_dir_name(mission_slug, identity.mid8),
+            parser_feature_dir=primary,
+        ),
+        strict_ref_errors=True,
+    )
+    return not (stream.transitions or stream.annotations)
 
 
 _NonTxnEmitResult = TypeVar("_NonTxnEmitResult")
