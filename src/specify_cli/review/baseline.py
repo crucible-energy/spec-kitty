@@ -36,11 +36,9 @@ from specify_cli.review.scope_source import (
 
 logger = logging.getLogger(__name__)
 
-# Wall-clock bound for a single scoped/full test run. Shared with the
-# pre-review gate's head-run default
-# (``pre_review_gate._DEFAULT_HEAD_RUN_TIMEOUT``) so the two mirror each other
-# by construction rather than by a hand-copied literal that could silently
-# diverge when one is retuned.
+# Wall-clock bound for a baseline-capture test run. It stays independent from
+# the longer aggregate head-side review budget because these are separate
+# operations with separate timeout contracts.
 CAPTURE_BASELINE_TIMEOUT_SECONDS = 300  # 5 minutes
 
 

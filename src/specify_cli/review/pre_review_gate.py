@@ -51,7 +51,6 @@ from kernel.paths import to_posix
 from specify_cli.paths import get_runtime_root
 from specify_cli.review._interpreter import resolve_pytest_command
 from specify_cli.review.baseline import (
-    CAPTURE_BASELINE_TIMEOUT_SECONDS,
     BaselineFailure,
     BaselineTestResult,
     _extract_junit_output_path,
@@ -81,7 +80,9 @@ from specify_cli.review.scope_source import (
 # Mirrors _gate_coverage._CompositeRoute: (target_group, target_shard, cone_roots).
 _CompositeRoute = tuple[str | None, str | None, tuple[str, ...]]
 
-_DEFAULT_HEAD_RUN_TIMEOUT = CAPTURE_BASELINE_TIMEOUT_SECONDS  # shared with baseline.py's capture_baseline.
+# Complete declared native suites can exceed the short baseline-capture budget.
+# Keep a finite aggregate bound without changing explicit caller deadlines.
+_DEFAULT_HEAD_RUN_TIMEOUT = 30 * 60
 _HEAD_RUN_HEARTBEAT_INTERVAL = 30.0
 _HEAD_RUN_TERMINATE_GRACE = 5.0
 
@@ -245,7 +246,7 @@ class HeadRunResult:
 _SCOPED_RUN_LOCK_FILENAME = "pre-review-gate-run.lock"
 
 # K-9: the lock-acquire wait is bounded on ITS OWN short timeout, deliberately
-# DECOUPLED from ``_DEFAULT_HEAD_RUN_TIMEOUT`` (300s) below. Charging a
+# DECOUPLED from ``_DEFAULT_HEAD_RUN_TIMEOUT`` (1800s) below. Charging a
 # lock-wait against the subprocess run timeout would re-create the exact
 # #2493 contention bug FR-004 removes: under N concurrent lanes a shard that
 # is fast on its own could still see ``TimeoutExpired`` purely from queueing
