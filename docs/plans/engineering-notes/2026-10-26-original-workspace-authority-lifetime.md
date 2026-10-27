@@ -157,6 +157,26 @@ ignored-data protection stays enabled. Its inverse restores the exact Source
 adapter AST. This is a documented artifact projection, not a claim that the
 older Source tree is byte-identical to current RC7.
 
+### Actual worker exposed the bounded-input ABI
+
+The creator owner's first actual installed worker acceptance retained the
+eligible workspace as `creator_effect_unconfirmed`; sibling and ignored
+valuable state remained preserved. Read-only diagnosis under the actual worker
+budget found that the current Git guard passes `input=stdin`, including `None`,
+but the imported bounded runner did not accept that keyword. The earlier
+primitive check outside an active process budget could not expose this branch.
+The failed artifact, recovery receipt and unknown intent remain retained; the
+next acceptance must use a fresh fixture and revised immutable runtime.
+
+The canonical bounded runner now accepts typed text or bytes input, validates
+the type before process creation, uses a pipe only for explicit input, and
+communicates under the same finite deadline and owned-child join. `None`
+preserves the prior null-input device. No unbounded subprocess fallback or
+silently discarded input is introduced. All fifteen runner tests pass, including
+exact empty, Unicode and binary input, pre-creation type refusal, and a blocked
+input writer whose timed-out child is reaped. An initial test-edit placement
+error was corrected before the green run; the failed diagnostic is preserved.
+
 ## Known Limitations
 
 At the initial checkpoint, the decision supplied no implemented scope. The core

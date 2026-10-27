@@ -119,3 +119,45 @@ def test_deadline_observation_preserves_nested_budget_and_restores_owner() -> No
             assert inner is not None and inner < outer
         assert process_deadline() == outer
     assert process_deadline() is None
+
+
+@pytest.mark.parametrize("payload,text", [(None, True), ("", True), ("joined λ\n", True), (b"\x00\xff\n", False)])
+def test_bounded_stdin_preserves_exact_input_under_budget(payload, text) -> None:
+    from kernel.owned_process import bounded_run, process_budget
+
+    with process_budget(2):
+        result = bounded_run(
+            [sys.executable, "-c", "import sys; sys.stdout.buffer.write(sys.stdin.buffer.read())"],
+            input=payload,
+            text=text,
+            encoding="utf-8" if text else None,
+            check=True,
+        )
+    assert result.stdout == (payload if payload is not None else "")
+
+
+def test_bounded_stdin_timeout_joins_child_that_does_not_read(tmp_path) -> None:
+    import time
+    from kernel.owned_process import bounded_run, process_budget
+
+    marker = tmp_path / "owned-child.json"
+    script = "import os,pathlib,sys,time; pathlib.Path(sys.argv[1]).write_text(str(os.getpid())); time.sleep(20)"
+    before = time.monotonic()
+    with process_budget(0.5), pytest.raises(subprocess.TimeoutExpired):
+        bounded_run([sys.executable, "-c", script, str(marker)], input=b"x" * (2 * 1024 * 1024), timeout=10)
+    assert time.monotonic() - before < 2
+    assert marker.exists()
+    with pytest.raises(ChildProcessError):
+        os.waitpid(int(marker.read_text()), os.WNOHANG)
+
+
+@pytest.mark.parametrize("payload,text", [(b"bytes", True), ("text", False)])
+def test_bounded_stdin_type_mismatch_refuses_before_child(payload, text, monkeypatch) -> None:
+    from kernel.owned_process import bounded_run
+
+    def unexpected_child(*args, **kwargs):
+        pytest.fail("Mismatched stdin must refuse before process creation")
+
+    monkeypatch.setattr(subprocess, "Popen", unexpected_child)
+    with pytest.raises(TypeError, match="input"):
+        bounded_run(["unused"], input=payload, text=text, timeout=1)
