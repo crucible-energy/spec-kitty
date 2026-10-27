@@ -1,3 +1,10 @@
+---
+title: Original workspace authority lifetime
+description: 'Retain the original workspace creator through one joined foreground producer, with explicit release guards, recovery evidence and scoped RC7 qualification.'
+doc_status: draft
+updated: '2026-10-27'
+---
+
 # Original workspace authority lifetime
 
 ## User Experience Findings
