@@ -4753,3 +4753,11 @@ immutable historical commits. Default execution and `--dry-run` are read-only;
 `--apply` writes verified history, its snapshot and provenance receipt. `--json`
 returns the bounded report. Historical approvals retain their original scope;
 restoration does not approve work, advance runtime or create workspaces.
+
+## Unattended plan interviews
+
+Set `SPEC_KITTY_NON_INTERACTIVE=1` for unattended `spec-kitty plan` runs.
+Scaffolding still runs, but the optional interview returns no answers before
+actor discovery, decision creation, network prerequisites or stdin prompts.
+Interactive and explicitly supplied piped answers retain their existing path
+when this flag is unset. This flag does not approve a plan or supply answers.

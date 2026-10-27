@@ -2788,6 +2788,7 @@ pages:
     - {slug: "spec-kitty-migrate-refresh-owned-review-projection", text: "spec-kitty migrate refresh-owned-review-projection", level: 2}
     - {slug: "spec-kitty-migrate-restore-owned-coordination", text: "spec-kitty migrate restore-owned-coordination", level: 2}
     - {slug: "spec-kitty-migrate-restore-owned-mission-history", text: "spec-kitty migrate restore-owned-mission-history", level: 2}
+    - {slug: "unattended-plan-interviews", text: "Unattended plan interviews", level: 2}
   - path: "docs/api/configuration.md"
     title: "Configuration Reference"
     divio_type: "none"

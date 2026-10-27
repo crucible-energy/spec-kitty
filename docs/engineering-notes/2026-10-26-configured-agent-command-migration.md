@@ -168,3 +168,14 @@ writers refresh the derived records. No CLI behavior or authority is added.
 Dedicated merge/rollback and noninteractive-plan P0 repairs remain separate
 from these bounded gate corrections; their hosted regression failures are not
 reclassified as passing or silently skipped.
+
+A dedicated product repair now addresses the explicit noninteractive plan
+contract. The retained real command reproduction emits the approach prompt
+under `SPEC_KITTY_NON_INTERACTIVE=1`. Its cause is an unconditional optional
+interview after scaffolding. The public interview boundary now uses the existing
+canonical truthy-environment parser and returns no answers before actor lookup,
+decision creation, network discovery or stdin access. It does not infer answers,
+approval or TTY intent; ordinary interactive/piped input remains unchanged when
+the explicit flag is unset. The existing red-first command assertions are
+unchanged. This is a bounded retained-Python correctness repair; a future Zig
+port must preserve this boundary. Other merge/rollback P0s remain separate.

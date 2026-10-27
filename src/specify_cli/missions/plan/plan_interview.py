@@ -20,10 +20,12 @@ from mission_runtime import MissionArtifactKind
 from specify_cli.mission_metadata import load_meta_or_empty
 from specify_cli.missions._read_path_resolver import resolve_planning_read_dir
 import contextlib
+import os
 from pathlib import Path
 from typing import Any
 
 from rich.console import Console
+from specify_cli.core.env import is_truthy
 
 __all__ = ["run_plan_interview"]
 
@@ -61,9 +63,7 @@ def _get_mission_id(repo_root: Path, mission_slug: str) -> str | None:
     preserving the original broad ``contextlib.suppress(Exception)`` contract
     (silent ``None`` on any read/parse failure).
     """
-    feature_dir = resolve_planning_read_dir(
-        repo_root, mission_slug, kind=MissionArtifactKind.PRIMARY_METADATA
-    )
+    feature_dir = resolve_planning_read_dir(repo_root, mission_slug, kind=MissionArtifactKind.PRIMARY_METADATA)
     with contextlib.suppress(Exception):
         data = load_meta_or_empty(feature_dir)
         return data.get("mission_id") or None
@@ -94,7 +94,14 @@ def run_plan_interview(  # noqa: C901
     Returns:
         A dict mapping ``question_id`` to the owner's answer.  Empty string
         for questions that were widened (pending-external-input) or deferred.
+        Explicit noninteractive mode returns an empty dict without interviewing.
     """
+    # Match the explicit noninteractive contract before actor lookup, decision
+    # creation, network prerequisite discovery or any stdin prompt. Scaffolding
+    # has already run; an unattended caller supplies no interview answers.
+    if is_truthy(os.environ.get("SPEC_KITTY_NON_INTERACTIVE")):
+        return {}
+
     import typer
 
     from specify_cli.decisions import service as _dm_service
@@ -189,10 +196,7 @@ def run_plan_interview(  # noqa: C901
             and not _already_widened
         ):
             widen_suffix = " | [w]iden"
-        hint_line = (
-            f"[enter]=accept default | [text]=type answer{widen_suffix}"
-            " | [d]efer | [!cancel]"
-        )
+        hint_line = f"[enter]=accept default | [text]=type answer{widen_suffix} | [d]efer | [!cancel]"
         console.print(f"[dim]{hint_line}[/dim]")
 
         # Prompt
@@ -203,12 +207,7 @@ def run_plan_interview(  # noqa: C901
             except (KeyboardInterrupt, EOFError):
                 raise typer.Exit() from None
 
-            if (
-                raw.strip().lower() == "w"
-                and widen_flow is not None
-                and current_decision_id is not None
-                and mission_id is not None
-            ):
+            if raw.strip().lower() == "w" and widen_flow is not None and current_decision_id is not None and mission_id is not None:
                 from datetime import UTC, datetime
 
                 from specify_cli.widen.models import WidenAction, WidenPendingEntry
@@ -255,10 +254,7 @@ def run_plan_interview(  # noqa: C901
                                 )
                             )
                         except Exception as exc:  # noqa: BLE001
-                            console.print(
-                                "[red]Could not save pending widen marker: "
-                                f"{exc}. Question was NOT parked.[/red]"
-                            )
+                            console.print(f"[red]Could not save pending widen marker: {exc}. Question was NOT parked.[/red]")
                             continue
                     user_answer = ""
                     break
