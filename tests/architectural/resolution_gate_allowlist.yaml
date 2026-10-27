@@ -78,8 +78,8 @@ coord_authority:
   rationale: "legitimate coord-owned write that bypasses commit_for_mission by design - coord status authority is at the caller level, not the commit level; PERMANENT fixture"
   file: src/specify_cli/decisions/emit.py
   # Same sanctioned write; token re-pinned from the live gate diagnostic after
-  # the type-only Path cast. No authority or allowance was added.
-  token: return cast ( Path , resolve_feature_dir_for_mission ( repo_root , mission_slug ) )
+  # the typed local return replacing a redundant cast. Same authority/allowance.
+  token: 'mission_dir : Path = resolve_feature_dir_for_mission ( repo_root , mission_slug )'
 - qualname: WidenPendingStore.__init__
   line: 63
   rationale: "legitimate coord-owned write that bypasses commit_for_mission by design - coord status authority is at the caller level, not the commit level; PERMANENT fixture"

@@ -159,9 +159,7 @@ _ALLOWED_SITES_FILES: dict[tuple[str, str], str] = {
     # exception before this more specific fail-closed one could raise) — no git
     # worktree is ever created/looked up from this value; it is raised
     # immediately.
-    ("_coord_mid8", "coord_candidate = repo_root"): (
-        "src/specify_cli/coordination/surface_resolver.py"
-    ),
+    ("_coord_mid8", "coord_candidate = repo_root / / / KITTY_SPECS_DIR / mission_slug ,"): ("src/specify_cli/coordination/surface_resolver.py"),
     # ── workspace.py: CoordinationWorkspaceIdentityUnresolved diagnostic (idiom 2) ──
     # post-merge addition (coord-primary-partition-lock-01KWZ46V, same commit):
     # the exception's message is a human-readable string that names the
@@ -208,7 +206,7 @@ _SEAM_GUIDANCE = (
     "dirs, mission_branch_name_required()/coord_branch_name() for branches, and "
     "mission_dir_name()/coord_mission_dir_name() for mission dirs. Do NOT "
     "hand-roll a `.worktrees/` f-string, a `kitty/mission-{...}` literal, or an "
-    "inline `endswith(f\"-{mid8}\")` dedup outside the seam."
+    'inline `endswith(f"-{mid8}")` dedup outside the seam.'
 )
 
 
@@ -230,18 +228,12 @@ def _iter_source_files() -> list[Path]:
 
 def _is_interpolated_fstring(node: ast.AST) -> TypeGuard[ast.JoinedStr]:
     """True for an f-string carrying at least one ``{...}`` interpolation."""
-    return isinstance(node, ast.JoinedStr) and any(
-        isinstance(value, ast.FormattedValue) for value in node.values
-    )
+    return isinstance(node, ast.JoinedStr) and any(isinstance(value, ast.FormattedValue) for value in node.values)
 
 
 def _is_worktrees_literal(node: ast.AST) -> bool:
     """True for a ``.worktrees`` / ``.worktrees/...`` string literal."""
-    return (
-        isinstance(node, ast.Constant)
-        and isinstance(node.value, str)
-        and (node.value == _WORKTREES_NAME or node.value.startswith(_WORKTREES_NAME + "/"))
-    )
+    return isinstance(node, ast.Constant) and isinstance(node.value, str) and (node.value == _WORKTREES_NAME or node.value.startswith(_WORKTREES_NAME + "/"))
 
 
 def _is_worktrees_name(node: ast.AST) -> bool:
@@ -276,12 +268,7 @@ def _collect_fstring_bound_names(tree: ast.AST) -> set[str]:
             for target in node.targets:
                 if isinstance(target, ast.Name):
                     bound.add(target.id)
-        elif (
-            isinstance(node, ast.AnnAssign)
-            and node.value is not None
-            and _is_interpolated_fstring(node.value)
-            and isinstance(node.target, ast.Name)
-        ):
+        elif isinstance(node, ast.AnnAssign) and node.value is not None and _is_interpolated_fstring(node.value) and isinstance(node.target, ast.Name):
             bound.add(node.target.id)
     return bound
 
@@ -321,11 +308,7 @@ def _operand_is_interpolated(node: ast.expr, fstring_names: set[str]) -> bool:
 
 def _fstring_literal_text(node: ast.JoinedStr) -> str:
     """Concatenated literal (non-interpolated) text of an f-string."""
-    return "".join(
-        str(value.value)
-        for value in node.values
-        if isinstance(value, ast.Constant)
-    )
+    return "".join(str(value.value) for value in node.values if isinstance(value, ast.Constant))
 
 
 def _references_mid8(node: ast.AST) -> bool:
@@ -374,12 +357,8 @@ def _scan_file(path: Path) -> dict[int, str]:
         # via an assign-then-join local name).
         if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
             operands = _flatten_div_operands(node)
-            has_worktrees = any(
-                _is_worktrees_literal(op) or _is_worktrees_name(op) for op in operands
-            )
-            has_fstring = any(
-                _operand_is_interpolated(op, fstring_names) for op in operands
-            )
+            has_worktrees = any(_is_worktrees_literal(op) or _is_worktrees_name(op) for op in operands)
+            has_fstring = any(_operand_is_interpolated(op, fstring_names) for op in operands)
             if has_worktrees and has_fstring:
                 violations[node.lineno] = "worktree-dir name-guess (idiom 1)"
             continue
@@ -388,12 +367,7 @@ def _scan_file(path: Path) -> dict[int, str]:
         # ``X.endswith(suffix)`` (with ``suffix = f"-{mid8}"``) used to gate a
         # manual ``<slug>-<mid8>`` mission-dir compose. Keyed on mid8 so a
         # generic ``endswith(suffix)`` glob/path test is NOT flagged.
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "endswith"
-            and node.args
-        ):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "endswith" and node.args:
             arg = node.args[0]
             if _is_interpolated_fstring(arg) and _references_mid8(arg):
                 # ``endswith(f"-{mid8}")`` — the canonical dedup shape.
@@ -444,10 +418,7 @@ def test_no_worktree_or_branch_name_guess_outside_seam() -> None:
             "Forbidden worktree/branch name-guess found outside the canonical "
             "naming seam — this reintroduces the #1860/#1949/#1899 wrong-compose "
             "regression class.\n\n"
-            "Offending sites:\n"
-            + "\n".join(sorted(offenders))
-            + "\n\n"
-            + _SEAM_GUIDANCE
+            "Offending sites:\n" + "\n".join(sorted(offenders)) + "\n\n" + _SEAM_GUIDANCE
         )
 
 
@@ -468,18 +439,12 @@ def test_allow_list_entries_are_real_and_benign() -> None:
             continue
         source = abs_path.read_text(encoding="utf-8")
         # Re-scan the file and collect all composite keys it produces.
-        live_keys = {
-            composite_key(source, ln) for ln in _scan_file(abs_path)
-        }
+        live_keys = {composite_key(source, ln) for ln in _scan_file(abs_path)}
         if key not in live_keys:
-            stale.append(
-                f"{rel!r} key={key!r} (no longer a flagged site in the file — "
-                "function renamed or code line changed; update or drop)"
-            )
+            stale.append(f"{rel!r} key={key!r} (no longer a flagged site in the file — function renamed or code line changed; update or drop)")
     assert stale == [], (
         "Stale allow-list entries (the composite key no longer matches a live "
-        "offender in the expected file — re-verify and update or drop):\n  "
-        + "\n  ".join(stale)
+        "offender in the expected file — re-verify and update or drop):\n  " + "\n  ".join(stale)
     )
 
 
@@ -532,8 +497,7 @@ def test_name_compose_offenders_match_pinned_baseline() -> None:
     assert stale_exemptions == [], (
         "Stale name-compose allow-list entries (the composite key is no longer a "
         "live offender the detector flags — the site was routed through the seam; "
-        "drop the exemption to close the false-negative window):\n  "
-        + "\n  ".join(str(k) for k in stale_exemptions)
+        "drop the exemption to close the false-negative window):\n  " + "\n  ".join(str(k) for k in stale_exemptions)
     )
 
 
@@ -633,9 +597,7 @@ _SHORTID_NAMED_EXCLUSIONS: frozenset[tuple[str, str]] = frozenset(
 
 # Stale-detection map for named exclusions: composite_key → relative file path.
 _SHORTID_NAMED_EXCLUSIONS_FILES: dict[tuple[str, str], str] = {
-    ("ProfileInvocationExecutor._commit_op_record", "message ="): (
-        "src/specify_cli/invocation/executor.py"
-    ),
+    ("ProfileInvocationExecutor._commit_op_record", "message ="): ("src/specify_cli/invocation/executor.py"),
 }
 
 # Narrow, individually-justified short-id allow-list (composite key).
@@ -697,12 +659,7 @@ def _unwrap_str_call(node: ast.expr) -> ast.expr:
     ``raw_mission_id`` instead of the opaque ``str(...)`` text — closing the
     string-wrapped blind spot (M1).
     """
-    if (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "str"
-        and len(node.args) == 1
-    ):
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "str" and len(node.args) == 1:
         return node.args[0]
     return node
 
@@ -726,9 +683,7 @@ def _is_eight_slice(node: ast.AST) -> bool:
     sl = node.slice
     if not isinstance(sl, ast.Slice) or sl.step is not None:
         return False
-    lower_ok = sl.lower is None or (
-        isinstance(sl.lower, ast.Constant) and sl.lower.value == 0
-    )
+    lower_ok = sl.lower is None or (isinstance(sl.lower, ast.Constant) and sl.lower.value == 0)
     upper_ok = isinstance(sl.upper, ast.Constant) and sl.upper.value == 8
     return lower_ok and upper_ok
 
@@ -753,19 +708,9 @@ def _scan_shortid_file(path: Path) -> dict[int, str]:
             assert isinstance(node, ast.Subscript)  # narrowed by _is_eight_slice
             if _operand_is_mission_identity(node.value):
                 operand = ast.unparse(node.value)
-                violations[node.lineno] = (
-                    f"mission-identity short-id slice `{operand}[:8]` — route "
-                    f"through `{_SHORTID_SEAM}` (failover-aware), do not re-slice"
-                )
-        elif (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "_mid8"
-        ):
-            violations[node.lineno] = (
-                "bare `_mid8(...)` call bypasses the failover entrypoint — "
-                f"route through `{_SHORTID_SEAM}` instead of the private primitive"
-            )
+                violations[node.lineno] = f"mission-identity short-id slice `{operand}[:8]` — route through `{_SHORTID_SEAM}` (failover-aware), do not re-slice"
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "_mid8":
+            violations[node.lineno] = f"bare `_mid8(...)` call bypasses the failover entrypoint — route through `{_SHORTID_SEAM}` instead of the private primitive"
     return violations
 
 
@@ -804,9 +749,7 @@ def test_no_mission_shortid_slice_or_failover_bypass_outside_seam() -> None:
             "class (#1899 / #1978). A bare `mission_id[:8]` (or `_mid8(...)`) "
             "skips the failover reconciliation in `resolve_mid8`.\n\n"
             "Offending sites (each is a REAL missed route — do NOT allow-list "
-            "without a justification that proves it is not a consumer):\n"
-            + "\n".join(sorted(offenders))
-            + f"\n\nRoute the derivation through `{_SHORTID_SEAM}` "
+            "without a justification that proves it is not a consumer):\n" + "\n".join(sorted(offenders)) + f"\n\nRoute the derivation through `{_SHORTID_SEAM}` "
             "(`src/specify_cli/lanes/branch_naming.py`)."
         )
 
@@ -842,11 +785,7 @@ def test_shortid_consumer_class_is_empty_against_pinned_baseline() -> None:
     # Every raw match must be accounted for by a home, a named exclusion, or the
     # allow-list — leaving an EMPTY un-accounted consumer set.
     unaccounted = [
-        f"{rel}: {key}"
-        for rel, key in raw_matches
-        if rel not in _SHORTID_HOME_FILES
-        and key not in _SHORTID_NAMED_EXCLUSIONS
-        and key not in _SHORTID_ALLOWED_SITES
+        f"{rel}: {key}" for rel, key in raw_matches if rel not in _SHORTID_HOME_FILES and key not in _SHORTID_NAMED_EXCLUSIONS and key not in _SHORTID_ALLOWED_SITES
     ]
     assert unaccounted == [], (
         "The mission-identity short-id CONSUMER class is not empty — these "
@@ -864,13 +803,7 @@ def test_shortid_detector_self_test_flags_all_five_shapes() -> None:
     silently regressing to exact-match (which would let the wrapped/suffixed
     shapes escape).
     """
-    flagged_source = (
-        "mission_id[:8]\n"
-        "str(raw_mission_id)[:8]\n"
-        "mid[:8]\n"
-        "raw_mid[:8]\n"
-        "mission_id_meta[:8]\n"
-    )
+    flagged_source = "mission_id[:8]\nstr(raw_mission_id)[:8]\nmid[:8]\nraw_mid[:8]\nmission_id_meta[:8]\n"
     not_flagged_source = "invocation_id[:8]\n"
 
     flagged_tree = ast.parse(flagged_source)
@@ -894,8 +827,7 @@ def test_shortid_detector_self_test_flags_all_five_shapes() -> None:
         if _is_eight_slice(node):
             assert isinstance(node, ast.Subscript)
             assert not _operand_is_mission_identity(node.value), (
-                "invocation_id[:8] is a different identity domain and must NOT "
-                "be flagged by the mission-identity short-id detector"
+                "invocation_id[:8] is a different identity domain and must NOT be flagged by the mission-identity short-id detector"
             )
 
 
@@ -910,11 +842,7 @@ def test_shortid_failover_bypass_self_test() -> None:
     tree = ast.parse(bypass_source)
     flagged = False
     for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "_mid8"
-        ):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "_mid8":
             flagged = True
     assert flagged, "failover-bypass rule must flag a bare `_mid8(...)` call"
 
@@ -946,15 +874,10 @@ def test_shortid_allow_list_entries_are_real() -> None:
         source = abs_path.read_text(encoding="utf-8")
         live_keys = {_ck(source, ln) for ln in _scan_shortid_file(abs_path)}
         if key not in live_keys:
-            stale.append(
-                f"{rel!r} key={key!r} (no longer a flagged site — "
-                "function renamed or code line changed; update or drop)"
-            )
+            stale.append(f"{rel!r} key={key!r} (no longer a flagged site — function renamed or code line changed; update or drop)")
 
     # --- named-exclusion entries (different identity domain, not scanner-flagged) ---
-    for key, rel in sorted(
-        _SHORTID_NAMED_EXCLUSIONS_FILES.items(), key=lambda kv: kv[1]
-    ):
+    for key, rel in sorted(_SHORTID_NAMED_EXCLUSIONS_FILES.items(), key=lambda kv: kv[1]):
         abs_path = _REPO_ROOT / rel
         if not abs_path.is_file():
             stale.append(f"{rel!r} key={key!r} (file missing)")
@@ -966,16 +889,14 @@ def test_shortid_allow_list_entries_are_real() -> None:
             code_tokens_by_line as _ctbl,
             enclosing_qualname as _eq,
         )
+
         all_keys = {
             (_eq(source, ln), tl)
             for ln, tl in _ctbl(source).items()
             if tl  # skip empty token lines
         }
         if key not in all_keys:
-            stale.append(
-                f"{rel!r} key={key!r} (qualname or token line no longer "
-                "present in file — update or drop)"
-            )
+            stale.append(f"{rel!r} key={key!r} (qualname or token line no longer present in file — update or drop)")
 
     assert stale == [], (
         "Stale short-id allow-list / named-exclusion entries (the composite key "
@@ -1035,17 +956,13 @@ def test_composite_key_survives_line_drift() -> None:
     original_lineno = _find_slice_lineno(original_source)
     drifted_lineno = _find_slice_lineno(drifted_source)
 
-    assert drifted_lineno == original_lineno + 1, (
-        f"expected the drift to shift the line by 1 "
-        f"(original={original_lineno}, drifted={drifted_lineno})"
-    )
+    assert drifted_lineno == original_lineno + 1, f"expected the drift to shift the line by 1 (original={original_lineno}, drifted={drifted_lineno})"
 
     original_key = ck(original_source, original_lineno)
     drifted_key = ck(drifted_source, drifted_lineno)
 
     assert original_key == drifted_key, (
-        f"composite key changed after a +1 line drift — the ratchet is NOT "
-        f"drift-proof.\n  original key : {original_key!r}\n  drifted key  : {drifted_key!r}"
+        f"composite key changed after a +1 line drift — the ratchet is NOT drift-proof.\n  original key : {original_key!r}\n  drifted key  : {drifted_key!r}"
     )
 
 
@@ -1083,8 +1000,7 @@ def test_new_offender_in_allowlisted_function_is_flagged_red() -> None:
 
     # Both share the same qualname; their token lines MUST differ.
     assert allowed_key[0] == extra_key[0], (
-        "expected both lines to be inside the same function "
-        f"(allowed qualname={allowed_key[0]!r}, extra qualname={extra_key[0]!r})"
+        f"expected both lines to be inside the same function (allowed qualname={allowed_key[0]!r}, extra qualname={extra_key[0]!r})"
     )
     assert allowed_key[1] != extra_key[1], (
         "token-line component must differ for the two offender lines — "
@@ -1110,10 +1026,7 @@ def test_new_offender_in_allowlisted_function_is_flagged_red() -> None:
             assert isinstance(node, _ast.Subscript)
             if _operand_is_mission_identity(node.value):
                 flagged_linenos.append(node.lineno)
-    assert extra_lineno in flagged_linenos, (
-        f"the short-id scanner did not flag the extra offender at line {extra_lineno}; "
-        f"flagged lines: {flagged_linenos}"
-    )
+    assert extra_lineno in flagged_linenos, f"the short-id scanner did not flag the extra offender at line {extra_lineno}; flagged lines: {flagged_linenos}"
 
 
 def test_consolidated_doctor_tolerance_site_is_single_and_allow_listed() -> None:
@@ -1139,9 +1052,7 @@ def test_consolidated_doctor_tolerance_site_is_single_and_allow_listed() -> None
     # composite key is itself drift-proof; the test fixture must be too.
     site_marker = "return resolve_mid8(mission_slug, mission_id=mission_id) or mission_id[:8]"
     doctor_lines = doctor_path.read_text(encoding="utf-8").splitlines()
-    site_linenos = [
-        idx for idx, line in enumerate(doctor_lines, start=1) if site_marker in line
-    ]
+    site_linenos = [idx for idx, line in enumerate(doctor_lines, start=1) if site_marker in line]
     assert len(site_linenos) == 1, (
         "expected exactly ONE consolidated `mission_id[:8]` tolerance site in "
         "_coordination_doctor.py (the coord-trust Surface D fold deduplicated the "
@@ -1152,13 +1063,9 @@ def test_consolidated_doctor_tolerance_site_is_single_and_allow_listed() -> None
     key = composite_key_from_file(doctor_path, site_linenos[0])
 
     # The consolidated site lives in the shared `_resolve_coord_short` helper.
-    assert key[0] == "_resolve_coord_short", (
-        "expected the consolidated tolerance site to live in `_resolve_coord_short` "
-        f"but got qualname {key[0]!r}"
-    )
+    assert key[0] == "_resolve_coord_short", f"expected the consolidated tolerance site to live in `_resolve_coord_short` but got qualname {key[0]!r}"
 
     # Cross-check: the composite key is the sole doctor entry in _SHORTID_ALLOWED_SITES.
     assert key in _SHORTID_ALLOWED_SITES, (
-        f"_resolve_coord_short composite key {key!r} is missing from "
-        "_SHORTID_ALLOWED_SITES — the allow-list and the live source are out of sync"
+        f"_resolve_coord_short composite key {key!r} is missing from _SHORTID_ALLOWED_SITES — the allow-list and the live source are out of sync"
     )

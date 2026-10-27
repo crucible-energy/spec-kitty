@@ -50,7 +50,9 @@ def test_squash_preserves_exact_authored_blob(tmp_path: Path, source_authored: b
     assert (tmp_path / PATH).read_text() == AUTHORED
     assert (tmp_path / "code.py").read_text() == "value = 1\n"
     assert git(tmp_path, "status", "--porcelain") == ""
-    assert len(git(tmp_path, "worktree", "list", "--porcelain").split("worktree ")) == 2
+    assert {
+        Path(line.removeprefix("worktree ")).resolve() for line in git(tmp_path, "worktree", "list", "--porcelain").splitlines() if line.startswith("worktree ")
+    } == {tmp_path.resolve()}
 
 
 @pytest.mark.parametrize("source", ["authored", "deleted", "symlink"])

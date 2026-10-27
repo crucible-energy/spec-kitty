@@ -727,7 +727,8 @@ def resolve_status_surface_with_anchor(
         # its PRIMARY metadata anchor separately: using the candidate for both
         # roles misclassifies a coordination write as an uncommitted primary
         # append. mission_slug is the canonical directory name above.
-        primary_anchor: Path = primary_feature_dir_for_mission(repo_root, mission_slug)
+        canonical_primary = _canonicalize_primary_read_handle(repo_root, mission_slug)
+        primary_anchor: Path = primary_feature_dir_for_mission(repo_root, canonical_primary)
         return ResolvedStatusSurface(
             surface_path=feature_dir / _STATUS_EVENTS_FILENAME,
             primary_anchor=primary_anchor,

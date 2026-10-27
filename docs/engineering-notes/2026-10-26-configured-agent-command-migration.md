@@ -275,3 +275,31 @@ metadata floor is tightened, not relaxed. Three glossary casing findings use
 the committed canonical form. These audits keep their undercount, overcount and
 unknown-path tripwires. Remaining hosted findings and complete PR delivery still
 gate adoption; this framework repair is not audio progress.
+
+Actual #2404 integration and kind-read trials exposed a separate overreach of
+status authority into QA placement. A registered coordination worktree can carry
+an acceptance/issue matrix before it has a status event stream. The existing
+read primitive now receives the stream requirement from the declared artifact
+kind. Its kind-blind/default and STATUS_STATE paths still require the event log;
+other coordination-owned kinds retain the same registration, topology and
+containment checks without requiring that unrelated file. Unknown kinds refuse.
+PRIMARY kinds and explicit status cutover behavior retain their own partition.
+No new resolver, writer, worktree materialization or acceptance authority is added.
+
+Five real Git QA trials were red before the repair. The complete kind-read,
+migration and gate-preservation slice passes 61 tests; the placement grid passes
+121 checks with real registered/event-bearing fixtures. The integration harness
+now calls the actual acceptance gate adapter rather than its retired kind-blind
+status-path sequence, preserving all three write/read freshness assertions.
+Complementary tests prove that QA selection does not promote a streamless
+coordination directory to status authority and that undeclared kinds cannot opt
+into a new scope. This remains a bounded existing-Python correctness repair;
+Zig parity must preserve these separate kind/status contracts.
+
+The materialized primary metadata anchor folds through the existing canonical
+handle seam. Existing audit allowlist identities are re-pinned to their exact
+live call sites without adding exemptions. Migration-copy assertions now compare
+expected filenames and contents from independent template inputs and preserve
+the unselected Claude surface byte-for-byte; temporary-workspace cleanup checks
+the exact retained checkout identity rather than a golden count. No baseline is
+grown or detector weakened. Other actual hosted failures remain owned blockers.

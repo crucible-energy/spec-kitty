@@ -57,6 +57,7 @@ class TestConfiguredCommandMigrations:
         claude.mkdir(parents=True)
         for i in range(8):
             (claude / f"spec-kitty.old-{i}.md").write_text("preserved", encoding="utf-8")
+        claude_before = {p.name: p.read_bytes() for p in claude.iterdir()}
         gemini = tmp_path / ".gemini"
         gemini.mkdir()
         migration = PopulateSlashCommandsMigration()
@@ -73,9 +74,11 @@ class TestConfiguredCommandMigrations:
         assert sorted(p.name for p in commands.iterdir()) == [custom.name]
         assert migration.apply(tmp_path).success
         assert custom.read_text(encoding="utf-8") == "custom command"
-        assert len(list(commands.glob("spec-kitty.*.md"))) == 8
+        expected_commands = {f"spec-kitty.{p.stem}.md": p.read_text(encoding="utf-8") for p in templates.glob("*.md")}
+        expected_commands[custom.name] = "custom command"
+        assert {p.name: p.read_text(encoding="utf-8") for p in commands.glob("spec-kitty.*.md")} == expected_commands
         assert not migration.detect(tmp_path)
-        assert len(list(claude.iterdir())) == 8
+        assert {p.name: p.read_bytes() for p in claude.iterdir()} == claude_before
 
     def test_legacy_claude_root_still_requires_real_templates(self, tmp_path: Path) -> None:
         (tmp_path / ".claude").mkdir()
