@@ -31,14 +31,15 @@ if TYPE_CHECKING:
     from rich.console import Console
     from specify_cli.cli import StepTracker
 
-# Get version from package metadata
-# Test mode: use environment override to ensure tests use source version
+# Capture the test override at import, as before. Installed identity is resolved
+# only when requested; successful mission queries do not display a version.
 if os.environ.get("SPEC_KITTY_TEST_MODE") == "1":
     __version__ = os.environ.get("SPEC_KITTY_CLI_VERSION", "0.5.0-dev")
 else:
     from specify_cli.version_utils import get_version
 
-    __version__ = get_version()
+    # Reload must discard a prior override or previously resolved identity.
+    globals().pop("__version__", None)
 
 _APP: typer.Typer | None = None
 
@@ -78,6 +79,7 @@ def activate_mission(project_path: Path, mission_type: str, mission_display: str
 def version_callback(value: bool) -> None:
     """Display version and exit."""
     if value:
+        from specify_cli import __version__
         from specify_cli.cli.console import console
         from specify_cli.cli.helpers import show_banner
         from specify_cli.distribution import resolve_distribution_profile
@@ -216,7 +218,15 @@ def _get_show_banner() -> Any:
 def __getattr__(name: str) -> Any:
     if name == "app":
         return _get_app()
+    if name == "__version__":
+        version = get_version()
+        globals()[name] = version
+        return version
     raise AttributeError(name)
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | {"__version__"})
 
 
 def _compute_execute_mode(mode: int) -> int:

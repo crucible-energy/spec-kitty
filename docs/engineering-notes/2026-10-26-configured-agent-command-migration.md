@@ -593,3 +593,18 @@ normalization CLI/upgrade, lifecycle and public-identity checks pass, and full
 mypy again reports zero issues in 1,143 source files. The hosted full candidate
 remains required before merge. Zig parity must retain this single public
 normalization boundary and identical dry-run/mutation/error behavior.
+
+The subsequent 3c3 hosted startup measurement is red at 1.147s against the
+unchanged 1.050s ceiling; the earlier d82 pass is not current-head qualification.
+Its actual wheel profile spends 0.404 profiled seconds scanning distribution
+ownership solely to initialize the public version string. Successful `next`
+queries do not consume that string. Version resolution now occurs on its first
+public access, with the same resolver, fork precedence, fallback and cached string
+identity. Version display and structured errors still request the actual version.
+Test-mode overrides remain captured at import, reload discards old identity, and
+the existing public export remains discoverable. The fresh-process regression
+fails before the repair; no version metadata, startup safety gate, latency
+baseline, ceiling or measurement is replaced. This is a bounded retained-Python
+startup repair; the Zig port must preserve demanded version identity, test
+override capture, and all pin/schema/library refusals. Fresh full hosted checks
+remain required; local timing cannot establish hosted delivery.
