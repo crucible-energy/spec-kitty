@@ -110,3 +110,11 @@ T013 Resolve the measured non-main archive-frontier conflict using immutable bas
 **Requirement Refs**: FR-006, FR-007, FR-009, NFR-001, NFR-003, SC-005, C-001, C-003
 
 T014 Repair the reproduced review-admission failure after accepted squash delivery and supported planning refresh. Existing Root owns the bounded core guard and latest-runtime qualification; preserve normal no-code refusals and require immutable original-source/delivered-tree/ancestry/current-scope evidence. Review-source evidence grants no approval or cleanup authority. WP09 remains disjoint.
+
+## Work Package WP15: Explicit operation closeout commit policy
+
+**Dependencies**: WP07, WP14
+
+**Requirement Refs**: FR-006, FR-007, FR-008, SC-005, C-001, C-003
+
+T015 Add explicit no-commit operation closure, preserve evidence/ownership/default commit behavior, prove dirty-primary invariance and independently review through PR publication.

@@ -21,7 +21,8 @@
         "WP10",
         "WP12",
         "WP13",
-        "WP14"
+        "WP14",
+        "WP15"
       ],
       "write_scope": [
         ".kittify/charter/charter.md",
@@ -32,6 +33,7 @@
         "docs/plans/engineering-notes/2026-10-24-lifecycle-integration-contracts.md",
         "docs/plans/engineering-notes/2026-10-24-organization-lifecycle-rollout.md",
         "docs/plans/engineering-notes/2026-10-24-owned-lanes-analysis.md",
+        "docs/plans/engineering-notes/2026-10-27-op-closeout-no-commit.md",
         "docs/reports/organization-workspace-lifecycle/**",
         "packs/built-in/missions/mission-steps/**",
         "pyproject.toml",
@@ -83,7 +85,9 @@
         "tests/specify_cli/cli/commands/agent/test_owned_checkout_move_task.py",
         "tests/specify_cli/cli/commands/test_doctor_cli_surface_golden.py",
         "tests/specify_cli/consolidation/test_single_branch_consolidate_e2e.py",
+        "tests/specify_cli/invocation/cli/test_complete.py",
         "tests/specify_cli/invocation/cli/test_owned_checkout.py",
+        "tests/specify_cli/invocation/test_executor.py",
         "tests/specify_cli/lanes/test_worktree_allocator_recovery.py",
         "tests/tasks/test_frontmatter_unit.py",
         "tests/terminus/**",
@@ -103,10 +107,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-26T20:03:05.479980+00:00",
+  "computed_at": "2026-10-27T23:33:06.239839+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "dba95108d621c531cbb83d6e6e82895247763fa3"
+  "planning_commit_sha": "ba23c1777861ab4bf46c6ab9fb633bb5198148c8"
 }
