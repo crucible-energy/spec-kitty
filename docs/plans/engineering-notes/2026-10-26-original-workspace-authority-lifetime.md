@@ -97,11 +97,42 @@ independently qualify the resulting installed artifact.
 4. Publish exact source/artifact hashes, normal gates and review disposition.
    Only then perform the creator owner's fresh per-repository rollout checks.
 
+### Core candidate and creator handshake
+
+The candidate `workspace_lifecycle.original_run.OriginalWorkspaceRun` now holds
+the actual factory result strongly and checks the creating PID before taking
+its private mutex. Its phase transitions do not hold that mutex across process
+I/O. A successful real producer may change HEAD and lease; stable workspace
+generation and exact creating-object identity remain bound.
+
+`complete(*, pr)` enters one finalization and calls the existing creator's
+completion with the additive `original_run` witness. The creator must require
+the exact canonical class and invoke `require_joined_for(self)`, which refuses
+outside that finalization or for a different object/generation/process. Source
+owns adding this keyword and ordinary decode/released-proof support together;
+its existing unqualified ordinary refusal is not removed by the core scope.
+
+The pending admission callback is required by the actual ordinary factory.
+An initial candidate accidentally retained the legacy optional default; six
+private tests refused before ordinary Git effects. The core factory now makes
+that callback a required argument, preserving the real guard instead of
+installing a silent no-op. Callback data does not carry the live scope.
+
+Scope failure poisons later producer/release attempts. A completion hint can
+fail after durable release, so core retains the original error and refuses a
+second attempt; Source's durable state and recovery remain authoritative. No
+completion or retirement is inferred from that exception. Separate private
+tests cover real producer failure/timeout, fork with an inherited held mutex,
+copy/serialization refusal and post-release hint failure.
+
 ## Known Limitations
 
-This decision supplies no implemented scope, release permission, installed
-cleanup, operating-system sandbox or repository adoption. The current ordinary
-release refusal stays closed. RC7 resume qualification and the authenticated
+The initial decision supplied no implemented scope. The subsequent core
+candidate remains incomplete until Source's actual creator handshake, private
+decoder and release path integrate: the positive release and post-release hint
+tests currently fail on the absent `original_run` argument. No stub positive,
+ready PR, release permission, installed cleanup, operating-system sandbox or
+repository adoption is claimed. RC7 resume qualification and the authenticated
 119-repository inventory are separate evidence; neither proves this component.
 
 HELD/v5, protected recovery evidence, existing serving/source ownership and

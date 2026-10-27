@@ -9,8 +9,11 @@ from __future__ import annotations
 import copy
 import gc
 import json
+import os
 import pickle
+import signal
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -21,10 +24,21 @@ from specify_cli.workspace_lifecycle.state import StateError
 from tests.workspace_lifecycle.test_adapters import git, managed_owner
 
 
-def new_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Any, Any, list[Any], Any]:
+def new_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, fail_hint: bool = False) -> tuple[Any, Any, list[Any], Any]:
     from specify_cli.workspace_lifecycle.original_run import OriginalWorkspaceRun
 
     other_owner, store, events, repo = managed_owner(tmp_path, monkeypatch, runtime="actual")
+    admissions: list[dict[str, object]] = []
+
+    def pending(receipt: dict[str, object]) -> None:
+        assert not (tmp_path / "ordinary").exists(), "Admission data must precede Git effects"
+        admissions.append(receipt)
+
+    def completion(event: Any) -> None:
+        events.append(event)
+        if fail_hint:
+            raise RuntimeError("fixture completion hint failed")
+
     run = OriginalWorkspaceRun.create(
         store,
         repo_root=repo,
@@ -33,10 +47,12 @@ def new_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Any, Any, 
         repository="crucible-energy/example",
         repository_id=7,
         delivery=GitHubDelivery(timeout=1),
-        on_complete=events.append,
+        on_complete=completion,
         expected_base_commit=git(repo, "rev-parse", "HEAD"),
         accountable_owner="fixture:original-run",
+        on_admitted=pending,
     )
+    assert len(admissions) == 1
     return run, store, events, other_owner
 
 
@@ -92,10 +108,11 @@ def test_original_run_cannot_copy_or_serialize_authority(tmp_path: Path, monkeyp
     assert not events
 
 
-def test_original_run_failed_real_producer_cannot_retry_or_release(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("script,timeout", [("raise SystemExit(2)", 5), ("import time; time.sleep(30)", 0.05)])
+def test_original_run_failed_real_producer_cannot_retry_or_release(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, script: str, timeout: float) -> None:
     run, store, events, _ = new_run(tmp_path, monkeypatch)
     with pytest.raises(StateError):
-        run.run_producer([sys.executable, "-c", "raise SystemExit(2)"], timeout=5)
+        run.run_producer([sys.executable, "-c", script], timeout=timeout)
     before = ordinary_record(store)
     assert before["status"] == "producer_unknown"
     with pytest.raises(StateError):
@@ -111,3 +128,55 @@ def test_original_run_constructor_is_not_a_recovery_or_adoption_api() -> None:
 
     with pytest.raises(TypeError):
         OriginalWorkspaceRun()
+
+
+def test_original_run_hint_failure_preserves_release_and_never_retries(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    run, store, events, _ = new_run(tmp_path, monkeypatch, fail_hint=True)
+    run.run_producer([sys.executable, "-c", "pass"], timeout=5)
+    with pytest.raises(RuntimeError, match="fixture completion hint failed"):
+        run.complete(pr=9)
+    before = ordinary_record(store)
+    assert before["status"] == "released"
+    assert len(events) == 1
+    with pytest.raises(StateError):
+        run.complete(pr=9)
+    assert ordinary_record(store) == before
+    assert len(events) == 1
+    assert (tmp_path / "ordinary").exists()
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="POSIX inherited-process refusal")
+def test_original_run_fork_refuses_before_an_inherited_locked_mutex(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    run, store, events, _ = new_run(tmp_path, monkeypatch)
+    before = ordinary_record(store)
+    # Private test fault: the foreign child must refuse before taking this lock.
+    with run._lock:
+        child = os.fork()
+        if child == 0:
+            try:
+                run.complete(pr=9)
+            except StateError:
+                os._exit(0)
+            except BaseException:
+                os._exit(2)
+            os._exit(3)
+        reaped = False
+        try:
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                found, status = os.waitpid(child, os.WNOHANG)
+                if found:
+                    reaped = True
+                    assert os.waitstatus_to_exitcode(status) == 0
+                    break
+                time.sleep(0.01)
+            assert reaped, "Foreign process blocked on an inherited lock"
+        finally:
+            if not reaped:
+                found, _ = os.waitpid(child, os.WNOHANG)
+                if not found:
+                    # Only this still-unreaped, directly owned child is signalled.
+                    os.kill(child, signal.SIGKILL)
+                    os.waitpid(child, 0)
+    assert ordinary_record(store) == before
+    assert not events
