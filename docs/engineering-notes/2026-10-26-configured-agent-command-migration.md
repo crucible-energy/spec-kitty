@@ -233,3 +233,16 @@ Zig migration must preserve opaque evidence custody and these refusal contracts;
 it must not synthesize QA, merge arbitrary evidence fields, or grant approval.
 The original regression and real Git tests cover both source/target directions,
 ambiguous authored data, deletion, nonregular input and joined workspace cleanup.
+
+Hosted fast-mission checks exposed outdated routing fixtures: six private-helper
+calls omitted the explicit coordination metadata argument; the exception-relay
+test actually selected a readable primary create window. The helper tests now
+provide their legacy metadata explicitly, and the exception test injects a real
+resolver error at its intended boundary. New complementary cases preserve the
+real create-window primary selection and the verified phase-1 cutover grid.
+Six surface-path fixtures also asserted coordination paths without a materialized
+canonical event log. They now create registered Git worktrees and an empty valid
+event stream, preserving every original path assertion. A missing coordination
+stream separately keeps primary authority. All 50 checks pass; no production
+resolver, expected refusal, selector, skip or xfail was changed. Remaining legacy
+transaction/read contracts and audit-inventory findings are separate blockers.

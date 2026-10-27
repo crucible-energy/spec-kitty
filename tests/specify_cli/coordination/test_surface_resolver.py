@@ -1,7 +1,9 @@
 """Tests for specify_cli.coordination.surface_resolver."""
+
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -20,6 +22,32 @@ def _write_meta(feature_dir: Path, **fields: object) -> None:
     (feature_dir / "meta.json").write_text(json.dumps(fields), encoding="utf-8")
 
 
+def _materialize_coord(repo: Path, slug: str, mid8: str, branch: str) -> Path:
+    """Supply the registered, materialized surface the resolver now requires."""
+
+    def git(*args: str) -> None:
+        subprocess.run(["git", *args], cwd=repo, capture_output=True, check=True)
+
+    git("init", "-qb", "main")
+    git("config", "user.email", "fixture@example.invalid")
+    git("config", "user.name", "Fixture")
+    git("add", "--all")
+    git("commit", "--allow-empty", "-qm", "Fixture primary")
+    canonical_slug = slug if slug.endswith(f"-{mid8}") else f"{slug}-{mid8}"
+    root = repo / ".worktrees" / f"{canonical_slug}-coord"
+    root.parent.mkdir(exist_ok=True)
+    git("worktree", "add", "-b", branch, str(root))
+    feature = root / "kitty-specs" / canonical_slug
+    feature.mkdir(parents=True, exist_ok=True)
+    # A directory alone is not a status surface. An empty canonical event log
+    # is a valid zero-event stream; the resolver must not invent a missing log.
+    (feature / "status.events.jsonl").write_text("")
+    primary_meta = repo / "kitty-specs" / slug / "meta.json"
+    if primary_meta.exists():
+        _write_meta(feature, **json.loads(primary_meta.read_text()))
+    return feature
+
+
 def test_resolve_primary_checkout_when_no_coord_branch(tmp_path: Path) -> None:
     _write_meta(tmp_path / "kitty-specs" / "my-mission", mission_id="01KTDVHZKGCHCW6HQ4V577PNES")
     result = resolve_status_surface(tmp_path, "my-mission")
@@ -32,15 +60,9 @@ def test_resolve_coordination_worktree_when_coord_branch_set(tmp_path: Path) -> 
         mission_id="01KTDVHZKGCHCW6HQ4V577PNES",
         coordination_branch="kitty/mission-my-mission-01KTDVHZ",
     )
+    _materialize_coord(tmp_path, "my-mission", "01KTDVHZ", "kitty/mission-my-mission-01KTDVHZ")
     result = resolve_status_surface(tmp_path, "my-mission")
-    expected = (
-        tmp_path
-        / ".worktrees"
-        / "my-mission-01KTDVHZ-coord"
-        / "kitty-specs"
-        / "my-mission-01KTDVHZ"
-        / "status.events.jsonl"
-    )
+    expected = tmp_path / ".worktrees" / "my-mission-01KTDVHZ-coord" / "kitty-specs" / "my-mission-01KTDVHZ" / "status.events.jsonl"
     assert result == expected
 
 
@@ -55,6 +77,7 @@ def test_mid8_is_first_8_chars_of_mission_id(tmp_path: Path) -> None:
         mission_id="01KTDVHZKGCHCW6HQ4V577PNES",
         coordination_branch="kitty/mission-my-mission-01KTDVHZ",
     )
+    _materialize_coord(tmp_path, "my-mission", "01KTDVHZ", "kitty/mission-my-mission-01KTDVHZ")
     result = resolve_status_surface(tmp_path, "my-mission")
     assert "my-mission-01KTDVHZ-coord" in str(result)
 
@@ -66,6 +89,7 @@ def test_resolve_uses_explicit_mid8_field_when_present(tmp_path: Path) -> None:
         mid8="ABCD1234",
         coordination_branch="kitty/mission-my-mission-ABCD1234",
     )
+    _materialize_coord(tmp_path, "my-mission", "ABCD1234", "kitty/mission-my-mission-ABCD1234")
     result = resolve_status_surface(tmp_path, "my-mission")
     assert "my-mission-ABCD1234-coord" in str(result)
 
@@ -76,6 +100,7 @@ def test_slug_with_mid8_already_embedded_is_not_doubled(tmp_path: Path) -> None:
         mission_id="01KTDVHZKGCHCW6HQ4V577PNES",
         coordination_branch="kitty/mission-my-mission-01KTDVHZ",
     )
+    _materialize_coord(tmp_path, "my-mission-01KTDVHZ", "01KTDVHZ", "kitty/mission-my-mission-01KTDVHZ")
     result = resolve_status_surface(tmp_path, "my-mission-01KTDVHZ")
     assert "my-mission-01KTDVHZ-coord" in str(result)
     assert "my-mission-01KTDVHZ-01KTDVHZ" not in str(result)
@@ -97,8 +122,8 @@ def test_materialized_coord_worktree_resolves_exactly_once(tmp_path: Path) -> No
     """
     slug = "my-mission-01KTDVHZ"  # slug already embeds mid8 → coord-aware on 1st pass
     mid8 = "01KTDVHZ"
-    coord_root = tmp_path / ".worktrees" / f"{slug}-coord"
-    coord_feature_dir = coord_root / "kitty-specs" / slug
+    coord_feature_dir = _materialize_coord(tmp_path, slug, mid8, f"kitty/mission-{slug}")
+    coord_root = coord_feature_dir.parent.parent
     _write_meta(
         coord_feature_dir,
         mission_id="01KTDVHZKGCHCW6HQ4V577PNES",
@@ -117,10 +142,7 @@ def test_materialized_coord_worktree_resolves_exactly_once(tmp_path: Path) -> No
 
     result = resolve_status_surface(tmp_path, slug)
 
-    assert str(result).count(".worktrees") == 1, (
-        f"FR-036 regression: status surface double-resolved into a nested "
-        f"path: {result}"
-    )
+    assert str(result).count(".worktrees") == 1, f"FR-036 regression: status surface double-resolved into a nested path: {result}"
     assert result == coord_feature_dir / "status.events.jsonl"
 
 
@@ -184,9 +206,7 @@ def test_meta_absent_but_primary_dir_exists_returns_primary_surface(
 # ---------------------------------------------------------------------------
 
 
-def test_read_worktree_registry_raises_when_git_unavailable(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_read_worktree_registry_raises_when_git_unavailable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A missing/unexecutable git raises :class:`WorktreeRegistryUnavailable`
     (fail closed — never guess topology from path shape)."""
     from specify_cli.coordination.surface_resolver import (
@@ -204,9 +224,7 @@ def test_read_worktree_registry_raises_when_git_unavailable(
     assert excinfo.value.repo_root == tmp_path
 
 
-def test_read_worktree_registry_raises_on_nonzero_exit(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_read_worktree_registry_raises_on_nonzero_exit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A non-zero git exit surfaces the stderr detail in the fail-closed error."""
     import subprocess as _sp
 
@@ -216,9 +234,7 @@ def test_read_worktree_registry_raises_on_nonzero_exit(
     )
 
     def _fail(*_a: object, **_k: object) -> _sp.CompletedProcess[str]:
-        return _sp.CompletedProcess(
-            args=["git"], returncode=128, stdout="", stderr="fatal: not a git repo"
-        )
+        return _sp.CompletedProcess(args=["git"], returncode=128, stdout="", stderr="fatal: not a git repo")
 
     monkeypatch.setattr(surface_resolver.subprocess, "run", _fail)
     with pytest.raises(WorktreeRegistryUnavailable) as excinfo:
@@ -236,9 +252,7 @@ def test_coord_branch_exists_treats_non_repo_as_present(tmp_path: Path) -> None:
     assert _coord_branch_exists(tmp_path, "kitty/mission-anything") is True
 
 
-def test_coord_branch_exists_returns_true_when_git_oserror(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_coord_branch_exists_returns_true_when_git_oserror(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """An OSError invoking git is treated fail-open for the branch probe (R2)."""
     from specify_cli.coordination.surface_resolver import _coord_branch_exists
 
@@ -285,8 +299,19 @@ def test_coord_mid8_derived_from_slug_when_meta_lacks_id(tmp_path: Path) -> None
         tmp_path / "kitty-specs" / slug,
         coordination_branch=f"kitty/mission-{slug}-coord",
     )
+    _materialize_coord(tmp_path, slug, "01KTDVHZ", f"kitty/mission-{slug}-coord")
     result = resolve_status_surface(tmp_path, slug)
     assert f"{slug}-coord" in str(result)
+
+
+def test_unmaterialized_coord_keeps_existing_primary_authority(tmp_path: Path) -> None:
+    primary = tmp_path / "kitty-specs" / "my-mission"
+    _write_meta(
+        primary,
+        mission_id="01KTDVHZKGCHCW6HQ4V577PNES",
+        coordination_branch="kitty/mission-my-mission-01KTDVHZ",
+    )
+    assert resolve_status_surface(tmp_path, "my-mission") == primary / "status.events.jsonl"
 
 
 # ---------------------------------------------------------------------------
@@ -311,9 +336,7 @@ def test_husk_authoritative_false_for_flattened_stored_topology(tmp_path: Path) 
         mission_id="01KTDVHZKGCHCW6HQ4V577PNES",
         topology="single_branch",
     )
-    assert (
-        _husk_is_authoritative_surface(tmp_path, "flat-mission-01KTDVHZ") is False
-    )
+    assert _husk_is_authoritative_surface(tmp_path, "flat-mission-01KTDVHZ", {}) is False
 
 
 def test_husk_authoritative_true_for_coord_stored_topology(tmp_path: Path) -> None:
@@ -328,9 +351,7 @@ def test_husk_authoritative_true_for_coord_stored_topology(tmp_path: Path) -> No
         topology="coord",
         coordination_branch="kitty/mission-coord-mission-01KTDVHZ-coord",
     )
-    assert (
-        _husk_is_authoritative_surface(tmp_path, "coord-mission-01KTDVHZ") is True
-    )
+    assert _husk_is_authoritative_surface(tmp_path, "coord-mission-01KTDVHZ", {}) is True
 
 
 def test_husk_authoritative_true_for_unbackfilled_legacy(tmp_path: Path) -> None:
@@ -344,9 +365,7 @@ def test_husk_authoritative_true_for_unbackfilled_legacy(tmp_path: Path) -> None
         mission_id="01KTDVHZKGCHCW6HQ4V577PNES",
         coordination_branch="kitty/mission-legacy-mission-01KTDVHZ-coord",
     )
-    assert (
-        _husk_is_authoritative_surface(tmp_path, "legacy-mission-01KTDVHZ") is True
-    )
+    assert _husk_is_authoritative_surface(tmp_path, "legacy-mission-01KTDVHZ", {}) is True
 
 
 def test_effective_surface_topology_prefers_stored_over_relay() -> None:
@@ -364,9 +383,7 @@ def test_effective_surface_topology_prefers_stored_over_relay() -> None:
     )
 
     meta = {"topology": "single_branch", "coordination_branch": "kitty/stale-coord"}
-    result = _effective_surface_topology(
-        None, meta, coord_branch="kitty/stale-coord"
-    )
+    result = _effective_surface_topology(None, meta, coord_branch="kitty/stale-coord")
     assert result is MissionTopology.SINGLE_BRANCH
 
 
@@ -379,9 +396,7 @@ def test_effective_surface_topology_relays_only_when_unbackfilled() -> None:
     )
 
     meta: dict[str, object] = {"coordination_branch": "kitty/real-coord"}
-    result = _effective_surface_topology(
-        None, meta, coord_branch="kitty/real-coord"
-    )
+    result = _effective_surface_topology(None, meta, coord_branch="kitty/real-coord")
     assert result is MissionTopology.COORD
 
 
@@ -394,7 +409,5 @@ def test_effective_surface_topology_threaded_wins() -> None:
     )
 
     meta = {"topology": "coord", "coordination_branch": "kitty/c"}
-    result = _effective_surface_topology(
-        MissionTopology.LANES, meta, coord_branch="kitty/c"
-    )
+    result = _effective_surface_topology(MissionTopology.LANES, meta, coord_branch="kitty/c")
     assert result is MissionTopology.LANES
