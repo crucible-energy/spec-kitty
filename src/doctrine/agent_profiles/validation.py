@@ -4,7 +4,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import jsonschema
 from importlib.resources import files
 from ruamel.yaml import YAML
 
@@ -13,9 +12,7 @@ from doctrine.shared.errors import reject_inline_refs
 AGENT_PROFILE_SCHEMA_FILENAME = "agent-profile.schema.yaml"
 
 
-def reject_agent_profile_inline_refs(
-    data: dict[str, Any], *, file_path: str
-) -> None:
+def reject_agent_profile_inline_refs(data: dict[str, Any], *, file_path: str) -> None:
     """Raise ``InlineReferenceRejectedError`` if the agent-profile YAML
     carries a forbidden inline reference field."""
     reject_inline_refs(data, file_path=file_path, artifact_kind="agent_profile")
@@ -55,6 +52,10 @@ def validate_agent_profile_yaml(data: dict[str, Any]) -> list[str]:
     Returns:
         List of validation error messages (empty if valid)
     """
+    # Repository imports also serve reads that never request schema validation.
+    # Load the engine only here; every validation call still executes it.
+    import jsonschema
+
     schema = _load_agent_profile_schema()
     validator = jsonschema.Draft7Validator(schema)
 

@@ -339,3 +339,21 @@ pass. The latest hosted clean-install latency measurement remains a real blocker
 1.278s median against its unchanged 1.050s ceiling. Startup profiling/repair and
 other current hosted integration findings remain required before PR delivery;
 these fixtures and projections are not a whole-pipeline or audio-success claim.
+
+The actual clean-install command profile contradicts the historical attribution
+to step projection: projection takes less than a millisecond in this trace,
+while eager schema-engine loading compiles 38 URI parsers on an unrelated read.
+Six existing validators now import that engine inside their validation function.
+Every call still loads the same schema and executes the same validator and error
+loop; there is no new cache, invalidation rule, dependency change or validation
+bypass. The bounded Python repair's Zig parity obligation is to preserve this
+demand boundary and every refusal, not to copy eager initialization.
+
+A fresh-process regression is red on the published source, then green after the
+repair; it also proves invalid profile data actually loads the engine and fails
+validation. Fifty-five service/projection/profile checks and 130 existing schema,
+inline-reference and invalid-input checks pass. Exact command JSON differs only
+in its observed timestamp. The unchanged five-run latency gate passes locally
+at 0.645s median against 1.050s. This is Python 3.11 on this host, not the hosted
+clean-install Python 3.13 qualification, render throughput or exclusive savings.
+The hosted gate and other current integration findings remain mandatory.

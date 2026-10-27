@@ -2,7 +2,6 @@
 
 from typing import Any
 
-import jsonschema
 
 from doctrine.shared.errors import reject_inline_refs
 from doctrine.shared.schema_utils import SchemaUtilities
@@ -23,6 +22,10 @@ def validate_toolguide(data: dict[str, Any]) -> list[str]:
     Returns:
         List of validation error messages (empty if valid).
     """
+    # Repository imports also serve reads that never request schema validation.
+    # Load the engine only here; every validation call still executes it.
+    import jsonschema
+
     schema = SchemaUtilities.load_schema("toolguide")
     validator = jsonschema.Draft202012Validator(schema)
 
