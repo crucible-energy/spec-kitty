@@ -125,15 +125,49 @@ completion or retirement is inferred from that exception. Separate private
 tests cover real producer failure/timeout, fork with an inherited held mutex,
 copy/serialization refusal and post-release hint failure.
 
+### Installed component qualification
+
+The combined creator/core source at
+`e5c75f86958a0f5ef7751d9df374b2184ff32be3` now passes all ten
+original-run tests against the actual isolated installed RC7 component. The
+creator handshake and durable release proof are implemented; the earlier
+missing-keyword failures below are retained as historical diagnosis, not the
+current result.
+
+The derivative runtime is `4.0.0rc7+crucible.originalrun.1`, wheel SHA-256
+`a34884558dc3d09b3b06e03132ae1a6e068eeba70b8d43e412e845bec1939408`.
+Its external `installed-qualification.json` digest is
+`aa37ec254d1b9ff40ceb35e17ee34e22cac1d91017cb87d1db882bb78e1c8873`.
+Verification checked 2,088 installed RECORD entries, unchanged versions for
+52 dependencies, and actual module origins outside the Source checkout.
+Private fixture checks prove wrong-parent atomic-write refusal, symlink-lock
+refusal, typed clean-checkout removal and ignored-data preservation.
+
+Six necessary primitive ports preserve the entire current RC7 baseline AST
+under recorded inverse projections. The installed creator uses an explicit
+conservative typed removal context: every path remains non-disposable and
+ignored-data protection stays enabled. Its inverse restores the exact Source
+adapter AST. This is a documented artifact projection, not a claim that the
+older Source tree is byte-identical to current RC7.
+
 ## Known Limitations
 
-The initial decision supplied no implemented scope. The subsequent core
-candidate remains incomplete until Source's actual creator handshake, private
+At the initial checkpoint, the decision supplied no implemented scope. The core
+candidate remained incomplete until Source's actual creator handshake, private
 decoder and release path integrate: the positive release and post-release hint
-tests currently fail on the absent `original_run` argument. No stub positive,
+tests then failed on the absent `original_run` argument. No stub positive,
 ready PR, release permission, installed cleanup, operating-system sandbox or
 repository adoption is claimed. RC7 resume qualification and the authenticated
 119-repository inventory are separate evidence; neither proves this component.
+
+Current installed qualification covers the library lifetime and required
+kernel primitives only. The existing creator owner still owns actual ordinary
+CLI/native caller wiring and installed cleanup/preservation acceptance.
+Organization rollout, whole-Source RC7 convergence and PDB authority/serving
+acceptance remain unproved. Initial installation failed on incompatible
+installer flags; its raw evidence is retained separately from the corrected
+successful installation. The qualified wheel/runtime and receiving-owner
+intake evidence remain active recovery obligations, not cleanup candidates.
 
 HELD/v5, protected recovery evidence, existing serving/source ownership and
 personal runtime settings are outside this source-only increment. No fit,
