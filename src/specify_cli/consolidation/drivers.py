@@ -99,7 +99,12 @@ from specify_cli.decisions.models import DecisionIndex, DecisionStatus
 from specify_cli.migration.backfill_topology import FLATTEN_COUPLED_KEYS
 from specify_cli.mission_metadata import MERGE_FIELDS, parse_meta_file
 from specify_cli.status import EventLogMergeError, detect_concurrent_fork, merge_event_log_files
-from specify_cli.tasks.issue_matrix import _SCAFFOLD_VERDICT_PLACEHOLDER, ISSUE_MATRIX_SCHEMA_VERSION
+from specify_cli.tasks.issue_matrix import (
+    _SCAFFOLD_VERDICT_PLACEHOLDER,
+    _SCAFFOLD_EVIDENCE_PLACEHOLDER,
+    _SCAFFOLD_TITLE_PLACEHOLDER,
+    ISSUE_MATRIX_SCHEMA_VERSION,
+)
 
 # meta.json serialization identical to ``mission_metadata.write_meta`` so the
 # reconciled blob is byte-consistent with the canonical writer (no diff churn).
@@ -820,6 +825,10 @@ _CONFLICT_MARKER_THEIRS = ">>>>>>> theirs"
 # side mirrors the CRITERION_VERDICTS / NEGATIVE_INVARIANT_RESULTS "pending"
 # member (no importable named constant exists for it yet).
 _ISSUE_MATRIX_SENTINELS: Mapping[str, str] = {"verdict": _SCAFFOLD_VERDICT_PLACEHOLDER}
+_ISSUE_METADATA_PLACEHOLDERS: Mapping[str, str] = {
+    "evidence_ref": _SCAFFOLD_EVIDENCE_PLACEHOLDER,
+    "title": _SCAFFOLD_TITLE_PLACEHOLDER,
+}
 _ACCEPTANCE_CRITERION_SENTINELS: Mapping[str, str] = {"pass_fail": "pending"}
 _ACCEPTANCE_INVARIANT_SENTINELS: Mapping[str, str] = {"result": "pending"}
 
@@ -842,7 +851,8 @@ def _merge_field(
     "changed to None" are treated identically, which is the correct 3-way
     reading). Changed on both sides to different values → a VERDICT-authority
     field (a key in *sentinels*) fails closed unless one side is the unset
-    sentinel; any other field prefers the target (``ours``). Never embeds an
+    sentinel; metadata scaffold tokens yield to authored values, and other
+    metadata conflicts prefer the target (``ours``). Never embeds an
     in-band conflict marker into the verdict artifact (#4880 / #2804).
     """
     if ours_v == theirs_v:
@@ -861,13 +871,21 @@ def _merge_field(
     #     unset sentinel (``pending`` / ``unknown``) is not an authored value
     #     and yields to the authored side.
     #   * every OTHER field (evidence_ref, description, notes, proof_type, ...)
-    #     is not verdict authority: it never aborts and never embeds a marker —
-    #     it prefers the target side (``ours``), matching #2804 / #1732's
-    #     target-authoritative tie convention (the accumulating target carries
-    #     the filled value; the incoming lane's scaffold placeholder loses).
+    #     is not verdict authority: it never aborts and never embeds a marker.
+    #     Known scaffold tokens yield; authored ties retain the #2804 / #1732
+    #     target-authoritative convention.
     verdict_sentinel = (sentinels or {}).get(field_name)
     if verdict_sentinel is None:
-        return ours_v  # non-verdict field: target-authoritative, no abort, no marker
+        # A scaffold token is not authored metadata (#136). Retain the canonical
+        # target tie for two authored values, without letting an unfilled target
+        # replace the incoming verdict's actual evidence or title.
+        placeholder = _ISSUE_METADATA_PLACEHOLDERS.get(field_name)
+        if placeholder is not None:
+            if ours_v == placeholder:
+                return theirs_v
+            if theirs_v == placeholder:
+                return ours_v
+        return ours_v  # authored non-verdict field: target-authoritative
     if theirs_v == verdict_sentinel and ours_v != verdict_sentinel:
         return ours_v
     if ours_v == verdict_sentinel and theirs_v != verdict_sentinel:

@@ -11,6 +11,7 @@ Moved from ``consolidation/executor.py`` by epic #2026 with no logic change.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
     from specify_cli.lanes.models import ExecutionLane
 
 from specify_cli.cli.console import console
+from specify_cli.acceptance.matrix import AcceptanceMatrix, MATRIX_FILENAME, VERDICT_PASS_PENDING_CONSOLIDATION
 from specify_cli.coordination.surface_resolver import (
     is_under_worktrees_segment,
     resolve_status_surface,
@@ -125,7 +127,7 @@ def _restore_regressed_gate_artifacts(run: _MergeRunState) -> None:
     coordination topology) — row-aware reconciliation of a genuine same-key
     divergence is WP09's merge-driver defense-in-depth, not this function's job.
     This guard is narrower and complementary: when the target checkout ALREADY
-    held gate-artifact content before the squash merge (:func:`_capture_pre_
+    held an accepted matrix before the squash merge (:func:`_capture_pre_
     target_gate_artifacts`) and the squash step's resolution changed it, the
     pre-merge bytes are restored verbatim — an established,
     already-accepted verdict is never silently discarded by the squash step.
@@ -134,6 +136,28 @@ def _restore_regressed_gate_artifacts(run: _MergeRunState) -> None:
     (both in this module) rather than leaving the working tree unexpectedly
     dirty.
     """
+    # Both artifacts belong to the same acceptance gate. An old target scaffold
+    # must not replace the incoming accepted matrix or its issue evidence (#136).
+    # Parse the captured bytes, not a later filesystem read or stored summary;
+    # this is a readiness check only, never negative-invariant execution.
+    acceptance_bytes = run.pre_target_gate_artifact_snapshots.get(run.target_feature_dir / MATRIX_FILENAME)
+    if acceptance_bytes is None:
+        return
+    try:
+        document = json.loads(acceptance_bytes)
+        if not isinstance(document, dict):
+            return
+        matrix = AcceptanceMatrix.from_dict(document)
+    except (ValueError, TypeError, KeyError, RecursionError):
+        # Missing/malformed target evidence cannot establish prior acceptance.
+        # Leave the canonical mission integration's output authoritative.
+        return
+    if matrix.mission_slug != run.mission_slug or matrix.overall_verdict not in (
+        "pass",
+        VERDICT_PASS_PENDING_CONSOLIDATION,
+    ):
+        return
+
     for path in _gate_artifact_paths(run):
         original = run.pre_target_gate_artifact_snapshots.get(path)
         if original is None:

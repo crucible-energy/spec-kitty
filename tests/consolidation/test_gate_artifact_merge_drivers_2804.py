@@ -44,6 +44,7 @@ from typing import Any
 import pytest
 
 from specify_cli.acceptance.matrix import SCAFFOLD_TODO_MARKER, VERDICT_PASS_PENDING_CONSOLIDATION
+from specify_cli.tasks.issue_matrix import _SCAFFOLD_EVIDENCE_PLACEHOLDER, _SCAFFOLD_TITLE_PLACEHOLDER
 from specify_cli.consolidation.drivers import (
     reconcile_acceptance_matrix_documents,
     reconcile_issue_matrix_documents,
@@ -340,3 +341,55 @@ def test_a5_control_take_theirs_equal_base_drops_terminal_verdict() -> None:
     regressed_row = regressed["rows"]["#3232"]
     assert regressed_row["verdict"] == "unknown"
     assert "evidence_ref" not in regressed_row
+
+
+@pytest.mark.parametrize("filled_on_target", [False, True])
+def test_issue_scaffold_metadata_yields_to_authored_evidence(filled_on_target: bool) -> None:
+    filled = {
+        "rows": {
+            "#3232": {
+                "verdict": "verified",
+                "evidence_ref": ACCEPTED_EVIDENCE_HANDLE,
+                "title": "Verified issue",
+            }
+        }
+    }
+    scaffold = {
+        "rows": {
+            "#3232": {
+                "verdict": "unknown",
+                "evidence_ref": _SCAFFOLD_EVIDENCE_PLACEHOLDER,
+                "title": _SCAFFOLD_TITLE_PLACEHOLDER,
+            }
+        }
+    }
+    ours, theirs = (filled, scaffold) if filled_on_target else (scaffold, filled)
+
+    merged = reconcile_issue_matrix_documents({}, ours, theirs)
+
+    assert merged["rows"] == filled["rows"]
+
+
+def test_authored_issue_metadata_keeps_target_tie_convention() -> None:
+    ours = {
+        "rows": {
+            "#3232": {
+                "verdict": "verified",
+                "evidence_ref": "target receipt",
+                "title": "Target title",
+            }
+        }
+    }
+    theirs = {
+        "rows": {
+            "#3232": {
+                "verdict": "verified",
+                "evidence_ref": "incoming receipt",
+                "title": "Incoming title",
+            }
+        }
+    }
+
+    merged = reconcile_issue_matrix_documents({}, ours, theirs)
+
+    assert merged["rows"] == ours["rows"]
