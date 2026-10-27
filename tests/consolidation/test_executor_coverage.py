@@ -11,6 +11,8 @@ removed). Behaviour-preserving: no executor source is modified.
 from __future__ import annotations
 
 import json
+import os
+import sys
 import subprocess
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -674,6 +676,24 @@ def test_phase_porcelain_clean_tree_passes(tmp_path: Path) -> None:
 # merely exercised.
 
 
+def _accepted_gate_bytes() -> bytes:
+    return json.dumps(
+        {
+            "mission_slug": "m",
+            "criteria": [
+                {
+                    "criterion_id": "FR-001",
+                    "description": "Preserve gate evidence",
+                    "proof_type": "automated_test",
+                    "pass_fail": "pass",
+                    "evidence": "test receipt",
+                }
+            ],
+            "negative_invariants": [],
+        }
+    ).encode()
+
+
 def test_restore_regressed_gate_artifacts_restores_divergent_target_copy(
     tmp_path: Path,
 ) -> None:
@@ -687,7 +707,7 @@ def test_restore_regressed_gate_artifacts_restores_divergent_target_copy(
     clobbered_path.write_bytes(b'{"clobbered": true}')
     untouched_path = run.target_feature_dir / "issue-matrix.json"
     run.pre_target_gate_artifact_snapshots = {
-        clobbered_path: b'{"accepted": true}',
+        clobbered_path: _accepted_gate_bytes(),
         # Ordinary, non-divergent leg: target held nothing here pre-merge, so
         # the squash merge's output is authoritative -- no restore.
         untouched_path: None,
@@ -695,9 +715,84 @@ def test_restore_regressed_gate_artifacts_restores_divergent_target_copy(
 
     phase_advance._restore_regressed_gate_artifacts(run)
 
-    assert clobbered_path.read_bytes() == b'{"accepted": true}'
+    assert clobbered_path.read_bytes() == _accepted_gate_bytes()
     assert run.gate_artifact_restored_paths == [clobbered_path]
     assert not untouched_path.exists()
+
+
+@pytest.mark.parametrize(
+    "target_kind",
+    [
+        "missing",
+        "malformed",
+        "deep_json",
+        "array",
+        "missing_identity",
+        "pending",
+        "fail",
+        "unknown",
+        "wrong_mission",
+    ],
+)
+def test_unaccepted_target_does_not_activate_gate_preservation(
+    tmp_path: Path,
+    target_kind: str,
+) -> None:
+    run = _make_run(tmp_path)
+    matrix_path = run.target_feature_dir / "acceptance-matrix.json"
+    issue_path = run.target_feature_dir / "issue-matrix.json"
+    matrix_path.parent.mkdir(parents=True, exist_ok=True)
+    incoming = _accepted_gate_bytes()
+    matrix_path.write_bytes(incoming)
+    issue_path.write_bytes(b'{"rows": {"#1": {"verdict": "fixed", "evidence_ref": "new"}}}')
+    incoming_issues = issue_path.read_bytes()
+    document = json.loads(incoming)
+    document["overall_verdict"] = "pass"
+    if target_kind in ("pending", "fail", "unknown"):
+        document["criteria"][0]["pass_fail"] = target_kind
+    if target_kind == "wrong_mission":
+        document["mission_slug"] = "different"
+    original = {
+        "missing": None,
+        "malformed": b"{",
+        "deep_json": b"[" * 2048 + b"]" * 2048,
+        "array": b"[]",
+        "missing_identity": b'{"overall_verdict": "pass"}',
+    }.get(target_kind, json.dumps(document).encode())
+    run.pre_target_gate_artifact_snapshots = {
+        matrix_path: original,
+        issue_path: b'{"rows": {"#1": {"verdict": "unknown"}}}',
+    }
+
+    phase_advance._restore_regressed_gate_artifacts(run)
+
+    assert matrix_path.read_bytes() == incoming
+    assert issue_path.read_bytes() == incoming_issues
+    assert run.gate_artifact_restored_paths == []
+
+
+def test_deferred_negative_invariant_preserves_preconsolidation_acceptance(tmp_path: Path) -> None:
+    run = _make_run(tmp_path)
+    matrix_path = run.target_feature_dir / "acceptance-matrix.json"
+    matrix_path.parent.mkdir(parents=True, exist_ok=True)
+    matrix_path.write_bytes(b'{"clobbered": true}')
+    document = json.loads(_accepted_gate_bytes())
+    document["negative_invariants"] = [
+        {
+            "invariant_id": "NI-001",
+            "description": "Consolidation-only check",
+            "verification_method": "custom_command",
+            "verification_command": "must-not-run",
+            "result": "deferred_to_consolidation",
+        }
+    ]
+    original = json.dumps(document).encode()
+    run.pre_target_gate_artifact_snapshots = {matrix_path: original}
+
+    phase_advance._restore_regressed_gate_artifacts(run)
+
+    assert matrix_path.read_bytes() == original
+    assert run.gate_artifact_restored_paths == [matrix_path]
 
 
 def test_restore_regressed_gate_artifacts_noop_when_current_matches_original(
@@ -708,12 +803,12 @@ def test_restore_regressed_gate_artifacts_noop_when_current_matches_original(
     run = _make_run(tmp_path)
     matching_path = run.target_feature_dir / "acceptance-matrix.json"
     matching_path.parent.mkdir(parents=True, exist_ok=True)
-    matching_path.write_bytes(b'{"accepted": true}')
-    run.pre_target_gate_artifact_snapshots = {matching_path: b'{"accepted": true}'}
+    matching_path.write_bytes(_accepted_gate_bytes())
+    run.pre_target_gate_artifact_snapshots = {matching_path: _accepted_gate_bytes()}
 
     phase_advance._restore_regressed_gate_artifacts(run)
 
-    assert matching_path.read_bytes() == b'{"accepted": true}'
+    assert matching_path.read_bytes() == _accepted_gate_bytes()
     assert run.gate_artifact_restored_paths == []
 
 
@@ -1382,3 +1477,157 @@ def test_orchestrator_execute_lane_merge_non_coord_stays_on_delete_branch_gate(
     assert mission_branch_deletable is True, (
         "a non-coord mission's mission-branch deletion must stay keyed to delete_branch alone, not the coupled teardown_coordination"
     )
+
+
+def test_post_mutation_recorder_preserves_callable_types(tmp_path: Path) -> None:
+    """Check the real decorator's parameter contract, rather than a config literal."""
+    repo = Path(__file__).resolve().parents[2]
+    sample = tmp_path / "recorded_phase.py"
+    valid = (
+        "from specify_cli.consolidation.run_state import _MergeRunState, _records_post_mutation_tips\n"
+        "@_records_post_mutation_tips\n"
+        "def phase(run: _MergeRunState, count: int, *, label: str) -> None:\n"
+        "    del run, count, label\n"
+        "def invoke(run: _MergeRunState) -> None:\n"
+        "    phase(run, 1, label='accepted')\n"
+    )
+    env = {**os.environ, "MYPY_CACHE_DIR": str(tmp_path / "mypy-cache")}
+    command = [sys.executable, "-m", "mypy", "--strict", "--config-file", str(repo / "pyproject.toml"), str(sample)]
+    sample.write_text(valid, encoding="utf-8")
+    accepted = subprocess.run(command, cwd=repo, env=env, capture_output=True, text=True, timeout=45, check=False)
+    assert accepted.returncode == 0, accepted.stdout + accepted.stderr
+
+    sample.write_text(valid.replace("phase(run, 1, label='accepted')", "phase(run, 'bad', label=42)"), encoding="utf-8")
+    rejected = subprocess.run(command, cwd=repo, env=env, capture_output=True, text=True, timeout=45, check=False)
+    assert rejected.returncode == 1, rejected.stdout + rejected.stderr
+    assert "arg-type" in rejected.stdout, rejected.stdout + rejected.stderr
+
+
+@pytest.mark.parametrize("evidence_kind", ["manual_qa", "recorded_ni"])
+@pytest.mark.parametrize("complete", [False, True])
+def test_gate_preservation_requires_valid_recorded_evidence(
+    tmp_path: Path,
+    evidence_kind: str,
+    complete: bool,
+) -> None:
+    """A passing result without required evidence cannot replace genuine incoming proof."""
+    from specify_cli.acceptance.matrix import AcceptanceMatrix, validate_matrix_evidence
+
+    run = _make_run(tmp_path)
+    matrix_path = run.target_feature_dir / "acceptance-matrix.json"
+    issue_path = run.target_feature_dir / "issue-matrix.json"
+    matrix_path.parent.mkdir(parents=True, exist_ok=True)
+    incoming = _accepted_gate_bytes()
+    matrix_path.write_bytes(incoming)
+    incoming_issues = b'{"rows":{"#1":{"verdict":"fixed","evidence_ref":"incoming proof"}}}'
+    original_issues = b'{"rows":{"#1":{"verdict":"fixed","evidence_ref":"target proof"}}}'
+    issue_path.write_bytes(incoming_issues)
+    document = json.loads(incoming)
+    if evidence_kind == "manual_qa":
+        criterion = document["criteria"][0]
+        criterion["proof_type"] = "manual_qa"
+        criterion.pop("evidence")
+        if complete:
+            criterion.update(evidence="manual QA receipt", verified_by="reviewer-fixture", verified_at="2026-10-27T00:00:00Z")
+    else:
+        invariant = {
+            "invariant_id": "NI-001",
+            "description": "Recorded absence judgement",
+            "verification_method": "custom_command",
+            "verification_command": "exit 97",
+            "result": "confirmed_absent",
+            "provenance_origin": "recorded",
+        }
+        if complete:
+            invariant.update(verified_ref="f" * 40, verified_surface_kind="consolidated")
+        document["negative_invariants"] = [invariant]
+    original = json.dumps(document).encode()
+    matrix = AcceptanceMatrix.from_dict(document)
+    assert matrix.overall_verdict == "pass", "the computed pass alone must not establish acceptance"
+    assert bool(validate_matrix_evidence(matrix)) is not complete
+    assert original != incoming
+    run.pre_target_gate_artifact_snapshots = {matrix_path: original, issue_path: original_issues}
+
+    phase_advance._restore_regressed_gate_artifacts(run)
+
+    assert matrix_path.read_bytes() == (original if complete else incoming)
+    assert issue_path.read_bytes() == (original_issues if complete else incoming_issues)
+    assert run.gate_artifact_restored_paths == ([matrix_path, issue_path] if complete else [])
+
+
+@pytest.mark.parametrize(
+    "target_kind,gating",
+    [
+        ("pending", False),
+        ("malformed", False),
+        ("pending", True),
+        ("malformed", True),
+        ("in_mission", True),
+        ("missing", True),
+        ("filled", False),
+        ("filled", True),
+    ],
+)
+def test_issue_snapshot_requires_canonical_terminal_readiness(
+    tmp_path: Path,
+    target_kind: str,
+    gating: bool,
+) -> None:
+    """Invalid target issue evidence cannot undo incoming proof or valid acceptance."""
+    from specify_cli.tasks.issue_matrix_approval import _issue_matrix_evaluation
+
+    run = _make_run(tmp_path)
+    matrix_path = run.target_feature_dir / "acceptance-matrix.json"
+    issue_path = run.target_feature_dir / "issue-matrix.json"
+    matrix_path.parent.mkdir(parents=True, exist_ok=True)
+    if gating:
+        (run.target_feature_dir / "spec.md").write_text("# Mission\n\nFix #1582 as an implementation target.\n", encoding="utf-8")
+    incoming_matrix = _accepted_gate_bytes()
+    matrix_path.write_bytes(incoming_matrix)
+    target_matrix = json.loads(incoming_matrix)
+    target_matrix["criteria"][0]["evidence"] = "target accepted proof"
+    original_matrix = json.dumps(target_matrix).encode()
+    incoming_issue = json.dumps(
+        {
+            "schema_version": 1,
+            "rows": {
+                "#1582": {
+                    "verdict": "fixed",
+                    "evidence_ref": "commit " + "b" * 40,
+                    "title": "Incoming accepted issue",
+                }
+            },
+        }
+    ).encode()
+    issue_path.write_bytes(incoming_issue)
+    target_issue = {
+        "schema_version": 1,
+        "rows": {
+            "#1582": {
+                "verdict": "fixed",
+                "evidence_ref": "commit " + "a" * 40,
+                "title": "Target accepted issue",
+            }
+        },
+    }
+    if target_kind == "pending":
+        target_issue["rows"]["#1582"]["verdict"] = "unknown"
+    elif target_kind == "in_mission":
+        target_issue["rows"]["#1582"]["verdict"] = "in-mission"
+    elif target_kind == "missing":
+        target_issue["rows"] = {}
+    original_issue = b"{" if target_kind == "malformed" else json.dumps(target_issue).encode()
+    result, referenced, missing, unresolved = _issue_matrix_evaluation(
+        run.target_feature_dir,
+        matrix_content=original_issue.decode(),
+    )
+    assert referenced == ({"#1582"} if gating else set()), "fixture must prove the canonical reference policy"
+    ready = result.passed and not missing and not unresolved
+    assert ready is (target_kind == "filled")
+    run.pre_target_gate_artifact_snapshots = {matrix_path: original_matrix, issue_path: original_issue}
+
+    phase_advance._restore_regressed_gate_artifacts(run)
+
+    assert matrix_path.read_bytes() == original_matrix, "valid acceptance must remain independently protected"
+    assert issue_path.read_bytes() == (original_issue if ready else incoming_issue)
+    assert run.gate_artifact_restored_paths == ([matrix_path, issue_path] if ready else [matrix_path])

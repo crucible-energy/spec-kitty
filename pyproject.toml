@@ -1,6 +1,6 @@
 [project]
 name = "spec-kitty-cli"
-version = "4.0.0rc6"
+version = "4.0.0rc7"
 description = "Spec Kitty, a tool for Specification Driven Development (SDD) agentic projects, with kanban and git worktree isolation."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -673,7 +673,6 @@ exclude = [
     "src/specify_cli/status/cutover_eligibility.py",
     "src/specify_cli/status/doctor_husks.py",
     "src/specify_cli/status/dup_key_repair.py",
-    "src/specify_cli/status/event_log_merge.py",
     "src/specify_cli/status/identity_audit.py",
     "src/specify_cli/status/lane_reader.py",
     "src/specify_cli/status/migrate_lifecycle_envelope.py",
@@ -1535,7 +1534,6 @@ exclude = [
     "tests/consolidation/test_issue_2709_squash_provenance.py",
     "tests/consolidation/test_issue_2711_merge_rollback_resume_coherence.py",
     "tests/consolidation/test_issue_2786_revert_failure_split_brain.py",
-    "tests/consolidation/test_issue_2804_merge_resets_gate_artifacts.py",
     "tests/consolidation/test_merge_compat_surface.py",
     "tests/consolidation/test_merge_done_recording.py",
     "tests/consolidation/test_merge_driver_wrappers_2709.py",
@@ -2259,7 +2257,6 @@ exclude = [
     "tests/status/test_dup_key_repair.py",
     "tests/status/test_emit_backward_transition.py",
     "tests/status/test_emit_durability.py",
-    "tests/status/test_event_log_merge.py",
     "tests/status/test_event_mission_id.py",
     "tests/status/test_legacy_bridge.py",
     "tests/status/test_migrate_lifecycle_envelope.py",
@@ -2653,6 +2650,14 @@ follow_imports = "normal"
 # the entries above; must stay after the ``specify_cli.*`` skip. Its own body stays
 # in the transitional quarantine below (ignore_errors), unchanged.
 module = ["specify_cli.core.context_validation"]
+follow_imports = "normal"
+
+[[tool.mypy.overrides]]
+# The consolidation phase recorder is already ParamSpec/Concatenate typed.
+# Skipping its module erases that callable contract during narrow strict checks
+# (#137). Follow the canonical declaration, as with other typed decorators above;
+# do not suppress errors or duplicate the signature in each phase module.
+module = ["specify_cli.consolidation.run_state"]
 follow_imports = "normal"
 
 [[tool.mypy.overrides]]
