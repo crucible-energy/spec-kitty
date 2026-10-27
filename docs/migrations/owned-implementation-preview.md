@@ -1,3 +1,10 @@
+---
+title: Preview an existing owned implementation slot
+description: Inspect an owned implementation checkout without creating a workspace, granting admission, or starting execution.
+doc_status: active
+updated: '2026-10-26'
+---
+
 # Preview an existing owned implementation slot
 
 Use this bounded query after [owned coordination recovery](owned-coordinated-authority.md)

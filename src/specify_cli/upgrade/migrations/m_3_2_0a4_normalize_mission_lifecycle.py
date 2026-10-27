@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from specify_cli.migration.normalize_mission_lifecycle import normalize_repo
+from specify_cli.migration import normalize_mission_lifecycle_repo as normalize_repo
 
 from ..registry import MigrationRegistry
 from .base import BaseMigration, MigrationResult

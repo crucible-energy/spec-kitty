@@ -79,8 +79,7 @@ def _coord_declared_no_worktree(tmp_path: Path) -> Path:
 
 
 def _coord_materialized(tmp_path: Path) -> Path:
-    """A resolvable coord topology: the coord worktree dir tree exists on disk
-    (``resolve_mission_read_path`` is pure-path), so the handle resolves."""
+    """A resolvable topology has a registered worktree and canonical event log."""
     _init_repo(tmp_path)
     # Primary dir declares the coordination branch (read-path mediation).
     _write_meta(
@@ -94,7 +93,11 @@ def _coord_materialized(tmp_path: Path) -> Path:
         / "kitty-specs"
         / f"{SLUG}-{MID8}"
     )
+    from tests._support.coordination import materialize_coordination, seed_coordination_status
+
+    materialize_coordination(tmp_path, coord_mission_dir.parents[1], COORD_BRANCH)
     _write_meta(coord_mission_dir, coordination_branch=COORD_BRANCH)
+    seed_coordination_status(coord_mission_dir, SLUG)
     return tmp_path
 
 

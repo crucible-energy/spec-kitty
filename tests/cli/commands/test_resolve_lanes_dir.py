@@ -9,6 +9,7 @@ Verifies:
 No ``unittest.mock`` — the point is that the function is testable with a
 ``tmp_path`` filesystem alone (pure path after coord-worktree materialisation).
 """
+
 from __future__ import annotations
 
 import json
@@ -18,8 +19,9 @@ import pytest
 
 from specify_cli.cli.commands.implement import _resolve_lanes_dir
 from specify_cli.core.constants import KITTY_SPECS_DIR
+from tests._support.coordination import materialize_coordination
 
-pytestmark = pytest.mark.fast
+pytestmark = pytest.mark.git_repo
 
 
 # A Crockford base32 mid8 that ``mid8_from_slug`` will recognise as a valid
@@ -43,9 +45,7 @@ def _write_meta(feature_dir: Path, *, coordination_branch: str | None = None) ->
 class TestResolveLinesDirCoordTopology:
     """Coord-worktree materialised: ``_resolve_lanes_dir`` must return coord dir."""
 
-    def test_returns_coord_surface_when_worktree_and_mission_dir_exist(
-        self, tmp_path: Path
-    ) -> None:
+    def test_returns_coord_surface_when_worktree_and_mission_dir_exist(self, tmp_path: Path) -> None:
         # Slug embeds the mid8 so mid8_from_slug can extract it.
         slug = f"my-mission-{_TEST_MID8}"
 
@@ -55,8 +55,10 @@ class TestResolveLinesDirCoordTopology:
 
         # Coord worktree: mission dir exists (no meta.json — that's on primary).
         coord_worktree_root = tmp_path / ".worktrees" / f"{slug}-coord"
+        materialize_coordination(tmp_path, coord_worktree_root, _COORD_BRANCH)
         coord_mission_dir = coord_worktree_root / KITTY_SPECS_DIR / slug
         coord_mission_dir.mkdir(parents=True)
+        (coord_mission_dir / "status.events.jsonl").write_text("")
 
         result = _resolve_lanes_dir(tmp_path, slug)
 
@@ -68,10 +70,10 @@ class TestResolveLinesDirCoordTopology:
         primary_dir = tmp_path / KITTY_SPECS_DIR / slug
         _write_meta(primary_dir, coordination_branch=_COORD_BRANCH)
 
-        coord_mission_dir = (
-            tmp_path / ".worktrees" / f"{slug}-coord" / KITTY_SPECS_DIR / slug
-        )
+        coord_mission_dir = tmp_path / ".worktrees" / f"{slug}-coord" / KITTY_SPECS_DIR / slug
+        materialize_coordination(tmp_path, coord_mission_dir.parent.parent, _COORD_BRANCH)
         coord_mission_dir.mkdir(parents=True)
+        (coord_mission_dir / "status.events.jsonl").write_text("")
 
         result = _resolve_lanes_dir(tmp_path, slug)
 
@@ -81,9 +83,7 @@ class TestResolveLinesDirCoordTopology:
 class TestResolveLinesDirFlatTopology:
     """No coord worktree: ``_resolve_lanes_dir`` must return the primary dir."""
 
-    def test_returns_primary_when_no_coordination_branch(
-        self, tmp_path: Path
-    ) -> None:
+    def test_returns_primary_when_no_coordination_branch(self, tmp_path: Path) -> None:
         # Flat slug — no mid8 tail; no coord worktree created.
         slug = "my-mission-flat"
 
@@ -94,9 +94,7 @@ class TestResolveLinesDirFlatTopology:
 
         assert result == primary_dir
 
-    def test_returns_primary_when_meta_omits_coordination_branch(
-        self, tmp_path: Path
-    ) -> None:
+    def test_returns_primary_when_meta_omits_coordination_branch(self, tmp_path: Path) -> None:
         """Explicit check that a meta without coordination_branch → primary."""
         slug = "legacy-mission"
 

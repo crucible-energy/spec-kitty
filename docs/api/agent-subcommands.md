@@ -1679,3 +1679,31 @@ _Test-related commands for AI agents_
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 <!-- END GENERATED -->
+
+## spec-kitty agent status submit-owned-review
+
+Preview an existing work package's `in_progress` to `for_review` submission.
+Supply `--mission`, `--owned-checkout`, `--wp-id`, actual `--implementer`,
+immutable `--code-commit` and a matching public origin commit `--reference`.
+Optional `--scope-proof` identifies a tracked integrity proof at that code pin;
+it does not supply a gate verdict. Active gates may require `--code-checkout`.
+`--apply` runs configured gates and submits through the canonical state machine,
+without forcing the transition. `--json` returns structured evidence.
+
+## spec-kitty agent status claim-owned-review
+
+Claim an existing submitted review without approving it or changing leases.
+Supply `--mission`, `--owned-checkout`, `--wp-id`, the recorded `--implementer`,
+actual independent `--reviewer`, `--code-commit` and its matching origin commit
+`--reference`. Default execution previews; `--apply` claims `for_review` to
+`in_review`. An implementer cannot claim their own review. Use `--json` for the
+structured result.
+
+## spec-kitty agent status review-owned
+
+Preview or record an actual independent disposition of an existing `in_review`
+work package. Supply `--mission`, `--owned-checkout`, `--wp-id`, `--reviewer`,
+`--verdict` (`approved` or `changes_requested`), actual evidence `--reference`
+and immutable `--reviewed-commit`. `--apply` records the verdict after validation;
+commit and push the owned event outputs through the owning workflow. `--json`
+returns the report. This command does not invent a reviewer or approval.

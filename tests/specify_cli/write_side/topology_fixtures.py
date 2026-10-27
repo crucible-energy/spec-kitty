@@ -40,7 +40,7 @@ PRIMARY_MISSION_ID = "01KV9W0XPRIMARYTOPOLOGY001"
 PRIMARY_MISSION_SLUG = "write-side-primary-01kv9w0x"
 
 COORD_MISSION_ID = "01KV9W0XCOORDTOPOLOGY00001"
-COORD_MISSION_SLUG = "write-side-coord-01kv9w0x"
+COORD_MISSION_SLUG = "write-side-coord-01KV9W0X"
 
 SUBMODULE_MISSION_ID = "01KV9W0XSUBMODULETOPOLOGY1"
 SUBMODULE_MISSION_SLUG = "write-side-submodule-01kv9w0x"
@@ -102,9 +102,7 @@ def _write_mission(
     }
     if coordination_branch is not None:
         meta["coordination_branch"] = coordination_branch
-    (feature_dir / "meta.json").write_text(
-        json.dumps(meta), encoding="utf-8"
-    )
+    (feature_dir / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
     return feature_dir
 
 
@@ -172,9 +170,7 @@ def build_primary(tmp_path: Path) -> PrimaryTopology:
     """A plain (non-worktree, non-submodule) spec-kitty repo on ``main``."""
     repo = tmp_path / "primary-checkout"
     _init_repo(repo)
-    feature_dir = _write_mission(
-        repo, mission_id=PRIMARY_MISSION_ID, slug=PRIMARY_MISSION_SLUG
-    )
+    feature_dir = _write_mission(repo, mission_id=PRIMARY_MISSION_ID, slug=PRIMARY_MISSION_SLUG)
     _run_git(repo, "add", "-A")
     _run_git(repo, "commit", "-q", "-m", "kittify + mission")
     return PrimaryTopology(
@@ -193,9 +189,11 @@ def build_coord(tmp_path: Path) -> CoordTopology:
     repo. ``meta.json`` (primary + coord) declares ``coordination_branch`` so the
     status surface resolves to the coord authority (C-007), never ``primary_root``.
     """
+    from specify_cli.coordination.workspace import CoordinationWorkspace
+
     main = tmp_path / "coord-main"
     _init_repo(main)
-    coord_branch = f"kitty/mission-{COORD_MISSION_SLUG}-{COORD_MISSION_ID[:8].lower()}"
+    coord_branch = CoordinationWorkspace.branch_name(COORD_MISSION_SLUG, COORD_MISSION_ID[:8])
     primary_feature_dir = _write_mission(
         main,
         mission_id=COORD_MISSION_ID,
@@ -205,7 +203,7 @@ def build_coord(tmp_path: Path) -> CoordTopology:
     _run_git(main, "add", "-A")
     _run_git(main, "commit", "-q", "-m", "kittify + mission")
 
-    worktree = tmp_path / ".worktrees" / f"{COORD_MISSION_SLUG}-{COORD_MISSION_ID[:8].lower()}-coord"
+    worktree = CoordinationWorkspace.worktree_path(main, COORD_MISSION_SLUG, COORD_MISSION_ID[:8])
     worktree.parent.mkdir(parents=True, exist_ok=True)
     _run_git(main, "worktree", "add", "-q", "-b", coord_branch, str(worktree))
 
@@ -224,6 +222,12 @@ def build_coord(tmp_path: Path) -> CoordTopology:
         )
         _run_git(worktree, "add", "-A")
         _run_git(worktree, "commit", "-q", "-m", "coord mission dir")
+
+    # A metadata/status-cache husk is not canonical status authority. Supply an
+    # actual zero-event stream on the registered fixture branch.
+    (coord_feature_dir / "status.events.jsonl").write_text("", encoding="utf-8")
+    _run_git(worktree, "add", "--", str(coord_feature_dir / "status.events.jsonl"))
+    _run_git(worktree, "commit", "-q", "-m", "canonical fixture event stream")
 
     return CoordTopology(
         main_root=main,
@@ -253,9 +257,7 @@ def build_submodule(tmp_path: Path) -> SubmoduleTopology:
     child_source = tmp_path / "mission-repo-source"
     _init_repo(parent)
     _init_repo(child_source)
-    feature_dir_in_source = _write_mission(
-        child_source, mission_id=SUBMODULE_MISSION_ID, slug=SUBMODULE_MISSION_SLUG
-    )
+    feature_dir_in_source = _write_mission(child_source, mission_id=SUBMODULE_MISSION_ID, slug=SUBMODULE_MISSION_SLUG)
     assert feature_dir_in_source  # constructed for clarity
     _run_git(child_source, "add", "-A")
     _run_git(child_source, "commit", "-q", "-m", "kittify + mission")
@@ -273,9 +275,7 @@ def build_submodule(tmp_path: Path) -> SubmoduleTopology:
 
     submodule = parent / "mission-repo"
     if not (submodule / ".kittify" / "config.yaml").exists():
-        _write_mission(
-            submodule, mission_id=SUBMODULE_MISSION_ID, slug=SUBMODULE_MISSION_SLUG
-        )
+        _write_mission(submodule, mission_id=SUBMODULE_MISSION_ID, slug=SUBMODULE_MISSION_SLUG)
     feature_dir = submodule / KITTY_SPECS / SUBMODULE_MISSION_SLUG
     return SubmoduleTopology(
         superproject_root=parent,

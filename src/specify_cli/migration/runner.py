@@ -9,7 +9,7 @@ Step order (must be maintained):
   2.  Identity backfill (project_uuid, mission_ids, wp_ids)
   3.  Ownership backfill
   4.  State rebuild (event log)
-  5.  Strip frontmatter  (AFTER state rebuild)
+  5.  Verify runtime-state cutover, then strip frontmatter
   6.  Rewrite agent shims
   7.  Update schema version in metadata.yaml
   8.  Update .gitignore
@@ -178,10 +178,7 @@ def _discover_features(repo_root: Path) -> list[Path]:
     kitty_specs = repo_root / "kitty-specs"
     if not kitty_specs.is_dir():
         return []
-    features = [
-        d for d in sorted(kitty_specs.iterdir())
-        if d.is_dir() and (d / "meta.json").exists()
-    ]
+    features = [d for d in sorted(kitty_specs.iterdir()) if d.is_dir() and (d / "meta.json").exists()]
     return features
 
 
@@ -339,7 +336,7 @@ def _git_add_all(repo_root: Path) -> bool:
 
 
 def _git_commit(repo_root: Path, message: str) -> bool:
-    """Create the migration commit. Retries once with --no-verify if needed.
+    """Create the migration commit while preserving hook refusals.
 
     Returns True on success.
     """
@@ -370,25 +367,9 @@ def _git_commit(repo_root: Path, message: str) -> bool:
         if result.returncode == 0:
             logger.info("Migration commit created successfully")
             return True
-        logger.warning("git commit failed (attempt 1): %s", result.stderr.strip())
+        logger.warning("git commit failed: %s", result.stderr.strip())
     except (OSError, subprocess.TimeoutExpired) as exc:
-        logger.warning("git commit exception (attempt 1): %s", exc)
-
-    # Second attempt: skip hooks (migration commits must succeed)
-    try:
-        result = subprocess.run(
-            ["git", "-c", "commit.gpgsign=false", "commit", "--no-verify", "-m", message],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        if result.returncode == 0:
-            logger.info("Migration commit created with --no-verify")
-            return True
-        logger.error("git commit failed (attempt 2 --no-verify): %s", result.stderr.strip())
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        logger.error("git commit exception (attempt 2): %s", exc)
+        logger.warning("git commit exception: %s", exc)
 
     return False
 
@@ -419,6 +400,8 @@ def run_migration(repo_root: Path, dry_run: bool = False) -> MigrationReport:  #
     )
     from specify_cli.migration.backfill_ownership import backfill_ownership
     from specify_cli.migration.mission_state import rebuild_mission_event_log
+    from specify_cli.migration.runtime_state_cutover import _is_snapshot_authority, cutover_mission
+    from specify_cli.mission_metadata import load_meta
     from specify_cli.migration.strip_frontmatter import strip_mutable_fields
     from specify_cli.migration.rewrite_shims import rewrite_agent_shims
 
@@ -438,9 +421,7 @@ def run_migration(repo_root: Path, dry_run: bool = False) -> MigrationReport:  #
         features = _discover_features(repo_root)
         report.features_migrated = len(features)
         report.success = True
-        report.warnings.append(
-            f"DRY RUN: would migrate {len(features)} feature(s) to schema v3"
-        )
+        report.warnings.append(f"DRY RUN: would migrate {len(features)} feature(s) to schema v3")
         return report
 
     # ------------------------------------------------------------------
@@ -517,9 +498,24 @@ def run_migration(repo_root: Path, dry_run: bool = False) -> MigrationReport:  #
     report.events_generated = total_events_generated
 
     # ------------------------------------------------------------------
-    # Step 5: Strip frontmatter (AFTER state rebuild)
+    # Step 5: Verify runtime-state cutover BEFORE stripping any mission.
+    # Rebuilding lane transitions alone does not preserve runtime annotations.
+    # Reuse the sole seed/verify/phase writer; any refusal restores the backup.
     # ------------------------------------------------------------------
-    logger.info("Migration step 5/10: Strip frontmatter")
+    logger.info("Migration step 5/10: Runtime-state cutover and frontmatter strip")
+    for feature_dir in _discover_features(repo_root):
+        try:
+            # Existing snapshot authority remains authoritative after stripping;
+            # do not ask the legacy reader to verify already-evicted fields.
+            if _is_snapshot_authority(load_meta(feature_dir, allow_missing=True, on_malformed="raise") or {}):
+                continue
+            result = cutover_mission(feature_dir)
+        except Exception as exc:
+            return _fail("runtime_state_cutover", f"{feature_dir.name}: {exc}")
+        if not result.flipped:
+            detail = result.error or ("; ".join(result.verify.mismatches) if result.verify is not None else "no verified cutover")
+            return _fail("runtime_state_cutover", f"{feature_dir.name}: {detail}")
+
     for feature_dir in _discover_features(repo_root):
         slug = feature_dir.name
         try:
@@ -576,7 +572,7 @@ def run_migration(repo_root: Path, dry_run: bool = False) -> MigrationReport:  #
 
     commit_msg = "chore: migrate to canonical context architecture (schema v3)"
     if not _git_commit(repo_root, commit_msg):
-        return _fail("commit", "git commit failed after retry")
+        return _fail("commit", "git commit failed; hooks were preserved")
 
     # ------------------------------------------------------------------
     # Success: clean up backup

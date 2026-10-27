@@ -32,6 +32,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from tests._support.coordination import materialize_coordination
 
 from specify_cli.acceptance import (
     AcceptanceError,
@@ -94,9 +95,7 @@ def _plant_planning(feature_dir: Path) -> None:
 
 def _plant_status_events(feature_dir: Path) -> None:
     feature_dir.mkdir(parents=True, exist_ok=True)
-    (feature_dir / "status.events.jsonl").write_text(
-        json.dumps(_STATUS_EVENT) + "\n", encoding="utf-8"
-    )
+    (feature_dir / "status.events.jsonl").write_text(json.dumps(_STATUS_EVENT) + "\n", encoding="utf-8")
 
 
 def _plant_wp_tasks(feature_dir: Path) -> None:
@@ -112,20 +111,12 @@ def _plant_wp_tasks(feature_dir: Path) -> None:
     tasks_dir = feature_dir / "tasks"
     tasks_dir.mkdir(parents=True, exist_ok=True)
     (tasks_dir / "WP01-sample.md").write_text(
-        "---\n"
-        "work_package_id: WP01\n"
-        "title: Sample\n"
-        "agent: claude\n"
-        "assignee: claude\n"
-        "shell_pid: '1'\n"
-        "---\n\n# WP01\n",
+        "---\nwork_package_id: WP01\ntitle: Sample\nagent: claude\nassignee: claude\nshell_pid: '1'\n---\n\n# WP01\n",
         encoding="utf-8",
     )
 
 
-def _build_coord_topology(
-    repo_root: Path, *, planning_on: str, events_on: str
-) -> tuple[Path, Path]:
+def _build_coord_topology(repo_root: Path, *, planning_on: str, events_on: str) -> tuple[Path, Path]:
     """Build a coord-topology mission with split planning / status surfaces.
 
     ``planning_on`` / ``events_on`` ∈ {"primary", "coord"} decide which surface
@@ -140,6 +131,7 @@ def _build_coord_topology(
     _write_meta(primary_feature_dir, coord=True)
 
     coord_root = CoordinationWorkspace.worktree_path(repo_root, _SLUG, _MID8)
+    materialize_coordination(repo_root, coord_root, _COORD_BRANCH)
     coord_feature_dir = coord_root / "kitty-specs" / _HANDLE
     _write_meta(coord_feature_dir, coord=True)
 
@@ -159,18 +151,11 @@ def _build_coord_topology(
         cwd=repo_root,
         check=True,
     )
-    subprocess.run(
-        ["git", "branch", _COORD_BRANCH],
-        cwd=repo_root,
-        check=True,
-    )
     return primary_feature_dir, coord_feature_dir
 
 
 def _summary(repo_root: Path) -> AcceptanceSummary:
-    return collect_feature_summary(
-        repo_root, _HANDLE, strict_metadata=False, mutate_matrix=False
-    )
+    return collect_feature_summary(repo_root, _HANDLE, strict_metadata=False, mutate_matrix=False)
 
 
 def test_planning_reads_resolve_primary(tmp_path: Path) -> None:
@@ -183,8 +168,7 @@ def test_planning_reads_resolve_primary(tmp_path: Path) -> None:
     # PRIMARY surface and are NOT mis-reported as missing. Reverting any planning
     # read to ``status_feature_dir`` (coord) turns this assertion RED.
     assert summary.missing_artifacts == [], (
-        "Accept gate mis-blocked planning artifacts as missing — it read the "
-        "coord surface instead of primary (planning-read split regressed)."
+        "Accept gate mis-blocked planning artifacts as missing — it read the coord surface instead of primary (planning-read split regressed)."
     )
 
 
@@ -198,12 +182,9 @@ def test_status_read_resolves_coord(tmp_path: Path) -> None:
     # surface. If it were redirected to primary (no event log there),
     # ``_collect_snapshot_wps`` would append the "No canonical state found"
     # activity issue. Asserting that message is ABSENT proves the coord read.
-    no_canonical_state = [
-        issue for issue in summary.activity_issues if "No canonical state found" in issue
-    ]
+    no_canonical_state = [issue for issue in summary.activity_issues if "No canonical state found" in issue]
     assert no_canonical_state == [], (
-        "Accept gate lost the status event log — it read the primary surface "
-        "instead of coord (status-read split regressed; C-002 violated)."
+        "Accept gate lost the status event log — it read the primary surface instead of coord (status-read split regressed; C-002 violated)."
     )
 
 
@@ -224,8 +205,7 @@ def test_pre_fix_planning_off_coord_mis_blocks(tmp_path: Path) -> None:
     # A gate still reading coord would report ZERO missing (false-green) — so a
     # non-empty missing list here is the anti-mutant proof that the read moved.
     assert {"spec.md", "plan.md", "tasks.md"}.issubset(set(summary.missing_artifacts)), (
-        "Post-fix gate did NOT read primary for planning artifacts (it still "
-        "found them on coord) — the planning-read split did not take effect."
+        "Post-fix gate did NOT read primary for planning artifacts (it still found them on coord) — the planning-read split did not take effect."
     )
 
 
@@ -244,16 +224,12 @@ def test_flattened_topology_planning_and_status_resolve(tmp_path: Path) -> None:
     _plant_planning(primary_feature_dir)
     _plant_status_events(primary_feature_dir)
     _plant_wp_tasks(primary_feature_dir)
-    subprocess.run(
-        ["git", "commit", "-q", "--allow-empty", "-m", "init"], cwd=tmp_path, check=True
-    )
+    subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "init"], cwd=tmp_path, check=True)
 
     summary = _summary(tmp_path)
 
     assert summary.missing_artifacts == []
-    assert not [
-        issue for issue in summary.activity_issues if "No canonical state found" in issue
-    ]
+    assert not [issue for issue in summary.activity_issues if "No canonical state found" in issue]
 
 
 def test_all_planning_kinds_are_primary_partition() -> None:

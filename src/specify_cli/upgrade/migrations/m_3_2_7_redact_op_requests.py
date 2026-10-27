@@ -15,7 +15,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, TextIO, cast
+from typing import Any, TextIO
 
 from filelock import Timeout
 
@@ -71,11 +71,7 @@ def _eligible_files(root: Path) -> list[Path]:
     if ops_dir is None:
         return []
     # A symlinked record resolves outside this directory for the same reason.
-    return sorted(
-        path
-        for path in ops_dir.glob("*.jsonl")
-        if path.name not in _EXCLUDED_FILES and _is_op_record(path) and not path.is_symlink()
-    )
+    return sorted(path for path in ops_dir.glob("*.jsonl") if path.name not in _EXCLUDED_FILES and _is_op_record(path) and not path.is_symlink())
 
 
 def _is_synthetic_invocation_log(path: Path) -> bool:
@@ -280,7 +276,8 @@ def _drain_late_appends(source: TextIO, path: Path, redactors: tuple[LineRedacto
     instead of letting them die with the old inode. The settle protocol is
     shared with the schema migration; see :mod:`._late_append_drain`.
     """
-    return cast(str | None, drain_late_appends(source, path, lambda late: _append_redacted(path, late, redactors)))
+    error: str | None = drain_late_appends(source, path, lambda late: _append_redacted(path, late, redactors))
+    return error
 
 
 def _install_redacted(
@@ -338,11 +335,7 @@ def _rewrite_once(
     """Rewrite one eligible trail file, reporting unreadable files as failures."""
     # A dry run only previews, so it must not create the adjacent .lock file in
     # the checkout or wait out a live writer's lock timeout.
-    lock_context = (
-        contextlib.nullcontext()
-        if dry_run
-        else (invocation_record_lock(path) if is_op_record else glossary_event_lock(path))
-    )
+    lock_context = contextlib.nullcontext() if dry_run else (invocation_record_lock(path) if is_op_record else glossary_event_lock(path))
     try:
         with lock_context:
             try:

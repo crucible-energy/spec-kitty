@@ -91,15 +91,16 @@ DOCTRINE_ROOT: Path = Path(__file__).resolve().parents[4] / "src" / "doctrine"
 #:     each edge-less (the MSC fragment ships ``edges: []``): +17 nodes / +0 edges
 #:     / +17 orphans.
 #: Composed: 285/755/13 + 1/2/0 + 17/0/17 = 303/757/30.
+#: The canonical regeneration in PR128 removes the two stale DIRECTIVE_046
+#: suggestions absent from its authored source. Nodes/orphans and the exact
+#: regenerated-plus-authored-overlay equality below remain unchanged.
 _EXPECTED_NODE_COUNT = 303
-_EXPECTED_EDGE_COUNT = 757
+_EXPECTED_EDGE_COUNT = 755
 _EXPECTED_ORPHAN_COUNT = 30
 
 #: software-dev steps that are not action-sequence members (retrospect lives
 #: outside every type's step directory and is asserted separately).
-_SOFTWARE_DEV_NON_SEQUENCE_STEPS = frozenset(
-    {"accept", "analyze", "charter", "research", "tasks-finalize", "tasks-outline", "tasks-packages"}
-)
+_SOFTWARE_DEV_NON_SEQUENCE_STEPS = frozenset({"accept", "analyze", "charter", "research", "tasks-finalize", "tasks-outline", "tasks-packages"})
 
 
 #: The hand-pinned authored action_sequence per built-in type. Post-WP07 the
@@ -155,15 +156,9 @@ class TestDRGZeroDelta:
         regenerated = generate_reference_graph_with_overlay(DOCTRINE_ROOT)
 
         assert {n.urn for n in regenerated.nodes} == {n.urn for n in shipped.nodes}
-        assert {
-            (e.source, e.target, e.relation.value) for e in regenerated.edges
-        } == {(e.source, e.target, e.relation.value) for e in shipped.edges}
-        assert len(regenerated.nodes) == len(shipped.nodes) == _EXPECTED_NODE_COUNT + len(
-            HAND_AUTHORED_NODES
-        )
-        assert len(regenerated.edges) == len(shipped.edges) == _EXPECTED_EDGE_COUNT + len(
-            HAND_AUTHORED_EDGES
-        )
+        assert {(e.source, e.target, e.relation.value) for e in regenerated.edges} == {(e.source, e.target, e.relation.value) for e in shipped.edges}
+        assert len(regenerated.nodes) == len(shipped.nodes) == _EXPECTED_NODE_COUNT + len(HAND_AUTHORED_NODES)
+        assert len(regenerated.edges) == len(shipped.edges) == _EXPECTED_EDGE_COUNT + len(HAND_AUTHORED_EDGES)
 
 
 @pytest.mark.doctrine
@@ -172,33 +167,19 @@ class TestNonSequenceStepsMintNoEdge:
 
     def test_software_dev_non_sequence_steps_mint_no_edge(self) -> None:
         edges = extract_mission_type_edges(DOCTRINE_ROOT)
-        sw_dev_targets = {
-            e.target
-            for e in edges
-            if e.source == "mission_type:software-dev" and e.relation is Relation.REQUIRES
-        }
+        sw_dev_targets = {e.target for e in edges if e.source == "mission_type:software-dev" and e.relation is Relation.REQUIRES}
 
-        steps = MissionStepRepository.default().resolve_all_for_mission_type(
-            "software-dev", pack_context=None
-        )
-        non_sequence_step_ids = {
-            step_id for step_id, step in steps.items() if not step.in_action_sequence
-        }
+        steps = MissionStepRepository.default().resolve_all_for_mission_type("software-dev", pack_context=None)
+        non_sequence_step_ids = {step_id for step_id, step in steps.items() if not step.in_action_sequence}
 
         assert non_sequence_step_ids == _SOFTWARE_DEV_NON_SEQUENCE_STEPS
         for step_id in non_sequence_step_ids:
-            assert f"action:software-dev/{step_id}" not in sw_dev_targets, (
-                f"{step_id} is in_action_sequence:false but minted a requires edge"
-            )
+            assert f"action:software-dev/{step_id}" not in sw_dev_targets, f"{step_id} is in_action_sequence:false but minted a requires edge"
 
     def test_retrospect_never_appears_as_a_requires_edge_target(self) -> None:
         """``retrospect`` is not a member of any shipped type's action sequence."""
         edges = extract_mission_type_edges(DOCTRINE_ROOT)
-        retrospect_targets = {
-            e.target
-            for e in edges
-            if e.relation is Relation.REQUIRES and e.target.endswith("/retrospect")
-        }
+        retrospect_targets = {e.target for e in edges if e.relation is Relation.REQUIRES and e.target.endswith("/retrospect")}
         assert not retrospect_targets
 
 
@@ -213,13 +194,6 @@ class TestProjectedEdgeSetMatchesActionSequence:
         assert sequences, "expected at least one shipped mission type"
         for mission_id, steps in sequences.items():
             source_urn = f"mission_type:{mission_id}"
-            emitted = [
-                e.target
-                for e in edges
-                if e.source == source_urn and e.relation is Relation.REQUIRES
-            ]
+            emitted = [e.target for e in edges if e.source == source_urn and e.relation is Relation.REQUIRES]
             expected = [f"action:{mission_id}/{step}" for step in steps]
-            assert emitted == expected, (
-                f"{source_urn}: projected edges {emitted} != "
-                f"raw action_sequence-derived edges {expected}"
-            )
+            assert emitted == expected, f"{source_urn}: projected edges {emitted} != raw action_sequence-derived edges {expected}"

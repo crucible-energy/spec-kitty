@@ -31,14 +31,15 @@ if TYPE_CHECKING:
     from rich.console import Console
     from specify_cli.cli import StepTracker
 
-# Get version from package metadata
-# Test mode: use environment override to ensure tests use source version
+# Capture the test override at import, as before. Installed identity is resolved
+# only when requested; successful mission queries do not display a version.
 if os.environ.get("SPEC_KITTY_TEST_MODE") == "1":
     __version__ = os.environ.get("SPEC_KITTY_CLI_VERSION", "0.5.0-dev")
 else:
     from specify_cli.version_utils import get_version
 
-    __version__ = get_version()
+    # Reload must discard a prior override or previously resolved identity.
+    globals().pop("__version__", None)
 
 _APP: typer.Typer | None = None
 
@@ -71,16 +72,14 @@ def activate_mission(project_path: Path, mission_type: str, mission_display: str
     if mission_path.exists():
         return f"{mission_display} (per-feature selection)"
     else:
-        console.print(
-            f"[yellow]Note:[/yellow] Mission [cyan]{mission_display}[/cyan] templates will be "
-            f"available when you run [cyan]/spec-kitty.specify[/cyan]."
-        )
+        console.print(f"[yellow]Note:[/yellow] Mission [cyan]{mission_display}[/cyan] templates will be available when you run [cyan]/spec-kitty.specify[/cyan].")
         return f"{mission_display} (templates pending)"
 
 
 def version_callback(value: bool) -> None:
     """Display version and exit."""
     if value:
+        from specify_cli import __version__
         from specify_cli.cli.console import console
         from specify_cli.cli.helpers import show_banner
         from specify_cli.distribution import resolve_distribution_profile
@@ -92,6 +91,7 @@ def version_callback(value: bool) -> None:
         label = profile.version_label or profile.package_name
         console.print(f"{label} version {__version__}")
         raise typer.Exit()
+
 
 def main_callback(
     ctx: typer.Context,
@@ -141,28 +141,29 @@ def _run_startup_project_gates(ctx: typer.Context) -> None:
 
 
 def _build_app() -> typer.Typer:
-    from specify_cli.cli.commands import register_commands
-    from specify_cli.cli.commands.init import register_init_command
+    from specify_cli.cli.commands import _is_next_fast_path, register_commands
     from specify_cli.cli.helpers import BannerGroup
 
     app = typer.Typer(
         name="spec-kitty",
-        help=(
-            "Setup tool for Spec Kitty spec-driven development projects.\n\n"
-            "Set SPEC_KITTY_NO_UPGRADE_CHECK=1 to disable the upgrade-check notice."
-        ),
+        help=("Setup tool for Spec Kitty spec-driven development projects.\n\nSet SPEC_KITTY_NO_UPGRADE_CHECK=1 to disable the upgrade-check notice."),
         add_completion=False,
         invoke_without_command=True,
         cls=BannerGroup,
     )
     app.callback()(main_callback)
-    register_init_command(
-        app,
-        console=_get_console(),
-        show_banner=_get_show_banner(),
-        activate_mission=activate_mission,
-        ensure_executable_scripts=ensure_executable_scripts,
-    )
+    # register_commands already builds a next-only command surface on this path.
+    # Do not initialize the unrelated project installer before that dispatch.
+    if not _is_next_fast_path(sys.argv):
+        from specify_cli.cli.commands.init import register_init_command
+
+        register_init_command(
+            app,
+            console=_get_console(),
+            show_banner=_get_show_banner(),
+            activate_mission=activate_mission,
+            ensure_executable_scripts=ensure_executable_scripts,
+        )
     register_commands(app)
     return app
 
@@ -217,7 +218,15 @@ def _get_show_banner() -> Any:
 def __getattr__(name: str) -> Any:
     if name == "app":
         return _get_app()
+    if name == "__version__":
+        version = get_version()
+        globals()[name] = version
+        return version
     raise AttributeError(name)
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | {"__version__"})
 
 
 def _compute_execute_mode(mode: int) -> int:

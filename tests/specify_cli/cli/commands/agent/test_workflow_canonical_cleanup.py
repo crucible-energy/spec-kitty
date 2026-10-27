@@ -22,6 +22,8 @@ from tests.lane_test_utils import lane_worktree_path, write_single_lane_manifest
 from specify_cli.cli.commands.agent import workflow
 from specify_cli.analysis_report import write_analysis_report
 from specify_cli.frontmatter import write_frontmatter
+from specify_cli.lanes.models import ExecutionLane
+from specify_cli.lanes.persistence import read_lanes_json, write_lanes_json
 from specify_cli.status.models import StatusEvent, Lane, actor_identity_str
 from specify_cli.status.store import append_event, read_events
 from specify_cli.task_utils import split_frontmatter
@@ -164,10 +166,9 @@ class TestImplementBodyNoteLaneFree:
         assert "test-agent" not in body, f"WP body carries a retired history row: {body}"
         assert "lane=" not in body, f"WP body carries a retired lane= segment: {body}"
         # Attribution moved to the event log — the runtime transition records the agent.
-        assert any(
-            e.wp_id == "WP01" and actor_identity_str(e.actor) == "test-agent"
-            for e in read_events(feature_dir)
-        ), "expected an event-log transition attributed to test-agent"
+        assert any(e.wp_id == "WP01" and actor_identity_str(e.actor) == "test-agent" for e in read_events(feature_dir)), (
+            "expected an event-log transition attributed to test-agent"
+        )
 
     def test_implement_body_note_no_lane_from_doing(self, workflow_repo: Path) -> None:
         """When re-entering doing, body note should not contain lane=."""
@@ -199,9 +200,7 @@ class TestImplementBodyNoteLaneFree:
         assert "test-agent" not in body, f"WP body carries a retired history row: {body}"
         assert "lane=" not in body, f"WP body carries a retired lane= segment: {body}"
         # Attribution lives in the event log — the WP was seeded in_progress by test-agent.
-        assert any(
-            e.wp_id == "WP01" and e.actor == "test-agent" for e in read_events(feature_dir)
-        ), "expected an event-log transition attributed to test-agent"
+        assert any(e.wp_id == "WP01" and e.actor == "test-agent" for e in read_events(feature_dir)), "expected an event-log transition attributed to test-agent"
 
 
 # ---------------------------------------------------------------------------
@@ -451,6 +450,23 @@ class TestReviewHardFailNoCanonical:
         assert "still being implemented" in result.stdout
 
 
+def _write_planning_lane_manifest(feature_dir: Path) -> None:
+    write_single_lane_manifest(feature_dir, wp_ids=("WP01",), predicted_surfaces=("workflow",))
+    manifest = read_lanes_json(feature_dir)
+    assert manifest is not None
+    manifest.lanes.append(
+        ExecutionLane(
+            lane_id="lane-planning",
+            wp_ids=("WP02",),
+            write_scope=(f"kitty-specs/{feature_dir.name}/**",),
+            predicted_surfaces=("planning_artifact",),
+            depends_on_lanes=(),
+            parallel_group=0,
+        )
+    )
+    write_lanes_json(feature_dir, manifest)
+
+
 class TestPlanningArtifactWorkflowPrompt:
     """Planning-artifact WPs should guide agents to the repository root."""
 
@@ -459,7 +475,7 @@ class TestPlanningArtifactWorkflowPrompt:
         feature_dir = workflow_repo / "kitty-specs" / mission_slug
         tasks_dir = feature_dir / "tasks"
         tasks_dir.mkdir(parents=True)
-        write_single_lane_manifest(feature_dir, wp_ids=("WP01",), predicted_surfaces=("workflow",))
+        _write_planning_lane_manifest(feature_dir)
         (feature_dir / "tasks.md").write_text(
             "## WP01 Code\n\n- [x] T001 Placeholder task\n\n## WP02 Planning\n\n- [x] T002 Placeholder task\n",
             encoding="utf-8",
@@ -493,7 +509,7 @@ class TestPlanningArtifactWorkflowPrompt:
         assert f"Workspace: {workflow_repo}" in prompt
         assert "Workspace contract: lane lane-planning" in prompt
         assert f"cd {workflow_repo}" in prompt
-        assert "workspace_kind\": \"repo_root" in prompt
+        assert 'workspace_kind": "repo_root' in prompt
         assert "<!-- WORKTREE_TOPOLOGY -->" in prompt
         assert "runs in the repository root planning workspace" in prompt
 
@@ -502,7 +518,7 @@ class TestPlanningArtifactWorkflowPrompt:
         feature_dir = workflow_repo / "kitty-specs" / mission_slug
         tasks_dir = feature_dir / "tasks"
         tasks_dir.mkdir(parents=True)
-        write_single_lane_manifest(feature_dir, wp_ids=("WP01",), predicted_surfaces=("workflow",))
+        _write_planning_lane_manifest(feature_dir)
         (feature_dir / "tasks.md").write_text(
             "## WP02 Planning\n\n- [x] T002 Placeholder task\n",
             encoding="utf-8",
@@ -537,7 +553,7 @@ class TestPlanningArtifactWorkflowPrompt:
         feature_dir = workflow_repo / "kitty-specs" / mission_slug
         tasks_dir = feature_dir / "tasks"
         tasks_dir.mkdir(parents=True)
-        write_single_lane_manifest(feature_dir, wp_ids=("WP01",), predicted_surfaces=("workflow",))
+        _write_planning_lane_manifest(feature_dir)
         (feature_dir / "tasks.md").write_text(
             "## WP02 Planning\n\n- [x] T002 Placeholder task\n",
             encoding="utf-8",
@@ -612,9 +628,7 @@ class TestImplementDependencyGate:
             encoding="utf-8",
         )
 
-    def test_implement_blocks_dep_unsatisfied_planned_wp_with_existing_workspace(
-        self, workflow_repo: Path
-    ) -> None:
+    def test_implement_blocks_dep_unsatisfied_planned_wp_with_existing_workspace(self, workflow_repo: Path) -> None:
         """Explicit dep-blocked planned WP is rejected at the workflow.py gate even
         when its workspace already exists (so top_level_implement is not called)."""
         mission_slug = "060-test-feature"
@@ -635,9 +649,7 @@ class TestImplementDependencyGate:
         assert "dependencies_not_satisfied" in result.stdout
         assert "all dependencies must be approved or done" in result.stdout
 
-    def test_implement_resumes_in_progress_wp_with_unsatisfied_dependency(
-        self, workflow_repo: Path
-    ) -> None:
+    def test_implement_resumes_in_progress_wp_with_unsatisfied_dependency(self, workflow_repo: Path) -> None:
         """An already in_progress WP resumes without re-gating, even if its
         dependency later regressed out of approved/done."""
         mission_slug = "060-test-feature"

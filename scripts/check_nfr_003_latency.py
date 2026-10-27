@@ -19,21 +19,12 @@ Or as a CI step:
     - name: NFR-003 latency gate
       run: python scripts/check_nfr_003_latency.py
 
-TODO (known flaky at the ceiling — tracked in Priivacy-ai/spec-kitty#2749):
-    As of 2026-07-17 this gate is FLAKY at the 1.05s ceiling boundary: with
-    import-neutral changes it measured ~1.25s (FAIL) on one CI run and passed
-    (<1.05s) on the next. ``spec-kitty next`` cold-start rose to ~1.25s (CI) /
-    ~1.46s (local), i.e. a real latency increase that sits right on the ceiling
-    so runner variance decides pass/fail. Root cause is the doctrine-as-SSOT /
-    step-authority
-    work (#2723 "step.yaml single source; action_sequence/template_set
-    projected", #2722): the new ``step_projection.py`` runtime seam runs on
-    every ``next`` (the cost is command execution, not imports — ``import
-    specify_cli`` is ~50ms). This is NOT a regression from unrelated PRs; do not
-    "fix" it by bumping ``ci_target_median_seconds`` from within an unrelated
-    change. The real fix is optimizing/caching step projection on the ``next``
-    path (SSOT mission's territory), or a deliberate, documented ceiling
-    recalibration. Remove this TODO once #2749 is resolved.
+Historical latency investigation: Priivacy-ai/spec-kitty#2749 associated the
+regression with step projection. Profile the actual command before attributing
+new failures: an October 2026 trace instead found eager schema-engine loading
+through doctrine repository imports; step projection itself was negligible.
+Schema engines now load when validation is requested. The pinned gate, its
+baseline and its ceiling remain unchanged; local timing is not hosted proof.
 """
 
 from __future__ import annotations
@@ -47,12 +38,7 @@ import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-BASELINE_PATH = (
-    REPO_ROOT
-    / "kitty-specs"
-    / "shared-package-boundary-cutover-01KQ22DS"
-    / "nfr-003-baseline.json"
-)
+BASELINE_PATH = REPO_ROOT / "kitty-specs" / "shared-package-boundary-cutover-01KQ22DS" / "nfr-003-baseline.json"
 DEFAULT_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "clean_install_fixture_mission"
 
 
@@ -83,12 +69,8 @@ def measure(
         )
         dt = time.perf_counter() - t0
         if proc.returncode != 0:
-            sys.stderr.write(
-                f"NFR-003 gate: subprocess returned {proc.returncode} on run {i + 1}\n"
-            )
-            sys.stderr.write(
-                proc.stderr.decode("utf-8", errors="replace") or "<no stderr>"
-            )
+            sys.stderr.write(f"NFR-003 gate: subprocess returned {proc.returncode} on run {i + 1}\n")
+            sys.stderr.write(proc.stderr.decode("utf-8", errors="replace") or "<no stderr>")
             sys.stderr.write("\n")
             sys.exit(2)
         times.append(dt)
@@ -97,9 +79,7 @@ def measure(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--runs", type=int, default=5, help="Number of measurement runs (default: 5)"
-    )
+    parser.add_argument("--runs", type=int, default=5, help="Number of measurement runs (default: 5)")
     parser.add_argument(
         "--fixture",
         type=Path,
@@ -145,11 +125,7 @@ def main(argv: list[str] | None = None) -> int:
         ceiling = float(baseline["ci_target_median_seconds"])
         tolerance = (ceiling / pre_median - 1.0) * 100.0
     else:
-        tolerance = (
-            float(args.tolerance_pct)
-            if args.tolerance_pct is not None
-            else float(baseline.get("tolerance_pct", 20.0))
-        )
+        tolerance = float(args.tolerance_pct) if args.tolerance_pct is not None else float(baseline.get("tolerance_pct", 20.0))
         ceiling = pre_median * (1.0 + tolerance / 100.0)
 
     if not args.fixture.exists():
@@ -162,10 +138,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print("NFR-003 latency gate report")
     print(f"  pre_cutover_median: {pre_median:.3f}s ({pre_median * 1000:.0f}ms)")
-    print(
-        f"  post_cutover_median: {median:.3f}s ({median * 1000:.0f}ms)  "
-        f"(n={args.runs}, runs={[f'{t:.3f}' for t in times]})"
-    )
+    print(f"  post_cutover_median: {median:.3f}s ({median * 1000:.0f}ms)  (n={args.runs}, runs={[f'{t:.3f}' for t in times]})")
     print(f"  delta: {delta_pct:+.1f}% (ceiling: <={tolerance:.1f}%)")
     print(f"  ceiling_seconds: {ceiling:.3f}s")
 

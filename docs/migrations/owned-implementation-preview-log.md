@@ -1,3 +1,10 @@
+---
+title: Owned implementation preview closeout
+description: Record implementation-preview ownership decisions, validation results, and remaining admission and cleanup limitations.
+doc_status: active
+updated: '2026-10-26'
+---
+
 # Owned implementation preview closeout
 
 Owner: Sam's workspace closeout, Codex Root. Existing

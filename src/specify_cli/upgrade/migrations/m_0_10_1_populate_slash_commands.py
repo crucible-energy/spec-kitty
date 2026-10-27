@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from specify_cli.agent_utils.directories import get_agent_dirs_for_project
+
 from ..registry import MigrationRegistry
 from .base import BaseMigration, MigrationResult
-from .m_0_9_1_complete_lane_migration import get_agent_dirs_for_project
 
 
 @MigrationRegistry.register
@@ -29,21 +30,13 @@ class PopulateSlashCommandsMigration(BaseMigration):
     target_version = "0.10.1"
 
     def detect(self, project_path: Path) -> bool:
-        """Check if slash commands are missing from agent directories."""
-        # Check .claude/commands/ directory
-        claude_commands = project_path / ".claude" / "commands"
+        """Repair only command surfaces selected by the canonical agent config."""
+        return any(len(list(path.glob("spec-kitty.*.md"))) < 8 for path in self._command_dirs(project_path))
 
-        # If directory doesn't exist or is empty, migration needed
-        if not claude_commands.exists():
-            return True
-
-        # Check if it has spec-kitty commands
-        slash_commands = list(claude_commands.glob("spec-kitty.*.md"))
-        if len(slash_commands) == 0:
-            return True
-
-        # If we have fewer than expected commands (should be ~10+), migration needed
-        return len(slash_commands) < 8
+    @staticmethod
+    def _command_dirs(project_path: Path) -> list[Path]:
+        """Match application eligibility without creating unconfigured roots."""
+        return [project_path / root / subdir for root, subdir in get_agent_dirs_for_project(project_path) if (project_path / root).exists()]
 
     def can_apply(self, project_path: Path) -> tuple[bool, str]:
         """Check if we have mission templates to copy from."""
@@ -103,18 +96,12 @@ class PopulateSlashCommandsMigration(BaseMigration):
 
         # Populate agent command directories (respecting user config)
         total_created = 0
-        agent_dirs_to_process = get_agent_dirs_for_project(project_path)
-
-        for agent_root, subdir in agent_dirs_to_process:
-            agent_dir = project_path / agent_root / subdir
-
-            # Only process if parent directory exists (agent was configured during init)
-            if agent_dir.parent.exists():
-                created = self._populate_agent_commands(command_templates_dir, agent_dir, "md", dry_run, changes)
-                if created > 0:
-                    agent_name = agent_root.strip(".")
-                    changes.append(f"Created {created} slash commands for {agent_name} from {mission_name}")
-                    total_created += created
+        for agent_dir in self._command_dirs(project_path):
+            created = self._populate_agent_commands(command_templates_dir, agent_dir, "md", dry_run, changes)
+            if created > 0:
+                agent_name = agent_dir.parent.name.lstrip(".")
+                changes.append(f"Created {created} slash commands for {agent_name} from {mission_name}")
+                total_created += created
 
         success = len(errors) == 0
         return MigrationResult(
@@ -124,9 +111,7 @@ class PopulateSlashCommandsMigration(BaseMigration):
             warnings=warnings,
         )
 
-    def _populate_agent_commands(
-        self, templates_dir: Path, output_dir: Path, extension: str, dry_run: bool, changes: list[str]
-    ) -> int:
+    def _populate_agent_commands(self, templates_dir: Path, output_dir: Path, extension: str, dry_run: bool, changes: list[str]) -> int:
         """Copy command templates to agent directory."""
         created_count = 0
 
@@ -140,9 +125,7 @@ class PopulateSlashCommandsMigration(BaseMigration):
 
         # Copy each template
         for template_path in sorted(templates_dir.glob("*.md")):
-            filename = (
-                f"spec-kitty.{template_path.stem}.{extension}" if extension else f"spec-kitty.{template_path.stem}"
-            )
+            filename = f"spec-kitty.{template_path.stem}.{extension}" if extension else f"spec-kitty.{template_path.stem}"
             dest_path = output_dir / filename
 
             # Skip if already exists

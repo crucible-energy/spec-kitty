@@ -35,7 +35,6 @@ from typing import Any, Literal
 import ulid as _ulid_mod
 
 from specify_cli.core.time_utils import now_utc_iso
-from specify_cli.status import status_log_write_lock
 from specify_cli.retrospective.schema import (
     GenRetrospectiveRecord,
     ProvenanceKind,
@@ -248,6 +247,8 @@ def _generate_ulid() -> str:
 
 def _append_retro_lifecycle_event(feature_dir: Path, event_dict: dict[str, Any]) -> None:
     """Append a retrospective lifecycle event line to status.events.jsonl."""
+    from specify_cli.status import status_log_write_lock
+
     events_path = feature_dir / "status.events.jsonl"
     line = json.dumps(event_dict, sort_keys=True)
     with status_log_write_lock(feature_dir):

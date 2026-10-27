@@ -45,7 +45,15 @@ def _manifest(mission_slug: str) -> LanesManifest:
                 predicted_surfaces=("core",),
                 depends_on_lanes=(),
                 parallel_group=0,
-            )
+            ),
+            ExecutionLane(
+                lane_id="lane-planning",
+                wp_ids=("WP02",),
+                write_scope=(f"kitty-specs/{mission_slug}/**",),
+                predicted_surfaces=("planning_artifact",),
+                depends_on_lanes=(),
+                parallel_group=0,
+            ),
         ],
         computed_at="2026-04-08T00:00:00Z",
         computed_from="test",
@@ -82,7 +90,7 @@ def test_mixed_mission_topology_includes_repo_root_planning_entry(tmp_path: Path
     assert planning_entry.execution_mode == "planning_artifact"
     assert planning_entry.resolution_kind == "repo_root"
     assert planning_entry.lane_id == "lane-planning"
-    assert planning_entry.branch_name is None
+    assert planning_entry.branch_name == topology.target_branch == "main"
     assert planning_entry.base_branch is None
 
 
@@ -110,7 +118,7 @@ def test_render_topology_json_marks_repo_root_planning_workspace(tmp_path: Path)
     assert planning_entry["workspace_kind"] == "repo_root"
     assert planning_entry["execution_mode"] == "planning_artifact"
     assert planning_entry["lane_id"] == "lane-planning"
-    assert planning_entry["branch"] is None
+    assert planning_entry["branch"] == topology.target_branch == "main"
 
 
 def test_planning_only_mission_without_lanes_json_still_materializes_topology(tmp_path: Path) -> None:

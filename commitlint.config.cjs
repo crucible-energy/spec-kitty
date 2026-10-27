@@ -21,6 +21,8 @@ module.exports = {
         "feat",
         "fix",
         "lint",
+        // The canonical invocation executor emits op(profile): action [id].
+        "op",
         "perf",
         "plan",
         "refactor",

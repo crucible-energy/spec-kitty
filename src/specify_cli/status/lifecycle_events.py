@@ -41,7 +41,7 @@ import logging
 import os
 from datetime import datetime, UTC
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 from collections.abc import Iterable, Mapping
 
 from specify_cli.core.time_utils import now_utc_iso
@@ -235,7 +235,8 @@ def _repo_root_for_lifecycle_log(log_path: Path | None) -> Path | None:
     if log_path is None:
         return None
     try:
-        return cast(Path, resolve_canonical_root(log_path.parent))
+        canonical_root: Path = resolve_canonical_root(log_path.parent)
+        return canonical_root
     except WorkspaceRootNotFound:
         return None
 

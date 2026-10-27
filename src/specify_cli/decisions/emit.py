@@ -28,13 +28,12 @@ from specify_cli.missions._read_path_resolver import resolve_feature_dir_for_mis
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal
 
 import ulid as _ulid_mod
 
 from specify_cli.decisions.models import IndexEntry
 from specify_cli.events import sanitize_event_for_log
-from specify_cli.status import status_log_write_lock
 from spec_kitty_events.decisionpoint import (
     DECISION_POINT_OPENED,
     DECISION_POINT_RESOLVED,
@@ -69,7 +68,8 @@ def _now_utc() -> datetime:
 
 def _mission_dir(repo_root: Path, mission_slug: str) -> Path:
     """Return ``kitty-specs/<mission_slug>/``."""
-    return cast(Path, resolve_feature_dir_for_mission(repo_root, mission_slug))
+    mission_dir: Path = resolve_feature_dir_for_mission(repo_root, mission_slug)
+    return mission_dir
 
 
 def _events_path(repo_root: Path, mission_slug: str) -> Path:
@@ -84,6 +84,8 @@ def _append_raw_event(events_path: Path, event_dict: dict) -> int:  # type: igno
     PII fields are stripped via :func:`sanitize_event_for_log` before serialization.
     Returns the 1-based line count after the append (lamport proxy).
     """
+    from specify_cli.status import status_log_write_lock
+
     sanitized = sanitize_event_for_log(event_dict)
     line = json.dumps(sanitized, sort_keys=True)
     with status_log_write_lock(events_path.parent):

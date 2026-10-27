@@ -84,18 +84,19 @@ def _get_command_templates_dir() -> Path:
     Raises ``FileNotFoundError`` if the doctrine package is absent, which
     indicates a corrupted install.
     """
+    mission_key: str = DEFAULT_MISSION_KEY
     if os.environ.get("SPEC_KITTY_TEMPLATE_ROOT"):
         from specify_cli.runtime.home import get_package_asset_root
 
-        package_asset_root = get_package_asset_root()
-        legacy_command_templates = package_asset_root / DEFAULT_MISSION_KEY / "command-templates"
+        package_asset_root: Path = get_package_asset_root()
+        legacy_command_templates = package_asset_root / mission_key / "command-templates"
         if legacy_command_templates.exists():
             return legacy_command_templates
 
     loaded_doctrine = sys.modules.get("doctrine")
     loaded_file = getattr(loaded_doctrine, "__file__", None)
     if isinstance(loaded_file, str) and loaded_file:
-        return Path(loaded_file).parent / "missions" / "mission-steps" / DEFAULT_MISSION_KEY
+        return Path(loaded_file).parent / "missions" / "mission-steps" / mission_key
 
     try:
         spec = find_spec("doctrine")
@@ -105,7 +106,7 @@ def _get_command_templates_dir() -> Path:
     if not locations:
         raise FileNotFoundError("doctrine package has no search location; installation may be corrupted")
     doctrine_path = Path(locations[0])
-    return doctrine_path / "missions" / "mission-steps" / DEFAULT_MISSION_KEY
+    return doctrine_path / "missions" / "mission-steps" / mission_key
 
 
 def _resolve_script_type() -> str:
@@ -138,18 +139,11 @@ def _expected_command_filenames(agent_key: str, templates_dir: Path) -> set[str]
     from specify_cli.shims.registry import CLI_DRIVEN_COMMANDS, PROMPT_DRIVEN_COMMANDS
 
     # Templates now live under per-step subdirectories: {step}/prompt.md
-    template_commands = {
-        step_dir.name
-        for step_dir in templates_dir.iterdir()
-        if step_dir.is_dir() and (step_dir / "prompt.md").is_file()
-    }
+    template_commands = {step_dir.name for step_dir in templates_dir.iterdir() if step_dir.is_dir() and (step_dir / "prompt.md").is_file()}
     if not template_commands >= PROMPT_DRIVEN_COMMANDS:
         return set()
 
-    return {
-        _compute_output_filename(command, agent_key)
-        for command in sorted(PROMPT_DRIVEN_COMMANDS | CLI_DRIVEN_COMMANDS)
-    }
+    return {_compute_output_filename(command, agent_key) for command in sorted(PROMPT_DRIVEN_COMMANDS | CLI_DRIVEN_COMMANDS)}
 
 
 def _file_has_current_version_marker(path: Path, cli_version: str) -> bool:
@@ -160,10 +154,7 @@ def _file_has_current_version_marker(path: Path, cli_version: str) -> bool:
     except (OSError, UnicodeDecodeError):
         return False
 
-    return any(
-        line.strip() == expected
-        for line in content.splitlines()[:_VERSION_MARKER_HEAD_LINES]
-    )
+    return any(line.strip() == expected for line in content.splitlines()[:_VERSION_MARKER_HEAD_LINES])
 
 
 def _agent_commands_healthy(agent_key: str, templates_dir: Path, cli_version: str) -> bool:
@@ -176,18 +167,11 @@ def _agent_commands_healthy(agent_key: str, templates_dir: Path, cli_version: st
     if not output_dir.is_dir():
         return False
 
-    existing = {
-        path.name
-        for path in output_dir.iterdir()
-        if path.is_file() and path.name.startswith("spec-kitty.")
-    }
+    existing = {path.name for path in output_dir.iterdir() if path.is_file() and path.name.startswith("spec-kitty.")}
     if existing != expected:
         return False
 
-    return all(
-        _file_has_current_version_marker(output_dir / filename, cli_version)
-        for filename in expected
-    )
+    return all(_file_has_current_version_marker(output_dir / filename, cli_version) for filename in expected)
 
 
 def _all_global_agent_commands_healthy(
@@ -199,10 +183,7 @@ def _all_global_agent_commands_healthy(
     from specify_cli.core.config import AGENT_COMMAND_CONFIG
 
     keys = agent_keys if agent_keys is not None else list(AGENT_COMMAND_CONFIG.keys())
-    return all(
-        _agent_commands_healthy(agent_key, templates_dir, cli_version)
-        for agent_key in keys
-    )
+    return all(_agent_commands_healthy(agent_key, templates_dir, cli_version) for agent_key in keys)
 
 
 def _sync_agent_commands(agent_key: str, templates_dir: Path, script_type: str) -> None:
@@ -367,9 +348,7 @@ def ensure_global_agent_commands(*, agent_keys: list[str] | None = None) -> None
 
         # Write version lock only after all agents synced successfully.
         # Scoped calls (agent_keys != None) never update the global lock.
-        if agent_keys is None and _all_global_agent_commands_healthy(
-            templates_dir, cli_version
-        ):
+        if agent_keys is None and _all_global_agent_commands_healthy(templates_dir, cli_version):
             version_file.write_text(cli_version)
     finally:
         lock_fd.close()

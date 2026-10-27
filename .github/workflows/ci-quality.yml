@@ -93,7 +93,7 @@ jobs:
   # changes: detect which modules were touched so per-module jobs can skip.
   # ---------------------------------------------------------------------------
   changes:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'pr:deferred') && !contains(github.event.pull_request.labels.*.name, 'pr:skip-ci') }}
     outputs:
       # ``run_all`` (workflow_dispatch input) and ``unmatched`` (the FR-010
@@ -424,7 +424,7 @@ jobs:
           fi
 
   lint:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'pr:deferred') && !contains(github.event.pull_request.labels.*.name, 'pr:skip-ci') }}
     outputs:
       commitlint_has_failures: ${{ steps.commitlint.outputs.has_failures }}
@@ -788,7 +788,7 @@ jobs:
           fi
 
   lint-feedback:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: lint
     if: ${{ (always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && (needs.lint.outputs.commitlint_has_failures == 'true' || needs.lint.outputs.markdownlint_has_failures == 'true' || needs.lint.outputs.ruff_has_failures == 'true' || needs.lint.outputs.mypy_has_failures == 'true')) && !contains(github.event.pull_request.labels.*.name, 'pr:deferred') && !contains(github.event.pull_request.labels.*.name, 'pr:skip-ci') }}
     permissions:
@@ -878,7 +878,7 @@ jobs:
   # Coverage floor: 90% (kernel is small, stable, and must be well-tested).
   # ---------------------------------------------------------------------------
   kernel-tests:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes]
     if: always() && needs.changes.outputs.kernel == 'true'
 
@@ -936,7 +936,7 @@ jobs:
   # fast-tests-doctrine: fast suite for doctrine package only.
   # ---------------------------------------------------------------------------
   fast-tests-doctrine:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, kernel-tests]
     if: always() && needs.changes.outputs.doctrine == 'true' && needs.kernel-tests.result != 'failure'
 
@@ -985,7 +985,7 @@ jobs:
   # Tier 0 fast-tests: no inter-module dependencies
   # ---------------------------------------------------------------------------
   fast-tests-sync:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes]
     if: always() && needs.changes.outputs.sync == 'true'
     steps:
@@ -1042,7 +1042,7 @@ jobs:
   # job's own completion.
   # ---------------------------------------------------------------------------
   fast-tests-sync-orphan-sweep:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes]
     if: always() && needs.changes.outputs.sync == 'true'
     steps:
@@ -1068,7 +1068,7 @@ jobs:
           path: out/reports/
 
   fast-tests-merge:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes]
     if: always() && needs.changes.outputs.merge == 'true'
     steps:
@@ -1091,7 +1091,7 @@ jobs:
           path: out/reports/
 
   fast-tests-missions:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes]
     if: always() && needs.changes.outputs.missions == 'true'
     steps:
@@ -1116,7 +1116,7 @@ jobs:
           path: out/reports/
 
   fast-tests-post-merge:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes]
     if: always() && needs.changes.outputs.post_merge == 'true'
     steps:
@@ -1141,7 +1141,7 @@ jobs:
           if-no-files-found: ignore
 
   fast-tests-release:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes]
     if: always() && needs.changes.outputs.release == 'true'
     steps:
@@ -1169,7 +1169,7 @@ jobs:
   # Tier 1 fast-tests: depends on sync
   # ---------------------------------------------------------------------------
   fast-tests-status:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-sync]
     if: >-
       always() &&
@@ -1226,7 +1226,7 @@ jobs:
   # Tier 2 fast-tests: depends on status (and merge for lanes)
   # ---------------------------------------------------------------------------
   fast-tests-review:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-status]
     if: >-
       always() &&
@@ -1252,7 +1252,7 @@ jobs:
           path: out/reports/
 
   fast-tests-next:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-status]
     if: >-
       always() &&
@@ -1286,7 +1286,7 @@ jobs:
   # any existing fail_under threshold.
   # ---------------------------------------------------------------------------
   mission-loader-coverage:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-next]
     if: >-
       always() &&
@@ -1315,7 +1315,7 @@ jobs:
           path: out/reports/
 
   fast-tests-lanes:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-status, fast-tests-merge]
     if: >-
       always() &&
@@ -1342,7 +1342,7 @@ jobs:
           path: out/reports/
 
   fast-tests-dashboard:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-status]
     if: >-
       always() &&
@@ -1370,7 +1370,7 @@ jobs:
           if-no-files-found: ignore
 
   fast-tests-upgrade:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-status]
     if: >-
       always() &&
@@ -1399,7 +1399,7 @@ jobs:
   # Tier 3 fast-tests: depends on all Tier 2 jobs
   # ---------------------------------------------------------------------------
   fast-tests-cli:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-lanes, fast-tests-next, fast-tests-review, fast-tests-dashboard, fast-tests-upgrade]
     if: >-
       always() &&
@@ -1453,7 +1453,7 @@ jobs:
   # ---------------------------------------------------------------------------
   fast-tests-core-misc:
     name: fast-tests-core-misc (${{ matrix.shard }})
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, kernel-tests, fast-tests-doctrine]
     if: >-
       always() &&
@@ -1583,7 +1583,7 @@ jobs:
   # unchanged and a src change still over-covers docs (fail-safe).
   # ---------------------------------------------------------------------------
   fast-tests-docs:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes]
     if: always() && needs.changes.outputs.docs == 'true'
     steps:
@@ -1624,7 +1624,7 @@ jobs:
   # ---------------------------------------------------------------------------
   integration-tests-core-misc:
     name: integration-tests-core-misc (${{ matrix.shard }})
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     # De-serialized (mission ci-topology-shrink FR-013): the ``fast-tests-core-misc``
     # need is dropped so this matrix runs in parallel with the fast lane. The
     # architectural/adversarial shard that used to live here (and was the pole
@@ -1792,7 +1792,7 @@ jobs:
   # ---------------------------------------------------------------------------
   arch-adversarial:
     name: arch-adversarial (${{ matrix.shard }})
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     if: ${{ (always()) && !contains(github.event.pull_request.labels.*.name, 'pr:deferred') && !contains(github.event.pull_request.labels.*.name, 'pr:skip-ci') }}
     # 3-shard matrix (mission ci-health-charter-path-and-arch-shard-01KWRTB2,
     # #2397): the arch-pole selection is now routed by dedicated pytest
@@ -1959,7 +1959,7 @@ jobs:
   # ---------------------------------------------------------------------------
   timing-nfr-serial:
     name: Timing NFR gate (serial, -m timing)
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     if: ${{ (always()) && !contains(github.event.pull_request.labels.*.name, 'pr:deferred') && !contains(github.event.pull_request.labels.*.name, 'pr:skip-ci') }}
     steps:
       - uses: actions/checkout@v6
@@ -1980,7 +1980,7 @@ jobs:
   # fast-tests-charter: charter package, depends on doctrine.
   # ---------------------------------------------------------------------------
   fast-tests-charter:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, kernel-tests, fast-tests-doctrine]
     if: >-
       always() &&
@@ -2033,7 +2033,7 @@ jobs:
   # rationale ties agent's suite to charter's completion).
   # ---------------------------------------------------------------------------
   fast-tests-agent:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, kernel-tests, fast-tests-doctrine]
     if: >-
       always() &&
@@ -2071,7 +2071,7 @@ jobs:
   # Integration tests: per-module, gated on their fast-tests counterpart.
   # ---------------------------------------------------------------------------
   integration-tests-agent:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-agent]
     if: >-
       always() &&
@@ -2100,7 +2100,7 @@ jobs:
           path: out/reports/
 
   integration-tests-doctrine:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-doctrine]
     if: >-
       always() &&
@@ -2143,7 +2143,7 @@ jobs:
           path: out/reports/
 
   integration-tests-charter:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-charter]
     if: >-
       always() &&
@@ -2190,7 +2190,7 @@ jobs:
   # and is listed here only for symmetry/defense-in-depth with the registry).
   # ---------------------------------------------------------------------------
   integration-tests-sync:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-sync]
     if: >-
       always() &&
@@ -2230,7 +2230,7 @@ jobs:
   # integration-tests-sync so it runs concurrently with it, not after it.
   # ---------------------------------------------------------------------------
   integration-tests-sync-real-port:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-sync]
     if: >-
       always() &&
@@ -2263,7 +2263,7 @@ jobs:
           path: out/reports/
 
   integration-tests-merge:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-merge]
     if: >-
       always() &&
@@ -2292,7 +2292,7 @@ jobs:
           path: out/reports/
 
   integration-tests-missions:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-missions]
     if: >-
       always() &&
@@ -2323,7 +2323,7 @@ jobs:
           path: out/reports/
 
   integration-tests-post-merge:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-post-merge]
     if: >-
       always() &&
@@ -2353,7 +2353,7 @@ jobs:
           path: out/reports/
 
   integration-tests-release:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-release]
     if: >-
       always() &&
@@ -2387,7 +2387,7 @@ jobs:
   # fast shard are always run here. NEEDS CI CONFIRMATION.
   # See mission test-suite-acceleration.
   integration-tests-status:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-status]
     if: >-
       always() &&
@@ -2438,7 +2438,7 @@ jobs:
           path: out/reports/
 
   integration-tests-review:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-review]
     if: >-
       always() &&
@@ -2483,7 +2483,7 @@ jobs:
   # ---------------------------------------------------------------------------
   integration-tests-next:
     name: integration-tests-next (${{ matrix.shard }})
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-next]
     if: >-
       always() &&
@@ -2533,7 +2533,7 @@ jobs:
           path: out/reports/
 
   integration-tests-lanes:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-lanes]
     if: >-
       always() &&
@@ -2562,7 +2562,7 @@ jobs:
           path: out/reports/
 
   integration-tests-dashboard:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-dashboard]
     if: >-
       always() &&
@@ -2592,7 +2592,7 @@ jobs:
           path: out/reports/
 
   integration-tests-upgrade:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-upgrade]
     if: >-
       always() &&
@@ -2621,7 +2621,7 @@ jobs:
           path: out/reports/
 
   integration-tests-cli:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, fast-tests-cli]
     if: >-
       always() &&
@@ -2671,7 +2671,7 @@ jobs:
   # invariant keeps this expression consistent with the routed set.
   # ---------------------------------------------------------------------------
   unit-contract-residual:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'pr:deferred') && !contains(github.event.pull_request.labels.*.name, 'pr:skip-ci') }}
     steps:
       - uses: actions/checkout@v6
@@ -2699,7 +2699,7 @@ jobs:
             --durations=25
 
   slow-tests:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs:
       - fast-tests-doctrine
       - fast-tests-sync
@@ -2812,7 +2812,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [blacksmith-4vcpu-ubuntu-2404, macos-latest]
+        os: [ubuntu-24.04, macos-latest]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -2844,7 +2844,7 @@ jobs:
   # ---------------------------------------------------------------------------
   quarantine-visibility:
     name: quarantine visibility (non-blocking)
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes]
     if: ${{ (always() && ( github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' )) && !contains(github.event.pull_request.labels.*.name, 'pr:deferred') && !contains(github.event.pull_request.labels.*.name, 'pr:skip-ci') }}
     timeout-minutes: 15
@@ -2891,7 +2891,7 @@ jobs:
   # ---------------------------------------------------------------------------
   regression-tests:
     name: regression tests (blocking)
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes]
     if: ${{ (always() && ( github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' )) && !contains(github.event.pull_request.labels.*.name, 'pr:deferred') && !contains(github.event.pull_request.labels.*.name, 'pr:skip-ci') }}
     timeout-minutes: 15
@@ -2924,7 +2924,7 @@ jobs:
   # fixtures. Runs tests/e2e/ and tests/cross_cutting/ in parallel with slow-tests.
   # ---------------------------------------------------------------------------
   e2e-cross-cutting:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes]
     if: ${{ (always() && ( github.event_name == 'push' || ( github.event_name == 'pull_request' && ( needs.changes.outputs.e2e == 'true' || needs.changes.outputs.core_misc == 'true' || needs.changes.outputs.execution_context == 'true' ) && ( ( github.event.pull_request.draft == false && !startsWith(github.event.pull_request.title, 'WIP') && !startsWith(github.event.pull_request.title, '[WIP]') ) || contains(github.event.pull_request.labels.*.name, 'ci:full') || contains(github.event.pull_request.labels.*.name, 'ready-for-ci') ) ) || (github.event_name == 'workflow_dispatch' && (inputs.run_extended || inputs.run_all)) )) && !contains(github.event.pull_request.labels.*.name, 'pr:deferred') && !contains(github.event.pull_request.labels.*.name, 'pr:skip-ci') }}
     timeout-minutes: 40
@@ -2969,7 +2969,7 @@ jobs:
   # Consumes kernel, fast-test, and integration-test coverage reports.
   # ---------------------------------------------------------------------------
   diff-coverage:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs:
       - kernel-tests
       - fast-tests-charter
@@ -3098,7 +3098,7 @@ jobs:
   # mutation-testing: disabled — too slow to run reliably in CI.
   # ---------------------------------------------------------------------------
   mutation-testing:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs:
       - fast-tests-doctrine
       - fast-tests-sync
@@ -3131,7 +3131,7 @@ jobs:
   # review latency low, and pushes skip it so main can report test/build health.
   # ---------------------------------------------------------------------------
   sonarcloud:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs:
       - kernel-tests
       - fast-tests-doctrine
@@ -3582,7 +3582,7 @@ jobs:
   # ---------------------------------------------------------------------------
   uv-lock-check:
     name: uv lock --check (NFR-005)
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'pr:deferred') && !contains(github.event.pull_request.labels.*.name, 'pr:skip-ci') }}
     timeout-minutes: 3
     steps:
@@ -3607,7 +3607,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build-wheel:
     name: Build wheel
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'pr:deferred') && !contains(github.event.pull_request.labels.*.name, 'pr:skip-ci') }}
     timeout-minutes: 5
     steps:
@@ -3650,7 +3650,7 @@ jobs:
   # ---------------------------------------------------------------------------
   clean-install-verification:
     name: Clean install verification (FR-010)
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'pr:deferred') && !contains(github.event.pull_request.labels.*.name, 'pr:skip-ci') }}
     timeout-minutes: 5     # NFR-004
     needs: [build-wheel]
@@ -3697,6 +3697,7 @@ jobs:
           "
 
       - name: Run spec-kitty next against fixture mission
+        id: clean_next
         run: |
           cp -r tests/fixtures/clean_install_fixture_mission /tmp/fixture
           cd /tmp/fixture
@@ -3726,6 +3727,29 @@ jobs:
             --baseline ${{ github.workspace }}/kitty-specs/shared-package-boundary-cutover-01KQ22DS/nfr-003-baseline.json \
             --runs 5
 
+      - name: Capture actual wheel startup profile after measurement
+        if: ${{ always() && steps.clean_next.outcome == 'success' }}
+        run: |
+          cd /tmp/fixture
+          /tmp/clean-venv/bin/python -m cProfile -o /tmp/nfr003-next.prof \
+            -m specify_cli next --agent test \
+            --mission clean-install-fixture-01KQ22XX --json > /tmp/nfr003-next.json
+          /tmp/clean-venv/bin/python -c \
+            "import pstats; pstats.Stats('/tmp/nfr003-next.prof').sort_stats('cumulative').print_stats(80)" \
+            > /tmp/nfr003-next-profile.log
+
+      - name: Retain actual wheel startup diagnostics
+        if: ${{ always() && steps.clean_next.outcome == 'success' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: clean-install-startup-profile
+          path: |
+            /tmp/nfr003-next.prof
+            /tmp/nfr003-next.json
+            /tmp/nfr003-next-profile.log
+          if-no-files-found: error
+          retention-days: 7
+
   # ---------------------------------------------------------------------------
   # consumer-compatibility: validates the CI-built wheel against the private
   # SaaS consumer contract using trusted validation scripts from the base commit.
@@ -3733,7 +3757,7 @@ jobs:
   # ---------------------------------------------------------------------------
   consumer-compatibility:
     name: SaaS consumer compatibility
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: [changes, build-wheel]
     if: always() && needs.changes.outputs.release == 'true' && needs.build-wheel.result == 'success'
     env:
@@ -3906,7 +3930,7 @@ jobs:
       - clean-install-verification
       - consumer-compatibility
       - uv-lock-check
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     if: ${{ (always()) && !contains(github.event.pull_request.labels.*.name, 'pr:deferred') && !contains(github.event.pull_request.labels.*.name, 'pr:skip-ci') }}
     steps:
       - name: "Check out repository (decision script)"

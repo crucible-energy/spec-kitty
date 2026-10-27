@@ -15,8 +15,10 @@ Strategy note (FR-006, FR-007):
 from __future__ import annotations
 
 from mission_runtime import MissionArtifactKind
+from specify_cli.core.constants import KITTY_SPECS_DIR
 from specify_cli.missions._read_path_resolver import resolve_planning_read_dir
 import os
+import json
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -113,9 +115,7 @@ def _resolve_lane_manifest(
     # FR-001 (#2185): ``lanes.json`` is LANE_STATE (PRIMARY-partition) — it lives
     # ONLY on the PRIMARY checkout post-#2106. The coord-aware resolver lands on
     # the STATUS-only ``-coord`` husk (no lanes.json), so route by kind.
-    feature_dir = resolve_planning_read_dir(
-        repo_root, mission_slug, kind=MissionArtifactKind.LANE_STATE
-    )
+    feature_dir = resolve_planning_read_dir(repo_root, mission_slug, kind=MissionArtifactKind.LANE_STATE)
     return read_lanes_json(feature_dir)
 
 
@@ -130,16 +130,12 @@ def _try_auto_rebase_if_stale(
     """If the lane is stale and a worktree exists, attempt auto-rebase and recheck."""
     if not stale.is_stale:
         return stale
-    worktree_path = _worktree_path(
-        repo_root, mission_slug, mission_id=None, lane_id=lane.lane_id
-    )
+    worktree_path = _worktree_path(repo_root, mission_slug, mission_id=None, lane_id=lane.lane_id)
     if not worktree_path.exists():
         return stale
     from specify_cli.lanes.auto_rebase import attempt_auto_rebase
 
-    report = attempt_auto_rebase(
-        lane, branch, mission_branch, repo_root, worktree_path
-    )
+    report = attempt_auto_rebase(lane, branch, mission_branch, repo_root, worktree_path)
     if report.succeeded:
         return check_lane_staleness(lane, branch, mission_branch, repo_root)
     return stale
@@ -175,7 +171,9 @@ def consolidate_lane_into_mission(
     lanes_manifest = _resolve_lane_manifest(repo_root, mission_slug, lanes_manifest)
     if lanes_manifest is None:
         return LaneMergeResult(
-            success=False, lane_id=lane_id, merged_into="",
+            success=False,
+            lane_id=lane_id,
+            merged_into="",
             errors=["No lanes.json found for this feature"],
         )
 
@@ -185,7 +183,9 @@ def consolidate_lane_into_mission(
     )
     if lane is None:
         return LaneMergeResult(
-            success=False, lane_id=lane_id, merged_into="",
+            success=False,
+            lane_id=lane_id,
+            merged_into="",
             errors=[f"Lane {lane_id} not found in lanes.json"],
         )
 
@@ -198,21 +198,27 @@ def consolidate_lane_into_mission(
 
     if not _branch_exists(repo_root, branch):
         return LaneMergeResult(
-            success=False, lane_id=lane_id, merged_into=mission_branch,
+            success=False,
+            lane_id=lane_id,
+            merged_into=mission_branch,
             errors=[f"Lane branch {branch} does not exist"],
         )
 
     stale = check_lane_staleness(lane, branch, mission_branch, repo_root)
     stale = _try_auto_rebase_if_stale(
-        stale, lane, branch, mission_branch, mission_slug, repo_root,
+        stale,
+        lane,
+        branch,
+        mission_branch,
+        mission_slug,
+        repo_root,
     )
     if stale.is_stale:
         return LaneMergeResult(
-            success=False, lane_id=lane_id, merged_into=mission_branch,
-            errors=[
-                f"Lane {lane_id} is stale: overlapping files {stale.stale_files}. "
-                f"{stale.remediation}"
-            ],
+            success=False,
+            lane_id=lane_id,
+            merged_into=mission_branch,
+            errors=[f"Lane {lane_id} is stale: overlapping files {stale.stale_files}. {stale.remediation}"],
             stale_check=stale,
         )
 
@@ -220,12 +226,16 @@ def consolidate_lane_into_mission(
         _merge_branch_into(repo_root, branch, mission_branch)
     except RuntimeError as e:
         return LaneMergeResult(
-            success=False, lane_id=lane_id, merged_into=mission_branch,
+            success=False,
+            lane_id=lane_id,
+            merged_into=mission_branch,
             errors=[str(e)],
         )
 
     return LaneMergeResult(
-        success=True, lane_id=lane_id, merged_into=mission_branch,
+        success=True,
+        lane_id=lane_id,
+        merged_into=mission_branch,
     )
 
 
@@ -261,13 +271,13 @@ def integrate_mission_into_target(
     """
     if lanes_manifest is None:
         # FR-001 (#2185): LANE_STATE read — PRIMARY-partition (see above).
-        feature_dir = resolve_planning_read_dir(
-            repo_root, mission_slug, kind=MissionArtifactKind.LANE_STATE
-        )
+        feature_dir = resolve_planning_read_dir(repo_root, mission_slug, kind=MissionArtifactKind.LANE_STATE)
         lanes_manifest = read_lanes_json(feature_dir)
         if lanes_manifest is None:
             return MissionMergeResult(
-                success=False, mission_branch="", target_branch="",
+                success=False,
+                mission_branch="",
+                target_branch="",
                 errors=["No lanes.json found for this feature"],
             )
 
@@ -276,7 +286,8 @@ def integrate_mission_into_target(
 
     if not _branch_exists(repo_root, mission_branch):
         return MissionMergeResult(
-            success=False, mission_branch=mission_branch,
+            success=False,
+            mission_branch=mission_branch,
             target_branch=target_branch,
             errors=[f"Mission branch {mission_branch} does not exist"],
         )
@@ -292,8 +303,10 @@ def integrate_mission_into_target(
         )
     except RuntimeError as e:
         return MissionMergeResult(
-            success=False, mission_branch=mission_branch,
-            target_branch=target_branch, errors=[str(e)],
+            success=False,
+            mission_branch=mission_branch,
+            target_branch=target_branch,
+            errors=[str(e)],
         )
 
     # Get the merge commit.
@@ -382,22 +395,12 @@ def _ensure_info_attributes(repo_root: Path) -> list[str]:
         return []
     info_dir = common_dir / "info"
     attributes_path = info_dir / "attributes"
-    existing = (
-        attributes_path.read_text(encoding="utf-8").splitlines()
-        if attributes_path.exists()
-        else []
-    )
-    missing = [
-        spec.attributes_line
-        for spec in _MERGE_DRIVERS
-        if spec.attributes_line not in existing
-    ]
+    existing = attributes_path.read_text(encoding="utf-8").splitlines() if attributes_path.exists() else []
+    missing = [spec.attributes_line for spec in _MERGE_DRIVERS if spec.attributes_line not in existing]
     if not missing:
         return []
     info_dir.mkdir(parents=True, exist_ok=True)
-    attributes_path.write_text(
-        "\n".join([*existing, *missing]).rstrip("\n") + "\n", encoding="utf-8"
-    )
+    attributes_path.write_text("\n".join([*existing, *missing]).rstrip("\n") + "\n", encoding="utf-8")
     return missing
 
 
@@ -426,15 +429,9 @@ def _remove_info_attributes(repo_root: Path, added_lines: list[str]) -> None:
     attributes_path = common_dir / "info" / "attributes"
     if not attributes_path.exists():
         return
-    remaining = [
-        line
-        for line in attributes_path.read_text(encoding="utf-8").splitlines()
-        if line not in added_lines
-    ]
+    remaining = [line for line in attributes_path.read_text(encoding="utf-8").splitlines() if line not in added_lines]
     if remaining:
-        attributes_path.write_text(
-            "\n".join(remaining).rstrip("\n") + "\n", encoding="utf-8"
-        )
+        attributes_path.write_text("\n".join(remaining).rstrip("\n") + "\n", encoding="utf-8")
     else:
         attributes_path.unlink()
 
@@ -521,9 +518,126 @@ def _make_merge_env() -> dict[str, str]:
 def _rev_parse(repo_root: Path, ref: str) -> str | None:
     result = subprocess.run(
         ["git", "rev-parse", ref],
-        cwd=str(repo_root), capture_output=True, text=True, env=_make_merge_env(),
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        env=_make_merge_env(),
     )
     return result.stdout.strip() if result.returncode == 0 else None
+
+
+def _is_gate_scaffold(path: str, content: bytes) -> bool:
+    """Recognize untouched scaffolds only; authored/unknown evidence is opaque."""
+    from specify_cli.acceptance.matrix import SCAFFOLD_TODO_MARKER
+
+    if path.endswith("/issue-matrix.md"):
+        return content == (b"# Issue Matrix\n\n| Issue | Verdict | Evidence ref |\n| --- | --- | --- |\n")
+
+    def unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Duplicate gate field")
+            result[key] = value
+        return result
+
+    try:
+        matrix = json.loads(content, object_pairs_hook=unique_object)
+    except (ValueError, UnicodeDecodeError):
+        return False
+    if not isinstance(matrix, dict) or set(matrix) - {
+        "mission_slug",
+        "mission_number",
+        "mission_type",
+        "overall_verdict",
+        "criteria",
+        "negative_invariants",
+    }:
+        return False
+    criteria = matrix.get("criteria")
+    if (
+        not isinstance(criteria, list)
+        or len(criteria) != 1
+        or matrix.get("negative_invariants") != []
+        or matrix.get("overall_verdict", "pending") != "pending"
+        or matrix.get("mission_slug") != Path(path).parent.name
+    ):
+        return False
+    ids: set[str] = set()
+    for criterion in criteria:
+        if not isinstance(criterion, dict) or set(criterion) - {
+            "criterion_id",
+            "description",
+            "proof_type",
+            "pass_fail",
+            "evidence",
+            "notes",
+            "verified_by",
+            "verified_at",
+        }:
+            return False
+        identifier = criterion.get("criterion_id")
+        if not isinstance(identifier, str) or identifier != "AC-001" or identifier in ids:
+            return False
+        ids.add(identifier)
+        if (
+            criterion.get("pass_fail") != "pending"
+            or criterion.get("proof_type") != "automated_test"
+            or criterion.get("notes") != SCAFFOLD_TODO_MARKER
+            or criterion.get("description") != SCAFFOLD_TODO_MARKER
+            or any(criterion.get(key) is not None for key in ("evidence", "verified_by", "verified_at"))
+        ):
+            return False
+    return True
+
+
+def _preserved_gate_blobs(repo_root: Path, source: str, target: str) -> list[tuple[str, str]]:
+    """Choose exact Git blobs before squash's source-preference can erase QA.
+
+    Both-authored, deletion and nonregular divergent inputs refuse. This neither
+    assesses evidence nor confers acceptance: it preserves existing bytes only.
+    """
+    env = _make_merge_env()
+
+    def git(*args: str) -> bytes:
+        return subprocess.run(
+            ["git", *args],
+            cwd=repo_root,
+            env=env,
+            check=True,
+            capture_output=True,
+        ).stdout
+
+    def gates(ref: str) -> dict[str, tuple[str, str]]:
+        result: dict[str, tuple[str, str]] = {}
+        for entry in git("ls-tree", "-rz", ref, "--", KITTY_SPECS_DIR).split(b"\0"):
+            if not entry:
+                continue
+            metadata, raw_path = entry.split(b"\t", 1)
+            path = raw_path.decode("utf-8")
+            parts = Path(path).parts
+            if len(parts) == 3 and parts[-1] in {"acceptance-matrix.json", "issue-matrix.md"}:
+                mode, kind, oid = metadata.decode("ascii").split()
+                result[path] = (mode, oid) if kind == "blob" else (mode, "")
+        return result
+
+    bases = git("merge-base", "--all", source, target).decode().splitlines()
+    if len(bases) != 1:
+        raise RuntimeError("Ambiguous merge base for gate evidence preservation")
+    original, incoming, current = gates(bases[0]), gates(source), gates(target)
+    preserved: list[tuple[str, str]] = []
+    for path in sorted(incoming.keys() | current.keys()):
+        a, b, base = incoming.get(path), current.get(path), original.get(path)
+        if a in (b, base) or b == base:
+            continue
+        if a is None or b is None or a[0] not in {"100644", "100755"} or b[0] not in {"100644", "100755"}:
+            raise RuntimeError(f"Divergent deletion/nonregular gate evidence: {path}")
+        a_scaffold = _is_gate_scaffold(path, git("cat-file", "blob", a[1]))
+        b_scaffold = _is_gate_scaffold(path, git("cat-file", "blob", b[1]))
+        if a_scaffold == b_scaffold:
+            raise RuntimeError(f"Ambiguous divergent gate evidence: {path}")
+        preserved.append((path, target if a_scaffold else source))
+    return preserved
 
 
 def _merge_branch_into(
@@ -552,11 +666,15 @@ def _merge_branch_into(
     """
     import tempfile
 
-    tmp_dir = tempfile.mkdtemp(prefix="kitty-merge-")
-    tmp_path = Path(tmp_dir)
-
     # Single environment authority for the lane-merge pipeline (AC-F1).
     _env = _make_merge_env()
+    source_oid = _rev_parse(repo_root, source_branch)
+    target_oid = _rev_parse(repo_root, target_branch)
+    if source_oid is None or target_oid is None:
+        raise RuntimeError("Missing merge source or target")
+    preserved_gates = _preserved_gate_blobs(repo_root, source_oid, target_oid) if strategy == MergeStrategy.SQUASH else []
+    tmp_dir = tempfile.mkdtemp(prefix="kitty-merge-")
+    tmp_path = Path(tmp_dir)
 
     # Seed the custom-driver ``info/attributes`` activation for the duration of
     # this ephemeral merge only, and remove the merge worktree on exit. The
@@ -568,37 +686,49 @@ def _merge_branch_into(
         _stack.callback(
             lambda: subprocess.run(
                 ["git", "worktree", "remove", str(tmp_path), "--force"],
-                cwd=str(repo_root), capture_output=True, env=_env,
+                cwd=str(repo_root),
+                capture_output=True,
+                env=_env,
             )
         )
 
         # Create detached worktree at target branch tip.
         result = subprocess.run(
-            ["git", "worktree", "add", "--detach", str(tmp_path), target_branch],
-            cwd=str(repo_root), capture_output=True, text=True, env=_env,
+            ["git", "worktree", "add", "--detach", str(tmp_path), target_oid],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            env=_env,
         )
         if result.returncode != 0:
-            raise RuntimeError(
-                f"Failed to create merge worktree: {result.stderr.strip()}"
-            )
+            raise RuntimeError(f"Failed to create merge worktree: {result.stderr.strip()}")
 
         if strategy == MergeStrategy.SQUASH:
             # Squash all commits from source into a single new commit.
-            # -X theirs: when the mission branch (source) conflicts with the
-            # target on kitty-specs/ planning artifacts, the mission branch
-            # version is authoritative (it carries the reviewed, finalized state).
+            # Planning prefers source; existing authored gate evidence has an
+            # independently pinned preservation decision above (#2804).
             result = subprocess.run(
-                ["git", "merge", "--squash", "-X", "theirs", source_branch],
-                cwd=str(tmp_path), capture_output=True, text=True, env=_env,
+                ["git", "merge", "--squash", "-X", "theirs", source_oid],
+                cwd=str(tmp_path),
+                capture_output=True,
+                text=True,
+                env=_env,
             )
             if result.returncode != 0:
                 subprocess.run(
                     ["git", "merge", "--abort"],
-                    cwd=str(tmp_path), capture_output=True, env=_env,
+                    cwd=str(tmp_path),
+                    capture_output=True,
+                    env=_env,
                 )
-                raise RuntimeError(
-                    f"Squash merge of {source_branch} into {target_branch} failed: "
-                    f"{result.stderr.strip() or result.stdout.strip()}"
+                raise RuntimeError(f"Squash merge of {source_branch} into {target_branch} failed: {result.stderr.strip() or result.stdout.strip()}")
+            for path, ref in preserved_gates:
+                subprocess.run(
+                    ["git", "--literal-pathspecs", "restore", f"--source={ref}", "--staged", "--worktree", "--", path],
+                    cwd=tmp_path,
+                    env=_env,
+                    check=True,
+                    capture_output=True,
                 )
             # Squash merges do not record ancestry. On retry after a previous
             # successful squash, Git reports a clean index and a plain commit
@@ -607,7 +737,10 @@ def _merge_branch_into(
             # idempotent success; ordinary callers need a real merge result.
             staged = subprocess.run(
                 ["git", "diff", "--cached", "--quiet"],
-                cwd=str(tmp_path), capture_output=True, text=True, env=_env,
+                cwd=str(tmp_path),
+                capture_output=True,
+                text=True,
+                env=_env,
             )
             if staged.returncode == 0:
                 if allow_noop_squash:
@@ -618,55 +751,61 @@ def _merge_branch_into(
                     "Retry with merge resume if recovering an interrupted merge."
                 )
             if staged.returncode not in (0, 1):
-                raise RuntimeError(
-                    f"Could not inspect squash merge result for {source_branch} "
-                    f"into {target_branch}: {staged.stderr.strip()}"
-                )
+                raise RuntimeError(f"Could not inspect squash merge result for {source_branch} into {target_branch}: {staged.stderr.strip()}")
             # Commit the squashed result.
             result = subprocess.run(
                 [
-                    "git", "-c", "commit.gpgsign=false",
-                    "commit", "-m",
+                    "git",
+                    "-c",
+                    "commit.gpgsign=false",
+                    "commit",
+                    "-m",
                     f"feat({source_branch}): squash merge of mission",
                 ],
-                cwd=str(tmp_path), capture_output=True, text=True, env=_env,
+                cwd=str(tmp_path),
+                capture_output=True,
+                text=True,
+                env=_env,
             )
             if result.returncode != 0:
-                raise RuntimeError(
-                    f"Squash commit into {target_branch} failed: "
-                    f"{result.stderr.strip() or result.stdout.strip()}"
-                )
+                raise RuntimeError(f"Squash commit into {target_branch} failed: {result.stderr.strip() or result.stdout.strip()}")
         elif strategy == MergeStrategy.REBASE:
             # Rebase source onto target in the isolated worktree, then
             # fast-forward target to the rebased detached HEAD. Do not check
             # out or rewrite source_branch in the user's main checkout.
             result = subprocess.run(
                 ["git", "checkout", "--detach", source_branch],
-                cwd=str(tmp_path), capture_output=True, text=True, env=_env,
+                cwd=str(tmp_path),
+                capture_output=True,
+                text=True,
+                env=_env,
             )
             if result.returncode != 0:
-                raise RuntimeError(
-                    f"Failed to check out {source_branch} in merge worktree: "
-                    f"{result.stderr.strip() or result.stdout.strip()}"
-                )
+                raise RuntimeError(f"Failed to check out {source_branch} in merge worktree: {result.stderr.strip() or result.stdout.strip()}")
             # Rebase source on top of target.
             result = subprocess.run(
                 ["git", "rebase", target_branch],
-                cwd=str(tmp_path), capture_output=True, text=True, env=_env,
+                cwd=str(tmp_path),
+                capture_output=True,
+                text=True,
+                env=_env,
             )
             if result.returncode != 0:
                 subprocess.run(
                     ["git", "rebase", "--abort"],
-                    cwd=str(tmp_path), capture_output=True, env=_env,
+                    cwd=str(tmp_path),
+                    capture_output=True,
+                    env=_env,
                 )
-                raise RuntimeError(
-                    f"Rebase of {source_branch} onto {target_branch} failed: "
-                    f"{result.stderr.strip() or result.stdout.strip()}"
-                )
+                raise RuntimeError(f"Rebase of {source_branch} onto {target_branch} failed: {result.stderr.strip() or result.stdout.strip()}")
             # Get the rebased HEAD SHA.
             rebased_sha = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
-                cwd=str(tmp_path), capture_output=True, text=True, check=True, env=_env,
+                cwd=str(tmp_path),
+                capture_output=True,
+                text=True,
+                check=True,
+                env=_env,
             ).stdout.strip()
             # Fast-forward the target branch to the rebased tip, resyncing any
             # worktree that has target_branch checked out (#1826 / AC-B2).
@@ -683,24 +822,29 @@ def _merge_branch_into(
         else:
             # MERGE strategy (default for lane→mission): no-ff merge commit.
             result = subprocess.run(
-                ["git", "merge", source_branch, "--no-edit",
-                 "-m", f"Merge {source_branch} into {target_branch}"],
-                cwd=str(tmp_path), capture_output=True, text=True, env=_env,
+                ["git", "merge", source_branch, "--no-edit", "-m", f"Merge {source_branch} into {target_branch}"],
+                cwd=str(tmp_path),
+                capture_output=True,
+                text=True,
+                env=_env,
             )
             if result.returncode != 0:
                 subprocess.run(
                     ["git", "merge", "--abort"],
-                    cwd=str(tmp_path), capture_output=True, env=_env,
+                    cwd=str(tmp_path),
+                    capture_output=True,
+                    env=_env,
                 )
-                raise RuntimeError(
-                    f"Merge of {source_branch} into {target_branch} failed: "
-                    f"{result.stderr.strip() or result.stdout.strip()}"
-                )
+                raise RuntimeError(f"Merge of {source_branch} into {target_branch} failed: {result.stderr.strip() or result.stdout.strip()}")
 
         # Get the resulting commit SHA.
         merge_commit = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            cwd=str(tmp_path), capture_output=True, text=True, check=True, env=_env,
+            cwd=str(tmp_path),
+            capture_output=True,
+            text=True,
+            check=True,
+            env=_env,
         ).stdout.strip()
 
         # Update the target branch ref to point to the merge commit, resyncing

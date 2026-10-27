@@ -1844,6 +1844,12 @@
   owning_workstream: none
   current_target: true
   notes: null
+- path: docs/engineering-notes/2026-10-26-configured-agent-command-migration.md
+  tag: current
+  divio_type: none
+  owning_workstream: none
+  current_target: true
+  notes: null
 - path: docs/guides/accept-and-merge.md
   tag: current
   divio_type: how-to
@@ -2373,6 +2379,42 @@
   current_target: true
   notes: null
 - path: docs/migrations/mission-type-flag-deprecation.md
+  tag: current
+  divio_type: none
+  owning_workstream: none
+  current_target: true
+  notes: null
+- path: docs/migrations/owned-closeout-implementation-log.md
+  tag: current
+  divio_type: none
+  owning_workstream: none
+  current_target: true
+  notes: null
+- path: docs/migrations/owned-coordinated-authority.md
+  tag: current
+  divio_type: none
+  owning_workstream: none
+  current_target: true
+  notes: null
+- path: docs/migrations/owned-coordinated-history-restoration.md
+  tag: current
+  divio_type: none
+  owning_workstream: none
+  current_target: true
+  notes: null
+- path: docs/migrations/owned-implementation-preview-log.md
+  tag: current
+  divio_type: none
+  owning_workstream: none
+  current_target: true
+  notes: null
+- path: docs/migrations/owned-implementation-preview.md
+  tag: current
+  divio_type: none
+  owning_workstream: none
+  current_target: true
+  notes: null
+- path: docs/migrations/owned-review-handoff.md
   tag: current
   divio_type: none
   owning_workstream: none
@@ -3542,6 +3584,24 @@
   owning_workstream: none
   current_target: true
   notes: null
+- path: docs/plans/research/2026-09-05-agent-ergonomics-rundown.md
+  tag: current
+  divio_type: none
+  owning_workstream: none
+  current_target: true
+  notes: null
+- path: docs/plans/research/2026-09-05-agent-ergonomics-upstream-qa.md
+  tag: current
+  divio_type: none
+  owning_workstream: none
+  current_target: true
+  notes: null
+- path: docs/plans/research/2026-09-05-agent-ergonomics-upstream.md
+  tag: current
+  divio_type: none
+  owning_workstream: none
+  current_target: true
+  notes: null
 - path: docs/plans/research/README-1.x.md
   tag: current
   divio_type: none
@@ -3921,6 +3981,12 @@
   current_target: true
   notes: null
 - path: docs/updates/index.md
+  tag: current
+  divio_type: none
+  owning_workstream: none
+  current_target: true
+  notes: null
+- path: docs/zig-language-guidance-implementation-log.md
   tag: current
   divio_type: none
   owning_workstream: none

@@ -376,6 +376,7 @@ def _write_family(directory: Path, family: str) -> None:
     elif family == "decision":
         from specify_cli.decisions.emit import _append_raw_event
 
+        # canonical-event-exempt(exception-flow): Incomplete raw input probes install-fence refusal and its normal reentrancy control.
         _append_raw_event(directory / "status.events.jsonl", {"event_type": "DecisionPointOpened", "payload": {"decision_point_id": MID}})
     elif family == "retro-lifecycle":
         from specify_cli.retrospective.lifecycle_events import _append_retro_lifecycle_event

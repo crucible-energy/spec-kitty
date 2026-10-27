@@ -66,9 +66,7 @@ _COORD_BRANCH_REF = f"kitty/mission-{_MISSION_SLUG}"
         (MissionTopology.LANES, False),
     ],
 )
-def test_routes_through_coordination_topology_truth_table(
-    topology: MissionTopology, expected: bool
-) -> None:
+def test_routes_through_coordination_topology_truth_table(topology: MissionTopology, expected: bool) -> None:
     """FR-005: the ONE predicate is True iff the topology routes through coord.
 
     Absolute per-topology assertion (CT5): all four enum members are pinned, so
@@ -126,9 +124,7 @@ def _base_meta(*, coordination_branch: str | None) -> dict[str, object]:
 # (c) KEEP map — relay #1: status_transition._read_contract_routes_through_coordination
 #     EXCEPTION arm (read_topology raises -> classify_topology relay, line 599).
 # --------------------------------------------------------------------------- #
-def _make_identity(
-    feature_dir: Path, coordination_branch: str | None
-) -> _TransactionIdentity:
+def _make_identity(feature_dir: Path, coordination_branch: str | None) -> _TransactionIdentity:
     from specify_cli.coordination.status_transition import _TransactionIdentity
 
     return _TransactionIdentity(
@@ -146,16 +142,15 @@ def _make_identity(
 @pytest.mark.parametrize(
     ("coordination_branch", "expected"),
     [
-        (_COORD_BRANCH_REF, True),   # coord-shaped relay -> routes through coord
-        (None, False),               # negative control: flat -> primary read
+        (_COORD_BRANCH_REF, True),  # coord-shaped relay -> routes through coord
+        (None, False),  # negative control: flat -> primary read
     ],
 )
-def test_read_contract_relay_exception_arm(
-    tmp_path: Path, coordination_branch: str | None, expected: bool
-) -> None:
+def test_read_contract_relay_exception_arm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, coordination_branch: str | None, expected: bool) -> None:
     """KEEP relay #1 (status_transition:599): exception arm relays via classify_topology.
 
-    With NO meta.json at the identity's ``feature_dir`` the ``read_topology`` call
+    With an unavailable canonical surface and NO meta.json at the identity's
+    ``feature_dir`` the ``read_topology`` call
     raises ``FileNotFoundError``, so the predicate MUST relay via
     ``classify_topology(coordination_branch, has_lanes=False)`` — the C-002
     genuine-fallback relay, NOT a folded routing predicate. The observable contract
@@ -172,6 +167,17 @@ def test_read_contract_relay_exception_arm(
     assert not (feature_dir / "meta.json").exists()
 
     identity = _make_identity(feature_dir, coordination_branch)
+
+    # A readable create-window primary is now authoritative. Make the surface
+    # genuinely unavailable to exercise this exception arm, rather than asking
+    # the product to ignore its canonical primary selection.
+    def unavailable(*_args: object, **_kwargs: object) -> object:
+        raise OSError("fixture: canonical surface unavailable")
+
+    monkeypatch.setattr(
+        "specify_cli.coordination.surface_resolver.resolve_status_surface_with_anchor",
+        unavailable,
+    )
     result = _read_contract_routes_through_coordination(identity)
 
     # The relay decision equals the classify_topology authority's routing answer.
@@ -187,13 +193,11 @@ def test_read_contract_relay_exception_arm(
 @pytest.mark.parametrize(
     ("coord_branch", "expected"),
     [
-        (_COORD_BRANCH_REF, MissionTopology.COORD),   # relay derives COORD
-        (None, MissionTopology.SINGLE_BRANCH),        # negative control
+        (_COORD_BRANCH_REF, MissionTopology.COORD),  # relay derives COORD
+        (None, MissionTopology.SINGLE_BRANCH),  # negative control
     ],
 )
-def test_effective_surface_topology_relay_arm(
-    coord_branch: str | None, expected: MissionTopology
-) -> None:
+def test_effective_surface_topology_relay_arm(coord_branch: str | None, expected: MissionTopology) -> None:
     """KEEP relay #2 (surface_resolver:562): no-stored-topology arm relays.
 
     With ``threaded=None`` and a ``meta`` carrying NO ``topology`` field, the
@@ -283,11 +287,11 @@ def test_resolve_topology_relay_exception_arm(
 @pytest.mark.parametrize(
     ("stored_topology", "expected"),
     [
-        (MissionTopology.COORD.value, True),             # real coord -> husk authoritative
+        (MissionTopology.COORD.value, True),  # real coord -> husk authoritative
         (MissionTopology.LANES_WITH_COORD.value, True),  # real coord -> husk authoritative
-        (MissionTopology.SINGLE_BRANCH.value, False),    # flattened -> husk stale
-        (MissionTopology.LANES.value, False),            # flattened -> husk stale
-        (None, True),                                    # legacy (no stored) -> preserve
+        (MissionTopology.SINGLE_BRANCH.value, False),  # flattened -> husk stale
+        (MissionTopology.LANES.value, False),  # flattened -> husk stale
+        (None, True),  # legacy (no stored) -> preserve
     ],
 )
 def test_husk_short_circuit_unchanged(
@@ -316,13 +320,11 @@ def test_husk_short_circuit_unchanged(
         lambda _root, _slug: (meta, tmp_path / "kitty-specs" / _MISSION_SLUG),
     )
 
-    result = surface_resolver._husk_is_authoritative_surface(tmp_path, _MISSION_SLUG)
+    result = surface_resolver._husk_is_authoritative_surface(tmp_path, _MISSION_SLUG, {})
     assert result is expected
 
 
-def test_husk_short_circuit_unreadable_meta_degrades_true(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_husk_short_circuit_unreadable_meta_degrades_true(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """KEEP C-001 negative control: unreadable primary meta degrades to True.
 
     A malformed/unreadable primary meta cannot safely override the husk
@@ -336,7 +338,43 @@ def test_husk_short_circuit_unreadable_meta_degrades_true(
         raise ValueError("malformed primary meta.json")
 
     monkeypatch.setattr(surface_resolver, "read_primary_meta", _boom)
-    assert surface_resolver._husk_is_authoritative_surface(tmp_path, _MISSION_SLUG) is True
+    assert surface_resolver._husk_is_authoritative_surface(tmp_path, _MISSION_SLUG, {}) is True
+
+
+@pytest.mark.parametrize("coordination_branch", [_COORD_BRANCH_REF, None])
+def test_read_contract_create_window_keeps_canonical_primary(
+    tmp_path: Path,
+    coordination_branch: str | None,
+) -> None:
+    """The real create window must not be mistaken for the exception relay."""
+    from specify_cli.coordination.status_transition import _read_contract_routes_through_coordination
+
+    feature_dir = tmp_path / "kitty-specs" / _MISSION_SLUG
+    feature_dir.mkdir(parents=True)
+    assert not _read_contract_routes_through_coordination(_make_identity(feature_dir, coordination_branch))
+
+
+@pytest.mark.parametrize(
+    ("primary_phase", "coord_phase", "expected"),
+    [(None, None, True), (1, None, False), (1, 0, False), (1, 1, True), (None, 1, True)],
+)
+def test_husk_preserves_verified_primary_cutover(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    primary_phase: int | None,
+    coord_phase: int | None,
+    expected: bool,
+) -> None:
+    from specify_cli.coordination import surface_resolver
+
+    meta = _base_meta(coordination_branch=_COORD_BRANCH_REF)
+    if primary_phase is not None:
+        meta["status_phase"] = primary_phase
+    coord_meta: dict[str, object] = {}
+    if coord_phase is not None:
+        coord_meta["status_phase"] = coord_phase
+    monkeypatch.setattr(surface_resolver, "read_primary_meta", lambda *_args: (meta, tmp_path))
+    assert surface_resolver._husk_is_authoritative_surface(tmp_path, _MISSION_SLUG, coord_meta) is expected
 
 
 # --------------------------------------------------------------------------- #
@@ -371,11 +409,7 @@ def test_single_canonical_frozenset_and_predicate() -> None:
         arg = node.args[0]
         if not isinstance(arg, ast.Set):
             return False
-        members = {
-            elt.attr
-            for elt in arg.elts
-            if isinstance(elt, ast.Attribute)
-        }
+        members = {elt.attr for elt in arg.elts if isinstance(elt, ast.Attribute)}
         return {"COORD", "LANES_WITH_COORD"} <= members
 
     hits: list[str] = []
@@ -385,7 +419,4 @@ def test_single_canonical_frozenset_and_predicate() -> None:
             if _is_coord_routing_frozenset(node):
                 hits.append(path.name)
 
-    assert hits == ["context.py"], (
-        f"coord-routing frozenset must be defined exactly once (in context.py); "
-        f"found in: {hits}"
-    )
+    assert hits == ["context.py"], f"coord-routing frozenset must be defined exactly once (in context.py); found in: {hits}"

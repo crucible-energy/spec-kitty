@@ -196,10 +196,10 @@ def validate_pins(root: Path, directory: Path, meta: dict[str, Any], target: str
     if manifest is None or {wp.id for wp in manifest.work_packages} != set(materialize_snapshot(directory).work_packages):
         raise OwnedCoordinationError("COORD_WP_COVERAGE_REFUSED", "Authored WP roster and canonical history must match")
     for wp in manifest.work_packages:
-        path = wp.prompt_file
-        if not path:
+        prompt_path = wp.prompt_file
+        if not prompt_path:
             raise OwnedCoordinationError("OWNED_PLANNING_DRIFT", "Every WP requires its existing prompt path")
-        absolute = _safe_file(root, directory.relative_to(root) / Path(path))
+        absolute = _safe_file(root, directory.relative_to(root) / Path(prompt_path))
         pinned, _ = _blob(root, target, absolute.relative_to(root).as_posix())
         if absolute.read_bytes() != pinned:
             raise OwnedCoordinationError("OWNED_PLANNING_DRIFT", f"WP planning differs from its target pin: {wp.id}")

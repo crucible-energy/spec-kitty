@@ -365,7 +365,7 @@ the wider product coverage and detailed limitations.
 
 | Comparison | What to borrow | What not to infer |
 | --- | --- | --- |
-| Codex / Agent Skills | Metadata-first discovery, bounded delegated exploration, native resume | Skills are not universal technical permission enforcement; delegation has cost |
+| Codex / agent skills | Metadata-first discovery, bounded delegated exploration, native resume | Skills are not universal technical permission enforcement; delegation has cost |
 | Claude Code / SDK | Effective-context inspection, scoped rules, native loop/tool reuse | CLAUDE.md automatically means AGENTS.md was loaded; rewind covers all effects |
 | Cursor | Lazy tool/output discovery and hybrid retrieval experiments | Vendor token reduction is our forecast; hooks always fail closed |
 | Qwen Code | Structured dual output and explicit fork-context semantics | Narrowed tool execution necessarily means a smaller model-visible tool schema |

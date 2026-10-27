@@ -1,3 +1,10 @@
+---
+title: Zig implementation language correction
+description: Record the migration of repository language guidance to Zig, its validation, and remaining compatibility obligations.
+doc_status: active
+updated: '2026-10-26'
+---
+
 # Zig implementation language correction
 
 ## User Experience Findings

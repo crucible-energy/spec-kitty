@@ -219,10 +219,7 @@ class TestFullCLIWorkflow:
             "--json",
         )
 
-        assert result.returncode == 0, (
-            f"mission create failed (rc={result.returncode}):\n"
-            f"stdout: {result.stdout}\nstderr: {result.stderr}"
-        )
+        assert result.returncode == 0, f"mission create failed (rc={result.returncode}):\nstdout: {result.stdout}\nstderr: {result.stderr}"
         output = json.loads(result.stdout)
         assert output["result"] == "success"
         assert "documentation-template-smoke" in output["mission_slug"]
@@ -486,18 +483,24 @@ Create a hello module.
         assert wp01_path.exists(), "WP01 prompt file missing at end"
         assert worktree_dir.exists(), "Worktree missing at end"
 
-        # Verify git history has the expected commits
-        log_result = subprocess.run(
-            ["git", "log", "--oneline", "--all"],
-            cwd=repo,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        log_text = log_result.stdout.lower()
-        assert "spec" in log_text, "spec commit missing from git log"
-        assert "plan" in log_text, "plan commit missing from git log"
-        assert "tasks" in log_text or "finalize" in log_text, "tasks/finalize commit missing from git log"
+        # Prove durable artifacts, independent of the human commit subject.
+        for name in ("spec.md", "plan.md", "tasks.md"):
+            relative = (feature_dir / name).relative_to(repo).as_posix()
+            history = subprocess.run(
+                ["git", "log", "--all", "--format=%H", "--", relative],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.splitlines()
+            assert history, f"{name} has no committed history"
+            stored = subprocess.run(
+                ["git", "show", f"{history[0]}:{relative}"],
+                cwd=repo,
+                capture_output=True,
+                check=True,
+            ).stdout
+            assert stored, f"{name} is absent/empty in its latest artifact commit"
 
 
 @pytest.mark.e2e
