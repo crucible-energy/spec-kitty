@@ -12,6 +12,8 @@ consolidates, and a legacy unstamped WP that REFUSEs until it is attested.
 from __future__ import annotations
 
 import json
+import os
+from collections.abc import Iterator
 from dataclasses import replace
 from pathlib import Path
 
@@ -45,6 +47,46 @@ from tests.terminus.conftest import CoordMission, PlantedChange, build_coord_mis
 from tests.terminus.conftest import _git as git
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
+
+
+def test_stamp_fixture_prunes_git_before_scanning_real_nested_logs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    built = build_canceled_dependency_mission(tmp_path, mid8="01M5F137")
+    mission = built.mission
+    canonical = Path(resolve_status_surface(mission.repo, mission.slug))
+    nested = mission.repo / "nested-status" / "status.events.jsonl"
+    nested.parent.mkdir()
+    nested.write_bytes(canonical.read_bytes())
+    real_scandir = os.scandir
+
+    def disappearing_git_metadata(path: str | Path | int) -> Iterator[os.DirEntry[str]]:
+        if not isinstance(path, int) and ".git" in Path(path).parts:
+            raise FileNotFoundError(2, "Git metadata disappeared during collection", str(path))
+        return real_scandir(path)
+
+    monkeypatch.setattr(os, "scandir", disappearing_git_metadata)
+    strip_lane_head_stamps(mission, "WP01")
+
+    for log in (canonical, nested):
+        rows = [json.loads(line) for line in log.read_text().splitlines()]
+        targeted = [row for row in rows if row.get("wp_id") == "WP01"]
+        assert targeted
+        assert all("lane_head" not in (row.get("policy_metadata") or {}) for row in targeted)
+
+
+def test_stamp_fixture_propagates_a_real_status_read_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    mission = build_canceled_dependency_mission(tmp_path, mid8="01M5F138").mission
+    canonical = Path(resolve_status_surface(mission.repo, mission.slug))
+    real_read_text = Path.read_text
+
+    def unreadable_status(path: Path, encoding: str | None = None, errors: str | None = None) -> str:
+        if path == canonical:
+            raise PermissionError("real status log is unreadable")
+        return real_read_text(path, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", unreadable_status)
+    with pytest.raises(PermissionError, match="real status log"):
+        strip_lane_head_stamps(mission, "WP01")
+
 
 _RECONCILIATION = "specify_cli.consolidation.reconciliation"
 

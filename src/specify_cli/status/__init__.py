@@ -214,6 +214,7 @@ from .bootstrap import (
 )
 from .event_log_merge import (
     EventLogMergeError,
+    detect_concurrent_fork,
     merge_event_log_files,
     merge_event_log_texts,
 )
@@ -622,6 +623,7 @@ __all__ = [
     "audit_repo",
     "bootstrap_canonical_state",
     "classify_mission",
+    "detect_concurrent_fork",
     "feature_status_lock",
     "find_ambiguous_selectors",
     "find_duplicate_prefixes",

@@ -98,8 +98,7 @@ from specify_cli.decisions.index_fold import is_allowed_terminal_reopen
 from specify_cli.decisions.models import DecisionIndex, DecisionStatus
 from specify_cli.migration.backfill_topology import FLATTEN_COUPLED_KEYS
 from specify_cli.mission_metadata import MERGE_FIELDS, parse_meta_file
-from specify_cli.status import EventLogMergeError, merge_event_log_files
-from specify_cli.status.event_log_merge import detect_concurrent_fork
+from specify_cli.status import EventLogMergeError, detect_concurrent_fork, merge_event_log_files
 from specify_cli.tasks.issue_matrix import _SCAFFOLD_VERDICT_PLACEHOLDER, ISSUE_MATRIX_SCHEMA_VERSION
 
 # meta.json serialization identical to ``mission_metadata.write_meta`` so the

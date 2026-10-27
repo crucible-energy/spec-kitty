@@ -14,9 +14,10 @@ written event.
 from __future__ import annotations
 
 import subprocess
+import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, NoReturn
 
 from specify_cli.lanes.branch_naming import lane_branch_name
 from specify_cli.lanes.models import ExecutionLane, LanesManifest
@@ -202,9 +203,16 @@ def strip_lane_head_stamps(mission: CoordMission, wp_id: str) -> None:
     """
     import json
 
-    for log in mission.repo.rglob("status.events.jsonl"):
-        if ".git" in log.parts:
+    def propagate_walk_error(error: OSError) -> NoReturn:
+        raise error
+
+    # Prune before descending: Git may concurrently collect loose object
+    # directories. They are metadata, never copies of the mission event log.
+    for directory, subdirectories, filenames in os.walk(mission.repo, onerror=propagate_walk_error, followlinks=False):
+        subdirectories[:] = [name for name in subdirectories if name != ".git"]
+        if "status.events.jsonl" not in filenames:
             continue
+        log = Path(directory) / "status.events.jsonl"
         rewritten: list[str] = []
         for line in log.read_text(encoding="utf-8").splitlines():
             if not line.strip():
