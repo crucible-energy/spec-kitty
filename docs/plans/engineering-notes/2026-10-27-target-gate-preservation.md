@@ -32,7 +32,21 @@ validation, review and delivery remain open. This log is frozen before those
 final gates; subsequent outcomes belong in the external receipts and tracked
 issue, without changing the validated candidate merely to record a pass.
 
+The inherited typing blocker was subsequently reproduced on unchanged target
+source and repaired through the canonical module-follow rule. The exact strict
+two-module invocation and real valid/invalid callable regression both passed at
+13:37:42 UTC. Preserve the first broader gate's typing failure; baseline and
+owning-subsystem validation still require a fresh run on this corrected candidate.
+
 ## User Experience Findings
+
+- The first broader delivery gate passed formatting and lint but stopped at
+  three strict `untyped-decorator` errors before baseline/subsystem tests ran.
+  Exact original integration-target files reproduce all three under the same
+  invocation. This inherited blocker is tracked as
+  [Spec Kitty #137](https://github.com/crucible-energy/spec-kitty/issues/137).
+  Its real callable-contract regression failed at the valid-call assertion
+  before the typing configuration changed; record that separate red commit.
 
 - Independent Root review found that deeply nested JSON raises `RecursionError`,
   outside the initial malformed-input handler. A bounded 4,096-byte, 2,048-level
@@ -60,6 +74,14 @@ issue, without changing the validated candidate merely to record a pass.
   must not activate the preservation guard.
 
 ## Engineering Decisions
+
+- Root approved one existing mypy module-follow override for the already typed
+  consolidation recorder. Following its canonical `ParamSpec` declaration
+  restores real signature checking; the read-only control passed strict checks
+  for both affected modules. Preserve the helper body and strictness settings;
+  do not ignore errors, introduce stubs or redeclare its signature at callers.
+  The regression tests valid and invalid calls through the actual type checker,
+  rather than merely matching configuration text.
 
 - Fix the existing owning Python consolidation path. This bounded correctness
   repair does not introduce a new Python backend. Subsequent's new acceptance
@@ -89,6 +111,11 @@ issue, without changing the validated candidate merely to record a pass.
   Runtime identity and source repair delivery remain separate facts.
 
 ## Known Limitations
+
+- The first broader gate stopped at inherited strict typing. Formatting/lint
+  passed, while baseline/subsystem/remaining gates did not run. After the narrow
+  typing correction, re-freeze and run the required gate; no earlier broad pass
+  can be reused or invented.
 
 - Preserve the original two-failure baseline, the first post-fix run with 69
   passes and two issue-evidence failures, and the separate deep-JSON failure.

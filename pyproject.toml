@@ -2654,6 +2654,14 @@ module = ["specify_cli.core.context_validation"]
 follow_imports = "normal"
 
 [[tool.mypy.overrides]]
+# The consolidation phase recorder is already ParamSpec/Concatenate typed.
+# Skipping its module erases that callable contract during narrow strict checks
+# (#137). Follow the canonical declaration, as with other typed decorators above;
+# do not suppress errors or duplicate the signature in each phase module.
+module = ["specify_cli.consolidation.run_state"]
+follow_imports = "normal"
+
+[[tool.mypy.overrides]]
 # Transitional quarantine for legacy modules that are still being migrated to strict typing.
 module = [
     "specify_cli.agent_utils.status",
