@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -41,7 +42,7 @@ from specify_cli.compat.provider import FakeLatestVersionProvider, LatestVersion
 # Contract path (relative to repo root)
 # ---------------------------------------------------------------------------
 
-pytestmark = [pytest.mark.unit, pytest.mark.fast]
+pytestmark = [pytest.mark.unit, pytest.mark.git_repo]
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
@@ -58,13 +59,7 @@ def _strip_ansi(text: str) -> str:
 
 
 _WORKTREE_ROOT = Path(__file__).parent.parent.parent.parent.parent  # repo root
-_CONTRACT_PATH = (
-    _WORKTREE_ROOT
-    / "kitty-specs"
-    / "cli-upgrade-nag-lazy-project-migrations-01KQ6YDN"
-    / "contracts"
-    / "compat-planner.json"
-)
+_CONTRACT_PATH = _WORKTREE_ROOT / "kitty-specs" / "cli-upgrade-nag-lazy-project-migrations-01KQ6YDN" / "contracts" / "compat-planner.json"
 
 
 def _load_contract(contract_path: Path) -> dict[str, Any]:
@@ -186,6 +181,15 @@ def _make_compatible_project(tmp_path: Path, schema_version: int = 3) -> Path:
         f"spec_kitty:\n  schema_version: {schema_version}\n",
         encoding="utf-8",
     )
+    for args in [
+        ["init", "-qb", "main"],
+        ["config", "user.email", "fixture@example.invalid"],
+        ["config", "user.name", "Fixture"],
+        ["config", "commit.gpgsign", "false"],
+        ["add", ".kittify"],
+        ["commit", "-qm", "Compatible project fixture"],
+    ]:
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
     return tmp_path
 
 
@@ -247,9 +251,7 @@ def test_agent_check_json_prompts_when_update_available(tmp_path: Path, monkeypa
     assert "upgrade_command" in payload
 
 
-def test_agent_check_guidance_when_upgrade_command_unavailable(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_agent_check_guidance_when_upgrade_command_unavailable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from specify_cli.compat._detect.install_method import InstallMethod
     from specify_cli.compat.cache import NagCache
     from specify_cli.compat.provider import PyPIProvider
@@ -787,18 +789,13 @@ def test_bare_upgrade_outside_project_exits_0(tmp_path: Path) -> None:
     """Bare 'spec-kitty upgrade' outside a project exits 0 (FR-014 fall-through to --cli)."""
     # tmp_path has no .kittify
     result = _invoke_upgrade([], cwd=tmp_path)
-    assert result.exit_code == 0, (
-        f"Expected exit 0 for bare upgrade outside project (FR-014), got {result.exit_code}. "
-        f"Output: {result.output}"
-    )
+    assert result.exit_code == 0, f"Expected exit 0 for bare upgrade outside project (FR-014), got {result.exit_code}. Output: {result.output}"
 
 
 def test_bare_upgrade_outside_project_no_error_message(tmp_path: Path) -> None:
     """Bare 'spec-kitty upgrade' outside a project must NOT print 'Not a Spec Kitty project'."""
     result = _invoke_upgrade([], cwd=tmp_path)
-    assert "not a spec kitty project" not in result.output.lower(), (
-        f"Bare upgrade should not show project-error message. Output: {result.output}"
-    )
+    assert "not a spec kitty project" not in result.output.lower(), f"Bare upgrade should not show project-error message. Output: {result.output}"
 
 
 def test_project_flag_outside_project_still_errors(tmp_path: Path) -> None:
@@ -806,11 +803,7 @@ def test_project_flag_outside_project_still_errors(tmp_path: Path) -> None:
     result = _invoke_upgrade(["--project"], cwd=tmp_path)
     assert result.exit_code != 0, "Expected non-zero exit for --project outside a project"
     combined = (result.output or "") + (result.stderr or "")
-    assert (
-        "not a spec kitty project" in combined.lower()
-        or "no project" in combined.lower()
-        or "init" in combined.lower()
-    )
+    assert "not a spec kitty project" in combined.lower() or "no project" in combined.lower() or "init" in combined.lower()
 
 
 def test_planner_json_too_new_project_has_exit_code_5_in_payload(tmp_path: Path) -> None:
@@ -1035,9 +1028,7 @@ def _render_upgrade_outcome(result: Any) -> str:
 def test_dry_run_success_does_not_print_upgrade_complete() -> None:
     """A --dry-run never prints a line implying changes were applied (FR-013)."""
     output = _render_upgrade_outcome(_make_upgrade_result(dry_run=True))
-    assert "Upgrade complete!" not in output, (
-        f"--dry-run printed a success line implying changes were applied:\n{output}"
-    )
+    assert "Upgrade complete!" not in output, f"--dry-run printed a success line implying changes were applied:\n{output}"
     assert "Dry run complete" in output
     assert "no changes applied" in output
 
@@ -1054,9 +1045,7 @@ def test_failed_run_exits_1_for_both_modes() -> None:
     """Failure still exits 1 regardless of dry-run flag."""
     for dry_run in (False, True):
         with pytest.raises(typer.Exit) as excinfo:
-            _render_upgrade_outcome(
-                _make_upgrade_result(dry_run=dry_run, success=False)
-            )
+            _render_upgrade_outcome(_make_upgrade_result(dry_run=dry_run, success=False))
         assert excinfo.value.exit_code == 1
 
 
@@ -1158,12 +1147,7 @@ def test_contract_loads_from_a_simulated_non_worktrees_layout(tmp_path: Path) ->
     fake_test_file.parent.mkdir(parents=True, exist_ok=True)
     fake_test_file.write_text("# stub\n", encoding="utf-8")
 
-    fake_contract_dir = (
-        fake_repo_root
-        / "kitty-specs"
-        / "cli-upgrade-nag-lazy-project-migrations-01KQ6YDN"
-        / "contracts"
-    )
+    fake_contract_dir = fake_repo_root / "kitty-specs" / "cli-upgrade-nag-lazy-project-migrations-01KQ6YDN" / "contracts"
     fake_contract_dir.mkdir(parents=True, exist_ok=True)
     fake_contract_path = fake_contract_dir / "compat-planner.json"
     fake_contract_path.write_text(_CONTRACT_PATH.read_text(encoding="utf-8"), encoding="utf-8")
@@ -1171,13 +1155,7 @@ def test_contract_loads_from_a_simulated_non_worktrees_layout(tmp_path: Path) ->
     assert ".worktrees" not in str(fake_repo_root)
 
     resolved_root = fake_test_file.parent.parent.parent.parent.parent
-    resolved_contract_path = (
-        resolved_root
-        / "kitty-specs"
-        / "cli-upgrade-nag-lazy-project-migrations-01KQ6YDN"
-        / "contracts"
-        / "compat-planner.json"
-    )
+    resolved_contract_path = resolved_root / "kitty-specs" / "cli-upgrade-nag-lazy-project-migrations-01KQ6YDN" / "contracts" / "compat-planner.json"
     assert resolved_root == fake_repo_root
     assert resolved_contract_path == fake_contract_path
 

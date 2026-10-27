@@ -254,12 +254,6 @@ edges:
 - source: directive:DIRECTIVE_046
   target: tactic:clean-linear-commit-history
   relation: suggests
-- source: directive:DIRECTIVE_046
-  target: tactic:review-intent-and-risk-first
-  relation: suggests
-- source: directive:DIRECTIVE_046
-  target: tactic:reviewer-implementer-role-separation
-  relation: suggests
 - source: directive:RECONCILE_CHANGE_SCOPE_TENSIONS
   target: directive:DIRECTIVE_024
   relation: reconciles_tension

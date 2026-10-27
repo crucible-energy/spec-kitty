@@ -15,6 +15,7 @@ Strategy note (FR-006, FR-007):
 from __future__ import annotations
 
 from mission_runtime import MissionArtifactKind
+from specify_cli.core.constants import KITTY_SPECS_DIR
 from specify_cli.missions._read_path_resolver import resolve_planning_read_dir
 import os
 import json
@@ -609,7 +610,7 @@ def _preserved_gate_blobs(repo_root: Path, source: str, target: str) -> list[tup
 
     def gates(ref: str) -> dict[str, tuple[str, str]]:
         result: dict[str, tuple[str, str]] = {}
-        for entry in git("ls-tree", "-rz", ref, "--", "kitty-specs").split(b"\0"):
+        for entry in git("ls-tree", "-rz", ref, "--", KITTY_SPECS_DIR).split(b"\0"):
             if not entry:
                 continue
             metadata, raw_path = entry.split(b"\t", 1)

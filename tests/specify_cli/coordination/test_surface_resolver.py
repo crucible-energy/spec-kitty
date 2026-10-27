@@ -14,7 +14,7 @@ from specify_cli.coordination import surface_resolver
 from specify_cli.coordination.surface_resolver import resolve_status_surface
 from specify_cli.missions._read_path_resolver import StatusReadPathNotFound
 
-pytestmark = pytest.mark.fast
+pytestmark = pytest.mark.git_repo
 
 
 def _write_meta(feature_dir: Path, **fields: object) -> None:

@@ -303,3 +303,39 @@ expected filenames and contents from independent template inputs and preserve
 the unselected Claude surface byte-for-byte; temporary-workspace cleanup checks
 the exact retained checkout identity rather than a golden count. No baseline is
 grown or detector weakened. Other actual hosted failures remain owned blockers.
+
+The remaining workflow replay reproduced 19 failures on the published source.
+The local SUT environment lacked the editable project installation that CI
+performs, so three upgrade-prompt controls could not discover a package version.
+The normal frozen editable install adds only the test SUT `spec-kitty-cli` 3.2.8;
+all dependency versions are unchanged. This environment is not the workflow
+governor: the explicitly addressed, pinned 4.0.0rc7 derived governor remains
+unchanged and is the only admitted governance runtime. No shared installation
+or live producer is changed.
+
+Upgrade flag fixtures now use real Git repositories, matching charter root
+requirements. Planning-artifact fixtures persist their actual `lane-planning`
+WP02 records instead of asking the product to accept an absent lane. Topology
+checks pin the declared primary target branch for that first-class planning lane
+while still requiring an unavailable diff without a deterministic claim commit.
+The full CLI scenario now verifies committed nonempty spec/plan/tasks blobs,
+independent of commit-message wording. No refusal is suppressed. The planning
+contract mirrors the already-emitted containment refusal without removing any
+existing codes. All 117 workflow/contract/graph/end-to-end checks pass.
+
+The supported graph generator repairs two stale fragments: it removes two
+suggestion edges absent from the authored directive and reflects the authored
+procedure's requires edge. No nodes or hand-authored tension/anti-pattern data
+are removed. Source-root validation excludes the privately retained supported
+upgrade effects, so the checked project inputs match publication; those exact
+effects are restored only for canonical governance operations.
+
+Tests that now create real Git worktrees are classified as `git_repo`, not
+`fast`; the marker and same-tier selection gates verify their routing. The
+historical routed-census witness records the actual primary-anchor fold and its
+tightened floor. Git tree enumeration uses the canonical mission-directory
+constant. Thirty-two focused architecture and real merge-preservation checks
+pass. The latest hosted clean-install latency measurement remains a real blocker:
+1.278s median against its unchanged 1.050s ceiling. Startup profiling/repair and
+other current hosted integration findings remain required before PR delivery;
+these fixtures and projections are not a whole-pipeline or audio-success claim.
