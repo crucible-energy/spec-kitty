@@ -482,3 +482,21 @@ obsolete signature or permissive default is restored. Two paired controls prove
 a verified primary snapshot rejects legacy coordination metadata while matching
 snapshot authority retains the stored topology decision. All 67 checks pass;
 no production resolver, acceptance criterion or original assertion changes.
+
+The next hosted run on 006f60f03 again fails clean-install startup: median
+1.158s versus the unchanged 1.050s ceiling. Doctor timing and the repaired
+acceptance/husk jobs pass. Its newly retained wheel profile shows package-name
+metadata inference and eager distribution upgrade transports on the version
+lookup path. The profile is diagnostic, not a comparable latency measurement.
+
+Distribution package exports now bind their original objects on demand, so
+importing the package-name resolver does not initialize upgrade providers or
+their HTTP transport. Ordered export names, object identities, unknown-name
+errors and static type exports remain intact. The package-name/provider
+selection functions are unchanged, including entry-point precedence, failures,
+environment rules and existing caches. A fresh-process import control fails
+before the repair. This bounded retained-Python import repair needs equivalent
+Zig dependency boundaries; it grants no audio, runtime or merge authority.
+Hosted clean-install qualification and all outstanding current-head gates remain
+required. The installed-distribution metadata scan remains a measured follow-up;
+its ownership and fork precedence must not be weakened to improve timing.
