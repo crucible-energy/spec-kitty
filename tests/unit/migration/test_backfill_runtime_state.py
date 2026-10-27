@@ -462,12 +462,28 @@ def test_assert_zero_readers_passes_for_real_src() -> None:
 def test_zero_reader_check_is_non_vacuous(tmp_path: Path) -> None:
     stub = tmp_path / "src_stub"
     (stub / "pkg").mkdir(parents=True)
-    (stub / "pkg" / "reader.py").write_text(
-        "def read(meta):\n    return meta.get('progress')\n", encoding="utf-8"
-    )
+    (stub / "pkg" / "reader.py").write_text("def read(meta):\n    return meta.get('progress')\n", encoding="utf-8")
     assert b.find_field_readers(stub, "progress")
     with pytest.raises(AssertionError):
         b.assert_zero_readers(stub, fields=("progress",))
+
+
+@pytest.mark.parametrize("field", ["history", "progress"])
+def test_reader_scan_distinguishes_code_from_literal_paths(tmp_path: Path, field: str) -> None:
+    source = tmp_path / "reader.py"
+    source.write_text(
+        f'from .{field} import helper\npath = ".{field}-boundary"\n# meta.get("{field}")\nexample = \'meta["{field}"]\'\n',
+        encoding="utf-8",
+    )
+    assert b.find_field_readers(tmp_path, field) == []
+    source.write_text(source.read_text() + f'actual = meta.get(\n    "{field}"\n)\n', encoding="utf-8")
+    assert b.find_field_readers(tmp_path, field) == [f"{source}:5"]
+
+
+def test_reader_scan_refuses_unparseable_source(tmp_path: Path) -> None:
+    (tmp_path / "broken.py").write_text("def broken(\n", encoding="utf-8")
+    with pytest.raises(SyntaxError):
+        b.assert_zero_readers(tmp_path)
 
 
 # ---------------------------------------------------------------------------

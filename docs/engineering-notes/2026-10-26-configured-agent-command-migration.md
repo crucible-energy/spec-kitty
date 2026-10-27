@@ -134,3 +134,37 @@ logs and a follow-up repair obligation; this metadata/fixture increment does
 not claim to resolve them. Four changelog emphasis delimiters and two excess
 blank lines are corrected to the existing Markdown policy without changing
 their content.
+
+The next bounded repair resolves six audited lock versions (anyio, certifi,
+cryptography, filelock, pip and urllib3), with safe minimum floors for the two
+direct security dependencies. All other resolved packages stay unchanged. The
+actual frozen isolated environment reports no known vulnerabilities; 98 locking,
+encrypted-storage, transport and dependency-drift checks pass with three existing
+platform skips. This is environment evidence, not a release or global upgrade.
+
+The zero-reader gate previously treated literal `.history-boundary` paths as
+frontmatter consumers. AST expression recognition now excludes literal examples,
+comments and imports and detects multiline mapping reads; syntax errors refuse
+the proof. Existing writer exclusions and attribute-domain heuristic remain
+unchanged: this is not whole-program type or data-flow analysis. A retained old
+scanner control reproduces the false positive. Current resolver tests no longer
+require a repaired production seam to retain its old bug: an explicit injected
+nonexistent coordination result must fail the same existing-primary assertion.
+All 72 read/contract/containment checks pass. The orchestrator contract also names
+the workspace-containment error its existing producer already emits.
+
+Six advisory type findings are repaired using local contracts and a distinct
+prompt-path variable, without casts or suppressions; full mypy reports zero
+issues in 1,143 source files. Relevant suites report 189 passes, one existing
+skip and one failed negative setup-plan test. Loading the exact pre-change
+setup-plan module reproduces the identical failure: template validation refuses
+the injected typeless coordination surface before the test's expected missing
+spec refusal. That result remains red, not an overall suite pass or a waiver.
+
+The subsequent docs gate exposed stale page inventory/retrieval indexes and
+seven existing recovery commands absent from their references. Their source
+signatures and preview/apply boundaries are documented, and the canonical index
+writers refresh the derived records. No CLI behavior or authority is added.
+Dedicated merge/rollback and noninteractive-plan P0 repairs remain separate
+from these bounded gate corrections; their hosted regression failures are not
+reclassified as passing or silently skipped.

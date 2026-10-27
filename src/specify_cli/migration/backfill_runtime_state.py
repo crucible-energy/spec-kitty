@@ -194,6 +194,7 @@ class LegacyWPRuntime:
         """
         return self.shell_pid is not None or self.shell_pid_created_at is not None or self.agent is not None
 
+
 @dataclass
 class BackfillResult:
     """Per-mission result from :func:`backfill_runtime_state`.
@@ -236,10 +237,7 @@ class VerifyResult:
     def raise_if_failed(self) -> None:
         """Raise :class:`BackfillVerificationError` unless verify passed."""
         if not self.ok:
-            raise BackfillVerificationError(
-                "backfill verify failed (fail-closed; no reader cutover): "
-                + "; ".join(self.mismatches)
-            )
+            raise BackfillVerificationError("backfill verify failed (fail-closed; no reader cutover): " + "; ".join(self.mismatches))
 
 
 # ---------------------------------------------------------------------------
@@ -352,9 +350,7 @@ def read_legacy_runtime(feature_dir: Path) -> dict[str, LegacyWPRuntime]:
         try:
             frontmatter, _body = manager.read(wp_file)
         except Exception as exc:  # noqa: BLE001 - translate parser failures to migration domain
-            raise LegacyRuntimeReadError(
-                f"cannot read {wp_file.name} for legacy runtime: {exc}"
-            ) from exc
+            raise LegacyRuntimeReadError(f"cannot read {wp_file.name} for legacy runtime: {exc}") from exc
 
         wp_id = _wp_code(wp_file)
         shell_pid_raw = frontmatter.get("shell_pid")
@@ -521,9 +517,7 @@ def _build_seed_events(
                 warnings.append(f"{wp_id}: no claim anchor (never-claimed WP) — runtime seed skipped")
             continue
         if synthesized:
-            warnings.append(
-                f"{wp_id}: no claim anchor in event log — synthesized from frontmatter claim state"
-            )
+            warnings.append(f"{wp_id}: no claim anchor in event log — synthesized from frontmatter claim state")
 
         # Claim state rides a seed planned->claimed transition whose
         # policy_metadata sidecar the reducer folds into the snapshot slots.
@@ -705,9 +699,7 @@ def backfill_runtime_state_repo(
         try:
             candidates = [ensure_within_any(candidates[0], roots=[kitty_specs])]
         except ValueError as exc:
-            raise ValueError(
-                f"Mission directory resolves outside kitty-specs: {candidates[0]}"
-            ) from exc
+            raise ValueError(f"Mission directory resolves outside kitty-specs: {candidates[0]}") from exc
     else:
         candidates = []
         for entry in sorted(kitty_specs.iterdir()):
@@ -772,11 +764,7 @@ def _seeded_frontmatter_slots(
         claim = transitions.get(_seed_id(mission_id, wp_id, "claim"))
         if claim is not None:
             policy_metadata = claim.policy_metadata or {}
-            slots.update(
-                slot
-                for slot in ("shell_pid", "shell_pid_created_at", "agent")
-                if slot in policy_metadata
-            )
+            slots.update(slot for slot in ("shell_pid", "shell_pid_created_at", "agent") if slot in policy_metadata)
         for field_name, slot in (
             ("assignee", "assignee"),
             ("tracker_refs", "tracker_refs"),
@@ -817,34 +805,20 @@ def _verify_expected_seed_events(
     for expected_transition in expected_transitions:
         actual_transition = actual_transitions.get(expected_transition.event_id)
         if actual_transition is None:
-            mismatches.append(
-                f"{expected_transition.wp_id}: claim mismatch (deterministic seed missing)"
-            )
+            mismatches.append(f"{expected_transition.wp_id}: claim mismatch (deterministic seed missing)")
         elif actual_transition.to_dict() != expected_transition.to_dict():
-            mismatches.append(
-                f"{expected_transition.wp_id}: claim mismatch (deterministic seed payload diverged)"
-            )
+            mismatches.append(f"{expected_transition.wp_id}: claim mismatch (deterministic seed payload diverged)")
 
     for expected_annotation in expected_annotations:
         actual_annotation = actual_annotations.get(expected_annotation.event_id)
         field_name = next(
-            (
-                name
-                for name, value in expected_annotation.delta.to_dict().items()
-                if value is not None
-            ),
+            (name for name, value in expected_annotation.delta.to_dict().items() if value is not None),
             "annotation",
         )
         if actual_annotation is None:
-            mismatches.append(
-                f"{expected_annotation.wp_id}: {field_name} mismatch "
-                "(deterministic seed missing)"
-            )
+            mismatches.append(f"{expected_annotation.wp_id}: {field_name} mismatch (deterministic seed missing)")
         elif actual_annotation.to_dict() != expected_annotation.to_dict():
-            mismatches.append(
-                f"{expected_annotation.wp_id}: {field_name} mismatch "
-                "(deterministic seed payload diverged)"
-            )
+            mismatches.append(f"{expected_annotation.wp_id}: {field_name} mismatch (deterministic seed payload diverged)")
 
     return mismatches
 
@@ -917,9 +891,7 @@ def verify_backfill(feature_dir: Path) -> VerifyResult:
     # that is precisely the case verify must stop treating as vacuous.
     anchors = _claim_anchors(feature_dir)
     seeded_wps = {
-        wp_id
-        for wp_id, runtime in legacy.items()
-        if runtime.has_evictable_state() and _resolve_anchor(feature_dir, wp_id, runtime, anchors)[0] is not None
+        wp_id for wp_id, runtime in legacy.items() if runtime.has_evictable_state() and _resolve_anchor(feature_dir, wp_id, runtime, anchors)[0] is not None
     }
 
     # Count parity, DATA-LOSS direction: a seeded WP whose snapshot carries no
@@ -970,9 +942,7 @@ def run_backfill_and_verify(feature_dir: Path, *, dry_run: bool = False) -> tupl
     """
     backfill_result = backfill_runtime_state(feature_dir, dry_run=dry_run)
     if backfill_result.action == "error":
-        raise BackfillVerificationError(
-            backfill_result.reason or "backfill failed before verify"
-        )
+        raise BackfillVerificationError(backfill_result.reason or "backfill failed before verify")
     verify_result = verify_backfill(feature_dir)
     verify_result.raise_if_failed()
     return backfill_result, verify_result
@@ -1006,24 +976,27 @@ def find_field_readers(
 ) -> list[str]:
     """Return ``path:line`` sites that appear to *read* ``field_name`` from a mapping.
 
-    A grep-style scan over ``*.py`` under ``src_root`` for frontmatter/metadata
+    An AST scan over ``*.py`` under ``src_root`` for frontmatter/metadata
     read patterns — ``["field"]`` / ``['field']`` / ``.get("field")`` / ``.field``
     attribute access. Write-only markers (``set_scalar``/``add_history_entry``/
     ``del``/``pop``) and the field-registry declarations
     (``MUTABLE_FIELDS``/``STATIC_FIELDS``/…) are NOT counted — this proves *no
-    live reader*, not *no mention*. ``exclude_basenames`` drops whole files (e.g.
+    live reader*, not *no mention*. Literal paths, comments and imports are not
+    expressions reading a field; unparseable Python refuses the proof.
+    ``exclude_basenames`` drops whole files (e.g.
     the ``history`` writer seams WP07/T028 owns) from the audit.
 
     Used by :func:`assert_zero_readers` and the WP03 zero-reader tests to gate the
     eventual deletion (WP07/T028 for ``history[]``, WP10 for the fallbacks).
     """
+    import ast
     import re
 
-    read_patterns = [
-        re.compile(rf"""\[\s*["']{re.escape(field_name)}["']\s*\]"""),
-        re.compile(rf"""\.get\(\s*["']{re.escape(field_name)}["']"""),
-        re.compile(rf"""(?<![\w.])\.{re.escape(field_name)}\b"""),
-    ]
+    # Keep the established attribute heuristic: named model attributes such as
+    # decision.progress are not frontmatter mappings. Parsing disambiguates
+    # literals without broadening that pre-existing domain heuristic.
+    attribute_pattern = re.compile(rf"(?<![\w.])\.{re.escape(field_name)}\b")
+
     # Write seams / registry declarations that mention the field but do not read it.
     write_markers = (
         "set_scalar",
@@ -1045,16 +1018,35 @@ def find_field_readers(
             text = py_file.read_text(encoding="utf-8")
         except OSError:
             continue
-        for lineno, line in enumerate(text.splitlines(), start=1):
-            stripped = line.lstrip()
-            # Module imports (``from .progress import …``) name a module, not a
-            # frontmatter field read — never a live reader of the field.
-            if stripped.startswith(("import ", "from ")):
-                continue
+        # Parse executable expressions: a pathname such as ".history-boundary",
+        # a comment or an import is not a metadata read. Syntax errors refuse
+        # this proof rather than silently hiding an unscannable source file.
+        tree = ast.parse(text, filename=str(py_file))
+        read_lines: set[int] = set()
+        for node in ast.walk(tree):
+            if (
+                (isinstance(node, ast.Subscript) and isinstance(node.ctx, ast.Load) and isinstance(node.slice, ast.Constant) and node.slice.value == field_name)
+                or (
+                    isinstance(node, ast.Attribute)
+                    and isinstance(node.ctx, ast.Load)
+                    and node.attr == field_name
+                    and attribute_pattern.search(ast.get_source_segment(text, node) or "")
+                )
+                or (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "get"
+                    and node.args
+                    and isinstance(node.args[0], ast.Constant)
+                    and node.args[0].value == field_name
+                )
+            ):
+                read_lines.add(node.lineno)
+        for lineno in sorted(read_lines):
+            line = text.splitlines()[lineno - 1]
             if any(marker in line for marker in write_markers):
                 continue
-            if any(pat.search(line) for pat in read_patterns):
-                hits.append(f"{py_file}:{lineno}")
+            hits.append(f"{py_file}:{lineno}")
     return hits
 
 

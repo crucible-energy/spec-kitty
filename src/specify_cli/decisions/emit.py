@@ -28,7 +28,7 @@ from specify_cli.missions._read_path_resolver import resolve_feature_dir_for_mis
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal
 
 import ulid as _ulid_mod
 
@@ -69,7 +69,8 @@ def _now_utc() -> datetime:
 
 def _mission_dir(repo_root: Path, mission_slug: str) -> Path:
     """Return ``kitty-specs/<mission_slug>/``."""
-    return cast(Path, resolve_feature_dir_for_mission(repo_root, mission_slug))
+    mission_dir: Path = resolve_feature_dir_for_mission(repo_root, mission_slug)
+    return mission_dir
 
 
 def _events_path(repo_root: Path, mission_slug: str) -> Path:

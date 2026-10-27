@@ -4720,3 +4720,36 @@ _Manage mission workflow definitions_
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 <!-- END GENERATED -->
+
+## spec-kitty migrate preview-owned-implementation
+
+Preview admission for an existing planned work package without allocating a
+workspace, writing status or advancing its dependency graph. Supply `--mission`,
+`--owned-checkout`, `--wp-id`, `--code-checkout` and immutable `--code-commit`.
+Repeat `--dependency-pin WP##=SHA` for proposed dependency bindings; actual
+recorded approval is still required. `--json` returns the computed proof or
+precise refusal. This command has no apply mode.
+
+## spec-kitty migrate refresh-owned-review-projection
+
+Inspect a derived review projection using `--mission` and `--owned-checkout`.
+`--apply` explicitly migrates that projection; immutable events and unrelated
+fields remain intact. `--json` emits its structured report.
+
+## spec-kitty migrate restore-owned-coordination
+
+Recover declared coordination authority in an existing inactive registered
+checkout. Supply `--mission`, `--owned-checkout`, `--target-commit` and
+`--coord-commit` with the immutable published history and original coordination
+pins. The default and `--dry-run` preview placement. `--apply` recovers the
+declared ref and binds the checkout after validation; it cannot be combined
+with `--dry-run`. No additional workspace or dependency events are created.
+
+## spec-kitty migrate restore-owned-mission-history
+
+Restore verified historical dossiers in an explicitly owned registered checkout.
+Supply `--mission`, `--owned-checkout` and repeat `--source-commit SHA` for full
+immutable historical commits. Default execution and `--dry-run` are read-only;
+`--apply` writes verified history, its snapshot and provenance receipt. `--json`
+returns the bounded report. Historical approvals retain their original scope;
+restoration does not approve work, advance runtime or create workspaces.

@@ -24,7 +24,7 @@ import re
 import tempfile
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from specify_cli.core.constants import KITTY_SPECS_DIR
 from specify_cli.core.paths import assert_safe_path_segment
@@ -695,8 +695,9 @@ def read_events_from_text(feature_dir: Path, content: str) -> list[StatusEvent]:
     Raises :class:`StoreError` on invalid JSON **or** invalid event
     structure, including the 1-based line number in the message.
     """
-    # The models facade is follow_imports=skip in the scoped mypy gate.
-    return cast("list[StatusEvent]", _partition_event_stream_from_text(feature_dir, content).transitions)
+    # Preserve the scoped-import contract without a redundant full-graph cast.
+    transitions: list[StatusEvent] = _partition_event_stream_from_text(feature_dir, content).transitions
+    return transitions
 
 
 def read_event_stream_from_text(feature_dir: Path, content: str) -> EventStream:
