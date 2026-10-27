@@ -126,9 +126,7 @@ def test_read_event_file_missing_path_returns_empty_list(tmp_path: Path) -> None
 def test_read_event_file_skips_blank_lines(tmp_path: Path) -> None:
     path = tmp_path / "events.jsonl"
     path.write_text(
-        "\n"
-        + json.dumps(_event("01AAA000000000000000000001", "2026-04-09T06:00:00Z"), sort_keys=True)
-        + "\n\n",
+        "\n" + json.dumps(_event("01AAA000000000000000000001", "2026-04-09T06:00:00Z"), sort_keys=True) + "\n\n",
         encoding="utf-8",
     )
 
@@ -195,9 +193,49 @@ def test_merge_event_payloads_mixed_at_timestamp_neither() -> None:
     reversed_groups = merge_event_payloads([neither_b, neither_a], [timestamp_only], [at_only])
 
     assert [payload["event_id"] for payload in forward] == expected_order
-    assert forward == reversed_groups, (
-        "mixed-schema sort must be deterministic and total across input "
-        "permutations (AC-F2)"
-    )
+    assert forward == reversed_groups, "mixed-schema sort must be deterministic and total across input permutations (AC-F2)"
     # Repeated runs over identical input are byte-stable.
     assert merge_event_payloads([at_only], [timestamp_only], [neither_a, neither_b]) == forward
+
+
+@pytest.mark.parametrize("left,right", [(True, 1), (False, 0), (1, 1.0), ([True], [1])])
+def test_merge_event_payloads_preserves_typed_json_identity(left: object, right: object) -> None:
+    original = {**_event("01TYPED000000000000000001", "2026-10-27T00:00:00Z"), "policy_metadata": {"opaque": {"approved": left}}}
+    conflicting = {**original, "policy_metadata": {"opaque": {"approved": right}}}
+    with pytest.raises(EventLogMergeError, match="Conflicting payloads"):
+        merge_event_payloads([original], [conflicting])
+
+
+def test_actual_driver_refuses_nested_typed_json_identity_collision_without_writing(tmp_path: Path) -> None:
+    from specify_cli.consolidation.drivers import MergeDriverError, run_event_log_driver
+
+    base, ours, theirs = [tmp_path / name for name in ("base.jsonl", "ours.jsonl", "theirs.jsonl")]
+    original = {**_event("01TYPED000000000000000002", "2026-10-27T00:00:00Z"), "policy_metadata": {"opaque": {"approved": True}}}
+    conflicting = {**original, "policy_metadata": {"opaque": {"approved": 1}}}
+    _write_jsonl(base, [])
+    _write_jsonl(ours, [original])
+    _write_jsonl(theirs, [conflicting])
+    before = ours.read_bytes()
+    with pytest.raises(MergeDriverError, match="Conflicting payloads"):
+        run_event_log_driver(str(base), str(ours), str(theirs))
+    assert ours.read_bytes() == before
+
+
+def test_typed_json_identity_collision_is_not_shared_fork_history() -> None:
+    from specify_cli.status import detect_concurrent_fork
+
+    original = {
+        **_event("01TYPED000000000000000003", "2026-10-27T00:00:00Z"),
+        "from_lane": "in_review",
+        "to_lane": "planned",
+        "policy_metadata": {"opaque": {"approved": True}},
+    }
+    conflicting = {**original, "policy_metadata": {"opaque": {"approved": 1}}}
+    approval = {**_event("01TYPED000000000000000004", "2026-10-27T00:00:01Z"), "from_lane": "in_review", "to_lane": "approved"}
+    assert detect_concurrent_fork([], [original], [conflicting, approval]) is not None
+
+
+def test_equivalent_typed_json_key_orders_still_deduplicate() -> None:
+    original = {**_event("01TYPED000000000000000005", "2026-10-27T00:00:00Z"), "policy_metadata": {"opaque": {"approved": True, "count": 1}}}
+    reordered = {**original, "policy_metadata": {"opaque": {"count": 1, "approved": True}}}
+    assert merge_event_payloads([original], [reordered]) == [original]

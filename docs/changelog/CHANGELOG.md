@@ -15,7 +15,9 @@ All notable changes to the Spec Kitty CLI and templates are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 4.0.0rc6
+## [Unreleased] - 4.0.0rc7
+
+- **[Fixed] Shared status-event history merges without a false concurrent-fork conflict** (#134). Identical post-base review cycles are shared history when one log extends the other. The released cancellation/rejection guard remains active for independent departures; conflicting event payloads and malformed input still refuse before writing. The driver uses the maintained public status facade. The fork's source-version bump required by that facade export does not establish full official RC7 source convergence, publication or runtime adoption.
 
 - **NEXT resumes active work for its recorded owner** (#60). Finalized-board query and step selection distinguish an existing claim from a new planned claim. The same owner can continue dependency-ready active work while downstream planned packages wait. Other, unknown and anonymous owners refuse; canonical history and existing execution gates remain unchanged.
 
