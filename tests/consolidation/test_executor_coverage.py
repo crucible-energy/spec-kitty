@@ -1553,3 +1553,81 @@ def test_gate_preservation_requires_valid_recorded_evidence(
     assert matrix_path.read_bytes() == (original if complete else incoming)
     assert issue_path.read_bytes() == (original_issues if complete else incoming_issues)
     assert run.gate_artifact_restored_paths == ([matrix_path, issue_path] if complete else [])
+
+
+@pytest.mark.parametrize(
+    "target_kind,gating",
+    [
+        ("pending", False),
+        ("malformed", False),
+        ("pending", True),
+        ("malformed", True),
+        ("in_mission", True),
+        ("missing", True),
+        ("filled", False),
+        ("filled", True),
+    ],
+)
+def test_issue_snapshot_requires_canonical_terminal_readiness(
+    tmp_path: Path,
+    target_kind: str,
+    gating: bool,
+) -> None:
+    """Invalid target issue evidence cannot undo incoming proof or valid acceptance."""
+    from specify_cli.tasks.issue_matrix_approval import _issue_matrix_evaluation
+
+    run = _make_run(tmp_path)
+    matrix_path = run.target_feature_dir / "acceptance-matrix.json"
+    issue_path = run.target_feature_dir / "issue-matrix.json"
+    matrix_path.parent.mkdir(parents=True, exist_ok=True)
+    if gating:
+        (run.target_feature_dir / "spec.md").write_text("# Mission\n\nFix #1582 as an implementation target.\n", encoding="utf-8")
+    incoming_matrix = _accepted_gate_bytes()
+    matrix_path.write_bytes(incoming_matrix)
+    target_matrix = json.loads(incoming_matrix)
+    target_matrix["criteria"][0]["evidence"] = "target accepted proof"
+    original_matrix = json.dumps(target_matrix).encode()
+    incoming_issue = json.dumps(
+        {
+            "schema_version": 1,
+            "rows": {
+                "#1582": {
+                    "verdict": "fixed",
+                    "evidence_ref": "commit " + "b" * 40,
+                    "title": "Incoming accepted issue",
+                }
+            },
+        }
+    ).encode()
+    issue_path.write_bytes(incoming_issue)
+    target_issue = {
+        "schema_version": 1,
+        "rows": {
+            "#1582": {
+                "verdict": "fixed",
+                "evidence_ref": "commit " + "a" * 40,
+                "title": "Target accepted issue",
+            }
+        },
+    }
+    if target_kind == "pending":
+        target_issue["rows"]["#1582"]["verdict"] = "unknown"
+    elif target_kind == "in_mission":
+        target_issue["rows"]["#1582"]["verdict"] = "in-mission"
+    elif target_kind == "missing":
+        target_issue["rows"] = {}
+    original_issue = b"{" if target_kind == "malformed" else json.dumps(target_issue).encode()
+    result, referenced, missing, unresolved = _issue_matrix_evaluation(
+        run.target_feature_dir,
+        matrix_content=original_issue.decode(),
+    )
+    assert referenced == ({"#1582"} if gating else set()), "fixture must prove the canonical reference policy"
+    ready = result.passed and not missing and not unresolved
+    assert ready is (target_kind == "filled")
+    run.pre_target_gate_artifact_snapshots = {matrix_path: original_matrix, issue_path: original_issue}
+
+    phase_advance._restore_regressed_gate_artifacts(run)
+
+    assert matrix_path.read_bytes() == original_matrix, "valid acceptance must remain independently protected"
+    assert issue_path.read_bytes() == (original_issue if ready else incoming_issue)
+    assert run.gate_artifact_restored_paths == ([matrix_path, issue_path] if ready else [matrix_path])
