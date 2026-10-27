@@ -1534,7 +1534,6 @@ exclude = [
     "tests/consolidation/test_issue_2709_squash_provenance.py",
     "tests/consolidation/test_issue_2711_merge_rollback_resume_coherence.py",
     "tests/consolidation/test_issue_2786_revert_failure_split_brain.py",
-    "tests/consolidation/test_issue_2804_merge_resets_gate_artifacts.py",
     "tests/consolidation/test_merge_compat_surface.py",
     "tests/consolidation/test_merge_done_recording.py",
     "tests/consolidation/test_merge_driver_wrappers_2709.py",

@@ -47,6 +47,12 @@ no ready PR, merge or installed-runtime qualification is established here.
 
 ## User Experience Findings
 
+- PR #138's hosted architecture fast gate passed 798 checks and skipped one,
+  but failed the existing formatter-exclusion ratchet. The now-formatted real
+  consolidation regression still had its obsolete exclusion. The earlier local
+  architecture selection did not include this ratchet; retain that hosted
+  failure. Remove only that entry, preserving every source/test byte.
+
 - The paired issue-artifact boundary needed its own validation: canonical merge
   gates check the coordination matrix, not a divergent captured target copy.
   Actual corrected old-helper regressions showed six invalid target issue
@@ -97,6 +103,14 @@ no ready PR, merge or installed-runtime qualification is established here.
   must not activate the preservation guard.
 
 ## Engineering Decisions
+
+- Root approved removal of the single obsolete formatter exclusion. Parsed TOML
+  must differ only by that removal; the runtime, dependency, strict typing and
+  all other configuration must remain equal. This strengthens existing format
+  enforcement and introduces no exemption. Validate the exact ratchet, whole
+  formatting, project shape and offline lock, preserving same-source semantic
+  evidence only through exact input-equivalence proof. Normal hosted checks and
+  review closure still apply on the new head.
 
 - Validate each captured issue copy through the existing content-aware domain
   evaluator. It combines schema/business checks with canonical missing-row and
