@@ -177,6 +177,36 @@ exact empty, Unicode and binary input, pre-creation type refusal, and a blocked
 input writer whose timed-out child is reaped. An initial test-edit placement
 error was corrected before the green run; the failed diagnostic is preserved.
 
+Expanded installed conformance also exposed a missing existing canonical Git
+runner budget delegation: one of 25 cases timed out at the explicit ten-second
+limit instead of the shorter shared budget. That artifact remains failed.
+The revised immutable `4.0.0rc7+crucible.originalrun.3` component includes the
+exact canonical delegation; its inverse restores the entire current baseline
+runner AST. All 25 installed cases now pass, including that shared-budget
+case, and clean-removal/ignored-preservation fixtures pass under an active
+budget. This still does not establish actual installed worker acceptance.
+
+A separate creator-owned fresh-fixture acceptance then passed the actual
+installed completion callback and independently launched worker: the eligible
+ordinary checkout and branch retired, delivered result and verified recovery
+ancestry survived, and active siblings and valuable ignored data were
+preserved. Root independently checked the recovery ref/commit/tree, actual
+removal, installed module hashes and unchanged global configuration. The
+receipt digest is
+`99a74979e3d1b9214b7b23d662b71837976fd2030afb8a9ea2812efbe0896cf5`.
+This accepts that installed library/worker fixture only; ordinary allocator
+and native caller integration and organization execution adoption remain open.
+
+Independent receiving review subsequently found `OR3-STDIN-1`: invalid Unicode
+input raised after process creation, and the child was reaped but its input
+pipe remained open while a caller retained the `Popen` object. The single
+cleanup path now closes stdin together with both output pipes. A real-child
+red/green regression retains the object through the error, verifies every pipe
+is closed and the child is reaped, and preserves the original encoding error.
+The 310-case owning run passes with two declared skips. Earlier component and
+worker successes do not cover this changed exceptional-input path; the revised
+installed artifact must be qualified separately before delivery.
+
 ## Known Limitations
 
 At the initial checkpoint, the decision supplied no implemented scope. The core

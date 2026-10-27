@@ -161,3 +161,35 @@ def test_bounded_stdin_type_mismatch_refuses_before_child(payload, text, monkeyp
     monkeypatch.setattr(subprocess, "Popen", unexpected_child)
     with pytest.raises(TypeError, match="input"):
         bounded_run(["unused"], input=payload, text=text, timeout=1)
+
+
+def test_encoding_failure_closes_owned_stdin_and_reaps_retained_child(monkeypatch) -> None:
+    from kernel.owned_process import bounded_run
+
+    original = subprocess.Popen
+    children = []
+
+    def retain_child(*args, **kwargs):
+        child = original(*args, **kwargs)
+        children.append(child)
+        return child
+
+    monkeypatch.setattr(subprocess, "Popen", retain_child)
+    try:
+        with pytest.raises(UnicodeEncodeError):
+            bounded_run([sys.executable, "-c", "import time; time.sleep(10)"], input="\ud800", text=True, encoding="utf-8", timeout=1)
+        assert len(children) == 1
+        child = children[0]
+        assert child.returncode is not None
+        assert all(stream is not None and stream.closed for stream in (child.stdin, child.stdout, child.stderr))
+        with pytest.raises(ChildProcessError):
+            os.waitpid(child.pid, os.WNOHANG)
+    finally:
+        # Retain the actual Popen across assertions; a red fixture must not leak.
+        for child in children:
+            if child.returncode is None:
+                child.kill()
+                child.wait(timeout=2)
+            for stream in (child.stdin, child.stdout, child.stderr):
+                if stream is not None:
+                    stream.close()

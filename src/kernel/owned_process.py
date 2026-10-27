@@ -186,7 +186,7 @@ def bounded_run(
 
 
 def _close_capture(process: subprocess.Popen[str] | subprocess.Popen[bytes]) -> None:
-    for stream in (process.stdout, process.stderr):
+    for stream in (process.stdin, process.stdout, process.stderr):
         if stream is not None:
             with suppress(OSError):
                 stream.close()
