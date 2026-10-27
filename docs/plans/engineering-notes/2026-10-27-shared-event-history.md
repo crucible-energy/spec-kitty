@@ -21,6 +21,12 @@ in the owning Spec Kitty project; new Subsequent tooling remains Zig.
 
 ## User Experience Findings
 
+- **2026-10-27, formatting ratchet:** Hosted architecture checks found that
+  the now-formatted event-log module and its existing status tests still had
+  obsolete formatter exclusions. The earlier scoped architecture selection
+  missed this standing ratchet. Preserve that hosted failure; remove only those
+  two exclusions and run the existing ratchet and whole formatting checks.
+
 - **2026-10-27, final receiving review:** A real maintained-driver reproduction
   showed same-ID nested JSON `true` and `1` silently merging at `33a4a6c65a`.
   Python equality conflates their types in both the pre-existing union and the
@@ -54,6 +60,13 @@ in the owning Spec Kitty project; new Subsequent tooling remains Zig.
   absence is not evidence that required hooks ran.
 
 ## Engineering Decisions
+
+- **2026-10-27, formatter scope correction:** Under Root's exact two-entry
+  lease extension, remove only the obsolete formatter exclusions. Compare the
+  parsed project configuration before and after to prove every other setting,
+  dependency and version unchanged. Runtime and test source remain byte-identical
+  to the successful r5 run; retain that input-equivalent proof and rerun affected
+  configuration, formatting, lint, typing and documentation checks.
 
 - **2026-10-27, typed payload identity:** Extract the existing deterministic
   JSON renderer inside the same event-log module and use it for both payload
