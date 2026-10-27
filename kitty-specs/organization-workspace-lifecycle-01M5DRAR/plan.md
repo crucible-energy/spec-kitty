@@ -116,3 +116,7 @@ WP12 owns missed branch-first fixture propagation, the inherited canonical OS-do
 ### Hosted publication safety correction
 
 WP13 independently reviews and implements the real stacked-live-mission/archive boundary. New-to-default, unnumbered/nonterminal/unarchived BASE state requires exact correlated identity and canonical replay; published/default/terminal history never becomes live because the candidate says so. This preserves the existing review frontier and all source/history. WP11 separately diagnoses actual Linux runtime-visibility refusal before any eligibility-policy change. Existing approvals remain historical facts; canonical task finalization and claims own new runtime state.
+
+## Prospective operation-closeout safety correction — 2026-10-27
+
+WP15 follows approved WP07/WP14 without reopening or restamping them. Add an explicit commit opt-out at the existing completion boundary; skip only Git commit while preserving canonical event/evidence/ownership checks and default behavior. Google owns implementation, Subsequent independent review, Source lifecycle admission/landing coordination. Use existing Source checkout and declared mission integration target; no protected foreign-primary change or shared runtime swap. Required failure-first CLI/executor, dirty-state preservation and default-commit controls are in the prospective WP15 prompt. Existing acceptance/history remains historical evidence, not approval of this correction.
