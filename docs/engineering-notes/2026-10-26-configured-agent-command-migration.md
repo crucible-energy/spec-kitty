@@ -179,3 +179,26 @@ approval or TTY intent; ordinary interactive/piped input remains unchanged when
 the explicit flag is unset. The existing red-first command assertions are
 unchanged. This is a bounded retained-Python correctness repair; a future Zig
 port must preserve this boundary. Other merge/rollback P0s remain separate.
+
+The next dedicated repair establishes the materialized-coordinate failure with
+the unchanged two-WP real-Git harness. The classifier compared its selected
+coordination directory to an identity already normalized to that same directory,
+misidentifying it as primary and skipping the durable commit. Merely consuming
+the resolver's anchor did not suffice: that fast path also returned the
+coordination candidate as its supposedly primary anchor. Both retained reds are
+preserved. The resolver now carries the topology-blind primary metadata anchor
+separately, and the transaction classifier consumes those explicit roles.
+Status candidate selection remains single-pass; deleted/corrupt-state refusal,
+verified primary snapshot priority and create-window read fallback remain intact.
+
+All 17 unchanged merge, rollback, strand-repair and adversarial refusal tests now
+pass. A new real registered-worktree case pins the distinct status and metadata
+roles. Broader preservation checks have 114 passes and 18 failures; executing the
+same checks against an exact published 09941d7b5 source export has 113 passes and
+19 failures. All 18 remaining failures are identical; the only difference is the
+new anchor regression, red on the old source and green on the repair. This is
+not an overall preservation-suite pass. Older unmaterialized-coordinate and
+stale resolver-fixture expectations remain owned follow-up work. Full mypy has
+zero issues in 1,143 files, and changed-source/test lint and formatting pass.
+No existing regression assertion, unknown-state refusal or required CI gate was
+relaxed. No audio producer, archive or approval is involved in these fixtures.

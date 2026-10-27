@@ -80,6 +80,27 @@ def _write_meta(repo_root: Path, slug: str, meta: dict[str, object]) -> Path:
 # ---------------------------------------------------------------------------
 
 
+def test_materialized_coord_keeps_distinct_primary_metadata_anchor(tmp_path: Path) -> None:
+    """A coord status candidate must not identify itself as primary metadata."""
+    _init_repo(tmp_path)
+    primary = _write_meta(
+        tmp_path,
+        SLUG_WITH_MID8,
+        {"mission_id": MISSION_ID, "mission_slug": SLUG_WITH_MID8, "coordination_branch": COORD_BRANCH},
+    )
+    (primary / "status.events.jsonl").write_text("", encoding="utf-8")
+    _git(tmp_path, "add", "kitty-specs")
+    _git(tmp_path, "commit", "-qm", "test: seed primary metadata and empty status stream")
+    coord_root = tmp_path / ".worktrees" / f"{SLUG_WITH_MID8}-coord"
+    _git(tmp_path, "worktree", "add", "-q", "-b", COORD_BRANCH, str(coord_root))
+
+    surface = resolve_status_surface_with_anchor(tmp_path, SLUG_WITH_MID8)
+    coord = coord_root / "kitty-specs" / SLUG_WITH_MID8
+    assert surface.surface_path.parent.resolve() == coord.resolve()
+    assert surface.primary_anchor.resolve() == primary.resolve()
+    assert surface.primary_anchor.resolve() != surface.surface_path.parent.resolve()
+
+
 def test_never_created_resolves_primary_on_both_legs(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     feature_dir = _write_meta(
@@ -92,9 +113,7 @@ def test_never_created_resolves_primary_on_both_legs(tmp_path: Path) -> None:
     assert surface.primary_anchor == feature_dir
     assert surface.surface_path.parent == feature_dir
 
-    read_path = resolve_handle_to_read_path(
-        tmp_path, SLUG_WITH_MID8, require_exists=True
-    )
+    read_path = resolve_handle_to_read_path(tmp_path, SLUG_WITH_MID8, require_exists=True)
     assert read_path == feature_dir
 
 
@@ -117,10 +136,7 @@ def test_never_created_never_raises_coordination_branch_deleted(
         resolve_status_surface_with_anchor(tmp_path, SLUG_WITH_MID8)
         resolve_handle_to_read_path(tmp_path, SLUG_WITH_MID8, require_exists=True)
     except CoordinationBranchDeleted as exc:  # pragma: no cover - regression guard
-        pytest.fail(
-            "never-created (no declared coordination_branch) must NEVER raise "
-            f"CoordinationBranchDeleted; got {exc!r} (#2250 regression)."
-        )
+        pytest.fail(f"never-created (no declared coordination_branch) must NEVER raise CoordinationBranchDeleted; got {exc!r} (#2250 regression).")
 
 
 # ---------------------------------------------------------------------------
@@ -146,13 +162,9 @@ def test_unmaterialized_resolves_primary_never_deleted(tmp_path: Path) -> None:
     # missing (never materialized yet).
     _git(tmp_path, "branch", COORD_BRANCH)
 
-    read_path = resolve_handle_to_read_path(
-        tmp_path, SLUG_WITH_MID8, require_exists=True
-    )
+    read_path = resolve_handle_to_read_path(tmp_path, SLUG_WITH_MID8, require_exists=True)
     assert read_path == feature_dir, (
-        "#1718 create-window: a declared-but-unmaterialized coord (branch "
-        "present in git) must resolve PRIMARY on the existence-gated leg, "
-        f"got {read_path}."
+        f"#1718 create-window: a declared-but-unmaterialized coord (branch present in git) must resolve PRIMARY on the existence-gated leg, got {read_path}."
     )
 
     # The canonical surface stays primary until a real coord worktree is
@@ -245,9 +257,7 @@ def test_flatten_transition_resolves_primary_ignores_stale_husk(
         ),
         encoding="utf-8",
     )
-    (primary / "status.events.jsonl").write_text(
-        '{"wp_id":"WP01","to_lane":"approved"}\n', encoding="utf-8"
-    )
+    (primary / "status.events.jsonl").write_text('{"wp_id":"WP01","to_lane":"approved"}\n', encoding="utf-8")
 
     # A REAL, materialized stale coord worktree (the pre-flatten husk), with its
     # OWN, DIFFERENT status content — a real ``git worktree add``, not a bare dir.
@@ -255,12 +265,8 @@ def test_flatten_transition_resolves_primary_ignores_stale_husk(
     _git(tmp_path, "worktree", "add", "-q", "-b", COORD_BRANCH, str(coord_root))
     husk = coord_root / "kitty-specs" / SLUG_WITH_MID8
     husk.mkdir(parents=True)
-    (husk / "meta.json").write_text(
-        json.dumps({"mission_id": MISSION_ID}), encoding="utf-8"
-    )
-    (husk / "status.events.jsonl").write_text(
-        '{"wp_id":"WP01","to_lane":"planned"}\n', encoding="utf-8"
-    )
+    (husk / "meta.json").write_text(json.dumps({"mission_id": MISSION_ID}), encoding="utf-8")
+    (husk / "status.events.jsonl").write_text('{"wp_id":"WP01","to_lane":"planned"}\n', encoding="utf-8")
 
     # Negative control: the husk is a genuinely distinct, present directory —
     # otherwise "resolves primary" would pass vacuously.
@@ -270,10 +276,8 @@ def test_flatten_transition_resolves_primary_ignores_stale_husk(
     surface = resolve_status_surface_with_anchor(tmp_path, SLUG_WITH_MID8)
 
     assert surface.primary_anchor.resolve() == primary.resolve(), (
-        "flatten-transition: the canonical surface must resolve the PRIMARY "
-        f"anchor {primary.resolve()}, not the stale husk {husk.resolve()}."
+        f"flatten-transition: the canonical surface must resolve the PRIMARY anchor {primary.resolve()}, not the stale husk {husk.resolve()}."
     )
     assert surface.surface_path.parent.resolve() == primary.resolve(), (
-        "flatten-transition: the surface path must live under PRIMARY, never "
-        f"under the stale husk {husk.resolve()} (FR-012 / #2062)."
+        f"flatten-transition: the surface path must live under PRIMARY, never under the stale husk {husk.resolve()} (FR-012 / #2062)."
     )

@@ -47,6 +47,7 @@ resolver against a coord root nested
 ``.worktrees/<m>-coord/.worktrees/<m>-coord/…`` (the #1772 double-resolution
 bug); building the path directly avoids that.
 """
+
 from __future__ import annotations
 
 import enum
@@ -95,6 +96,7 @@ _WORKTREES_SEGMENT = ".worktrees"
 _COORD_SUFFIX = "-coord"
 _STATUS_EVENTS_FILENAME = "status.events.jsonl"
 
+
 def _topology_uses_coord_surface(topology: MissionTopology) -> bool:
     """True when *topology* places the status surface on a coordination ref.
 
@@ -109,6 +111,7 @@ def _topology_uses_coord_surface(topology: MissionTopology) -> bool:
     the canonical predicate directly.
     """
     return routes_through_coordination(topology)
+
 
 # Option B loud primary fallback (FR-001 / FR-003 / #1716): when the coordination
 # worktree root is materialized but carries no mission dir, the resolver returns
@@ -160,10 +163,7 @@ class WorktreeRegistryUnavailable(RuntimeError):
     def __init__(self, *, repo_root: Path, detail: str) -> None:
         self.repo_root = repo_root
         self.detail = detail
-        super().__init__(
-            f"Could not read the git worktree registry at {repo_root}: {detail}. "
-            "Topology cannot be determined from path shape alone; fail closed."
-        )
+        super().__init__(f"Could not read the git worktree registry at {repo_root}: {detail}. Topology cannot be determined from path shape alone; fail closed.")
 
 
 # ``StatusReadPathNotFound`` resolves to ``Any`` under this project's mypy
@@ -223,11 +223,7 @@ class CoordinationBranchDeleted(StatusReadPathNotFound):  # type: ignore[misc, u
         )
 
     def __str__(self) -> str:  # pragma: no cover - trivial formatting
-        return (
-            f"Coordination branch {self.coordination_branch!r} for mission "
-            f"{self.mission_slug!r} is declared in meta.json but deleted from "
-            f"git. {self.next_step}"
-        )
+        return f"Coordination branch {self.coordination_branch!r} for mission {self.mission_slug!r} is declared in meta.json but deleted from git. {self.next_step}"
 
 
 def read_worktree_registry(repo_root: Path) -> frozenset[Path]:
@@ -254,11 +250,7 @@ def read_worktree_registry(repo_root: Path) -> frozenset[Path]:
     except OSError as exc:  # git missing / not executable
         raise WorktreeRegistryUnavailable(repo_root=repo_root, detail=str(exc)) from exc
     if result.returncode != 0:
-        detail = (
-            result.stderr.strip()
-            or result.stdout.strip()
-            or f"exit {result.returncode}"
-        )
+        detail = result.stderr.strip() or result.stdout.strip() or f"exit {result.returncode}"
         raise WorktreeRegistryUnavailable(repo_root=repo_root, detail=detail)
     registered: set[Path] = set()
     for line in result.stdout.splitlines():
@@ -368,10 +360,7 @@ def is_registered_coord_worktree(
     Convenience predicate over :func:`classify_worktree_topology`; see it for
     the ``repo_root`` / ``registry`` semantics and the fail-closed posture.
     """
-    return (
-        classify_worktree_topology(path, repo_root=repo_root, registry=registry)
-        is WorktreeTopology.COORD_WORKTREE
-    )
+    return classify_worktree_topology(path, repo_root=repo_root, registry=registry) is WorktreeTopology.COORD_WORKTREE
 
 
 def _coord_branch_exists(repo_root: Path, coord_branch: str) -> bool:
@@ -399,8 +388,7 @@ def _coord_branch_exists(repo_root: Path, coord_branch: str) -> bool:
         return True
     try:
         result = subprocess.run(
-            ["git", "-C", str(repo_root), "rev-parse", "--verify", "--quiet",
-             f"refs/heads/{coord_branch}"],
+            ["git", "-C", str(repo_root), "rev-parse", "--verify", "--quiet", f"refs/heads/{coord_branch}"],
             check=False,
             capture_output=True,
             text=True,
@@ -416,7 +404,9 @@ def _coord_branch_exists(repo_root: Path, coord_branch: str) -> bool:
     try:
         remotes = subprocess.run(
             ["git", "-C", str(repo_root), "for-each-ref", "--format=%(refname)", "refs/remotes/"],
-            check=False, capture_output=True, text=True,
+            check=False,
+            capture_output=True,
+            text=True,
         )
     except OSError:
         return True
@@ -425,7 +415,7 @@ def _coord_branch_exists(repo_root: Path, coord_branch: str) -> bool:
         for line in remotes.stdout.splitlines():
             if not line.startswith(prefix):
                 continue
-            _, _, branch = line[len(prefix):].partition("/")  # <remote>/<branch...>
+            _, _, branch = line[len(prefix) :].partition("/")  # <remote>/<branch...>
             if branch == coord_branch:
                 return True
     return False
@@ -440,8 +430,8 @@ class ResolvedStatusSurface:
 
     * ``surface_path`` — the canonical ``status.events.jsonl`` path (identical
       to :func:`resolve_status_surface`).
-    * ``primary_anchor`` — the canonical primary feature-dir anchor
-      (``candidate_feature_dir_for_mission``), the CWD-invariant authority the
+    * ``primary_anchor`` — the topology-blind primary feature-dir anchor
+      (``primary_feature_dir_for_mission``), the CWD-invariant authority the
       transaction-identity logic anchors on (#1737). Resolved exactly once and
       shared, so the historical validate-then-re-derive double resolution is
       gone.
@@ -526,11 +516,7 @@ def _coord_mid8(meta: dict[str, object], mission_slug: str, repo_root: Path) -> 
         repo_root=repo_root,
         mission_slug=mission_slug,
         mid8="",
-        coord_candidate=repo_root
-        / ".worktrees"
-        / f"{mission_slug}-coord"
-        / KITTY_SPECS_DIR
-        / mission_slug,
+        coord_candidate=repo_root / ".worktrees" / f"{mission_slug}-coord" / KITTY_SPECS_DIR / mission_slug,
         primary_candidate=repo_root / KITTY_SPECS_DIR / mission_slug,
     )
 
@@ -543,9 +529,7 @@ def _snapshot_authority_active(meta: dict[str, object]) -> bool:
         return False
 
 
-def _husk_is_authoritative_surface(
-    repo_root: Path, mission_slug: str, coord_meta: dict[str, object]
-) -> bool:
+def _husk_is_authoritative_surface(repo_root: Path, mission_slug: str, coord_meta: dict[str, object]) -> bool:
     """True when a ``.worktrees`` husk MAY be the authoritative read surface.
 
     Gates the ``.worktrees`` short-circuit in
@@ -581,9 +565,7 @@ def _husk_is_authoritative_surface(
         primary_meta, _ = read_primary_meta(repo_root, mission_slug)
     except (ValueError, OSError):
         return True
-    if _snapshot_authority_active(primary_meta) and not _snapshot_authority_active(
-        coord_meta
-    ):
+    if _snapshot_authority_active(primary_meta) and not _snapshot_authority_active(coord_meta):
         return False
     stored = stored_topology_from_meta(primary_meta)
     if stored is None:
@@ -645,9 +627,7 @@ def resolve_status_surface(
     Raises FileNotFoundError when meta.json is absent.
     Raises ValueError when meta.json is malformed.
     """
-    return resolve_status_surface_with_anchor(
-        repo_root, mission_slug, topology
-    ).surface_path
+    return resolve_status_surface_with_anchor(repo_root, mission_slug, topology).surface_path
 
 
 def resolve_status_surface_with_anchor(
@@ -659,8 +639,9 @@ def resolve_status_surface_with_anchor(
 
     Resolution is single-pass (FR-036): :func:`candidate_feature_dir_for_mission`
     — the coord-aware primitive that ``MissionStatus`` is also built on — is
-    invoked **exactly once** and its result is carried as ``primary_anchor``.
-    The surface path is derived from that same resolution:
+    invoked **exactly once** for the status candidate. The separate metadata
+    anchor uses the topology-blind primary seam, never a second status choice.
+    The surface path is derived from the original candidate resolution:
 
     1. If the resolved dir is already inside a ``.worktrees/<m>-coord`` root, it
        is final — the surface lives there (never re-resolve; the #1772 nesting
@@ -735,18 +716,21 @@ def resolve_status_surface_with_anchor(
     # C-006: a genuine coord mission (stored topology COORD / LANES_WITH_COORD) OR an
     # un-backfilled legacy mission (no stored topology) keeps the husk short-circuit
     # — a real coord worktree is still the authoritative read.
-    feature_dir_is_husk = any(
-        part == _WORKTREES_SEGMENT for part in feature_dir.parts
-    )
+    feature_dir_is_husk = any(part == _WORKTREES_SEGMENT for part in feature_dir.parts)
     if (
         meta is not None
         and feature_dir_is_husk
         and _husk_is_authoritative_surface(repo_root, mission_slug, meta)
         and (feature_dir / _STATUS_EVENTS_FILENAME).is_file()
     ):
+        # The status candidate is already the coordination directory. Carry
+        # its PRIMARY metadata anchor separately: using the candidate for both
+        # roles misclassifies a coordination write as an uncommitted primary
+        # append. mission_slug is the canonical directory name above.
+        primary_anchor: Path = primary_feature_dir_for_mission(repo_root, mission_slug)
         return ResolvedStatusSurface(
             surface_path=feature_dir / _STATUS_EVENTS_FILENAME,
-            primary_anchor=feature_dir,
+            primary_anchor=primary_anchor,
         )
 
     # FR-003 cascade layer 1: config must be readable BEFORE topology can be
@@ -778,9 +762,7 @@ def resolve_status_surface_with_anchor(
                 surface_path=feature_dir / _STATUS_EVENTS_FILENAME,
                 primary_anchor=feature_dir,
             )
-        raise FileNotFoundError(
-            f"meta.json not found for mission {mission_slug!r} at {feature_dir}"
-        )
+        raise FileNotFoundError(f"meta.json not found for mission {mission_slug!r} at {feature_dir}")
 
     # Config is now in hand. The canonical primary anchor is the topology-blind
     # primary dir (the create→first-write window authority the transaction
@@ -824,20 +806,13 @@ def resolve_status_surface_with_anchor(
     # logic expects).
     mid8: str = _coord_mid8(meta, mission_slug, repo_root)
     composed_coord_dir: Path = coord_feature_dir(repo_root, mission_slug, mid8)
-    coord_state = probe_coord_state(
-        repo_root, mission_slug, mid8, coordination_branch=coord_branch
-    )
+    coord_state = probe_coord_state(repo_root, mission_slug, mid8, coordination_branch=coord_branch)
 
     # A verified primary snapshot cutover outranks a materialized coordination
     # worktree that still carries legacy (pre-phase-1) state. The candidate-meta
     # comparison is intentionally restricted to a real coord candidate; once both
     # copies declare phase 1, topology remains the deciding authority.
-    if (
-        feature_dir_is_husk
-        and coord_state is CoordState.MATERIALIZED
-        and _snapshot_authority_active(meta)
-        and not _snapshot_authority_active(candidate_meta or {})
-    ):
+    if feature_dir_is_husk and coord_state is CoordState.MATERIALIZED and _snapshot_authority_active(meta) and not _snapshot_authority_active(candidate_meta or {}):
         return ResolvedStatusSurface(
             surface_path=feature_dir / _STATUS_EVENTS_FILENAME,
             primary_anchor=feature_dir,
@@ -846,10 +821,7 @@ def resolve_status_surface_with_anchor(
     # The append-only event log is the canonical lane-state authority. Teardown
     # can leave a status.json-only coordination husk behind; it must not shadow
     # the durable primary status projection.
-    if (
-        coord_state is CoordState.MATERIALIZED
-        and not (composed_coord_dir / _STATUS_EVENTS_FILENAME).is_file()
-    ):
+    if coord_state is CoordState.MATERIALIZED and not (composed_coord_dir / _STATUS_EVENTS_FILENAME).is_file():
         return ResolvedStatusSurface(
             surface_path=feature_dir / _STATUS_EVENTS_FILENAME,
             primary_anchor=feature_dir,
