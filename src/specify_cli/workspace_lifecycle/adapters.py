@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import math
 import os
@@ -19,7 +20,7 @@ from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass, fields, replace
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, Literal, cast
 
 import psutil
 
@@ -41,6 +42,9 @@ from specify_cli.workspace_lifecycle.discovery import discover_workspaces
 from specify_cli.workspace_lifecycle.events import Completion
 from specify_cli.workspace_lifecycle.policy import Evidence, Identity
 from specify_cli.workspace_lifecycle.state import Operation, StateError, StateStore
+
+if TYPE_CHECKING:
+    from specify_cli.workspace_lifecycle.original_run import OriginalWorkspaceRun
 
 
 class GitHubDelivery:
@@ -271,6 +275,14 @@ class _OwnerState:
     retirement_event_id: str | None = None
     retirement_intent_sha256: str | None = None
     schema_version: int = 1
+    creator_kind: str | None = None
+    accountable_owner: str | None = None
+    starting_head: str | None = None
+    original_run_release: str | None = None
+
+
+_CREATOR_BINDING_FIELDS = frozenset({"creator_kind", "accountable_owner", "starting_head"})
+_OPTIONAL_OWNER_PROOFS = frozenset({"original_run_release"})
 
 
 def _creator_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -282,13 +294,37 @@ def _creator_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
     return result
 
 
+def _validate_creator_shape(value: dict[str, object]) -> None:
+    version = value.get("schema_version")
+    if type(version) is not int or version not in (1, 2):
+        raise ValueError("Unsupported creator schema")
+    expected = {f.name for f in fields(_OwnerState)}
+    if version == 1:
+        expected -= _CREATOR_BINDING_FIELDS | _OPTIONAL_OWNER_PROOFS
+    else:
+        expected -= _OPTIONAL_OWNER_PROOFS - value.keys()
+    if set(value) != expected:
+        raise ValueError("Unexpected creator fields")
+    if version == 2:
+        if value["creator_kind"] != "ordinary_git":
+            raise ValueError("Unsupported ordinary creator kind")
+        owner = value["accountable_owner"]
+        if not isinstance(owner, str) or not owner.strip() or len(owner) > 8192 or "\0" in owner:
+            raise ValueError("Accountable creator owner required")
+        head = value["starting_head"]
+        if not isinstance(head, str) or not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", head):
+            raise ValueError("Exact creator starting commit required")
+        proof = value.get("original_run_release")
+        if proof is not None and (not isinstance(proof, str) or not re.fullmatch(r"[0-9a-f]{64}", proof)):
+            raise ValueError("Invalid original-run release proof")
+
+
 def _owner_decode(raw: bytes) -> _OwnerState:
     try:
         value = json.loads(raw, object_pairs_hook=_creator_pairs)
-        if not isinstance(value, dict) or set(value) != {f.name for f in fields(_OwnerState)}:
+        if not isinstance(value, dict):
             raise ValueError("Unexpected creator fields")
-        if type(value["schema_version"]) is not int or value["schema_version"] != 1:
-            raise ValueError("Unsupported creator schema")
+        _validate_creator_shape(value)
         if value["branch_disposition"] not in ("local_retained;remote_retained", "local_retired;remote_retained"):
             raise ValueError("Invalid branch result")
         ident = value.pop("identity")
@@ -330,7 +366,8 @@ def _require_owner_proofs(state: _OwnerState) -> None:
     ):
         raise ValueError("Missing retirement receipt binding")
     if state.status in ("creating", "active", "producer_unknown") and any(
-        getattr(state, key) is not None for key in ("release_cap", "release_id", "delivery_id", "pr", "retirement_event_id", "retirement_intent_sha256")
+        getattr(state, key) is not None
+        for key in ("release_cap", "release_id", "delivery_id", "pr", "retirement_event_id", "retirement_intent_sha256", "original_run_release")
     ):
         raise ValueError("Inconsistent unreleased creator history")
     if state.status in ("released", "retired") and not _released(state):
@@ -341,14 +378,41 @@ def _cap_hash(capability: str) -> str:
     return hashlib.sha256(capability.encode()).hexdigest()  # noqa: TID251 -- owner release capability integrity, not charter hashing.
 
 
+def _original_run_release_digest(state: _OwnerState) -> str:
+    if state.release_cap is None:
+        raise ValueError("Original release capability required")
+    binding = {
+        "identity": asdict(state.identity),
+        "creator_kind": state.creator_kind,
+        "accountable_owner": state.accountable_owner,
+        "starting_head": state.starting_head,
+        "repo_root": state.repo_root,
+        "device": state.device,
+        "inode": state.inode,
+        "release_id": state.release_id,
+        "pr": state.pr,
+    }
+    message = b"spec-kitty:original-workspace-run-release:v1\0" + json.dumps(binding, sort_keys=True, separators=(",", ":")).encode()
+    return hmac.digest(state.release_cap.encode(), message, "sha256").hex()
+
+
 def _released(state: _OwnerState) -> bool:
-    return bool(
+    valid = bool(
         state.producer_succeeded
         and state.release_cap
         and secrets.compare_digest(_cap_hash(state.release_cap), state.release_hash)
         and state.release_id
         and state.pr
     )
+    if not valid:
+        return False
+    if state.creator_kind == "ordinary_git":
+        # Only the original live scope can publish this private, capability-
+        # bound proof. Native/invocation outcomes never carry it or grant release.
+        return bool(
+            state.schema_version == 2 and state.original_run_release and secrets.compare_digest(state.original_run_release, _original_run_release_digest(state))
+        )
+    return state.original_run_release is None
 
 
 def _git_env() -> dict[str, str]:
@@ -639,6 +703,23 @@ def _object_custody(identity: Identity) -> bool:
         return False
 
 
+def _validate_creation_admission(
+    kind: Literal["managed_git", "ordinary_git"],
+    owner: str | None,
+    starting_commit: str | None,
+    callback: Callable[[dict[str, object]], None] | None,
+) -> None:
+    if kind not in ("managed_git", "ordinary_git"):
+        raise StateError("Unsupported creator kind")
+    if kind == "ordinary_git":
+        if not isinstance(owner, str) or not owner.strip() or len(owner) > 8192 or "\0" in owner:
+            raise StateError("Accountable ordinary creator owner required")
+        if starting_commit is None or not callable(callback):
+            raise StateError("Exact ordinary parent and data-only admission callback required")
+    elif owner is not None or callback is not None:
+        raise StateError("Legacy managed creator cannot masquerade as ordinary admission")
+
+
 class ManagedGitCreator:
     """Creator-owned linked checkout with serialized, explicitly released leases.
 
@@ -647,6 +728,10 @@ class ManagedGitCreator:
     leaving a caller block alone does not certify a joined producer. Only the
     owned runner records joined success. Existing workspaces cannot be adopted.
     Worker restoration does not recover the in-memory release capability.
+
+    Ordinary admission adds a versioned pending identity and a data-only
+    pre-effect hook. Legacy records keep their original schema; ordinary
+    records cannot use legacy release until core custody is qualified.
     """
 
     def __init__(
@@ -658,6 +743,7 @@ class ManagedGitCreator:
         on_complete: Callable[[Completion], None],
         capability: str | None = None,
         operation_timeout: float = 30.0,
+        creation_kind: Literal["managed_git", "ordinary_git"] | None = None,
     ) -> None:
         if not re.fullmatch(r"[0-9a-f]{32}", token):
             raise ValueError("Invalid creator token")
@@ -666,6 +752,7 @@ class ManagedGitCreator:
         self.operation_timeout = operation_timeout
         self.store, self.token, self.delivery, self.on_complete = store, token, delivery, on_complete
         self._capability = capability
+        self._creation_kind = creation_kind
         self._pid = os.getpid()
         self._unconfirmed_producer = False
         self._held: tuple[int, int] | None = None
@@ -698,16 +785,36 @@ class ManagedGitCreator:
         state = _owner_decode(self.store.read_private(self._path.name, limit=65536))
         if state.identity.workspace_generation != self.token:
             raise StateError("Creator generation does not match registration")
+        if self._creation_kind is not None and (state.creator_kind or "managed_git") != self._creation_kind:
+            raise StateError("Original creator kind does not match registration")
         return state
 
     def _write(self, state: _OwnerState) -> None:
         self._check_root()
-        raw = json.dumps(asdict(state), sort_keys=True, separators=(",", ":")).encode()
+        value = asdict(state)
+        if state.schema_version == 1:
+            if any(value[key] is not None for key in _CREATOR_BINDING_FIELDS | _OPTIONAL_OWNER_PROOFS):
+                raise StateError("Legacy creator cannot adopt ordinary custody")
+            for key in _CREATOR_BINDING_FIELDS:
+                del value[key]
+        for key in _OPTIONAL_OWNER_PROOFS:
+            if value[key] is None:
+                del value[key]
+        raw = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+        if len(raw) > 65536:
+            raise StateError("Creator record exceeds private read bound")
         _owner_decode(raw)
         if self._path.exists() or self._path.is_symlink():
             if state.status == "creating":
                 raise StateError("Creator registration already exists")
-            self._read()
+            prior = self._read()
+            if prior.schema_version != state.schema_version or any(getattr(prior, key) != getattr(state, key) for key in _CREATOR_BINDING_FIELDS):
+                raise StateError("Creator binding changed within its generation")
+            if state.schema_version == 2 and any(
+                getattr(prior.identity, key) != getattr(state.identity, key)
+                for key in ("repository_id", "repository", "common_dir", "path", "branch", "workspace_generation")
+            ):
+                raise StateError("Ordinary creator resource identity changed")
         atomic_write(self._path, raw, durable=True, expected_parent=self._root_identity)
 
     @contextmanager
@@ -730,7 +837,12 @@ class ManagedGitCreator:
         repository_id: int,
         delivery: GitHubDelivery,
         on_complete: Callable[[Completion], None],
+        expected_base_commit: str | None = None,
+        creator_kind: Literal["managed_git", "ordinary_git"] = "managed_git",
+        accountable_owner: str | None = None,
+        on_admitted: Callable[[dict[str, object]], None] | None = None,
     ) -> ManagedGitCreator:
+        _validate_creation_admission(creator_kind, accountable_owner, expected_base_commit, on_admitted)
         store.read()
         repo_root, path = repo_root.absolute(), path.absolute()
         if path.exists() or any(p.is_symlink() for p in (path, *path.parents)) or ".." in path.parts:
@@ -739,19 +851,46 @@ class ManagedGitCreator:
             raise StateError("Protected branch cannot be creator-owned")
         env = _git_env()
         common = inspect_git_common_dir(repo_root, env=env, timeout=5)
+        common_info = common.stat() if creator_kind == "ordinary_git" else None
         observed = discover_workspaces({repository: repository_id}, [repo_root], max_depth=0)["workspaces"]
         if not any(row["path"] == str(repo_root) and row["common_dir"] == str(common) for row in observed):
             raise StateError("Verified repository origin required")
         run_git(repo_root, "check-ref-format", "--branch", branch, env=env, timeout=5)
-        head = run_git(repo_root, "rev-parse", "HEAD", env=env, timeout=5).stdout.decode().strip()
+        if expected_base_commit is None:
+            head = run_git(repo_root, "rev-parse", "HEAD", env=env, timeout=5).stdout.decode().strip()
+        else:
+            # The ordinary allocator resolves its own parent decision. Do not
+            # silently substitute this checkout's HEAD or a moving ref, and
+            # reject absent/non-commit objects before recording creator custody.
+            if not isinstance(expected_base_commit, str) or not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", expected_base_commit):
+                raise StateError("Exact starting commit required")
+            head = run_git(repo_root, "rev-parse", "--verify", "--end-of-options", expected_base_commit + "^{commit}", env=env, timeout=5).stdout.decode().strip()
+            if head != expected_base_commit:
+                raise StateError("Starting object must be the exact commit")
         token, capability = secrets.token_hex(16), secrets.token_hex(32)
-        owner = cls(store, token, delivery=delivery, on_complete=on_complete, capability=capability)
+        owner = cls(store, token, delivery=delivery, on_complete=on_complete, capability=capability, creation_kind=creator_kind)
         with owner._fence():
             ident = Identity(repository_id, repository, str(common), str(path), head, "refs/heads/" + branch, token, secrets.token_hex(16))
             pending = _OwnerState(ident, str(repo_root), 0, 0, _cap_hash(capability), status="creating")
+            if creator_kind == "ordinary_git":
+                pending = replace(pending, schema_version=2, creator_kind=creator_kind, accountable_owner=accountable_owner, starting_head=head)
             # Custody precedes effects. A crash keeps an explicit creation-unknown
             # record; matching path/branch alone never adopts an ambiguous orphan.
             owner._write(pending)
+            if on_admitted is not None:
+                # The exact pending receipt reaches native ingress before Git
+                # effects. Failure retains pending custody; never roll it back
+                # or adopt another generation on the callback's assertion.
+                receipt = owner.admission_receipt
+                on_admitted(receipt)
+                if owner._read() != pending or receipt != owner.admission_receipt:
+                    raise StateError("Pending ordinary custody changed before creation")
+                if path.exists() or any(p.is_symlink() for p in (path, *path.parents)):
+                    raise StateError("Ordinary target changed before creation")
+                current_common = inspect_git_common_dir(repo_root, env=env, timeout=5)
+                current_info = current_common.stat()
+                if current_common != common or common_info is None or (current_info.st_dev, current_info.st_ino) != (common_info.st_dev, common_info.st_ino):
+                    raise StateError("Ordinary Git store changed before creation")
             run_git(repo_root, "worktree", "add", "-b", branch, str(path), head, env=env, timeout=5)
             info = path.lstat()
             owner._write(replace(pending, device=info.st_dev, inode=info.st_ino, status="active"))
@@ -760,6 +899,26 @@ class ManagedGitCreator:
     @property
     def identity(self) -> Identity:
         return self._read().identity
+
+    @property
+    def admission_receipt(self) -> dict[str, object]:
+        """Exact ordinary creation data, excluding every release capability."""
+        state = self._read()
+        if state.schema_version != 2 or state.creator_kind != "ordinary_git":
+            raise StateError("Legacy creator has no ordinary admission receipt")
+        ident = state.identity
+        return {
+            "source": {
+                "repository_id": ident.repository_id,
+                "repository": ident.repository,
+                "common_dir": ident.common_dir,
+                "path": ident.path,
+                "head": state.starting_head,
+                "branch": ident.branch,
+            },
+            "creator": {"kind": state.creator_kind, "generation": ident.workspace_generation},
+            "owner": state.accountable_owner,
+        }
 
     @property
     def branch_disposition(self) -> str:
@@ -862,13 +1021,26 @@ class ManagedGitCreator:
         # Once wait reaps the leader, signalling authority ends. A remaining
         # or escaped producer is unconfirmed; durable producer_unknown retains it.
 
-    def complete(self, *, pr: int | None = None) -> None:
+    def _require_original_run(self, original_run: OriginalWorkspaceRun | None) -> None:
+        from specify_cli.workspace_lifecycle.original_run import OriginalWorkspaceRun
+
+        if type(original_run) is not OriginalWorkspaceRun:
+            raise StateError("Ordinary release requires qualified core custody")
+        original_run.require_joined_for(self)
+
+    def complete(self, *, pr: int | None = None, original_run: OriginalWorkspaceRun | None = None) -> None:
         if os.getpid() != self._pid or not self._capability or self._unconfirmed_producer:
             raise StateError("Creating owner release capability or producer confirmation unavailable")
+        if self._creation_kind == "ordinary_git":
+            self._require_original_run(original_run)
+        elif original_run is not None:
+            raise StateError("Original run requires the original ordinary creator")
         if pr is not None and (type(pr) is not int or pr <= 0):
             raise ValueError("Positive PR number required")
         with self._fence(), process_budget(self.operation_timeout):
             state = self._read()
+            if state.creator_kind == "ordinary_git":
+                self._require_original_run(original_run)
             if state.status != "active":
                 raise StateError("Creator generation released")
             if not state.producer_succeeded:
@@ -887,6 +1059,8 @@ class ManagedGitCreator:
             # Release is independent of accepted delivery. The foreground CLI
             # may exit now; worker/startup evidence can establish delivery later.
             state = replace(state, status="released", release_cap=self._capability, release_id=secrets.token_hex(16), pr=pr)
+            if state.creator_kind == "ordinary_git":
+                state = replace(state, original_run_release=_original_run_release_digest(state))
             self._write(state)
         # Enqueue a hint after releasing admission. The durable release remains
         # available to startup recovery if enqueue fails or this process exits.

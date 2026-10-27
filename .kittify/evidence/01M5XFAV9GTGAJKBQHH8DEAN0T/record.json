@@ -1,0 +1,8 @@
+{
+  "event": "completed",
+  "invocation_id": "01M5XFAV9GTGAJKBQHH8DEAN0T",
+  "completed_at": "2026-10-27T01:25:15.688569+00:00",
+  "outcome": "done",
+  "closed_by": "agent",
+  "evidence_ref": "/private/tmp/pdb-mission-control-20261024/governance-recovery/original-run-r1/docs-structural-r1.log"
+}

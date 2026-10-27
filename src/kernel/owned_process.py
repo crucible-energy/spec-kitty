@@ -89,6 +89,7 @@ def bounded_run(
     capture_output: bool = True,
     check: bool = False,
     text: Literal[False] = False,
+    input: bytes | None = None,
     encoding: str | None = None,
     errors: str | None = None,
 ) -> subprocess.CompletedProcess[bytes]: ...
@@ -99,6 +100,7 @@ def bounded_run(
     argv: Sequence[str],
     *,
     text: Literal[True],
+    input: str | None = None,
     encoding: str | None = None,
     errors: str | None = None,
     timeout: float | None = None,
@@ -118,6 +120,7 @@ def bounded_run(
     capture_output: bool = True,
     check: bool = False,
     text: bool = False,
+    input: str | bytes | None = None,
     encoding: str | None = None,
     errors: str | None = None,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[bytes]:
@@ -130,6 +133,8 @@ def bounded_run(
     """
     if not text and (encoding is not None or errors is not None):
         raise ValueError("Encoding options require explicit text capture")
+    if input is not None and not isinstance(input, str if text else bytes):
+        raise TypeError("Process input must match explicit text or bytes capture")
     if os.name != "posix" or not capture_output:
         raise OSError("Owned bounded capture unsupported on this platform or mode")
     deadline = _deadline.get()
@@ -143,7 +148,7 @@ def bounded_run(
         argv,
         cwd=cwd,
         env=env,
-        stdin=subprocess.DEVNULL,
+        stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=text,
@@ -153,7 +158,7 @@ def bounded_run(
     )
     try:
         try:
-            stdout, stderr = process.communicate(timeout=limit)
+            stdout, stderr = process.communicate(input=input, timeout=limit)
         except subprocess.TimeoutExpired:
             # Do not poll/reap before signalling: an unreaped child reserves the
             # identifier even if it has already exited while a descendant holds IO.
@@ -181,7 +186,7 @@ def bounded_run(
 
 
 def _close_capture(process: subprocess.Popen[str] | subprocess.Popen[bytes]) -> None:
-    for stream in (process.stdout, process.stderr):
+    for stream in (process.stdin, process.stdout, process.stderr):
         if stream is not None:
             with suppress(OSError):
                 stream.close()
