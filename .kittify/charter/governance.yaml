@@ -19,7 +19,7 @@ branch_strategy:
   main_branch: main
   dev_branch:
   rules: []
-doctrine:
+charter:
   selected_paradigms: []
   selected_directives: []
   selected_tactics: []
