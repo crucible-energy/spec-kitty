@@ -32,6 +32,25 @@ pytestmark = [pytest.mark.doctrine, pytest.mark.fast]
 DOCTRINE_ROOT = Path(__file__).resolve().parents[4] / "src" / "doctrine"
 
 
+def test_path_reference_preserves_declared_directive_identity(tmp_path: Path) -> None:
+    """A valid body ID need not be the uppercased filename slug."""
+    directives = tmp_path / "directives/built-in"
+    directives.mkdir(parents=True)
+    (directives / "reconcile-scope.directive.yaml").write_text(
+        "id: RECONCILE_SCOPE\ntitle: Reconcile scope\n", encoding="utf-8"
+    )
+    styles = tmp_path / "styleguides/built-in"
+    styles.mkdir(parents=True)
+    (styles / "review.styleguide.yaml").write_text(
+        "id: review\ntitle: Review\nreferences:\n"
+        "  - src/doctrine/directives/built-in/reconcile-scope.directive.yaml\n",
+        encoding="utf-8",
+    )
+    nodes, edges = extract_artifact_edges(tmp_path)
+    assert any(edge.target == "directive:RECONCILE_SCOPE" for edge in edges)
+    assert not any(node.urn == "directive:RECONCILE-SCOPE" for node in nodes)
+
+
 # ---------------------------------------------------------------------------
 # _resolve_path_ref: 6-pattern hit cases
 # ---------------------------------------------------------------------------
