@@ -22,23 +22,27 @@
         "WP12",
         "WP13",
         "WP14",
-        "WP15"
+        "WP15",
+        "WP16"
       ],
       "write_scope": [
         ".kittify/charter/charter.md",
         "AGENTS.md",
         "contracts/mission-status/schemas/OpsInvocation.yaml",
         "docs/changelog/CHANGELOG.md",
+        "docs/development/testing/testing-parallel.md",
         "docs/guides/how-to/workspace-lifecycle.md",
         "docs/plans/engineering-notes/2026-10-24-lifecycle-integration-contracts.md",
         "docs/plans/engineering-notes/2026-10-24-organization-lifecycle-rollout.md",
         "docs/plans/engineering-notes/2026-10-24-owned-lanes-analysis.md",
         "docs/plans/engineering-notes/2026-10-27-op-closeout-no-commit.md",
+        "docs/plans/engineering-notes/2026-10-28-pytest-containment-and-private-yaml.md",
         "docs/reports/organization-workspace-lifecycle/**",
         "packs/built-in/missions/mission-steps/**",
         "pyproject.toml",
         "src/kernel/git/remote.py",
         "src/kernel/git_topology.py",
+        "src/kernel/yaml_io.py",
         "src/specify_cli/acceptance/gates_core.py",
         "src/specify_cli/cli/commands/_organization_workspaces_doctor.py",
         "src/specify_cli/cli/commands/agent/tasks.py",
@@ -67,8 +71,11 @@
         "src/specify_cli/workspace_lifecycle/service.py",
         "src/specify_cli/workspace_lifecycle/state.py",
         "src/specify_cli/workspace_lifecycle/worker.py",
+        "tests/_support/run_basetemp.py",
+        "tests/_support/test_run_basetemp.py",
         "tests/acceptance/test_owned_code_kind.py",
         "tests/architectural/test_archive_root_byte_identical.py",
+        "tests/conftest.py",
         "tests/consolidation/**",
         "tests/contract/_mission_status_detail.py",
         "tests/contract/test_mission_status_detail.py",
@@ -79,12 +86,14 @@
         "tests/integration/test_owned_lifecycle_acceptance_e2e.py",
         "tests/integration/test_owned_lifecycle_acceptance_finalize.py",
         "tests/kernel/test_git_remote.py",
+        "tests/kernel/test_yaml_io.py",
         "tests/lanes/test_claim_base.py",
         "tests/lanes/test_lane_tip_record_points.py",
         "tests/specify_cli/cli/commands/agent/fixtures/tasks_cli/help/move-task.help",
         "tests/specify_cli/cli/commands/agent/test_owned_checkout_move_task.py",
         "tests/specify_cli/cli/commands/test_doctor_cli_surface_golden.py",
         "tests/specify_cli/consolidation/test_single_branch_consolidate_e2e.py",
+        "tests/specify_cli/core/test_hosted_posture.py",
         "tests/specify_cli/invocation/cli/test_complete.py",
         "tests/specify_cli/invocation/cli/test_owned_checkout.py",
         "tests/specify_cli/invocation/test_executor.py",
@@ -107,10 +116,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-27T23:33:06.239839+00:00",
+  "computed_at": "2026-10-28T08:26:15.490008+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "96a80c210abf5b6351ccade5bd3d532a29f5317f"
+  "planning_commit_sha": "01115d43d18ef668b2c905e7dfff694f7628d7b4"
 }

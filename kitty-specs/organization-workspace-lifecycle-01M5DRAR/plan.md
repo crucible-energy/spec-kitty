@@ -120,3 +120,8 @@ WP13 independently reviews and implements the real stacked-live-mission/archive 
 ## Prospective operation-closeout safety correction — 2026-10-27
 
 WP15 follows approved WP07/WP14 without reopening or restamping them. Add an explicit commit opt-out at the existing completion boundary; skip only Git commit while preserving canonical event/evidence/ownership checks and default behavior. Google owns implementation, Subsequent independent review, Source lifecycle admission/landing coordination. Use existing Source checkout and declared mission integration target; no protected foreign-primary change or shared runtime swap. Required failure-first CLI/executor, dirty-state preservation and default-commit controls are in the prospective WP15 prompt. Existing acceptance/history remains historical evidence, not approval of this correction.
+
+
+## Prospective validation safety correction — WP16
+
+The WP15 required baseline exposed unsafe test ancestor selection and private YAML replacement permissions. WP16 repairs the existing test-resource authority and canonical YAML writer in eight literal owned paths, with default/explicit/worker/nested refusal and positive controls, complete writes, owned temporary cleanup and prepublication mode preservation. This is bounded correction of retained Python compatibility infrastructure, not a new lifecycle engine. Dependencies are approved WP07/WP14; WP15 original claim, ownership and earlier approvals/history remain unchanged. Independent review and all required gates precede installed acceptance. The declared mission target is not default-main or organization runtime adoption.
