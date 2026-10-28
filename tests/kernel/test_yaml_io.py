@@ -24,6 +24,8 @@ copy of the normalizer) before src/kernel/yaml_io.py was created.
 from __future__ import annotations
 
 import os as _os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -80,9 +82,7 @@ def test_serialize_mapping_strips_trailing_whitespace_from_wrapped_scalars() -> 
     probe_buf = BytesIO()
     probe.dump(data, probe_buf)
     raw = probe_buf.getvalue().decode("utf-8")
-    assert any(line.endswith((" ", "\t")) for line in raw.splitlines()), (
-        "expected the raw dump to contain a trailing-whitespace line; test is vacuous otherwise"
-    )
+    assert any(line.endswith((" ", "\t")) for line in raw.splitlines()), "expected the raw dump to contain a trailing-whitespace line; test is vacuous otherwise"
 
     serialized = serialize_mapping(data, width=80)
     text = serialized.decode("utf-8")
@@ -137,9 +137,7 @@ def test_canonical_yaml_width_is_4096() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_write_mapping_atomic_uses_temp_then_rename(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_write_mapping_atomic_uses_temp_then_rename(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The write must go through a .tmp sibling file and an os.replace rename
     — never a direct write to the target path.
     """
@@ -188,9 +186,7 @@ def test_write_mapping_atomic_mkdir_creates_parent(tmp_path: Path) -> None:
     assert YAML(typ="safe").load(target.read_text(encoding="utf-8")) == {"x": 1}
 
 
-def test_write_mapping_atomic_cleans_up_tempfile_on_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_write_mapping_atomic_cleans_up_tempfile_on_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target = tmp_path / "record.yaml"
 
     def failing_write(fd: int, data: bytes) -> int:
@@ -206,9 +202,7 @@ def test_write_mapping_atomic_cleans_up_tempfile_on_failure(
     assert leftover == [], f"Unexpected tempfiles left behind: {leftover}"
 
 
-def test_write_mapping_atomic_crash_leaves_no_target(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_write_mapping_atomic_crash_leaves_no_target(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target = tmp_path / "record.yaml"
 
     def crashing_replace(src: str, dst: str) -> None:
@@ -222,9 +216,7 @@ def test_write_mapping_atomic_crash_leaves_no_target(
     assert not target.exists()
 
 
-def test_write_mapping_atomic_dir_fsync_failure_is_non_fatal(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_write_mapping_atomic_dir_fsync_failure_is_non_fatal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Best-effort dir fsync failure does not propagate; the write still
     succeeds.
     """
@@ -283,3 +275,233 @@ def test_normalize_no_trailing_whitespace_is_a_noop() -> None:
     """
     original = b"key: value\nother: thing\n"
     assert _normalize_nonsemantic_trailing_whitespace(original) == original
+
+
+@pytest.mark.parametrize("mask", [0o022, 0o077])
+def test_private_yaml_mode_precedes_first_payload_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mask: int) -> None:
+    target = tmp_path / "private.yaml"
+    target.write_text("original: true\n")
+    target.chmod(0o600)
+    original_write = _os.write
+    observed: list[int] = []
+
+    def inspect_write(fd: int, data: bytes) -> int:
+        observed.append(_os.fstat(fd).st_mode & 0o777)
+        return original_write(fd, data)
+
+    monkeypatch.setattr(_os, "write", inspect_write)
+    previous = _os.umask(mask)
+    try:
+        write_mapping_atomic({"private": "synthetic"}, target)
+    finally:
+        _os.umask(previous)
+    assert observed and set(observed) == {0o600}
+    assert target.stat().st_mode & 0o777 == 0o600
+
+
+def test_atomic_yaml_completes_short_writes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = tmp_path / "short.yaml"
+    original_write = _os.write
+    monkeypatch.setattr(_os, "write", lambda fd, data: original_write(fd, data[:2]))
+    write_mapping_atomic({"message": "complete synthetic value"}, target)
+    assert YAML(typ="safe").load(target.read_bytes()) == {"message": "complete synthetic value"}
+
+
+def test_atomic_yaml_zero_progress_preserves_original(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = tmp_path / "zero.yaml"
+    original = b"original: true\n"
+    target.write_bytes(original)
+    monkeypatch.setattr(_os, "write", lambda fd, data: 0)
+    with pytest.raises(OSError):
+        write_mapping_atomic({"replacement": True}, target)
+    assert target.read_bytes() == original
+    assert not list(tmp_path.glob("*.tmp.*"))
+
+
+def test_atomic_yaml_exclusive_collision_preserves_foreign_temporary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = tmp_path / "collision.yaml"
+    monkeypatch.setattr(_os, "urandom", lambda length: b"\x01" * length)
+    foreign = target.with_name(f"{target.name}.tmp.{_os.getpid()}.01010101")
+    foreign.write_bytes(b"foreign successor")
+    with pytest.raises(FileExistsError):
+        write_mapping_atomic({"replacement": True}, target)
+    assert foreign.read_bytes() == b"foreign successor"
+    assert not target.exists()
+
+
+def test_atomic_yaml_refuses_target_replacement_before_publication(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = tmp_path / "changed.yaml"
+    target.write_bytes(b"original: true\n")
+    original_write = _os.write
+    replaced = False
+
+    def replace_during_write(fd: int, data: bytes) -> int:
+        nonlocal replaced
+        if not replaced:
+            replaced = True
+            successor = tmp_path / "successor.yaml"
+            successor.write_bytes(b"successor: retained\n")
+            successor.replace(target)
+        return original_write(fd, data)
+
+    monkeypatch.setattr(_os, "write", replace_during_write)
+    with pytest.raises(OSError):
+        write_mapping_atomic({"replacement": True}, target)
+    assert target.read_bytes() == b"successor: retained\n"
+
+
+@pytest.mark.parametrize("mask, expected", [(0o022, 0o644), (0o077, 0o600)])
+def test_new_yaml_keeps_caller_umask(tmp_path: Path, mask: int, expected: int) -> None:
+    target = tmp_path / "new.yaml"
+    previous = _os.umask(mask)
+    try:
+        write_mapping_atomic({"synthetic": True}, target)
+    finally:
+        _os.umask(previous)
+    assert target.stat().st_mode & 0o777 == expected
+
+
+def test_atomic_yaml_refuses_symlink_without_touching_referent(tmp_path: Path) -> None:
+    referent = tmp_path / "original.yaml"
+    referent.write_bytes(b"original: retained\n")
+    target = tmp_path / "link.yaml"
+    target.symlink_to(referent)
+    with pytest.raises(OSError):
+        write_mapping_atomic({"replacement": True}, target)
+    assert target.is_symlink()
+    assert referent.read_bytes() == b"original: retained\n"
+    assert not list(tmp_path.glob("*.tmp.*"))
+
+
+def test_atomic_yaml_refuses_nonregular_and_setid_destinations(tmp_path: Path) -> None:
+    directory = tmp_path / "directory.yaml"
+    directory.mkdir()
+    with pytest.raises(OSError):
+        write_mapping_atomic({"replacement": True}, directory)
+    target = tmp_path / "privileged.yaml"
+    target.write_bytes(b"original: retained\n")
+    target.chmod(0o4600)
+    try:
+        with pytest.raises(OSError):
+            write_mapping_atomic({"replacement": True}, target)
+        assert target.read_bytes() == b"original: retained\n"
+    finally:
+        target.chmod(0o600)
+
+
+@pytest.mark.parametrize("initially_present", [False, True])
+def test_atomic_yaml_refuses_destination_arrival_or_mode_change(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, initially_present: bool) -> None:
+    target = tmp_path / "changing.yaml"
+    if initially_present:
+        target.write_bytes(b"original: retained\n")
+        target.chmod(0o600)
+    original_write = _os.write
+
+    def change_target(fd: int, data: bytes) -> int:
+        if initially_present:
+            target.chmod(0o640)
+        else:
+            target.write_bytes(b"successor: retained\n")
+        return original_write(fd, data)
+
+    monkeypatch.setattr(_os, "write", change_target)
+    with pytest.raises(OSError):
+        write_mapping_atomic({"replacement": True}, target)
+    assert target.read_bytes() == (b"original: retained\n" if initially_present else b"successor: retained\n")
+    if initially_present:
+        assert target.stat().st_mode & 0o777 == 0o640
+
+
+def test_atomic_yaml_preserves_foreign_temporary_successor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = tmp_path / "temporary.yaml"
+    target.write_bytes(b"original: retained\n")
+    monkeypatch.setattr(_os, "urandom", lambda length: b"\x02" * length)
+    temporary = target.with_name(f"{target.name}.tmp.{_os.getpid()}.02020202")
+    original_write = _os.write
+
+    def replace_temporary(fd: int, data: bytes) -> int:
+        count = original_write(fd, data)
+        temporary.unlink()
+        temporary.write_bytes(b"foreign successor")
+        return count
+
+    monkeypatch.setattr(_os, "write", replace_temporary)
+    with pytest.raises(OSError):
+        write_mapping_atomic({"replacement": True}, target)
+    assert temporary.read_bytes() == b"foreign successor"
+    assert target.read_bytes() == b"original: retained\n"
+
+
+def test_atomic_yaml_refuses_parent_redirection(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    parent = tmp_path / "parent"
+    parent.mkdir()
+    target = parent / "record.yaml"
+    target.write_bytes(b"original: retained\n")
+    saved = tmp_path / "original-parent"
+    original_write = _os.write
+
+    def redirect_parent(fd: int, data: bytes) -> int:
+        count = original_write(fd, data)
+        parent.rename(saved)
+        parent.mkdir()
+        target.write_bytes(b"successor: retained\n")
+        return count
+
+    monkeypatch.setattr(_os, "write", redirect_parent)
+    with pytest.raises(OSError):
+        write_mapping_atomic({"replacement": True}, target)
+    assert target.read_bytes() == b"successor: retained\n"
+    assert (saved / "record.yaml").read_bytes() == b"original: retained\n"
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Native Darwin ACL contract")
+def test_atomic_yaml_refuses_native_extended_acl(tmp_path: Path) -> None:
+    target = tmp_path / "acl.yaml"
+    original = b"original: retained\n"
+    target.write_bytes(original)
+    subprocess.run(
+        ["/bin/chmod", "+a", "everyone allow read", str(target)],
+        check=True,
+        capture_output=True,
+        timeout=5,
+    )
+    try:
+        with pytest.raises(OSError, match="ACL"):
+            write_mapping_atomic({"replacement": True}, target)
+        assert target.read_bytes() == original
+        assert not list(tmp_path.glob("*.tmp.*"))
+    finally:
+        subprocess.run(
+            ["/bin/chmod", "-N", str(target)],
+            check=True,
+            capture_output=True,
+            timeout=5,
+        )
+
+
+@pytest.mark.parametrize("attribute", ["system.posix_acl_access", "security.selinux"])
+def test_atomic_yaml_refuses_unsupported_access_metadata_before_effects(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, attribute: str) -> None:
+    """Exercise the xattr API contract even on hosts without that native API."""
+    target = tmp_path / "private.yaml"
+    original = b"original: retained\n"
+    target.write_bytes(original)
+    target.chmod(0o600)
+    before = target.stat()
+    inspected: list[Path] = []
+
+    def names(path: Path, *, follow_symlinks: bool) -> list[str]:
+        assert follow_symlinks is False
+        inspected.append(path)
+        return [attribute]
+
+    monkeypatch.setattr(_os, "listxattr", names, raising=False)
+    with pytest.raises(OSError, match="Unsupported access-control metadata"):
+        write_mapping_atomic({"replacement": True}, target)
+    assert inspected == [tmp_path], "refuse at the parent before temporary or target effects"
+    after = target.stat()
+    assert all(
+        getattr(before, field) == getattr(after, field)
+        for field in ("st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_size", "st_mtime_ns", "st_ctime_ns", "st_nlink")
+    )
+    assert target.read_bytes() == original
+    assert list(tmp_path.iterdir()) == [target]

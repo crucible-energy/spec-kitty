@@ -59,13 +59,20 @@ import os
 import shutil
 import stat
 import tempfile
+import socket
+import threading
+import struct
 import uuid
 from collections.abc import Iterable
 from functools import partial
 from pathlib import Path
+from typing import Any, Protocol
 
 import pytest
+import psutil
 from _pytest.compat import get_user_id
+from kernel.yaml_io import _refuse_privileged_metadata
+from specify_cli.core.process_liveness import capture_creation_time_baseline
 
 #: Sibling of WP04's ``spec-kitty-test-homes`` under the resolved temproot —
 #: A suite namespace, not blanket ownership of other producers' contents.
@@ -83,6 +90,504 @@ STALE_RUN_MAX_AGE_S = 24 * 60 * 60
 #: explicit ``--basetemp`` (whoever passes one owns its own lifecycle), so
 #: :func:`mark_session_outcome` is a safe no-op in both cases.
 _OUTCOME_CONFIG_ATTR = "_spec_kitty_run_basetemp_outcome"
+
+_ENCLOSURE_ENV = "SPEC_KITTY_TEST_ENCLOSURE"
+_ENCLOSURE_ATTR = "_spec_kitty_run_enclosure"
+_ADMITTED_BASETEMP_ATTR = "_spec_kitty_admitted_basetemp"
+_WORKER_ENCLOSURE = "spec_kitty_run_enclosure"
+_ACTIVE_ENCLOSURE: _RunEnclosure | _EnclosureView | None = None
+
+
+def _birth(pid: int) -> str:
+    value = capture_creation_time_baseline(pid)
+    if not isinstance(value, str):
+        raise OSError("Cannot verify test producer generation")
+    return value
+
+
+def _raw_temproot() -> Path:
+    # gettempdir() may write while choosing its fallback. Admission precedes it.
+    value = next((os.environ[k] for k in ("PYTEST_DEBUG_TEMPROOT", "TMPDIR", "TEMP", "TMP") if os.environ.get(k)), None)
+    if value is None:
+        value = tempfile.tempdir or ("/tmp" if os.name == "posix" else None)
+    if not isinstance(value, str):
+        raise OSError("Select a test temporary directory before admission")
+    return Path(value).absolute()
+
+
+def _markers(path: Path, boundary: Path | None = None) -> None:
+    resolved = path.resolve()
+    for parent in (resolved, *resolved.parents):
+        if boundary is not None and not parent.is_relative_to(boundary):
+            break
+        for name in (".git", ".kittify"):
+            marker = parent / name
+            if not (marker.exists() or marker.is_symlink()):
+                continue
+            if boundary is None:
+                raise OSError(f"Foreign configuration ancestor: {marker}")
+            if not (marker.is_file() or marker.is_dir() or marker.is_symlink()):
+                raise OSError("Unsupported test configuration marker type")
+            if marker.is_symlink() and not marker.resolve().is_relative_to(boundary):
+                raise OSError("Configuration marker escapes the test enclosure")
+            if name == ".git" and marker.is_file():
+                if marker.stat().st_size > 4096:
+                    raise OSError("Oversized test Git marker")
+                text = marker.read_text().strip()
+                if text.startswith("gitdir:"):
+                    target = (parent / text[7:].strip()).resolve()
+                    if not target.is_relative_to(boundary):
+                        raise OSError("Git directory escapes the test enclosure")
+
+
+def _security_sid(value: bytes, offset: int) -> str:
+    if offset < 0 or offset + 8 > len(value):
+        raise OSError("Invalid security identifier")
+    revision, count = value[offset : offset + 2]
+    end = offset + 8 + count * 4
+    if count > 15 or end > len(value):
+        raise OSError("Invalid security identifier length")
+    authority = int.from_bytes(value[offset + 2 : offset + 8], "big")
+    parts = struct.unpack_from("<" + "I" * count, value, offset + 8)
+    return "-".join(map(str, ("S", revision, authority, *parts)))
+
+
+def _windows_security(path: Path) -> str:
+    """Read and check native owner/DACL; never infer privacy from Windows mode bits."""
+    import ctypes
+    from ctypes import wintypes
+
+    library = getattr(ctypes, "WinDLL", None)
+    if library is None:
+        raise OSError("Native Windows security inspection is unavailable")
+    advapi = library("advapi32", use_last_error=True)
+    kernel = library("kernel32", use_last_error=True)
+    advapi.GetFileSecurityW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    advapi.GetFileSecurityW.restype = wintypes.BOOL
+    needed = wintypes.DWORD()
+    advapi.GetFileSecurityW(str(path), 5, None, 0, ctypes.byref(needed))
+    if not 20 <= needed.value <= 65536:
+        raise OSError("Cannot inspect private test directory security")
+    data = ctypes.create_string_buffer(needed.value)
+    if not advapi.GetFileSecurityW(str(path), 5, data, len(data), ctypes.byref(needed)):
+        raise OSError("Cannot read private test directory security")
+    raw = data.raw[: needed.value]
+
+    kernel.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel.CloseHandle.restype = wintypes.BOOL
+    advapi.OpenProcessToken.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)]
+    advapi.OpenProcessToken.restype = wintypes.BOOL
+    advapi.GetTokenInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    advapi.GetTokenInformation.restype = wintypes.BOOL
+    advapi.GetLengthSid.argtypes = [ctypes.c_void_p]
+    advapi.GetLengthSid.restype = wintypes.DWORD
+    token = wintypes.HANDLE()
+    if not advapi.OpenProcessToken(kernel.GetCurrentProcess(), 8, ctypes.byref(token)):
+        raise OSError("Cannot inspect current test token")
+    try:
+        size = wintypes.DWORD()
+        advapi.GetTokenInformation(token, 1, None, 0, ctypes.byref(size))
+        if not 8 <= size.value <= 65536:
+            raise OSError("Invalid current test token")
+        token_data = ctypes.create_string_buffer(size.value)
+        if not advapi.GetTokenInformation(token, 1, token_data, len(token_data), ctypes.byref(size)):
+            raise OSError("Cannot read current test token")
+        pointer = ctypes.cast(token_data, ctypes.POINTER(ctypes.c_void_p))[0]
+        length = advapi.GetLengthSid(pointer)
+        if not 8 <= length <= 68:
+            raise OSError("Invalid current test identity")
+        user = _security_sid(ctypes.string_at(pointer, length), 0)
+    finally:
+        if not kernel.CloseHandle(token):
+            raise OSError("Test token close failed")
+    allowed = {user, "S-1-5-18", "S-1-5-32-544"}
+    _, _, control, owner, _, _, dacl = struct.unpack_from("<BBHIIII", raw)
+    if not control & 4 or not dacl or _security_sid(raw, owner) not in allowed or dacl + 8 > len(raw):
+        raise OSError("Test directory is not privately owned")
+    _, _, size, count, _ = struct.unpack_from("<BBHHH", raw, dacl)
+    end = dacl + size
+    offset = dacl + 8
+    if end > len(raw):
+        raise OSError("Invalid test directory ACL")
+    for _ in range(count):
+        kind, flags, size = struct.unpack_from("<BBH", raw, offset)
+        if size < 12 or offset + size > end or kind not in (0, 1):
+            raise OSError("Unsupported test directory ACL")
+        identity = _security_sid(raw[: offset + size], offset + 8)
+        if kind == 0 and identity not in allowed and not (identity == "S-1-3-0" and flags & 8):
+            raise OSError("Test directory grants access outside the current user")
+        offset += size
+    return hashlib.sha256(raw).hexdigest()  # noqa: TID251 - native permission preimage, not charter data.
+
+
+def _private_identity(path: Path) -> list[int | str | None]:
+    info = path.lstat()
+    if not stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode):
+        raise OSError("Test enclosure is not a physical directory")
+    if os.name == "posix" and (info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700):
+        raise OSError("Test enclosure must be private and owned by the current user")
+    _refuse_privileged_metadata(path)
+    return [info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid, _windows_security(path) if os.name == "nt" else None]
+
+
+def _connection_owned(process: psutil.Process, local_port: int, remote_port: int | None = None) -> bool:
+    return any(
+        row.laddr
+        and row.laddr.ip == "127.0.0.1"
+        and row.laddr.port == local_port
+        and (row.status == psutil.CONN_LISTEN if remote_port is None else row.raddr and row.raddr.port == remote_port)
+        for row in process.net_connections(kind="tcp")
+    )
+
+
+def _frame(connection: socket.socket) -> dict[str, Any]:
+    data = b""
+    while not data.endswith(b"\n") and len(data) < 16384:
+        part = connection.recv(16384 - len(data))
+        if not part:
+            raise OSError("Incomplete test enclosure observation")
+        data += part
+    value = json.loads(data)
+    if not data.endswith(b"\n") or not isinstance(value, dict):
+        raise OSError("Invalid test enclosure observation")
+    return value
+
+
+class _RunEnclosure:
+    """The live controller owns this context; projections never reconstruct it."""
+
+    def __init__(self, root: Path, allowed: list[Path], tmp_parent: Path) -> None:
+        self.root = root.resolve()
+        self.allowed = [path.resolve() for path in allowed]
+        self.tmp_parent = tmp_parent.resolve()
+        if not 1 <= len(self.allowed) <= 3 or any(not path.is_relative_to(self.root) for path in self.allowed):
+            raise OSError("Test scope escapes its physical enclosure")
+        if not any(self.tmp_parent.is_relative_to(path) for path in self.allowed):
+            raise OSError("Test temporary allocation escapes its fixed scope")
+        self.pid = os.getpid()
+        self.birth = _birth(self.pid)
+        self.run_id = uuid.uuid4().hex
+        self.identity: list[int | str | None] | None = None
+        self.record = self.root / (".e-" + self.run_id + ".json")
+        self.fd: int | None = None
+        self.listener: socket.socket | None = None
+        self.thread: threading.Thread | None = None
+        self.stop = threading.Event()
+        self.closed = False
+
+    def open(self) -> None:
+        self.identity = _private_identity(self.root)
+        self.fd = os.open(self.record, os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o600)
+        os.chmod(self.record, 0o600)
+        body = json.dumps(
+            {
+                "owner_pid": self.pid,
+                "generation": self.birth,
+                "run_id": self.run_id,
+                "root": str(self.root),
+                "purpose": "Source test-resource enclosure; not cleanup authority",
+                "next_action": "retain until owning producer and runtime dependencies are released",
+            }
+        ).encode()
+        with os.fdopen(os.dup(self.fd), "wb") as handle:
+            handle.write(body)
+            handle.flush()
+            os.fsync(handle.fileno())
+        self.record_identity = os.fstat(self.fd)
+        self.listener = socket.socket()
+        self.listener.settimeout(0.2)
+        self.listener.bind(("127.0.0.1", 0))
+        self.listener.listen(16)
+        self.thread = threading.Thread(target=self._serve, daemon=False)
+        self.thread.start()
+
+    def current(self) -> None:
+        if self.closed or self.fd is None or _birth(self.pid) != self.birth or _private_identity(self.root) != self.identity:
+            raise OSError("Test enclosure is stale or changed")
+        actual = self.record.lstat()
+        held = os.fstat(self.fd)
+        fields = ("st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_size", "st_mtime_ns", "st_ctime_ns", "st_nlink")
+        if any(getattr(actual, k) != getattr(held, k) or getattr(held, k) != getattr(self.record_identity, k) for k in fields):
+            raise OSError("Test enclosure reservation changed")
+
+    def check(self, path: Path) -> None:
+        self.current()
+        if not any(path.resolve().is_relative_to(prefix) for prefix in self.allowed):
+            raise OSError("Test resource escapes the admitted enclosure")
+        _markers(path, self.root)
+        for parent in (path.resolve(), *path.resolve().parents):
+            if not parent.is_relative_to(self.root):
+                break
+            if any((parent / name).exists() or (parent / name).is_symlink() for name in (".git", ".kittify")) and not any(
+                parent.is_relative_to(prefix) for prefix in self.allowed
+            ):
+                raise OSError("Configuration marker is outside this run's fixed scope")
+
+    def projection(self) -> dict[str, Any]:
+        self.current()
+        if self.listener is None:
+            raise OSError("Test enclosure transport is not open")
+        return {"schema": 1, "pid": self.pid, "birth": self.birth, "run_id": self.run_id, "port": self.listener.getsockname()[1]}
+
+    def _serve(self) -> None:
+        listener = self.listener
+        if listener is None:
+            raise OSError("Test enclosure transport is not open")
+        while not self.stop.is_set():
+            try:
+                connection, peer = listener.accept()
+            except TimeoutError:
+                continue
+            except OSError:
+                if self.stop.is_set():
+                    return
+                raise
+            with connection:
+                connection.settimeout(1)
+                response: dict[str, Any] = {"ok": False}
+                try:
+                    request = _frame(connection)
+                    if set(request) != {"pid", "birth", "run_id", "challenge", "path"} or request["run_id"] != self.run_id:
+                        raise OSError("Invalid test enclosure request")
+                    pid = request["pid"]
+                    if type(pid) is not int or pid <= 0 or _birth(pid) != request["birth"]:
+                        raise OSError("Invalid test requester generation")
+                    process = psutil.Process(pid)
+                    if pid != self.pid and self.pid not in [p.pid for p in process.parents()]:
+                        raise OSError("Test requester is not a real descendant")
+                    if not _connection_owned(process, peer[1], listener.getsockname()[1]):
+                        raise OSError("Test requester does not own this connection")
+                    self.check(Path(request["path"]))
+                    response = {
+                        "ok": True,
+                        "challenge": request["challenge"],
+                        "run_id": self.run_id,
+                        "root": str(self.root),
+                        "identity": self.identity,
+                        "allowed": [str(path) for path in self.allowed],
+                        "tmp_parent": str(self.tmp_parent),
+                    }
+                except (OSError, ValueError, TypeError, KeyError, psutil.Error):
+                    pass
+                with contextlib.suppress(OSError):
+                    connection.sendall(json.dumps(response).encode() + b"\n")
+
+    def close(self) -> None:
+        global _ACTIVE_ENCLOSURE
+        self.closed = True
+        self.stop.set()
+        if self.listener is not None:
+            self.listener.close()
+        if self.thread is not None:
+            self.thread.join(timeout=2)
+        if self.fd is not None:
+            os.close(self.fd)
+            self.fd = None
+        if self.thread is not None and self.thread.is_alive():
+            raise OSError("Test enclosure thread closeout is unconfirmed")
+        if _ACTIVE_ENCLOSURE is self:
+            _ACTIVE_ENCLOSURE = None
+        # Files and run evidence remain; closing transport grants no deletion.
+
+
+class _EnclosureView:
+    def __init__(self, projection: dict[str, Any]) -> None:
+        if set(projection) != {"schema", "pid", "birth", "run_id", "port"} or type(projection["schema"]) is not int or projection["schema"] != 1:
+            raise OSError("Invalid test enclosure projection")
+        if type(projection["pid"]) is not int or projection["pid"] <= 0 or type(projection["port"]) is not int or not 0 < projection["port"] < 65536:
+            raise OSError("Invalid test enclosure endpoint")
+        if (
+            not isinstance(projection["birth"], str)
+            or not 1 <= len(projection["birth"]) <= 128
+            or not isinstance(projection["run_id"], str)
+            or len(projection["run_id"]) != 32
+            or any(c not in "0123456789abcdef" for c in projection["run_id"])
+        ):
+            raise OSError("Invalid test enclosure generation")
+        self.value = projection
+        self.pid = os.getpid()
+        self.root: Path | None = None
+
+    def projection(self) -> dict[str, Any]:
+        return self.value.copy()
+
+    def check(self, path: Path) -> None:
+        value = self.value
+        owner = psutil.Process(value["pid"])
+        if _birth(owner.pid) != value["birth"] or (owner.pid != os.getpid() and owner.pid not in [p.pid for p in psutil.Process().parents()]):
+            raise OSError("No live enclosing test producer")
+        if not _connection_owned(owner, value["port"]):
+            raise OSError("Enclosing test producer does not own the endpoint")
+        challenge = uuid.uuid4().hex
+        with socket.create_connection(("127.0.0.1", value["port"]), timeout=2) as connection:
+            connection.sendall(
+                json.dumps(
+                    {"pid": os.getpid(), "birth": _birth(os.getpid()), "run_id": value["run_id"], "challenge": challenge, "path": str(path.absolute())}
+                ).encode()
+                + b"\n"
+            )
+            response = _frame(connection)
+            if not response.get("ok") or response.get("challenge") != challenge or response.get("run_id") != value["run_id"]:
+                raise OSError("Test enclosure observation refused")
+            if _birth(owner.pid) != value["birth"] or not _connection_owned(owner, value["port"]):
+                raise OSError("Enclosing test producer changed during observation")
+        root = Path(response["root"])
+        allowed = response["allowed"]
+        if not isinstance(allowed, list) or not 1 <= len(allowed) <= 3 or any(not isinstance(p, str) or not Path(p).is_absolute() for p in allowed):
+            raise OSError("Invalid test enclosure scope observation")
+        if (
+            _private_identity(root) != response["identity"]
+            or not path.resolve().is_relative_to(root)
+            or not any(path.resolve().is_relative_to(Path(p)) for p in allowed)
+        ):
+            raise OSError("Test enclosure physical identity mismatch")
+        _markers(path, root)
+        self.root = root
+        self.tmp_parent = Path(response["tmp_parent"])
+        if not self.tmp_parent.is_relative_to(root) or not any(self.tmp_parent.is_relative_to(Path(p)) for p in allowed):
+            raise OSError("Invalid test temporary allocation parent")
+
+
+class _WorkerHandoff(Protocol):
+    workerinput: dict[str, Any]
+
+
+class _EnclosureHandoff:
+    def __init__(self, context: _RunEnclosure | _EnclosureView) -> None:
+        self.context = context
+
+    @pytest.hookimpl(optionalhook=True)
+    def pytest_configure_node(self, node: _WorkerHandoff) -> None:
+        node.workerinput[_WORKER_ENCLOSURE] = self.context.projection()
+
+
+def _inherited_enclosure(config: pytest.Config) -> _RunEnclosure | _EnclosureView | None:
+    context = _ACTIVE_ENCLOSURE
+    if context is not None and context.pid != os.getpid():
+        context = None
+    if context is None:
+        worker = getattr(config, "workerinput", None)
+        projection = worker.get(_WORKER_ENCLOSURE) if worker is not None else os.environ.get(_ENCLOSURE_ENV)
+        if worker is not None and projection is None:
+            raise OSError("Worker has no real controller enclosure handoff")
+        if projection is not None:
+            try:
+                if isinstance(projection, str) and len(projection.encode()) > 16384:
+                    raise OSError("Oversized test enclosure projection")
+                context = _EnclosureView(json.loads(projection) if isinstance(projection, str) else projection)
+            except (TypeError, ValueError, KeyError) as error:
+                raise OSError("Invalid test enclosure routing projection") from error
+    return context
+
+
+def _declared_config_path() -> Path | None:
+    value = os.environ.get("SPEC_KITTY_HOME")
+    return Path(value).absolute() if value else None
+
+
+def _create_enclosure(config: pytest.Config, candidate: Path, explicit: str | None, debug_root: str | None) -> tuple[_RunEnclosure, Path | None]:
+    _markers(candidate)
+    if explicit:
+        _markers(Path(explicit))
+    if not hasattr(config, "add_cleanup"):
+        raise OSError("A real controller or live parent enclosure is required")
+    if explicit:
+        root = Path(explicit).absolute().parent
+    elif debug_root:
+        root = candidate / RUN_TMP_ROOT_NAME
+    else:
+        root = candidate / ("e-" + uuid.uuid4().hex[:8])
+    _markers(root)
+    config_path = _declared_config_path()
+    if config_path is not None:
+        _markers(config_path)
+        if not config_path.resolve().is_relative_to(root.resolve()):
+            raise OSError("Inherited Source home override is outside the test enclosure")
+    home_tmp = root / ("n-" + uuid.uuid4().hex[:8])
+    namespace = candidate / RUN_TMP_ROOT_NAME if debug_root else home_tmp / RUN_TMP_ROOT_NAME
+    admitted = Path(explicit) if explicit else run_basetemp_dir(root=namespace)
+    selected = None if explicit else admitted
+    allowed = [admitted, home_tmp]
+    if config_path is not None:
+        allowed.append(config_path)
+    context = _RunEnclosure(root, allowed, home_tmp)
+    config.add_cleanup(context.close)  # Before descriptor/thread birth.
+    # Register closeout before any owned directory, descriptor or thread birth.
+    if not root.exists():
+        root.mkdir(mode=0o700, parents=True)
+        root.chmod(0o700)
+    context.open()
+    return context, selected
+
+
+def _admit_run_resources(config: pytest.Config) -> None:
+    """Admit before HOME/temp effects; never treat a projection as authority."""
+    global _ACTIVE_ENCLOSURE
+    known = getattr(config, _ENCLOSURE_ATTR, None)
+    if known is not None:
+        known.check(Path(getattr(config, _ADMITTED_BASETEMP_ATTR, None) or config.option.basetemp or _raw_temproot()))
+        if (config_path := _declared_config_path()) is not None:
+            known.check(config_path)
+        return
+    candidate = _raw_temproot()
+    explicit = getattr(config.option, "basetemp", None)
+    debug_root = os.environ.get("PYTEST_DEBUG_TEMPROOT")
+    requested = Path(explicit) if explicit else candidate / RUN_TMP_ROOT_NAME if debug_root else candidate
+    selected = None
+    context = _inherited_enclosure(config)
+    if context is None:
+        context, selected = _create_enclosure(config, candidate, explicit, debug_root)
+        if explicit:
+            requested = Path(explicit)
+        elif selected is not None:
+            requested = selected
+        else:
+            raise OSError("Controller did not select its admitted temporary path")
+    context.check(requested)
+    if (config_path := _declared_config_path()) is not None:
+        context.check(config_path)
+    _ACTIVE_ENCLOSURE = context
+    setattr(config, _ENCLOSURE_ATTR, context)
+    if hasattr(config, "add_cleanup"):
+        previous = {name: os.environ.get(name) for name in ("TMPDIR", _ENCLOSURE_ENV)}
+        old_tempdir = tempfile.tempdir
+        home_tmp = (
+            context.tmp_parent
+            if selected is not None or isinstance(context, _RunEnclosure) and not context.tmp_parent.exists()
+            else context.tmp_parent / ("n-" + uuid.uuid4().hex[:8])
+        )
+        context.check(home_tmp)
+        home_tmp.mkdir(mode=0o700)
+        home_tmp.chmod(0o700)
+        os.environ["TMPDIR"] = str(home_tmp)
+        os.environ[_ENCLOSURE_ENV] = json.dumps(context.projection())
+        tempfile.tempdir = str(home_tmp)
+        if not explicit:
+            if selected is None:
+                namespace = candidate / RUN_TMP_ROOT_NAME if debug_root else home_tmp / RUN_TMP_ROOT_NAME
+                selected = run_basetemp_dir(root=namespace)
+                context.check(selected)
+            setattr(config, _ADMITTED_BASETEMP_ATTR, str(selected))
+
+        def restore() -> None:
+            for key, value in previous.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+            tempfile.tempdir = old_tempdir
+
+        config.add_cleanup(restore)
+        config.pluginmanager.register(_EnclosureHandoff(context), "spec-kitty-test-enclosure")
+
+
+def admit_run_resources(config: pytest.Config) -> None:
+    """Refuse unsafe admission before Source-managed HOME or temporary effects."""
+    try:
+        _admit_run_resources(config)
+    except (OSError, ValueError, psutil.Error) as error:
+        raise pytest.UsageError(f"Test resource admission refused: {error}") from error
 
 
 class _SessionOutcome:
@@ -123,13 +628,13 @@ def run_tmp_root() -> Path:
     return temproot() / RUN_TMP_ROOT_NAME
 
 
-def run_basetemp_dir(pid: int | None = None) -> Path:
+def run_basetemp_dir(pid: int | None = None, *, root: Path | None = None) -> Path:
     """A fresh candidate, reserved exclusively by ``install_run_basetemp``.
 
     The PID is diagnostic only. A nonce prevents a later invocation from
     selecting and wiping a failed run's evidence after PID reuse.
     """
-    return run_tmp_root() / f"run-{pid if pid is not None else os.getpid()}-{uuid.uuid4().hex[:12]}"
+    return (root if root is not None else run_tmp_root()) / f"run-{pid if pid is not None else os.getpid()}-{uuid.uuid4().hex[:12]}"
 
 
 def stale_run_dirs(
@@ -221,19 +726,21 @@ def install_run_basetemp(config: pytest.Config, now: float) -> None:
     outcome recorder — an xdist worker receives its own nested basetemp over the wire and
     must not second-guess it.
     """
+    admit_run_resources(config)
     if getattr(config, "workerinput", None) is not None:
         return
     if config.option.basetemp:
         return
 
-    root = run_tmp_root()
+    admitted = getattr(config, _ADMITTED_BASETEMP_ATTR, None)
+    root = Path(admitted).parent if admitted else run_tmp_root()
     # pytest creates the given basetemp with a bare mkdir (no parents), so the
     # intermediate root must exist before the factory first resolves it.
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     _validate_existing_root(root)
     # No sibling scan or age-based removal: another run may still hold an old
     # directory, or its evidence may be the only retained failure record.
-    basetemp = run_basetemp_dir().absolute()
+    basetemp = Path(admitted) if admitted else run_basetemp_dir().absolute()
     basetemp.mkdir(mode=0o700)  # Exclusive: never reuse a retained path.
     basetemp.chmod(0o700)  # A restrictive caller umask must not remove owner access.
     outcome = _SessionOutcome()

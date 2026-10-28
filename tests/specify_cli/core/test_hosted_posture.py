@@ -38,6 +38,8 @@ personal is True and no env narrower is set)``.
 
 from __future__ import annotations
 
+import os
+import stat
 import subprocess
 import tomllib
 from pathlib import Path
@@ -524,6 +526,24 @@ class TestSetPersonalDrainStrictWriter:
 
 @pytest.mark.real_drain_posture
 class TestSetRepoDrain:
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX permission preservation")
+    @pytest.mark.parametrize("mask", [0o022, 0o077])
+    def test_private_config_preserves_permissions_and_unrelated_content(self, tmp_path: Path, mask: int) -> None:
+        repo = _repo(tmp_path, yaml_text="# private settings\nproject:\n  uuid: retained\nhosted:\n  drain: true\n  ledger: false\n")
+        config_path = repo / ".kittify" / "config.yaml"
+        config_path.chmod(0o600)
+        previous = os.umask(mask)
+        try:
+            assert set_repo_drain(repo, False) == config_path
+        finally:
+            os.umask(previous)
+        assert stat.S_IMODE(config_path.stat().st_mode) == 0o600
+        text = config_path.read_text()
+        assert "# private settings" in text
+        assert "uuid: retained" in text
+        assert "ledger: false" in text
+        assert drain_posture(project_root=repo).repo_value is False
+
     def test_preserves_comments_and_other_keys_and_round_trips(self, tmp_path: Path) -> None:
         repo = _repo(tmp_path)
         config_path = repo / ".kittify" / "config.yaml"

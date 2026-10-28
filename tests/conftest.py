@@ -30,7 +30,7 @@ from tests._support.quarantine import (
     quarantine_skip_mark,
 )
 from tests._support.repo_root_status_guard import register_repo_root_status_guard
-from tests._support.run_basetemp import install_run_basetemp, mark_session_outcome
+from tests._support.run_basetemp import admit_run_resources, install_run_basetemp, mark_session_outcome
 from tests._support.shared_build_artifacts import (
     SharedBuildError,
     default_wheel_sdist_builder,
@@ -216,7 +216,9 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
+@pytest.hookimpl(tryfirst=True)
 def pytest_configure(config: pytest.Config) -> None:
+    admit_run_resources(config)
     # TEST-M2-03 (xdist-order-sensitive families): promote a silently-scattered
     # bare `-n <N>` to `--dist loadfile`. See
     # tests/_support/xdist_scheduling.py for the full rationale and evidence

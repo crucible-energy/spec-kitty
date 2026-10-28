@@ -87,7 +87,7 @@ worry about a parallel run overwriting your real auth tokens or config.
 ## Per-run pytest temp root
 
 Every pytest invocation also gets its **own private basetemp** instead of the
-shared `/tmp/pytest-of-<user>` numbered tree: `<temproot>/spec-kitty-pytest-tmp/run-<pid>`
+shared `/tmp/pytest-of-<user>` numbered tree: `<temproot>/spk-t2/run-<pid>-<nonce>`
 (`temproot` honors `PYTEST_DEBUG_TEMPROOT`, then `TMPDIR`). This is a
 housekeeping fix, not a #63 fix: pytest's default tree only ever shrinks
 through its own locked, timeout-gated pruning, so a long-lived box accumulates
@@ -104,7 +104,21 @@ open pending a full-suite run that reports a summary.
 choice as usual (`…/run-<pid>-<nonce>/popen-gwN`). Consequences worth knowing:
 
 - An explicit `--basetemp` still wins untouched — whoever passes one owns its
-  lifecycle.
+  lifecycle. It must pass the same safety admission before pytest can clean it.
+- Admission in the existing helper runs before Source creates HOME/config/temp
+  state. An unproven `.git` or `.kittify` ancestor refuses before those effects;
+  a genuine enclosing controller permits controlled synthetic markers inside
+  its fixed run scope. Marker symlinks and Git-directory redirects cannot escape.
+- Workers use the existing xdist `workerinput` handoff. Nested local runs must
+  verify the live controller's actual process generation, ancestry, kernel
+  connection ownership and physical reservation. An environment value or copied
+  owner record alone cannot create or expand an enclosure. Unknown observations
+  refuse; this is cooperative local test containment, not a same-user sandbox
+  or remote-worker authorization service.
+- HOME/temp allocation uses private per-run leaves. The controller's temporary
+  observation thread and descriptors close through Config cleanup; the existing
+  outcome record remains separate. Closing this transport grants no adoption,
+  sibling sweep or deletion permission.
 - Retention requires owner/runtime release: even `ExitCode.OK` does not release
   a child or service holding this run's leaf. The launcher retains the exact
   owner record and a separate pytest outcome record; it retains failures,

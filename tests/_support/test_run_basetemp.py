@@ -8,6 +8,7 @@ They carry ``integration``, matching their real cost.
 from __future__ import annotations
 
 import atexit
+import contextlib
 import json
 import os
 import stat
@@ -17,6 +18,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import psutil
 
 from tests._support import run_basetemp as run_basetemp_module
 from tests._support.run_basetemp import (
@@ -294,6 +296,218 @@ def test_install_never_selects_another_aged_live_run_for_removal(tmp_path: Path,
     assert child.returncode == 0
 
 
+def test_live_enclosure_witness_and_explicit_descriptor_closeout(tmp_path: Path) -> None:
+    root = tmp_path / "private-controller"
+    root.mkdir(mode=0o700)
+    data, temporary = root / "data", root / "temporary"
+    context = run_basetemp_module._RunEnclosure(root, [data, temporary], temporary)
+    with contextlib.ExitStack() as cleanup:
+        cleanup.callback(context.close)
+        context.open()
+        view = run_basetemp_module._EnclosureView(context.projection())
+        view.check(data / "child")
+        descriptor = context.fd
+        assert descriptor is not None
+        assert os.fstat(descriptor).st_ino == context.record.stat().st_ino
+    assert context.closed
+    assert context.listener.fileno() == -1
+    assert not context.thread.is_alive()
+    with pytest.raises(OSError, match="Bad file descriptor"):
+        os.fstat(descriptor)
+    assert context.record.is_file(), "closed transport grants no cleanup authority"
+
+
+@pytest.mark.parametrize("change", ["closed", "record", "root", "generation", "nonce", "endpoint", "scope"])
+def test_changed_or_forged_live_enclosure_refuses(tmp_path: Path, change: str) -> None:
+    root = tmp_path / "controller"
+    root.mkdir(mode=0o700)
+    data, temporary = root / "data", root / "temporary"
+    context = run_basetemp_module._RunEnclosure(root, [data, temporary], temporary)
+    with contextlib.ExitStack() as cleanup:
+        cleanup.callback(context.close)
+        context.open()
+        projection = context.projection()
+        candidate = data / "not-created"
+        if change == "closed":
+            context.close()
+        elif change == "record":
+            contents = context.record.read_bytes()
+            context.record.unlink()
+            context.record.write_bytes(contents)
+        elif change == "root":
+            root.rename(tmp_path / "retained-original")
+            root.mkdir(mode=0o700)
+        elif change == "generation":
+            projection["birth"] = "1970-01-01T00:00:00+00:00"
+        elif change == "nonce":
+            projection["run_id"] = "0" * 32
+        elif change == "endpoint":
+            projection["port"] = 1
+        else:
+            candidate = tmp_path / "foreign-sibling"
+        view = run_basetemp_module._EnclosureView(projection)
+        with pytest.raises((OSError, psutil.Error)):
+            view.check(candidate)
+        assert not candidate.exists()
+
+
+def test_controller_cannot_mint_scope_outside_its_physical_root(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    root.mkdir(mode=0o700)
+    with pytest.raises(OSError, match="physical enclosure"):
+        run_basetemp_module._RunEnclosure(root, [tmp_path / "outside"], root / "tmp")
+    assert list(root.iterdir()) == []
+
+
+def test_enclosed_symlink_cannot_redirect_to_foreign_sibling(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    root.mkdir(mode=0o700)
+    data, temporary = root / "data", root / "tmp"
+    data.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (data / "redirect").symlink_to(outside, target_is_directory=True)
+    context = run_basetemp_module._RunEnclosure(root, [data, temporary], temporary)
+    with contextlib.ExitStack() as cleanup:
+        cleanup.callback(context.close)
+        context.open()
+        with pytest.raises(OSError, match="escapes"):
+            context.check(data / "redirect" / "not-created")
+    assert list(outside.iterdir()) == []
+
+
+def test_real_admission_refuses_foreign_source_home_override_before_effects(tmp_path: Path) -> None:
+    selected = tmp_path / "selected"
+    selected.mkdir(mode=0o700)
+    foreign = tmp_path / "foreign"
+    foreign.mkdir(mode=0o700)
+    sentinel = foreign / "config.yaml"
+    sentinel.write_bytes(b"synthetic: preserved\n")
+    sentinel.chmod(0o600)
+    before = sentinel.stat()
+    environment = dict(os.environ)
+    environment.pop("SPEC_KITTY_TEST_ENCLOSURE", None)
+    environment["PYTEST_DEBUG_TEMPROOT"] = str(selected)
+    environment["SPEC_KITTY_HOME"] = str(foreign)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "tests/kernel/test_yaml_io.py::test_canonical_yaml_width_is_4096",
+            "--basetemp",
+            str(selected / "pytest"),
+            "-p",
+            "no:cacheprovider",
+            "-q",
+        ],
+        cwd=REPO_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode != 0
+    assert "outside the test enclosure" in result.stdout + result.stderr
+    assert list(selected.iterdir()) == []
+    assert list(foreign.iterdir()) == [sentinel]
+    assert sentinel.read_bytes() == b"synthetic: preserved\n"
+    after = sentinel.stat()
+    assert all(
+        getattr(before, name) == getattr(after, name)
+        for name in (
+            "st_dev",
+            "st_ino",
+            "st_mode",
+            "st_uid",
+            "st_gid",
+            "st_size",
+            "st_mtime_ns",
+            "st_ctime_ns",
+            "st_nlink",
+        )
+    )
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_admission_refuses_foreign_configuration_before_effects(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, explicit: bool) -> None:
+    foreign = tmp_path / "foreign"
+    foreign.mkdir(mode=0o700)
+    marker = foreign / ".kittify"
+    marker.mkdir()
+    sentinel = marker / "config.yaml"
+    sentinel.write_bytes(b"synthetic: preserved\n")
+    sentinel.chmod(0o600)
+    before = sentinel.stat()
+    candidate = foreign / "scratch"
+    monkeypatch.setenv("PYTEST_DEBUG_TEMPROOT", str(candidate))
+    monkeypatch.delenv("SPEC_KITTY_TEST_ENCLOSURE", raising=False)
+    monkeypatch.setattr(run_basetemp_module, "_ACTIVE_ENCLOSURE", None, raising=False)
+    monkeypatch.setattr(atexit, "register", lambda callback: None)
+    config = _fake_config(str(candidate / "explicit") if explicit else None)
+    with pytest.raises((OSError, pytest.UsageError)):
+        install_run_basetemp(config, now=1)
+    assert not candidate.exists()
+    assert sentinel.read_bytes() == b"synthetic: preserved\n"
+    after = sentinel.stat()
+    assert all(
+        getattr(before, name) == getattr(after, name)
+        for name in (
+            "st_dev",
+            "st_ino",
+            "st_uid",
+            "st_gid",
+            "st_mode",
+            "st_size",
+            "st_mtime_ns",
+            "st_ctime_ns",
+            "st_nlink",
+        )
+    )
+
+
+@pytest.mark.parametrize("projection", ["not-json", '{"owner_pid": 0}'])
+def test_projection_alone_cannot_mint_an_enclosure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, projection: str) -> None:
+    candidate = tmp_path / "unadmitted"
+    monkeypatch.setenv("PYTEST_DEBUG_TEMPROOT", str(candidate))
+    monkeypatch.setenv("SPEC_KITTY_TEST_ENCLOSURE", projection)
+    monkeypatch.setattr(run_basetemp_module, "_ACTIVE_ENCLOSURE", None, raising=False)
+    monkeypatch.setattr(atexit, "register", lambda callback: None)
+    with pytest.raises((OSError, pytest.UsageError)):
+        install_run_basetemp(_fake_config(), now=1)
+    assert not candidate.exists()
+
+
+def test_fresh_worker_without_real_handoff_refuses_before_effects(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    candidate = tmp_path / "worker"
+    config = _fake_config(str(candidate), worker=True)
+    monkeypatch.delenv("SPEC_KITTY_TEST_ENCLOSURE", raising=False)
+    monkeypatch.setattr(run_basetemp_module, "_ACTIVE_ENCLOSURE", None, raising=False)
+    with pytest.raises((OSError, pytest.UsageError)):
+        install_run_basetemp(config, now=1)
+    assert config.option.basetemp == str(candidate)
+    assert not candidate.exists()
+
+
+def test_foreign_temp_is_refused_before_platform_temp_write_probe(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    foreign = tmp_path / "foreign-temp"
+    foreign.mkdir(mode=0o700)
+    (foreign / ".kittify").mkdir()
+    candidate = foreign / "scratch"
+    monkeypatch.delenv("PYTEST_DEBUG_TEMPROOT", raising=False)
+    monkeypatch.setenv("TMPDIR", str(candidate))
+    monkeypatch.delenv("SPEC_KITTY_TEST_ENCLOSURE", raising=False)
+    monkeypatch.setattr(run_basetemp_module, "_ACTIVE_ENCLOSURE", None, raising=False)
+
+    def forbidden_probe() -> str:
+        raise AssertionError("platform temporary-directory probing preceded admission")
+
+    monkeypatch.setattr(run_basetemp_module.tempfile, "gettempdir", forbidden_probe)
+    with pytest.raises((OSError, pytest.UsageError)):
+        install_run_basetemp(_fake_config(), now=1)
+    assert not candidate.exists()
+
+
 def test_install_respects_an_explicit_basetemp(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -428,9 +642,11 @@ def test_inner_tmp_path_lands_under_the_private_run_root(tmp_path: Path) -> None
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize("workers", ["0", "1"])
 def test_subprocess_success_retains_private_root_until_runtime_release(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    workers: str,
 ) -> None:
     """The whole mechanism, observed from outside a real pytest invocation."""
     if os.environ.get(_PROBE_ENV):
@@ -446,6 +662,8 @@ def test_subprocess_success_retains_private_root_until_runtime_release(
             "-m",
             "pytest",
             str(Path(__file__).resolve()),
+            "-n",
+            workers,
             "-k",
             "inner",
             "-p",
