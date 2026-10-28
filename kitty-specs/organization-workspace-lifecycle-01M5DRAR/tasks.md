@@ -118,3 +118,11 @@ T014 Repair the reproduced review-admission failure after accepted squash delive
 **Requirement Refs**: FR-006, FR-007, FR-008, SC-005, C-001, C-003
 
 T015 Add explicit no-commit operation closure, preserve evidence/ownership/default commit behavior, prove dirty-primary invariance and independently review through PR publication.
+
+## Work Package WP16: Validation resource containment and private YAML preservation
+
+**Dependencies**: WP07, WP14
+
+**Requirement Refs**: FR-007, FR-008, NFR-001, NFR-003, C-001, C-003
+
+T016 Refuse unsafe test ancestors before managed effects and preserve private permissions through canonical durable YAML replacement. Retain controlled nested Git regressions, exact shared-state invariance, complete writes and owned temporary cleanup; independently review and run required gates. Existing Python boundary correction only; no new lifecycle engine or cleanup authority.
