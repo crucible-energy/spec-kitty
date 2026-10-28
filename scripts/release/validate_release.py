@@ -266,11 +266,44 @@ def load_metadata_yaml_version(repo_root: Path) -> str:
         ) from exc
     spec_kitty = data.get("spec_kitty") if isinstance(data, dict) else None
     version = spec_kitty.get("version") if isinstance(spec_kitty, dict) else None
+    if not version:
+        raise ReleaseValidatorError(
+            ".kittify/metadata.yaml missing spec_kitty.version"
+        )
     if not isinstance(version, str) or not RELEASE_VERSION_RE.fullmatch(version):
         raise ReleaseValidatorError(
             ".kittify/metadata.yaml requires a valid spec_kitty.version string"
         )
     return version
+
+
+def validate_metadata_yaml_version_sync(
+    pyproject_version: str,
+    repo_root: Path,
+) -> ValidationIssue | None:
+    """Preserve the legacy opt-in exact-version comparison (FR-601/FR-602).
+
+    Existing integrations may import this helper directly. The current release
+    CLI instead validates governing-runtime metadata independently of product
+    identity; keep that policy separate from this strict comparison contract.
+    """
+    try:
+        metadata_version = load_metadata_yaml_version(repo_root)
+    except ReleaseValidatorError as exc:
+        return ValidationIssue(message=str(exc))
+    if pyproject_version != metadata_version:
+        return ValidationIssue(
+            message=(
+                f"Version mismatch detected: "
+                f"pyproject.toml={pyproject_version!r} vs "
+                f".kittify/metadata.yaml={metadata_version!r}"
+            ),
+            hint=(
+                f"Update .kittify/metadata.yaml spec_kitty.version to "
+                f"{pyproject_version!r} so both files agree before cutting the release."
+            ),
+        )
+    return None
 
 
 def validate_governing_runtime_metadata(repo_root: Path) -> ValidationIssue | None:

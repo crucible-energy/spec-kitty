@@ -178,3 +178,41 @@ Cmail runtime adoption require separate evidence. No upstream publication is
 authorized by the fork issue. The old source refs, private development runtime,
 retained metadata and shared object alternate remain protected until their
 owning recovery obligations close.
+
+## 2026-10-28 – Legacy helper compatibility correction
+
+### User Experience Findings
+
+The subsequent remote pipeline found a regression in the earlier source
+correction: a committed release test imports
+`validate_metadata_yaml_version_sync`. Renaming that helper blocked collection
+in eight checks. The earlier local run covered the other release module and
+missed this direct consumer. The import failure reproduces locally at the
+published revision before the correction; those failed receipts are retained.
+
+### Engineering Decisions
+
+Restore the existing helper's strict, opt-in exact-version comparison contract
+and its missing-version diagnostic. Keep the current release CLI's independent
+governing-runtime validator. Both share the same metadata reader, but their
+comparison policies are deliberately distinct. No existing test is removed or
+weakened, no dependency changes, and no generated metadata is handstamped.
+
+Use the existing full-collection and release gates to catch import consumers;
+do not invent another scanner or weaken a failing collection gate.
+
+### Validation And Known Limitations
+
+The complete release suite passes 145 tests. Seven declared skips remain:
+two non-applicable `close_with_evidence` checks under the selected FR-012 path
+and five explicitly opt-in dogfood checks. They are not counted as passes.
+Full repository collection completes cleanly with 33,767 collected tests; this
+is collection evidence, not execution of that entire suite. The current CLI's
+independent version-domain cases and the legacy helper's strict comparison
+cases are both included in release qualification.
+
+A separate clean-install startup timing check measured a five-run median of
+1.156 seconds against its declared 1.050-second ceiling. It remains an open,
+unclassified finding pending comparable actual-default evidence. The helper
+import correction does not establish a passing timing gate, complete PR
+acceptance, a release or installed-runtime adoption.
