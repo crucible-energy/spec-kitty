@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 from ruamel.yaml import YAML
 
+from charter.schemas import CharterYaml
+
 
 pytestmark = pytest.mark.architectural
 
@@ -145,7 +147,7 @@ def test_charter_selects_full_pr_policy_directive() -> None:
     yaml = YAML(typ="safe")
     charter = yaml.load((root / ".kittify/charter/charter.yaml").read_text(encoding="utf-8"))
 
-    selected = charter["governance"]["doctrine"]["selected_directives"]
+    selected = CharterYaml.model_validate(charter).governance.doctrine.selected_directives
     assert "DIR-015" in selected
 
     directives = charter["directives"]["directives"]

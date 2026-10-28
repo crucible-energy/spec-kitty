@@ -6046,6 +6046,10 @@ pages:
     - {slug: "user-experience-findings-2", text: "User Experience Findings", level: 3}
     - {slug: "engineering-decisions-2", text: "Engineering Decisions", level: 3}
     - {slug: "validation-and-known-limitations", text: "Validation And Known Limitations", level: 3}
+    - {slug: "migrated-governing-selection-read-correction", text: "Migrated Governing Selection Read Correction", level: 2}
+    - {slug: "user-experience-findings-3", text: "User Experience Findings", level: 3}
+    - {slug: "engineering-decisions-3", text: "Engineering Decisions", level: 3}
+    - {slug: "validation-and-known-limitations-2", text: "Validation And Known Limitations", level: 3}
   - path: "docs/guides/accept-and-merge.md"
     title: "How to Accept and Merge a Mission"
     divio_type: "how-to"

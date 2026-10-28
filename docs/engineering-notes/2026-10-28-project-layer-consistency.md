@@ -216,3 +216,46 @@ A separate clean-install startup timing check measured a five-run median of
 unclassified finding pending comparable actual-default evidence. The helper
 import correction does not establish a passing timing gate, complete PR
 acceptance, a release or installed-runtime adoption.
+
+## Migrated Governing Selection Read Correction
+
+### User Experience Findings
+
+After the release helper collection repair, the existing review-closure test
+exposed a separate silent policy loss. The official governing runtime upgrade
+writes authored selections under `governance.charter`; the retained product's
+typed `GovernanceConfig` read ignored that key and defaulted its public
+`doctrine` selection to empty. The full-PR policy test also read the retired raw
+key directly. This was an actual read-boundary defect, not evidence to remove
+the authored selection or weaken the policy assertions.
+
+### Engineering Decisions
+
+Keep the Source3 public field and emitted format unchanged. Normalize the current
+governing key at the existing typed read boundary, reject conflicting dual keys,
+and retain ordinary typed validation for malformed selections. Copy the input
+rather than mutating the caller's document. The full-PR guard now uses that same
+canonical typed reader while preserving every directive-content assertion.
+
+This is a bounded repair to existing Python implementation under the migration
+exception, not approval for a general Source4 backport. Official 4.0.0rc7's
+`charter/activation/schemas.py` documents the field rename; its runtime and the
+retained product remain separate version domains. The independent malformed,
+conflicting and current-key tests reproduced eight failures before the fix;
+the legacy and equal-dual-key controls passed unchanged.
+
+### Validation And Known Limitations
+
+The focused schema, review-activation and full-PR checks pass 52 tests. Strict
+Ruff and mypy checks pass on the changed implementation. The broader charter, review and full-PR suite passes 1,753 tests with one
+unchanged connected-auth skip. All eleven changed implementation files are
+present in the coverage inventory; all 68 current changed statements are covered.
+The new schema is measured afresh; earlier measurements are reused only for
+implementation files verified byte-identical to the API correction commit. An
+initial coverage export omitted the retained database's relative-path setting
+and selected only the last repeated include flag; it correctly refused. The
+corrected export uses the actual source-relative paths and complete inventory,
+with the refused report preserved. This
+correction does not resolve the separate governing-workspace merge-driver
+registry mismatch or installed-wheel startup timing gate. Those remain open;
+no merge, release or production qualification is implied.
