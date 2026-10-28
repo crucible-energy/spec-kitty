@@ -62,7 +62,7 @@ def write_release_files(tmp_path: Path, version: str, changelog_body: str) -> No
         encoding="utf-8",
     )
     (tmp_path / "CHANGELOG.md").write_text(changelog_body, encoding="utf-8")
-    # FR-601/FR-602: keep .kittify/metadata.yaml in sync so validate_release.py passes
+    # Most fixtures use the product version as their governing runtime version.
     kittify_dir = tmp_path / ".kittify"
     kittify_dir.mkdir(exist_ok=True)
     (kittify_dir / "metadata.yaml").write_text(
@@ -89,6 +89,42 @@ def write_uv_lock(tmp_path: Path, version: str) -> None:
         + "\n",
         encoding="utf-8",
     )
+
+
+@pytest.mark.parametrize("mode", ["branch", "tag"])
+def test_release_accepts_independent_governing_runtime(tmp_path: Path, mode: str) -> None:
+    init_repo(tmp_path)
+    write_release_files(tmp_path, "3.2.8", changelog_for_versions(("3.2.8", "- Fix contracts")))
+    (tmp_path / ".kittify/metadata.yaml").write_text(
+        "spec_kitty:\n  version: 4.0.0rc7\n", encoding="utf-8"
+    )
+    stage_and_commit(tmp_path, "fix: preserve runtime admission")
+    args = ["--mode", mode]
+    args += ["--consistency-only"] if mode == "branch" else ["--tag", "v3.2.8"]
+    result = run_validator(tmp_path, *args)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [None, "", "[not, a, mapping]", "spec_kitty: []", "spec_kitty: {}",
+     "spec_kitty: [", "spec_kitty:\n  version: [4, 0]", "spec_kitty:\n  version: nope"],
+)
+def test_release_rejects_invalid_governing_runtime(
+    tmp_path: Path, metadata: str | None,
+) -> None:
+    init_repo(tmp_path)
+    write_release_files(tmp_path, "3.2.8", changelog_for_versions(("3.2.8", "- Fix contracts")))
+    path = tmp_path / ".kittify/metadata.yaml"
+    if metadata is None:
+        path.unlink()
+    else:
+        path.write_text(metadata, encoding="utf-8")
+    stage_and_commit(tmp_path, "test: invalid runtime admission")
+    result = run_validator(tmp_path, "--mode", "branch", "--consistency-only")
+    assert result.returncode == 1
+    assert ".kittify/metadata.yaml" in result.stderr
+    assert "Traceback" not in result.stderr
 
 
 def stage_and_commit(tmp_path: Path, message: str) -> None:
