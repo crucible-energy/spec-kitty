@@ -1,7 +1,7 @@
 {
-  "event_count": 87,
-  "last_event_id": "01M5ZX368CDKWHJE56NP8ASPTS",
-  "materialized_at": "2026-10-28T00:03:25.068248+00:00",
+  "event_count": 88,
+  "last_event_id": "01M60SVX5V32E529SMFRTQP1F9",
+  "materialized_at": "2026-10-28T08:26:15.099617+00:00",
   "mission_number": "",
   "mission_slug": "organization-workspace-lifecycle-01M5DRAR",
   "mission_type": "software-dev",
@@ -15,7 +15,7 @@
     "for_review": 0,
     "in_progress": 3,
     "in_review": 0,
-    "planned": 1
+    "planned": 2
   },
   "work_packages": {
     "WP01": {
@@ -394,6 +394,13 @@
       "role": "implementer",
       "shell_pid": 27338,
       "shell_pid_created_at": "1793145715.679493"
+    },
+    "WP16": {
+      "actor": "finalize-tasks",
+      "force_count": 0,
+      "lane": "planned",
+      "last_event_id": "01M60SVX5V32E529SMFRTQP1F9",
+      "last_transition_at": "2026-10-28T08:26:15.099617+00:00"
     }
   }
 }
