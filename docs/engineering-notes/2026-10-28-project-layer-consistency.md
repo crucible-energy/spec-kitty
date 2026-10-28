@@ -259,3 +259,57 @@ with the refused report preserved. This
 correction does not resolve the separate governing-workspace merge-driver
 registry mismatch or installed-wheel startup timing gate. Those remain open;
 no merge, release or production qualification is implied.
+
+## Governing Workspace Merge Driver Reconciliation
+
+### User Experience Findings
+
+The product's three-driver registry and the current governing runtime's registry
+are different contracts. Treating the extra decision-index mapping as an allowed
+name would conceal a larger defect: the upgraded workspace lacked four other
+mappings declared by its actual governor. Generic callback names also left
+executable selection dependent on the caller's PATH.
+
+### Engineering Decisions
+
+Keep product3 behavior unchanged. Check its real generated attributes against
+its own registry, and check canonical-artifact completeness against those product
+attributes. The workspace separately requires every mapping from an independent
+published4 registry fixture, with no unknown Spec Kitty mappings. The fixture
+records the public wheel digest and verified source hashes; it is not generated
+from the product3 registry. Missing and orphaned mapping controls remain failing.
+
+Reconcile the actual standalone workspace through the installed governor's
+canonical attribute generator and public configuration installer. Preserve a
+before-snapshot, refuse unknown operator customizations, and explicitly bind only
+its declared local callbacks to the verified isolated governing executable. No
+global configuration, credentials, original origin, primary Source4 checkout or
+other owner's files change. The isolated runtime is now an explicit retained
+workspace dependency until its callbacks are migrated or the lane is closed.
+
+This is workspace migration and test-contract maintenance, not a Python backport
+of the governing runtime's decision or merge implementation.
+
+### Validation And Known Limitations
+
+The strengthened guard reproduced one failure for the four missing mappings;
+seven other guard controls passed before reconciliation. After repair, all 30
+scoped architectural, real product merge-wrapper, event-log integration and
+migration checks pass. Strict Ruff/mypy and whitespace checks apply to the final
+candidate. Existing implementation coverage is reusable only while every touched
+implementation file remains byte-identical to its validated source.
+
+The independently installed governor's actual generator matches its registry
+and is idempotent. Actual Git attribute lookup and local callback configuration
+match every declared mapping; all seven installed callback entrypoints exist.
+A real Git merge invokes the exact configured decision-index executable: two
+independent entries merge, while conflicting terminal decisions refuse and leave
+the existing file intact. These synthetic controls do not execute every governing
+merge algorithm or establish general installed product3 compatibility.
+
+External evidence and configuration recovery snapshots remain in
+`issue141-governing-driver-r1/` in the execution archive. Disposable Git fixtures
+and scoped test roots remain owner-held until evidence extraction and joined
+closeout; no historical source or failed finalization is replayed. The separate
+installed-wheel startup timing gate, human review and protected-main delivery
+remain open. Published source is not a release or production-readiness proof.

@@ -19,7 +19,7 @@ per-registry lint home: ``tests/architectural/test_merge_pipeline_ratchets.py``.
   vector, blind to the projection lint). Two independent assertions:
     - **sync**: the retained product registry matches its actual generated
       attributes; the workspace separately matches its pinned governing runtime
-      registry. Both directions are required — catches dropping a mapping or
+      registry. Both directions are required – catches dropping a mapping or
       adding an unknown driver without conflating different runtime versions;
     - **completeness (non-tautology)**: every both-sides-divergent canonical
       ``kitty-specs/**`` artifact enumerated from the INDEPENDENT
