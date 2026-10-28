@@ -52,6 +52,7 @@
         "src/specify_cli/cli/commands/profile_invocation.py",
         "src/specify_cli/cli/commands/workspaces.py",
         "src/specify_cli/consolidation/**",
+        "src/specify_cli/consolidation/phase_advance.py",
         "src/specify_cli/consolidation/preflight.py",
         "src/specify_cli/core/owned_mission.py",
         "src/specify_cli/frontmatter.py",
@@ -116,10 +117,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-28T15:14:26.560041+00:00",
+  "computed_at": "2026-10-28T19:22:10.944992+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "5f846fb070cefcea0ae31c2722606fad27e1b84f"
+  "planning_commit_sha": "4169a26283f38298625bcc399e968b9613b6f7d2"
 }
