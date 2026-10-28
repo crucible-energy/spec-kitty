@@ -17,10 +17,10 @@ per-registry lint home: ``tests/architectural/test_merge_pipeline_ratchets.py``.
 
 * **T013 — driver-registry-completeness lint** (the primary #2709 ``-X theirs``
   vector, blind to the projection lint). Two independent assertions:
-    - **sync**: every driver DECLARED in the in-code registry
-      (``specify_cli.lanes.merge._MERGE_DRIVERS``) is REGISTERED in root
-      ``.gitattributes`` and vice-versa — catches *dropping* an existing
-      ``.gitattributes`` driver line;
+    - **sync**: the retained product registry matches its actual generated
+      attributes; the workspace separately matches its pinned governing runtime
+      registry. Both directions are required — catches dropping a mapping or
+      adding an unknown driver without conflating different runtime versions;
     - **completeness (non-tautology)**: every both-sides-divergent canonical
       ``kitty-specs/**`` artifact enumerated from the INDEPENDENT
       mission-artifact-kind registry (``mission_runtime.artifacts`` —
@@ -34,10 +34,13 @@ per-registry lint home: ``tests/architectural/test_merge_pipeline_ratchets.py``.
 from __future__ import annotations
 
 import ast
+import json
 import re
 from pathlib import Path
 
 import pytest
+from packaging.version import Version
+from ruamel.yaml import YAML
 
 import specify_cli
 from mission_runtime.artifacts import (
@@ -153,10 +156,10 @@ def test_no_blind_copy_of_foreign_source_onto_authoritative_target() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _gitattributes_merge_drivers() -> dict[str, str]:
+def _gitattributes_merge_drivers(path: Path = GITATTRIBUTES) -> dict[str, str]:
     """Map ``pattern -> driver-key`` for every ``merge=`` line in ``.gitattributes``."""
     drivers: dict[str, str] = {}
-    for raw in GITATTRIBUTES.read_text(encoding="utf-8").splitlines():
+    for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
@@ -170,12 +173,31 @@ def _gitattributes_merge_drivers() -> dict[str, str]:
     return drivers
 
 
-def test_declared_merge_drivers_are_registered_in_gitattributes() -> None:
-    """T013 sync (catches self-mutation (a) — dropping a ``.gitattributes`` line):
-    the in-code ``_MERGE_DRIVERS`` registry and root ``.gitattributes`` must agree
-    on every custom Spec Kitty merge driver, in both directions (C-006)."""
-    registered = _gitattributes_merge_drivers()
-    declared = {driver.pattern: driver.config_key for driver in _MERGE_DRIVERS}
+def _workspace_driver_registry() -> dict[str, str]:
+    """Keep the governing workspace and the retained product independently typed.
+
+    The published governor fixture has wheel and source provenance. It is not a
+    name allowance: every declared mapping is required, and extras still fail.
+    Actual installed/configured callback qualification remains a delivery gate.
+    """
+    product = {driver.pattern: driver.config_key for driver in _MERGE_DRIVERS}
+    metadata = YAML(typ="safe").load((REPO_ROOT / ".kittify/metadata.yaml").read_text())
+    governor = Version(str(metadata["spec_kitty"]["version"]))
+    if governor.major == 3:
+        return product
+    assert governor.major == 4, f"Unqualified governing runtime: {governor}"
+    fixture = REPO_ROOT / "tests/fixtures/governing-runtime" / f"merge-drivers-{governor}.json"
+    observed = json.loads(fixture.read_text(encoding="utf-8"))
+    assert observed["schema_version"] == 1
+    assert observed["distribution"]["name"] == "spec-kitty-cli"
+    assert observed["distribution"]["version"] == str(governor)
+    declared = {row["pattern"]: row["config_key"] for row in observed["drivers"]}
+    assert len(declared) == len(observed["drivers"]), "Duplicate governing mapping"
+    assert all(declared.get(pattern) == key for pattern, key in product.items())
+    return declared
+
+
+def _assert_driver_bijection(declared: dict[str, str], registered: dict[str, str]) -> None:
 
     unregistered = [
         f"{pattern} merge={key}"
@@ -183,7 +205,7 @@ def test_declared_merge_drivers_are_registered_in_gitattributes() -> None:
         if registered.get(pattern) != key
     ]
     assert not unregistered, (
-        "Merge driver declared in specify_cli.lanes.merge._MERGE_DRIVERS but not "
+        "Merge driver declared in the selected runtime registry but not "
         f"registered in root .gitattributes (#2709 re-inheritance risk): {unregistered}"
     )
 
@@ -194,8 +216,34 @@ def test_declared_merge_drivers_are_registered_in_gitattributes() -> None:
     ]
     assert not orphaned, (
         "Spec Kitty merge driver registered in .gitattributes with no matching "
-        f"_MERGE_DRIVERS declaration (drift): {orphaned}"
+        f"runtime registry declaration (drift): {orphaned}"
     )
+
+
+def test_declared_merge_drivers_are_registered_in_gitattributes() -> None:
+    """The governing workspace matches its pinned runtime in both directions."""
+    _assert_driver_bijection(_workspace_driver_registry(), _gitattributes_merge_drivers())
+
+
+def test_product_generated_attributes_match_its_own_registry(tmp_path: Path) -> None:
+    """The retained product really writes every driver it implements, and no extra."""
+    _init_command._ensure_event_log_merge_attributes(tmp_path)
+    _assert_driver_bijection(
+        {driver.pattern: driver.config_key for driver in _MERGE_DRIVERS},
+        _gitattributes_merge_drivers(tmp_path / ".gitattributes"),
+    )
+
+
+@pytest.mark.parametrize("mutation", ["missing", "orphaned"])
+def test_driver_bijection_rejects_missing_and_unknown_mapping(mutation: str) -> None:
+    declared = _workspace_driver_registry()
+    registered = dict(declared)
+    if mutation == "missing":
+        registered.pop(next(iter(registered)))
+    else:
+        registered["kitty-specs/**/unknown.json"] = "spec-kitty-unknown"
+    with pytest.raises(AssertionError):
+        _assert_driver_bijection(declared, registered)
 
 
 # Canonical artifacts the mission classifies as NOT both-sides-divergent, so a
@@ -247,14 +295,15 @@ def _canonical_artifact_file_globs() -> dict[str, MissionArtifactKind]:
     }
 
 
-def test_both_sides_divergent_canonical_artifacts_carry_merge_driver() -> None:
+def test_both_sides_divergent_canonical_artifacts_carry_merge_driver(tmp_path: Path) -> None:
     """T013 completeness (catches self-mutation (b) — a NEW canonical artifact with
     no driver): every both-sides-divergent canonical ``kitty-specs/**`` artifact in
     the mission-artifact-kind registry MUST carry a registered merge driver, else a
     future ``git merge --squash -X theirs`` silently re-inherits #2709. Fail-closed:
     a registry artifact not in ``_NON_DIVERGENT_CANONICAL_ARTIFACTS`` is required to
     have a driver."""
-    registered_patterns = set(_gitattributes_merge_drivers())
+    _init_command._ensure_event_log_merge_attributes(tmp_path)
+    registered_patterns = set(_gitattributes_merge_drivers(tmp_path / ".gitattributes"))
     # Directory kinds are human-authored planning collections (WORK_PACKAGE_TASK,
     # CHECKLIST) — not both-sides-divergent bookkeeping.
     assert set(_COORD_RESIDUE_DIRS) == {"tasks", "checklists"}
@@ -270,7 +319,7 @@ def test_both_sides_divergent_canonical_artifacts_carry_merge_driver() -> None:
             uncovered.append(f"{glob} ({kind.value})")
     assert not uncovered, (
         "Both-sides-divergent canonical artifact(s) with no registered merge driver "
-        "in root .gitattributes — they re-inherit #2709 under `git merge --squash "
+        "in product-generated .gitattributes — they re-inherit #2709 under `git merge --squash "
         "-X theirs`. Register a reconcile driver (C-006) or, if genuinely "
         "single-writer/derived/human-source, classify in "
         f"_NON_DIVERGENT_CANONICAL_ARTIFACTS: {uncovered}"
@@ -281,7 +330,7 @@ def test_both_sides_divergent_canonical_artifacts_carry_merge_driver() -> None:
 # T013b — driver-registry parity across the fresh/upgraded-repo seed surfaces
 #
 # The driver spec is declared in FOUR places: the in-code ``_MERGE_DRIVERS``
-# registry, root ``.gitattributes`` (bound bidirectionally above), the ``init``
+# registry, product-generated ``.gitattributes`` (bound bidirectionally above), the ``init``
 # seed (fresh repos), and the upgrade migrations (existing repos). The
 # ``.gitattributes`` binding alone does NOT protect a NEW driver added to the
 # registry+``.gitattributes`` but forgotten in the init seed or a migration:
