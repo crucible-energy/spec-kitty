@@ -45,8 +45,28 @@ external receipts. These results do not establish passing product tests.
 
 ## Known Limitations
 
-The three consistency joins still need failing-first CLI tests, implementation,
-owning test suites, static checks and review. The fork's retained source layout
+The repair passes the canonical root map from the CLI through availability,
+compiled-catalog parity, graph parity, activation filtering and tension scanning.
+A missing map had also silently removed valid project nodes and tension findings.
+No scanner, resolver, schema or upward package import is added. Existing callers
+retain the default argument and behavior.
+
+Actual CLI tests were committed while failing, before implementation. They cover
+valid directive/styleguide bodies with a compiled catalog and graph, missing and
+malformed bodies, missing IDs, catalog divergence, missing graph nodes and
+advisory tension findings. Explicit root selection is exercised from another
+working directory. An overlapping organization artifact with a different
+canonical ID must not displace the selected project artifact.
+
+The broader first run exposed missing local distribution metadata and legacy
+consumer fixtures coupled to the maintainer's newly migrated policy. Installing
+the reviewed local project without changing dependencies fixes the environment.
+The four implicated fixture modules passed against actual base `e851d756` in the
+same environment. Their corrected cases use minimal retained-consumer settings,
+the canonical shipped default for an absent activation, and an independent
+tracked synthetic repository for read-only rendering. Positive assertions and
+explicit-empty behavior are preserved. The affected cases pass after correction.
+Freeze these inputs before the full owning suites and required static gates. The fork's retained source layout
 and the current published release's layout differ; source delivery, release and
 Cmail runtime adoption require separate evidence. No upstream publication is
 authorized by the fork issue. The old source refs, private development runtime,

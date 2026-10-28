@@ -31,6 +31,7 @@ import pytest
 from ruamel.yaml import YAML
 
 from charter.catalog import resolve_doctrine_root
+from charter.default_pack import load_default_pack_activation_ids
 from charter.kind_vocabulary import (
     UnknownArtifactIdError,
     resolve_artifact_urn,
@@ -75,7 +76,8 @@ def _load_config(repo_root: Path) -> dict[str, object]:
 
 @pytest.fixture(scope="module")
 def doctrine_root() -> Path:
-    return resolve_doctrine_root()
+    root: Path = resolve_doctrine_root()
+    return root
 
 
 @pytest.fixture(scope="module")
@@ -173,6 +175,9 @@ def test_spot_check_one_activated_entry_per_other_kind_round_trips(
     """
     config = _load_config(repo_root)
     stems = config.get(config_key)
+    if stems is None:
+        # Absent means the shipped default, not an invalid empty activation.
+        stems = load_default_pack_activation_ids().get(config_key)
     assert isinstance(stems, list)
     assert stems, f"expected config.{config_key} to be non-empty"
     stem = str(stems[0])

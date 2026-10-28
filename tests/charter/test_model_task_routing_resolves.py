@@ -112,17 +112,24 @@ def test_autonomous_operation_protocol_reachable_via_drg_traversal() -> None:
     )
 
 
-def test_charter_references_surface_model_task_routing_body() -> None:
+def test_charter_references_surface_model_task_routing_body(tmp_path: Path) -> None:
     """The compiled charter references (the source ``charter context`` reads)
     must carry each tactic's real body -- proving resolution flows through
     the DRG + DoctrineService, never a hand-written references.yaml row."""
     interview = read_interview_answers(ANSWERS_PATH)
     assert interview is not None, "expected the project's real interview answers to load"
 
+    kittify = tmp_path / ".kittify"
+    kittify.mkdir(exist_ok=True)
+    (kittify / "config.yaml").write_text(
+        "activated_directives: [044-canonical-sources-and-unification]\n"
+        "activated_tactics: [model-task-routing, autonomous-operation-protocol]\n",
+        encoding="utf-8",
+    )
     compiled = compile_charter(
         mission=interview.mission,
         interview=interview,
-        repo_root=REPO_ROOT,
+        repo_root=tmp_path,
         doctrine_service=_real_doctrine_service(),
     )
 

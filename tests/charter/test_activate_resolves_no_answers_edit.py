@@ -202,11 +202,18 @@ class TestSpddActivationDoesNotFlip:
         assert "DIRECTIVE_038" in interview.selected_directives
 
         doctrine_service = DoctrineService(built_in_root=BUILT_IN_DOCTRINE_ROOT)
-        pack_context = PackContext.from_config(REPO_ROOT)
+        kittify = tmp_path / ".kittify"
+        kittify.mkdir(exist_ok=True)
+        (kittify / "config.yaml").write_text(
+            "activated_directives: [038-structured-prompt-boundary]\n"
+            "activated_paradigms: [structured-prompt-driven-development]\n",
+            encoding="utf-8",
+        )
+        pack_context = PackContext.from_config(tmp_path)
         compiled = compile_charter(
             mission=interview.mission,
             interview=interview,
-            repo_root=REPO_ROOT,
+            repo_root=tmp_path,
             doctrine_service=doctrine_service,
             pack_context=pack_context,
         )

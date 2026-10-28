@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
@@ -83,7 +84,7 @@ def _project_layer_fixture(root: Path) -> tuple[Path, Path]:
     return rule, charter
 
 
-def _project_layer_report(root: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[int, dict]:
+def _project_layer_report(root: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[int, dict[str, Any]]:
     unrelated = root.parent / "unrelated-cwd"
     unrelated.mkdir(exist_ok=True)
     monkeypatch.chdir(unrelated)
@@ -124,6 +125,47 @@ def test_project_layer_cli_keeps_catalog_divergence_rejected(tmp_path: Path, mon
     assert code == 1
     assert "directive/project-rule" in report["reference_id_divergences"]
     assert "styleguide/project-style" in report["reference_id_divergences"]
+
+
+def test_project_layer_cli_preserves_active_tension_findings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    rule, _ = _project_layer_fixture(tmp_path)
+    graph = rule.parent.parent / "graph.yaml"
+    data = json.loads(graph.read_text(encoding="utf-8"))
+    data["edges"] = [{"source": "directive:PROJECT_RULE", "target": "styleguide:project-style", "relation": "in_tension_with"}]
+    graph.write_text(json.dumps(data), encoding="utf-8")
+    code, report = _project_layer_report(tmp_path, monkeypatch)
+    assert code == 0, report  # Tensions stay advisory.
+    findings = report["unreconciled_tensions"]
+    assert len(findings) == 1
+    assert findings[0]["type"] == "tension_unreconciled"
+    assert findings[0]["pair"] == ["directive:PROJECT_RULE", "styleguide:project-style"]
+    assert findings[0]["resolution_paths"] == ["deactivate one side", "activate a reconciler"]
+
+
+def test_project_layer_cli_keeps_missing_graph_nodes_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    rule, _ = _project_layer_fixture(tmp_path)
+    (rule.parent.parent / "graph.yaml").unlink()
+    code, report = _project_layer_report(tmp_path, monkeypatch)
+    assert code == 1
+    assert "directive/project-rule" in report["graph_kind_gaps"]
+    assert "styleguide/project-style" in report["graph_kind_gaps"]
+
+
+def test_project_layer_cli_preserves_project_precedence_over_org(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _project_layer_fixture(tmp_path)
+    org = tmp_path / "org-pack"
+    directive = org / "directives" / "project-rule.directive.yaml"
+    directive.parent.mkdir(parents=True)
+    directive.write_text(
+        "schema_version: '1.0'\nid: ORG_RULE\ntitle: Org rule\nintent: Preserve organization policy.\nenforcement: required\n",
+        encoding="utf-8",
+    )
+    config = tmp_path / ".kittify" / "config.yaml"
+    with config.open("a", encoding="utf-8") as output:
+        output.write(f"doctrine:\n  org:\n    packs:\n      - name: test-org\n        local_path: {org}\n")
+    code, report = _project_layer_report(tmp_path, monkeypatch)
+    assert code == 0, report
+    assert report["coherent"] is True
 
 
 # ---------------------------------------------------------------------------

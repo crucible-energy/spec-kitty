@@ -1,38 +1,16 @@
-"""Render-path no-op-stability regression guard (#2373 / #1914).
+"""Read-only context rendering against tracked retained-consumer policy.
 
-Locks in the already-shipped #2773 render-path fix: ``build_charter_context``
-MUST NOT write any git-tracked artifact. Only the gitignored runtime file
-``.kittify/charter/context-state.json`` may change on disk (untracked).
-
-Authoritative grounding:
-- ``kitty-specs/charter-deadcode-noop-campsite-01KXW0NY/contracts/no-op-stability.contract.md``
-  (guarantees G1, G3).
-- ``kitty-specs/charter-deadcode-noop-campsite-01KXW0NY/data-model.md`` (LM-1).
-- ``kitty-specs/charter-deadcode-noop-campsite-01KXW0NY/research.md`` §3.
-
-LM-1 — the masking landmine
-----------------------------
-This working checkout carries a *local*, uncommitted
-``.git/info/exclude`` entry (``.kittify/doctrine/``, ``.kittify/charter/provenance/``)
-that hides doctrine churn from ``git status`` in day-to-day development. The
-*committed* ``.gitignore`` tracks those artifacts (with targeted negations for
-``directive/``, ``tactic/``, ``styleguide/``, ``procedure/``, ``overlays/``,
-``graph.yaml``) — a cleanliness assertion run directly against this checkout
-would be a **false pass**: it can't observe churn that the local exclude is
-already hiding.
-
-The fixture below sidesteps the mask by cloning this repo's current commit
-into a throwaway temp directory. ``.git/info/exclude`` lives outside version
-control and is per-checkout — a fresh ``git clone`` never inherits it — so the
-clone observes exactly the committed ``.gitignore`` state, where
-``.kittify/doctrine/**`` and ``.kittify/charter/*`` are genuinely git-tracked.
-``_assert_doctrine_is_git_tracked`` asserts this precondition explicitly so a
-future regression in the fixture itself (e.g. someone "simplifying" it back
-to the live checkout) fails loudly instead of silently passing vacuously.
+A fresh synthetic repository tracks both the legacy project directive and
+charter YAML without a local exclude mask. This preserves the original LM-1
+non-vacuity guard while separating the Python consumer contract from migrations
+of this repository's own current-release governance runtime. Rendering once and
+then again must leave every tracked byte unchanged and exercise bootstrap then
+compact mode.
 """
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -44,7 +22,6 @@ from charter.context import build_charter_context
 # pure-logic test, and structurally incompatible with mutmut's forked sandbox.
 pytestmark = [pytest.mark.git_repo, pytest.mark.non_sandbox]
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
 _MISSION_TYPE = "software-dev"
 
 
@@ -58,20 +35,31 @@ def _run_git(args: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _clone_doctrine_tracked_repo(dest: Path) -> Path:
-    """Clone this repo's current commit into ``dest``, sans the LM-1 exclude mask.
+def _create_doctrine_tracked_repo(dest: Path) -> Path:
+    """Independent retained-layout consumer, without the maintainer's policy.
 
-    A fresh ``git clone`` gets a fresh, empty ``.git/info/exclude`` — the
-    local mask that hides doctrine churn in this working checkout is never
-    copied. The clone therefore observes the committed ``.gitignore`` state,
-    where ``.kittify/doctrine/**`` and ``.kittify/charter/*`` are tracked.
+    The maintainer uses the current governance runtime; this test protects
+    the retained Python consumer. Its tracked policy cannot depend on that
+    separate runtime's migrations or inherit a local exclude mask.
     """
-    head_sha = _run_git(["rev-parse", "HEAD"], cwd=_REPO_ROOT).stdout.strip()
-    _run_git(
-        ["clone", "--local", "--no-hardlinks", "--no-checkout", "--quiet", str(_REPO_ROOT), str(dest)],
-        cwd=_REPO_ROOT,
+    dest.mkdir()
+    kittify = dest / ".kittify"
+    charter = kittify / "charter"
+    charter.mkdir(parents=True)
+    (kittify / "config.yaml").write_text("activated_directives: [039-lynn-cole-engineering-culture]\n", encoding="utf-8")
+    (charter / "charter.md").write_text("# Consumer charter\nPreserve tracked policy on every read.\n", encoding="utf-8")
+    (charter / "charter.yaml").write_text(json.dumps({"catalog": {"references": []}}), encoding="utf-8")
+    directive = kittify / "doctrine" / "directive" / "tracked-policy.directive.yaml"
+    directive.parent.mkdir(parents=True)
+    directive.write_text(
+        "schema_version: '1.0'\nid: TRACKED_POLICY\ntitle: Tracked policy\nintent: Preserve source policy.\nenforcement: required\n",
+        encoding="utf-8",
     )
-    _run_git(["checkout", "--quiet", head_sha], cwd=dest)
+    _run_git(["init", "--quiet"], cwd=dest)
+    _run_git(["config", "user.name", "Synthetic consumer"], cwd=dest)
+    _run_git(["config", "user.email", "consumer@example.invalid"], cwd=dest)
+    _run_git(["add", ".kittify"], cwd=dest)
+    _run_git(["commit", "--quiet", "-m", "Synthetic tracked consumer policy"], cwd=dest)
     return dest
 
 
@@ -112,8 +100,8 @@ def _tracked_status_lines(repo: Path) -> list[str]:
 
 @pytest.fixture
 def doctrine_tracked_repo(tmp_path: Path) -> Path:
-    """A doctrine-tracked clone of this repo, verified clean before use."""
-    repo = _clone_doctrine_tracked_repo(tmp_path / "doctrine-tracked-repo")
+    """An independently authored, doctrine-tracked consumer, initially clean."""
+    repo = _create_doctrine_tracked_repo(tmp_path / "doctrine-tracked-repo")
     _assert_doctrine_is_git_tracked(repo)
     assert _tracked_status_lines(repo) == [], "fixture must start from a clean tracked tree"
     return repo
