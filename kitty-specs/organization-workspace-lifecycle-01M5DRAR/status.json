@@ -400,6 +400,7 @@
       "agent": "codex",
       "agent_profile": "implementer-ivan",
       "agent_profile_version": "1.0",
+      "assignee": "codex",
       "force_count": 0,
       "implementer_of_record": "codex",
       "lane": "in_progress",
