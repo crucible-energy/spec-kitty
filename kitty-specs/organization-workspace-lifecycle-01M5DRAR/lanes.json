@@ -113,6 +113,7 @@
         "tests/workspace_lifecycle/test_inventory_cli.py",
         "tests/workspace_lifecycle/test_policy.py",
         "tests/workspace_lifecycle/test_state.py",
+        "tools/zig/validation_process_darwin.zig",
         "tools/zig/workspace_finish.zig",
         "tools/zig/workspace_host.zig",
         "tools/zig/workspace_ingress.zig"
@@ -122,10 +123,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-28T21:26:44.412233+00:00",
+  "computed_at": "2026-10-28T23:44:00.891916+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "c4e064edfa3ff3124919236d52fa9a73b764b012"
+  "planning_commit_sha": "f8ecc57335bd00f0e2dc23d4a0fecb34e2b899ec"
 }
