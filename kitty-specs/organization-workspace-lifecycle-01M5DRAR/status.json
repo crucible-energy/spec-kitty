@@ -381,9 +381,10 @@
     },
     "WP15": {
       "actor": "codex-subsequent-reviewer",
-      "agent": "codex",
+      "agent": "codex-subsequent-reviewer",
       "agent_profile": "__resolved_profile_absent__",
       "agent_profile_version": "__resolved_profile_version_absent__",
+      "assignee": "codex-subsequent-reviewer",
       "force_count": 0,
       "implementer_of_record": "codex",
       "lane": "in_review",
@@ -391,12 +392,13 @@
       "last_transition_at": "2026-10-28T17:53:55.827746+00:00",
       "model": "__resolved_model_absent__",
       "notes": [
-        "Source readiness coordinator received Google creator release; exact c979 source/gates and installed wheel0146428d ordinary71917 plus OS interruption84005 are preserved. Independent Subsequent owns review claim and verdict; no approval, default delivery or119 adoption inferred."
+        "Source readiness coordinator received Google creator release; exact c979 source/gates and installed wheel0146428d ordinary71917 plus OS interruption84005 are preserved. Independent Subsequent owns review claim and verdict; no approval, default delivery or119 adoption inferred.",
+        "Independent Subsequent reviewer, distinct from Google implementer: exact14 path code/doc/test review and all required baseline/owning/named architecture/static/changed-statement gates received. Private installed wheel0146428d six actual CLI/YAML cases,2176 RECORD payloads and3 production modules independently verified, realOS cancellation84005 and supported closeout26379 joined. Review evidence source-installed-wp15-wp16-independent-receiving.json and source-wp15-wp16-final-review.json. No main/release/119 organization or general platform acceptance inferred."
       ],
       "provider": "__resolved_provider_absent__",
       "role": "reviewer",
-      "shell_pid": 27338,
-      "shell_pid_created_at": "1793145715.679493"
+      "shell_pid": 9280,
+      "shell_pid_created_at": "1793210032.027727"
     },
     "WP16": {
       "actor": "codex",
