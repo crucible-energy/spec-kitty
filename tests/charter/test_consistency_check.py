@@ -94,6 +94,24 @@ def _project_layer_report(root: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[
     return result.exit_code, json.loads(result.output)
 
 
+@pytest.mark.parametrize("invalid_body", [None, "[broken", "schema_version: '1.0'\n"])
+def test_migrated_project_layer_cli_keeps_artifact_admission(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, invalid_body: str | None
+) -> None:
+    rule, _ = _project_layer_fixture(tmp_path)
+    legacy = rule.parent.parent
+    current = legacy.with_name("charter-packs")
+    legacy.rename(current)
+    rule = current / rule.relative_to(legacy)
+    if invalid_body is not None:
+        rule.write_text(invalid_body, encoding="utf-8")
+    code, report = _project_layer_report(tmp_path, monkeypatch)
+    assert code == (0 if invalid_body is None else 1), report
+    assert report["coherent"] is (invalid_body is None)
+    if invalid_body is not None:
+        assert "directive/project-rule" in report["unknown_references"]
+
+
 def test_project_layer_cli_accepts_valid_artifacts_with_catalog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _project_layer_fixture(tmp_path)
     code, report = _project_layer_report(tmp_path, monkeypatch)

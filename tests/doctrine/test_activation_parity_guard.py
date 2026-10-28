@@ -74,6 +74,7 @@ from charter.catalog import resolve_doctrine_root
 from charter.consistency_check import run_consistency_check
 from charter.invocation_context import ProjectContext
 from charter.kind_vocabulary import ArtifactKind, resolve_artifact_urn
+from specify_cli.cli.commands.charter._layer_roots import resolve_layer_roots
 
 pytestmark = [pytest.mark.fast, pytest.mark.doctrine]
 
@@ -172,7 +173,7 @@ def test_this_project_charter_pack_is_coherent() -> None:
     locally, not only at CI or on manual invocation.
     """
     ctx = ProjectContext.from_repo(_REPO_ROOT)
-    report = run_consistency_check(ctx)
+    report = run_consistency_check(ctx, layer_roots=resolve_layer_roots(_REPO_ROOT))
 
     assert report.coherent, (
         "Charter pack consistency check failed for this project:\n"
