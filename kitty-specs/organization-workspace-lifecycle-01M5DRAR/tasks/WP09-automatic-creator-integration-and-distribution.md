@@ -44,12 +44,26 @@ owned_files:
 - src/specify_cli/orchestrator_api/wp_lifecycle.py
 - tools/zig/workspace_host.zig
 - docs/plans/engineering-notes/2026-10-28-lifecycle-foreground-ownership.md
+- tools/zig/validation_process_darwin.zig
 tags: []
 task_type: implement
 tracker_refs: []
 ---
 
 # WP09 — Automatic creator integration and distribution
+
+## Native producer terminal observation amendment
+
+The existing bounded native process primitive reports successful group disposal.
+That is not, by itself, natural producer completion: its terminal path can stop
+remaining original-group children before reporting disposal. WP09 must reproduce
+the parent-exit/live-descendant case and retain it rather than treat forced
+cleanup as successful production. Extend the existing primitive only with the
+required original terminal/quiescence observation, preserving its current
+validation cleanup semantics and unreaped leader identity. The native foreground
+policy consumes that fact; returned JSON never grants creator release. New
+behavior and tests remain native; no second runner, store, daemon or claim of
+unqualified whole-platform closure is introduced.
 
 ## Objectives & Success Criteria
 
