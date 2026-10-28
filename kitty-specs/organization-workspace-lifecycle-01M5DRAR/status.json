@@ -1,7 +1,7 @@
 {
-  "event_count": 92,
-  "last_event_id": "01M61SM5M5H2SZKD0NSB7NT5N9",
-  "materialized_at": "2026-10-28T17:41:16.037745+00:00",
+  "event_count": 93,
+  "last_event_id": "01M61TBBKKQR2HBNX03CQ9TGJ8",
+  "materialized_at": "2026-10-28T17:53:55.827746+00:00",
   "mission_number": "",
   "mission_slug": "organization-workspace-lifecycle-01M5DRAR",
   "mission_type": "software-dev",
@@ -12,9 +12,9 @@
     "canceled": 0,
     "claimed": 0,
     "done": 0,
-    "for_review": 2,
+    "for_review": 1,
     "in_progress": 2,
-    "in_review": 0,
+    "in_review": 1,
     "planned": 1
   },
   "work_packages": {
@@ -380,21 +380,21 @@
       }
     },
     "WP15": {
-      "actor": "codex",
+      "actor": "codex-subsequent-reviewer",
       "agent": "codex",
       "agent_profile": "__resolved_profile_absent__",
       "agent_profile_version": "__resolved_profile_version_absent__",
       "force_count": 0,
       "implementer_of_record": "codex",
-      "lane": "for_review",
-      "last_event_id": "01M61SJ32PW4FCQ1VR9E6ESVHK",
-      "last_transition_at": "2026-10-28T17:40:07.894831+00:00",
+      "lane": "in_review",
+      "last_event_id": "01M61TBBKKQR2HBNX03CQ9TGJ8",
+      "last_transition_at": "2026-10-28T17:53:55.827746+00:00",
       "model": "__resolved_model_absent__",
       "notes": [
         "Source readiness coordinator received Google creator release; exact c979 source/gates and installed wheel0146428d ordinary71917 plus OS interruption84005 are preserved. Independent Subsequent owns review claim and verdict; no approval, default delivery or119 adoption inferred."
       ],
       "provider": "__resolved_provider_absent__",
-      "role": "implementer",
+      "role": "reviewer",
       "shell_pid": 27338,
       "shell_pid_created_at": "1793145715.679493"
     },
