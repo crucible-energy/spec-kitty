@@ -23,6 +23,7 @@ create_intent:
 execution_mode: code_change
 owned_files:
 - src/specify_cli/consolidation/preflight.py
+- src/specify_cli/consolidation/phase_advance.py
 - tests/terminus/**
 - tests/specify_cli/consolidation/test_single_branch_consolidate_e2e.py
 - src/specify_cli/git/ref_advance.py
@@ -70,3 +71,16 @@ Independent review must confirm tested mutation phases were reached and restored
 The same lifecycle owner retains the earlier WP04 preflight surface; no other active writer owns it. WP12 includes the bounded protected-refusal diagnostic correction: retain the strict canonical decision and expose guarded abort for a previously interrupted attempt, without claiming earlier mutations were undone. This is same-owner, dependency-ordered ownership-map leeway, not a guard bypass. Canonical finalization/ownership verification remains required before review/publication once the isolated latest-runtime asset-scope compatibility blocker is qualified. No runtime status/event payload was hand-edited.
 
 The reviewed internal fixture-adapter import migration is an explicit classification amendment: import_paths is manual_review with product src/kernel paths preserved. The occurrence map is authored mission planning, not an implementation owned_files path; canonical finalization refuses kitty-specs paths in that field. The failed no-effect validation is retained and the invalid proposed ownership entry removed. The external per-file occurrence/edit inventories bind the selected test calls; serialized keys, public imports, commands and historical facts remain unchanged.
+
+### Literal recovery diagnostics after a reproduced long-path failure
+
+The current owning run reproduced the strict index-lock control at line 94:
+terminal folding split the literal `index.lock` token inside a long worktree
+path. The native refusal and rollback executed correctly. WP12 includes only
+the lane-error rendering call in `phase_advance.py`, preserving literal error
+text and recovery paths without changing consolidation decisions or weakening
+the existing refusal, no-commit-advice and no-content-landed assertions.
+WP04's encompassing consolidation scope is approved and has the same lifecycle
+owner; no other active writer owns this diagnostic. Admit this one-path,
+dependency-ordered scope amendment through normal finalization before editing
+production code, then rerun the actual failing control and owning gates.
