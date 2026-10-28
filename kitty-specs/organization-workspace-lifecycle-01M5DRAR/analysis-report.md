@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-28T19:28:56.294753+00:00'
+generated_at: '2026-10-28T22:49:18.481138+00:00'
 analyzer_agent: codex
 input_artifacts:
   spec.md:
@@ -1620,7 +1620,7 @@ input_artifacts:
     sha256: 51982b1661e69cc6e56342c8b6ba3291cc6743e2a9244db4ffaaf457a270ec16
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
-    sha256: 3cdc12e68db7dd218c59952f120ea2571290d878d990a6aca81c08bb17b4bdab
+    sha256: 085351817065ea5740cb3d4ae0731f7356a3e58f83fde993eb2aa3e9eaf44b93
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
     sha256: a8ce616e70aa2b618ddfcd3c4760704409492ea70022f7b5c6dabaf82524f604
@@ -1636,6 +1636,12 @@ input_artifacts:
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP11-retirement-delivery-and-recovery-proof.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP11-retirement-delivery-and-recovery-proof.md
     sha256: 096d0debf45c1bbc9dff743b4e8e5556a99e958cad92b5d31e7382056c9c060a
+  material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP12-branch-first-integration-acceptance:
+    path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP12-branch-first-integration-acceptance
+    sha256: directory
+  ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP12-branch-first-integration-acceptance/review-cycle-1.md
+  : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP12-branch-first-integration-acceptance/review-cycle-1.md
+    sha256: 63c3105fd068bfc53214e6f6abe4ee669b05a0e217417b3e10fe9eb35925fe59
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP12-branch-first-integration-acceptance.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP12-branch-first-integration-acceptance.md
     sha256: 9154bb49bd3b38bf8a115119f09e15aa598532177a1081210216ab29cf977bc5
@@ -1905,54 +1911,43 @@ input_artifacts:
     sha256: 3c3a78cf69c6f1bad1c2d4b3758b8ffe9917c4d3319677b60b2faf6f78b33bbd
   template-selection:spec:
     path:
-    sha256: 6ce2d81e31e4bc6fc8e43ccc0711c07af0afdf1015fb644ffb8d397dadb2fbb6
+    sha256: c361e714e99d1ceab9f6953d7b1e943bb5bf9058be167aed83c72b43e4209120
   template-selection:plan:
     path:
-    sha256: fa950fea497f522a819afeb0a5e01a2c3bba8b9deff6a724f34742e33f7eac75
-verdict: ready
+    sha256: b73d99e5b0aeb32af789156b37e9d7457ae69f970823409391f982331a707778
+verdict: unknown
 issue_counts:
-  high: 0
-  low: 0
-  medium: 0
-  critical: 0
-  info: 0
+  low:
+  medium:
+  info:
+  high:
+  critical:
 findings: []
-report_transaction: 73ef5dccf80e4624ba49b2ff79b3c796
+report_transaction: a7b551171f064ae2bc665d5345603d3b
 material_manifest_version: 1
 ---
 
-# WP12 diagnostic scope consistency
+# WP09 foreground scope consistency
 
-This assessment concerns planning consistency and readiness to implement the
-bounded repair. It is not code approval, a passing integration gate, production
-readiness, default-branch delivery or organization adoption.
+Audience: automation-agent and independent reviewer.
+Status: current planning-consistency report. The isolated successor route is received for this new administrative operation; the original failed final ACK and endpoint remain retained. This report is not code acceptance.
 
-WP12 retains FR-006, FR-009, SC-005 and NFR-001. Its existing integration
-acceptance responsibility now explicitly includes the single lane-error
-presentation call in `src/specify_cli/consolidation/phase_advance.py`. Normal
-owned finalization passed for all 16 packages with no ownership or requirement
-warnings. WP04's encompassing scope is approved and has the same lifecycle
-owner; no competing active writer owns this diagnostic. No dependency, package,
-requirement, topology or implementation claim was added or reassigned.
+## Current authority and source
 
-The bounded correction will preserve literal diagnostics and recovery paths;
-it will not alter lock refusal, ref mutation, rollback, no-commit advice,
-approved content or the strict assertions. All other task prompts, plan/tasks
-explanations, status semantics and event-history bytes were preserved by the
-supported scope finalization. The original 14 WP15/WP16 implementation hashes
-and intended global-settings bytes/modes/ownership/timestamps remain unchanged.
+The existing Source lane is the sole WP09 implementation owner. Root's ratified design r3 and exact handback remain binding. WP12 is independently approved and published at `78765a14d78bcbca8a2fba2d1593ac1b541a66e2`; its 60 reviewed code/doc/test paths remain unchanged. The supported scope commands authored `c4e064edfa3ff3124919236d52fa9a73b764b012` and finalized `48ff561f745ed10952df85d5ea69f84af96dde6c`, preserving all original claims, fourteen approvals, event history and other prompts. The enclosing monitor failed its final ACK; its failed receipt and exact endpoint remain retained. Do not replay those commits or assert that the failed monitor passed.
 
-## Open implementation gate
+## Planning consistency
 
-Actual diagnostic run 90643 is RED: the strict index-lock control fails because
-Rich splits `index.lock` into `index.loc k` in a long path. Native refusal and
-rollback occurred. The failed fixture, full traceback and JUnit are retained.
-That implementation finding is not waived by this planning assessment; repair,
-current focused/owning checks, mandatory baseline and independent review remain
-required. The earlier interrupted run and guessed isolated controls retain
-their actual, separately scoped outcomes.
+- Keep new job-admission policy, state decisions and tests in the admitted native file. Reuse existing fenced persistence and canonical process ownership. Do not add a second store, daemon or general process runner.
+- Keep Python changes in the admitted original-creator and CLI/API allocator bridges. Preserve the legacy one-attempt API, production short-operation cap, private generation and exact-object release checks.
+- Admit finite job responsibility before allocation setup. The existing atomic factory records genuine creator custody before fresh checkout creation. Earlier intent data never becomes creator authority.
+- Keep public tuple/JSON results as observations. Reuse, crash recovery, repository-root execution, callbacks and reconstructed data cannot adopt a creator.
+- Preserve all current exact delivery, review, dirty/ignored, nested-repository, active-runtime and recovery checks. No fixed checkout count or absence-based pruning.
 
-WP09 still owns ordinary creator integration. Its exact core handback names the
-existing Source coordinator; the completed Connector implementer is not an
-additional writer. Actual configured normal harness adoption remains unproved.
-WP10 and the 119-repository observed rollout remain incomplete.
+## First acceptance and proof boundary
+
+Commit a failing-first native acceptance test before production changes. Exercise the actual existing creator/process boundary with a job that outlives a strictly smaller short-operation fixture allowance while remaining inside its separate finite job budget; preserve the production cap. Cover actual success, nonzero exit, timeout/cancellation, uncertain descendants, repeat attempts and forged or serialized observations. Record elapsed values, exact inputs, joined resources and retained recovery obligations. A fixture or opt-in command alone is not ordinary application adoption.
+
+## Remaining gates and limitations
+
+Submit this current planning consistency through the supported owned analysis command using the independently received isolated successor, and confirm its result before implementation. The original failed scope commands must not be replayed. Source and Root have not identified a configured normal foreground producer-owning harness. Unsupported external-host work stays retained; do not adopt the running app or invent a producer receipt. Installed artifact, real caller cleanup/preservation, independent review, protected default/release delivery and current 121-repository rollout are separate remaining gates. The latest published non-yanked package is RC7, resolved with prereleases included; the isolated qualified runtime has been verified without replacing shared installations. Canonical action context still resolves the primary project layer; actual owned guidance was read directly and generic multi-root governance convergence is not claimed.
