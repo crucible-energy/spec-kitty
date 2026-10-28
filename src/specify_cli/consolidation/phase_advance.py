@@ -289,7 +289,7 @@ def _phase_merge_lanes(run: _MergeRunState) -> None:
                 console.print(f"  [dim]{lane.lane_id} already merged, continuing[/dim]")
             else:
                 for error in lane_result.errors:
-                    console.print(f"  [red]✗[/red] {lane.lane_id}: {error}")
+                    console.print(f"  ✗ {lane.lane_id}: {error}", style="red", markup=False, soft_wrap=True)
                 raise typer.Exit(1)
 
 

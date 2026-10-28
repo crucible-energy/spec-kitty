@@ -46,3 +46,27 @@ The narrowed crash/rollback/protection replay passed all 64 cases. The original 
 The occurrence map now explicitly permits manual review of the scoped internal test-adapter imports, with product src/kernel import identities excluded. This authored classification amendment and same-owner dependency-ordered WP12 scope require canonical validation before publication; no status, verdict, event or approval payload is edited.
 
 The 67-case frozen replay passed57/failed10 in501.26s; every one of45 file hashes matched at completion. Nine failures were the shared InterruptedConsolidate constructor still using generic primary targets; one was the rollback_harness precondition accepting a policy refusal before any consolidation state existed. Both now import the existing canonical opt-in builders. The rollback harness additionally requires persisted mutation state and actual rollback-door output before its failure can serve as a fixture precondition. Real resync kill/lock injection and all content/ref/refusal assertions remain unchanged. These ten exact red results are retained and the complete four consuming modules must run before acceptance.
+
+## Current recovery-diagnostic correction
+
+The current integration replay reached a real live-index-lock refusal and
+rollback, but its strict diagnostic assertion failed: terminal folding split
+`index.lock` inside a long path. A second controlled case also demonstrated
+that a directory named `[red]` was consumed as presentation markup, making the
+recovery path uncopyable. The existing test now uses that literal directory and
+requires the complete recovery path, while retaining refusal, no-commit-advice
+and no-content-landed assertions. Its actual failing result was recorded and
+committed separately before the production correction.
+
+The correction is limited to the lane-error presentation call: print native
+diagnostics as literal text without hard folding. Consolidation policy,
+transaction decisions, lock handling, ref updates, rollback and recovery
+authority are unchanged. Normal owned finalization admitted this one-path,
+same-owner WP12 scope; current planning analysis left the actual code gate open.
+
+The earlier broader run was interrupted by an administrative allocation-sample
+race and is not a passing gate. Its replacement retained all source, resource
+and join checks, with an independently qualified identity-safe allocation
+sampler. Actual current owning checks and independent acceptance remain required;
+neither planning readiness nor this diagnostic correction establishes ordinary
+automatic cleanup or organization rollout.
