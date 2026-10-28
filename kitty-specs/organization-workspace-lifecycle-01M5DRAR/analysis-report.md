@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-28T22:55:03.370101+00:00'
+generated_at: '2026-10-28T23:44:06.154376+00:00'
 analyzer_agent: codex
 input_artifacts:
   spec.md:
@@ -1620,7 +1620,7 @@ input_artifacts:
     sha256: 51982b1661e69cc6e56342c8b6ba3291cc6743e2a9244db4ffaaf457a270ec16
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
-    sha256: 085351817065ea5740cb3d4ae0731f7356a3e58f83fde993eb2aa3e9eaf44b93
+    sha256: 296a8b77bbb61766521a527074d159e195b842d662de6aa10f1673d1e2240f14
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
     sha256: a8ce616e70aa2b618ddfcd3c4760704409492ea70022f7b5c6dabaf82524f604
@@ -1911,43 +1911,34 @@ input_artifacts:
     sha256: 3c3a78cf69c6f1bad1c2d4b3758b8ffe9917c4d3319677b60b2faf6f78b33bbd
   template-selection:spec:
     path:
-    sha256: 6123c23363e238e54773740258e128455a0c8dbedafa7aa126cfcb43903f87af
+    sha256: 8f56fa4d9986317f53a3fc7340b6bb6139cbacb22b07f6d5211b7e73d167832d
   template-selection:plan:
     path:
-    sha256: 1a8c32ceff96095ba1fc7502dcea5447f40f8bb274e33acd10bd844a553d1949
+    sha256: 2a242a0585aa8f0322b9cca55288913c59d295a928a241eecc28421651eb0038
 verdict: ready
 issue_counts:
-  medium: 0
   high: 0
   low: 0
+  medium: 0
   critical: 0
   info: 0
 findings: []
-report_transaction: d9ba577b67bd47faa6bff0df03a84f20
+report_transaction: 5364b4f1d3f74e608ae235a6710fde69
 material_manifest_version: 1
 ---
 
-# WP09 foreground scope consistency
+# WP09 narrow native terminal observation planning consistency
 
-Audience: automation-agent and independent reviewer.
-Status: current planning-consistency report. The isolated successor route is received for this new administrative operation; the original failed final ACK and endpoint remain retained. This report is not code acceptance.
+The current implementation work package adds the existing native process primitive
+as an owned path for a narrow terminal/quiescence result observation. This permits
+reproduction and repair of the distinction between forced disposal and natural
+producer completion without changing the primitive's current validation cleanup
+semantics, creating a runner or store, or reopening approved work packages.
 
-## Current authority and source
-
-The existing Source lane is the sole WP09 implementation owner. Root's ratified design r3 and exact handback remain binding. WP12 is independently approved and published at `78765a14d78bcbca8a2fba2d1593ac1b541a66e2`; its 60 reviewed code/doc/test paths remain unchanged. The supported scope commands authored `c4e064edfa3ff3124919236d52fa9a73b764b012` and finalized `48ff561f745ed10952df85d5ea69f84af96dde6c`, preserving all original claims, fourteen approvals, event history and other prompts. The enclosing monitor failed its final ACK; its failed receipt and exact endpoint remain retained. Do not replay those commits or assert that the failed monitor passed.
-
-## Planning consistency
-
-- Keep new job-admission policy, state decisions and tests in the admitted native file. Reuse existing fenced persistence and canonical process ownership. Do not add a second store, daemon or general process runner.
-- Keep Python changes in the admitted original-creator and CLI/API allocator bridges. Preserve the legacy one-attempt API, production short-operation cap, private generation and exact-object release checks.
-- Admit finite job responsibility before allocation setup. The existing atomic factory records genuine creator custody before fresh checkout creation. Earlier intent data never becomes creator authority.
-- Keep public tuple/JSON results as observations. Reuse, crash recovery, repository-root execution, callbacks and reconstructed data cannot adopt a creator.
-- Preserve all current exact delivery, review, dirty/ignored, nested-repository, active-runtime and recovery checks. No fixed checkout count or absence-based pruning.
-
-## First acceptance and proof boundary
-
-Commit a failing-first native acceptance test before production changes. Exercise the actual existing creator/process boundary with a job that outlives a strictly smaller short-operation fixture allowance while remaining inside its separate finite job budget; preserve the production cap. Cover actual success, nonzero exit, timeout/cancellation, uncertain descendants, repeat attempts and forged or serialized observations. Record elapsed values, exact inputs, joined resources and retained recovery obligations. A fixture or opt-in command alone is not ordinary application adoption.
-
-## Remaining gates and limitations
-
-Submit this current planning consistency through the supported owned analysis command using the independently received isolated successor, and confirm its result before implementation. The original failed scope commands must not be replayed. Source and Root have not identified a configured normal foreground producer-owning harness. Unsupported external-host work stays retained; do not adopt the running app or invent a producer receipt. Installed artifact, real caller cleanup/preservation, independent review, protected default/release delivery and current 121-repository rollout are separate remaining gates. The latest published non-yanked package is RC7, resolved with prereleases included; the isolated qualified runtime has been verified without replacing shared installations. Canonical action context still resolves the primary project layer; actual owned guidance was read directly and generic multi-root governance convergence is not claimed.
+Planning scope is consistent with the ratified original-object foreground design.
+The concrete source audit remains an implementation finding requiring actual
+parent-exit/live-descendant reproduction before repair. This planning verdict
+approves no code, installed runtime, creator release or repository adoption.
+General disk-growth/reserve qualification, caller integration and installed/
+independent acceptance remain open. Existing active work and recovery obligations
+are preserved; no engine advance or additional claim is requested.
