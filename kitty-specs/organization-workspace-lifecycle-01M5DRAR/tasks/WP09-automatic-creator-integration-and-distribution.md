@@ -24,6 +24,8 @@ agent_profile: implementer-ivan
 authoritative_surface: src/specify_cli/workspace_lifecycle/worker.py
 create_intent:
 - tools/zig/workspace_ingress.zig
+- tools/zig/workspace_host.zig
+- docs/plans/engineering-notes/2026-10-28-lifecycle-foreground-ownership.md
 execution_mode: code_change
 owned_files:
 - src/specify_cli/workspace_lifecycle/worker.py
@@ -37,6 +39,11 @@ owned_files:
 - tests/specify_cli/lanes/test_worktree_allocator_recovery.py
 - src/specify_cli/workspace_lifecycle/adapters.py
 - tools/zig/workspace_finish.zig
+- src/specify_cli/workspace_lifecycle/original_run.py
+- src/specify_cli/lanes/implement_support.py
+- src/specify_cli/orchestrator_api/wp_lifecycle.py
+- tools/zig/workspace_host.zig
+- docs/plans/engineering-notes/2026-10-28-lifecycle-foreground-ownership.md
 tags: []
 task_type: implement
 tracker_refs: []
@@ -83,6 +90,50 @@ does not claim any new implementation or runtime adoption.
   supported archive operation and release are qualified.
 
 ## Validation
+
+### Ratified foreground lifetime increment
+
+After WP12's independent approval, the existing Source lifecycle lane owns the
+bounded implementation of Root's reviewed foreground design. The exact handback
+is retained externally with SHA-256
+`6736d958ddb7f8d50cedb2ee5e90b8997b68bd50f7945b8602b3c2a6a0164466`.
+Root retains architecture, independent review and publication authority; no
+competing writer or new mission is admitted.
+
+- Put new job-admission policy, state-machine decisions and acceptance/refusal
+  tests in `tools/zig/workspace_host.zig`, reusing existing native ingress and
+  bounded persistence rather than inventing another store or process runner.
+- Extend the existing `OriginalWorkspaceRun` atomic factory and creator adapter
+  only as narrow bridges. Retain the genuine original object through one finite
+  foreground producer, confirmed join and settlement. Keep legacy `create` and
+  `run_producer` one-attempt behavior, the production 30-second short-operation
+  cap, process signalling custody and all existing release checks unchanged.
+- Admit the finite job before allocator setup. Pass only a private live creation
+  context through `create_lane_workspace`, `_resolve_start_workspace` and their
+  existing allocator; replace the fresh-worktree effect once through the original
+  factory. Keep public tuple/JSON results as observations. Reuse, recovery and
+  repository-root paths cannot manufacture creator authority.
+- Prove actual execution outlives a strictly smaller short-operation fixture
+  allowance while staying inside the distinct finite job budget. Exercise
+  success, failure, timeout, cancellation, unknown descendants, repeated attempts
+  and serialized/forged observations. Preserve useful work and exact recovery
+  obligations on every uncertain result. Commit the actual failing-first native
+  acceptance test before production changes.
+- Root and Source have not identified an already configured normal foreground
+  producer-owning harness. Record unsupported external-host retention explicitly;
+  do not adopt the running Codex app, invent a normal-producer receipt or treat an
+  opt-in software fixture as ordinary application adoption. This increment admits
+  no model calls, new agents, host/route effects or shared-runtime replacement.
+- Freeze the converged current-release artifact before installed qualification.
+  Independently verify real caller lifetime, cleanup and preservation, then
+  coordinate each current organization repository through WP10. Refresh exact
+  repository IDs instead of freezing the historical count of 119.
+
+The added Python paths are the already reviewed CLI/API and original-creator
+bridges. The new native file owns policy and tests; the engineering note records
+the approved contract and actual limitations. Existing WP08/WP11/WP12 approvals
+are preserved, not reopened or silently broadened. Canonical task finalization
+and current planning analysis must admit this amendment before implementation.
 
 ### Generation-bound ordinary creator admission
 
