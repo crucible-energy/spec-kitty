@@ -1,7 +1,7 @@
 {
-  "event_count": 97,
-  "last_event_id": "01M6249HQXYRFR8N6X3E0FVCXC",
-  "materialized_at": "2026-10-28T20:47:42.333072+00:00",
+  "event_count": 98,
+  "last_event_id": "01M625Z1HH6R061XT9PXG49ZJ4",
+  "materialized_at": "2026-10-28T21:16:55.217182+00:00",
   "mission_number": "",
   "mission_slug": "organization-workspace-lifecycle-01M5DRAR",
   "mission_type": "software-dev",
@@ -12,9 +12,9 @@
     "canceled": 0,
     "claimed": 0,
     "done": 0,
-    "for_review": 1,
+    "for_review": 0,
     "in_progress": 1,
-    "in_review": 0,
+    "in_review": 1,
     "planned": 1
   },
   "work_packages": {
@@ -308,21 +308,21 @@
       }
     },
     "WP12": {
-      "actor": "codex",
+      "actor": "codex-subsequent-reviewer",
       "agent": "codex",
       "agent_profile": "__resolved_profile_absent__",
       "agent_profile_version": "__resolved_profile_version_absent__",
       "force_count": 0,
-      "lane": "for_review",
-      "last_event_id": "01M6249HQXYRFR8N6X3E0FVCXC",
-      "last_transition_at": "2026-10-28T20:47:42.333072+00:00",
+      "lane": "in_review",
+      "last_event_id": "01M625Z1HH6R061XT9PXG49ZJ4",
+      "last_transition_at": "2026-10-28T21:16:55.217182+00:00",
       "model": "__resolved_model_absent__",
       "notes": [
         "Own inherited PR-only fixture propagation, canonical OS door and explicit internal Op custody contract; selected four regressions reproduced against acaed before repair.",
         "Frozen WP12 integration candidate passed corrected mandatory baseline, affected owning integration and serial timing controls; exact external receipts and prior failed diagnostics retained. Independent Subsequent owns final review and verdict. No default delivery or organization adoption inferred."
       ],
       "provider": "__resolved_provider_absent__",
-      "role": "implementer",
+      "role": "reviewer",
       "subtasks": {
         "T012": "done"
       }
