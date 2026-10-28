@@ -86,12 +86,15 @@ def test_5571_control_a_left_index_lock_refuses_without_advising_commit(tmp_path
     fails on the live lock and its door restores the branch again), not from a
     lagging-checkout preflight; the assertions are unchanged.
     """
-    run = Interrupted(tmp_path, "lock_coord")
+    literal_path = tmp_path / "[red]"
+    literal_path.mkdir()
+    run = Interrupted(literal_path, "lock_coord")
 
     rc, flat = run.resume(clear_index_lock=False)
 
     assert rc != 0, f"a resume over a live index.lock must refuse\n{flat}"
     assert "index.lock" in flat, flat
+    assert str(run.lagging) in flat, "the recovery path must remain literal and copyable"
     assert not ADVISES_COMMIT.search(flat), f"the lock refusal must not advise 'Commit'\n{flat}"
     assert not sha_reachable(run.mission.repo, next(iter(run.approved.values()))[0], run.mission.target_branch), "nothing may land on a refusal"
 
