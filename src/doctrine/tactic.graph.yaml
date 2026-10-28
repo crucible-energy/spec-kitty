@@ -44,6 +44,9 @@ nodes:
 - urn: tactic:avoid-gold-plating
   kind: tactic
   label: Avoid Gold Plating
+- urn: tactic:bdd-scenario-formulation
+  kind: tactic
+  label: BDD Scenario Formulation
 - urn: tactic:behavior-driven-development
   kind: tactic
   label: Behavior-Driven Development
@@ -481,6 +484,38 @@ edges:
   target: tactic:easy-to-change
   relation: suggests
   when: After confirming the design is not gold-plated, use easy-to-change to verify that the simpler design still supports anticipated future change.
+- source: tactic:bdd-scenario-formulation
+  target: directive:DIRECTIVE_034
+  relation: suggests
+  when: BDD scenarios become the failing acceptance tests in the test-first cycle
+- source: tactic:bdd-scenario-formulation
+  target: paradigm:behaviour-driven-development
+  relation: suggests
+  when: For the philosophical and collaborative framing of BDD — Discovery/Formulation/Automation cycle, Three Amigos practice
+- source: tactic:bdd-scenario-formulation
+  target: procedure:bdd-scenario-lifecycle
+  relation: suggests
+  when: After scenarios are written in Given/When/Then, use this procedure to wire them to executable tests and maintain them as living documentation
+- source: tactic:bdd-scenario-formulation
+  target: styleguide:given-when-then-authoring
+  relation: suggests
+  when: Author each scenario's Given/When/Then steps per this styleguide's conventions
+- source: tactic:bdd-scenario-formulation
+  target: styleguide:test-desiderata-and-boundaries
+  relation: suggests
+  when: A passing BDD suite should be Inspiring — it should give confidence to ship
+- source: tactic:bdd-scenario-formulation
+  target: styleguide:testing-principles
+  relation: suggests
+  when: BDD scenarios should be Exemplary — the best usage example of the production code they exercise
+- source: tactic:bdd-scenario-formulation
+  target: tactic:acceptance-test-first
+  relation: suggests
+  when: BDD provides the scenario format; ATDD provides the workflow for writing those scenarios before implementation
+- source: tactic:bdd-scenario-formulation
+  target: toolguide:gherkin
+  relation: suggests
+  when: Express the formulated scenarios in the Gherkin DSL (Feature / Scenario / Given-When-Then / Examples)
 - source: tactic:behavior-driven-development
   target: directive:DIRECTIVE_034
   relation: suggests

@@ -40,6 +40,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from charter._doctrine_paths import resolve_project_root
+
 from ruamel.yaml import YAML
 from ruamel.yaml.error import YAMLError
 
@@ -151,11 +153,13 @@ def _scan_roots(
             dirs.append((candidate, True))
     if layer_roots:
         for layer, root in layer_roots.items():
-            candidate = (
-                root / "doctrine" / _PROJECT_KIND_DIRS.get(kind, kind.plural)
-                if layer == "project"
-                else root / "doctrine" / kind.plural / layer
-            )
+            if layer == "project":
+                project = resolve_project_root(root.parent, layer_root=root)
+                if project is None:
+                    continue
+                candidate = project / _PROJECT_KIND_DIRS.get(kind, kind.plural)
+            else:
+                candidate = root / "doctrine" / kind.plural / layer
             if candidate.is_dir():
                 dirs.append((candidate, False))
     return dirs

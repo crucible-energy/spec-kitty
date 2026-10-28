@@ -51,6 +51,18 @@ def test_path_reference_preserves_declared_directive_identity(tmp_path: Path) ->
     assert not any(node.urn == "directive:RECONCILE-SCOPE" for node in nodes)
 
 
+def test_path_reference_does_not_read_body_outside_root(tmp_path: Path) -> None:
+    root = tmp_path / "doctrine"
+    directives = root / "directives/built-in"
+    directives.mkdir(parents=True)
+    external = tmp_path / "outside.directive.yaml"
+    external.write_text("id: EXTERNAL_PRIVATE\n", encoding="utf-8")
+    (directives / "linked.directive.yaml").symlink_to(external)
+    assert _resolve_path_ref(
+        "src/doctrine/directives/built-in/linked.directive.yaml", doctrine_root=root,
+    ) == ("directive", "linked")
+
+
 # ---------------------------------------------------------------------------
 # _resolve_path_ref: 6-pattern hit cases
 # ---------------------------------------------------------------------------

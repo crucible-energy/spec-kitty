@@ -8,6 +8,9 @@ nodes:
 - urn: toolguide:efficient-local-tooling
   kind: toolguide
   label: Efficient Local Tooling
+- urn: toolguide:gherkin
+  kind: toolguide
+  label: The Gherkin Scenario Language
 - urn: toolguide:git-agent-commit-signing
   kind: toolguide
   label: Git Agent Commit Signing

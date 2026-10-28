@@ -26,6 +26,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from charter._doctrine_paths import resolve_project_root
+
 from doctrine.drg.loader import (
     has_graph_files,
     load_built_in_graph,
@@ -85,10 +87,10 @@ def load_validated_graph(repo_root: Path, org_root: Path | None = None) -> DRGGr
 
     built_in = load_built_in_graph()
     org = load_graph_or_dir(org_root) if org_root and org_root.exists() else None
-    project_dir = repo_root / ".kittify" / "doctrine"
+    project_dir = resolve_project_root(repo_root, layer_root=repo_root / ".kittify")
     project = (
         load_graph_or_dir(project_dir)
-        if has_graph_files(project_dir)
+        if project_dir is not None and has_graph_files(project_dir)
         else None
     )
 

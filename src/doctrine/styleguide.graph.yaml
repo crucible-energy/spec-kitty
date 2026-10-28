@@ -8,6 +8,9 @@ nodes:
 - urn: styleguide:aggregate-design-rules
   kind: styleguide
   label: Aggregate Design Rules
+- urn: styleguide:boring-code-review
+  kind: styleguide
+  label: Boring Code Review
 - urn: styleguide:common-docs
   kind: styleguide
   label: Common Docs Styleguide
@@ -23,6 +26,9 @@ nodes:
 - urn: styleguide:docs-freshness-sla
   kind: styleguide
   label: Documentation Freshness SLA Styleguide
+- urn: styleguide:given-when-then-authoring
+  kind: styleguide
+  label: Given-When-Then Scenario Authoring
 - urn: styleguide:java-conventions
   kind: styleguide
   label: Java Conventions Styleguide
@@ -74,6 +80,15 @@ edges:
   relation: suggests
 - source: styleguide:aggregate-design-rules
   target: tactic:domain-event-capture
+  relation: suggests
+- source: styleguide:boring-code-review
+  target: directive:RECONCILE_CHANGE_SCOPE_TENSIONS
+  relation: suggests
+- source: styleguide:boring-code-review
+  target: tactic:avoid-gold-plating
+  relation: suggests
+- source: styleguide:boring-code-review
+  target: tactic:easy-to-change
   relation: suggests
 - source: styleguide:common-docs
   target: directive:DIRECTIVE_042

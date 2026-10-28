@@ -101,7 +101,7 @@ jobs:
             echo "✅ **Version-source consistency checks passed**" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "Release-version sources agree:" >> $GITHUB_STEP_SUMMARY
-            echo "- pyproject.toml, .kittify/metadata.yaml, CHANGELOG.md, and uv.lock are consistent" >> $GITHUB_STEP_SUMMARY
+            echo "- Product pyproject.toml, CHANGELOG.md, and uv.lock are consistent; governing CLI metadata is valid" >> $GITHUB_STEP_SUMMARY
             echo "- Changelog entry exists and is populated for the current source version" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "This was a consistency-only validation. It did not check whether the branch is release-ready, whether the version was bumped, or whether version progression is monotonic." >> $GITHUB_STEP_SUMMARY
@@ -112,7 +112,7 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "This branch is ready for release:" >> $GITHUB_STEP_SUMMARY
             echo "- Version is properly bumped" >> $GITHUB_STEP_SUMMARY
-            echo "- pyproject.toml, .kittify/metadata.yaml, CHANGELOG.md, and uv.lock agree" >> $GITHUB_STEP_SUMMARY
+            echo "- Product pyproject.toml, CHANGELOG.md, and uv.lock agree; governing CLI metadata is valid" >> $GITHUB_STEP_SUMMARY
             echo "- Changelog entry exists and is populated" >> $GITHUB_STEP_SUMMARY
             echo "- Version progression is monotonic" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
@@ -132,7 +132,7 @@ jobs:
             echo "### Required Actions" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "1. **Version Bump** - Update version in \`pyproject.toml\`" >> $GITHUB_STEP_SUMMARY
-            echo "2. **Version Sync** - Keep \`pyproject.toml\`, \`.kittify/metadata.yaml\`, \`CHANGELOG.md\`, and \`uv.lock\` consistent" >> $GITHUB_STEP_SUMMARY
+            echo "2. **Version Sync** - Keep product \`pyproject.toml\`, \`CHANGELOG.md\`, and \`uv.lock\` consistent; validate the separate governing CLI record" >> $GITHUB_STEP_SUMMARY
             echo "3. **Changelog Entry** - Add release notes under \`## [X.Y.Z]\` in \`CHANGELOG.md\`" >> $GITHUB_STEP_SUMMARY
             echo "4. **Version Progression** - Ensure new version > latest tag" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY

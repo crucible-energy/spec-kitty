@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from charter._doctrine_paths import resolve_project_root
+
 __all__ = ["resolve_layer_roots"]
 
 
@@ -18,7 +20,7 @@ def resolve_layer_roots(repo_root: Path) -> dict[str, Path]:
     roots: dict[str, Path] = {}
 
     project_root = repo_root / ".kittify"
-    if (project_root / "doctrine").is_dir():
+    if resolve_project_root(repo_root, layer_root=project_root) is not None:
         roots["project"] = project_root
 
     # FR-013: register the first resolved org pack root regardless of whether it

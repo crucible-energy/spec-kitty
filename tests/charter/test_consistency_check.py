@@ -121,6 +121,23 @@ def test_project_layer_cli_accepts_valid_artifacts_with_catalog(tmp_path: Path, 
     assert report["verification_errors"] == []
 
 
+@pytest.mark.parametrize("fallback", ["src/doctrine", "doctrine"])
+def test_explicit_missing_overlay_never_admits_source_tree(
+    tmp_path: Path, fallback: str,
+) -> None:
+    """A supplied project layer cannot borrow definitions from a source fallback."""
+    rule, _ = _project_layer_fixture(tmp_path)
+    source_tree = tmp_path / fallback
+    source_tree.parent.mkdir(parents=True, exist_ok=True)
+    rule.parent.parent.rename(source_tree)
+    report = run_consistency_check(
+        ProjectContext.from_repo(tmp_path), layer_roots={"project": tmp_path / ".kittify"},
+    )
+    assert report.coherent is False
+    assert "directive/project-rule" in report.unknown_references
+    assert "styleguide/project-style" in report.unknown_references
+
+
 @pytest.mark.parametrize("body", [None, "[unterminated", "title: Missing identifier\n"])
 def test_project_layer_cli_keeps_invalid_artifacts_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str | None) -> None:
     rule, _ = _project_layer_fixture(tmp_path)

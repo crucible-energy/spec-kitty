@@ -7,13 +7,14 @@ the two call-sites cannot drift apart.
 
 Candidate ordering (FR-009 / T024 / T025):
 
-1. ``.kittify/doctrine/``   — Phase 3 synthesis target; present only after a
+1. ``.kittify/charter-packs/`` — current supported upgrade target.
+2. ``.kittify/doctrine/``   — Phase 3 synthesis target; present only after a
                               successful ``spec-kitty charter synthesize`` run.
-2. ``src/doctrine/``        — code-local built-in-layer path (legacy 3.x default).
-3. ``doctrine/``            — flat built-in-layer fallback.
+3. ``src/doctrine/``        — code-local built-in-layer path (legacy 3.x default).
+4. ``doctrine/``            — flat built-in-layer fallback.
 
-Discovery is **conditional on directory presence**: if ``.kittify/doctrine/``
-does not exist the resolver returns the next matching candidate, preserving
+Discovery is **conditional on directory presence**: if neither project overlay
+exists the resolver returns the next matching candidate, preserving
 byte-identical behaviour for legacy (pre-synthesis) projects (R-2 mitigation).
 """
 
@@ -26,14 +27,13 @@ from pathlib import Path
 # Candidate list (ordered: synthesis-aware first, built-in-layer fallbacks after)
 # ---------------------------------------------------------------------------
 
-_PROJECT_ROOT_CANDIDATES: tuple[str, ...] = (
-    ".kittify/doctrine",   # NEW — Phase 3 synthesis target (FR-009)
-    "src/doctrine",        # existing — code-local built-in-layer path
-    "doctrine",            # existing — flat built-in-layer fallback
-)
+_OVERLAY_ROOT_CANDIDATES: tuple[str, ...] = ("charter-packs", "doctrine")
+_PROJECT_ROOT_CANDIDATES: tuple[str, ...] = tuple(
+    f".kittify/{name}" for name in _OVERLAY_ROOT_CANDIDATES
+) + ("src/doctrine", "doctrine")
 
 
-def resolve_project_root(repo_root: Path) -> Path | None:
+def resolve_project_root(repo_root: Path, *, layer_root: Path | None = None) -> Path | None:
     """Return the first existing project-doctrine directory for *repo_root*.
 
     Returns ``None`` when none of the candidates exist on disk, which means
@@ -47,12 +47,19 @@ def resolve_project_root(repo_root: Path) -> Path | None:
 
     Args:
         repo_root: Absolute path to the repository root.
+        layer_root: Caller-selected project layer container. When supplied,
+            resolve only its current/retained overlay directories, without
+            falling back to a built-in source tree. Roots remain caller data.
 
     Returns:
         The first matching :class:`~pathlib.Path` or ``None``.
     """
-    for candidate in _PROJECT_ROOT_CANDIDATES:
-        path = repo_root / candidate
+    candidates = (
+        (layer_root / name for name in _OVERLAY_ROOT_CANDIDATES)
+        if layer_root is not None
+        else (repo_root / name for name in _PROJECT_ROOT_CANDIDATES)
+    )
+    for path in candidates:
         if path.is_dir():
             return path
     return None

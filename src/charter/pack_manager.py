@@ -64,6 +64,7 @@ from typing import TYPE_CHECKING, Any
 from ruamel.yaml import YAML
 from ruamel.yaml.error import YAMLError
 
+from charter._doctrine_paths import resolve_project_root
 from charter.activation_engine import (
     NoActivationRestrictionsError,
     UnknownActivationIdError,
@@ -646,7 +647,10 @@ class CharterPackManager:
                 continue
             if layered and layer == "project" and kind is not None:
                 kind_dir = _PROJECT_KIND_DIRS.get(kind, kind.plural)
-                candidate = root / "doctrine" / kind_dir
+                project = resolve_project_root(root.parent, layer_root=root)
+                if project is None:
+                    continue
+                candidate = project / kind_dir
             elif layered and layer == "org" and kind is not None:
                 candidate = _resolve_org_layer_dir(root, kind, base_dir)
             elif layered:

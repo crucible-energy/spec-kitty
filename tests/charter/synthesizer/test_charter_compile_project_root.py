@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from charter._doctrine_paths import resolve_project_root, _PROJECT_ROOT_CANDIDATES
+from charter._doctrine_paths import resolve_project_root
 from charter.compiler import _default_doctrine_service
 
 
@@ -81,11 +81,10 @@ class TestResolveProjectRoot:
         result = resolve_project_root(tmp_path)
         assert result == kittify_doctrine
 
-    def test_candidate_order_is_kittify_src_flat(self) -> None:
-        """_PROJECT_ROOT_CANDIDATES tuple has the expected order."""
-        assert _PROJECT_ROOT_CANDIDATES[0] == ".kittify/doctrine"
-        assert _PROJECT_ROOT_CANDIDATES[1] == "src/doctrine"
-        assert _PROJECT_ROOT_CANDIDATES[2] == "doctrine"
+    def test_current_pack_takes_priority_over_retained_layouts(self, tmp_path: Path) -> None:
+        for name in (".kittify/charter-packs", ".kittify/doctrine", "src/doctrine", "doctrine"):
+            (tmp_path / name).mkdir(parents=True)
+        assert resolve_project_root(tmp_path) == tmp_path / ".kittify" / "charter-packs"
 
 
 # ---------------------------------------------------------------------------
