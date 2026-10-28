@@ -1,7 +1,7 @@
 {
-  "event_count": 94,
-  "last_event_id": "01M61TBG9XSH251HA5RVQ7W745",
-  "materialized_at": "2026-10-28T17:54:00.637107+00:00",
+  "event_count": 95,
+  "last_event_id": "01M61TBKMK06MXQWD713SA21MZ",
+  "materialized_at": "2026-10-28T17:54:04.051808+00:00",
   "mission_number": "",
   "mission_slug": "organization-workspace-lifecycle-01M5DRAR",
   "mission_type": "software-dev",
@@ -12,9 +12,9 @@
     "canceled": 0,
     "claimed": 0,
     "done": 0,
-    "for_review": 1,
+    "for_review": 0,
     "in_progress": 2,
-    "in_review": 0,
+    "in_review": 1,
     "planned": 1
   },
   "work_packages": {
@@ -408,22 +408,22 @@
       "shell_pid_created_at": "1793210032.027727"
     },
     "WP16": {
-      "actor": "codex",
+      "actor": "codex-subsequent-reviewer",
       "agent": "codex",
       "agent_profile": "__resolved_profile_absent__",
       "agent_profile_version": "__resolved_profile_version_absent__",
       "assignee": "codex",
       "force_count": 0,
       "implementer_of_record": "codex",
-      "lane": "for_review",
-      "last_event_id": "01M61SM5M5H2SZKD0NSB7NT5N9",
-      "last_transition_at": "2026-10-28T17:41:16.037745+00:00",
+      "lane": "in_review",
+      "last_event_id": "01M61TBKMK06MXQWD713SA21MZ",
+      "last_transition_at": "2026-10-28T17:54:04.051808+00:00",
       "model": "__resolved_model_absent__",
       "notes": [
         "Source readiness coordinator received creator release. Exact c979 validated WP16 nine-file containment/private-YAML slice and integrated73, baseline2459, combined819, static coverage/quality, independent14-path review and installed private YAML/ordinary interruption evidence preserved. Subsequent owns genuine review verdict; no approval or119 adoption inferred."
       ],
       "provider": "__resolved_provider_absent__",
-      "role": "implementer",
+      "role": "reviewer",
       "shell_pid": 61489,
       "shell_pid_created_at": "1793189954.055258"
     }
