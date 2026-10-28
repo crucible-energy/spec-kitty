@@ -110,6 +110,7 @@ def complete_invocation(
         help="Git commit SHA most directly produced by this invocation. Singular.",
     ),
     json_output: bool = typer.Option(False, "--json", help="Output JSON payload"),
+    no_commit: bool = typer.Option(False, "--no-commit", help="Close the Op locally without creating a Git commit."),
     owned_checkout: Annotated[Path | None, owned_checkout_option(help="Verified checkout holding the operation opened by dispatch.")] = None,
 ) -> None:
     """Close an open invocation record. --invocation-id and --outcome are required.
@@ -147,6 +148,7 @@ def complete_invocation(
             # The CLI surface is the manual/agent close path; the doctor sweep
             # (the only other closer) calls the executor directly (FR-003).
             closed_by="agent",
+            auto_commit=not no_commit,
         )
     except InvalidModeForEvidenceError as e:
         console.print(f"[red]Error:[/red] {e}")
@@ -162,6 +164,8 @@ def complete_invocation(
     # the completed event is already on disk; this says how to land it.
     # Human output only: the --json payload's shape is contract-frozen.
     commit_outcome = executor.last_op_commit
+    if no_commit and not json_output:
+        console.print("  Op journal saved locally and left uncommitted.")
     if not json_output and commit_outcome is not None and not commit_outcome.committed:
         console.print(
             f"[yellow]Warning:[/yellow] Op record auto-commit was refused "

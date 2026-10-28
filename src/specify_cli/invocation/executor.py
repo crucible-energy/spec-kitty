@@ -434,7 +434,8 @@ class ProfileInvocationExecutor:
         self._propagator = propagator
         self._chokepoint: GlossaryChokepoint | None = None  # lazy-loaded on first invoke
         #: Outcome of the most recent Op-record auto-commit performed by this
-        #: executor (``None`` before the first close). Read by the doctor sweep
+        #: executor (``None`` before the first close or after an explicit
+        #: no-commit close). Read by the doctor sweep
         #: and the CLI complete path to surface a refused commit (#4397).
         self.last_op_commit: OpCommitOutcome | None = None
         # Lazily populated only for doctor-sweep closes. One executor serves an
@@ -771,6 +772,7 @@ class ProfileInvocationExecutor:
         commit_sha: str | None = None,
         *,
         closed_by: Literal["agent", "doctor_sweep"],
+        auto_commit: bool = True,
     ) -> OpCompletedEvent:
         """Close an open invocation record and propagate the completed event.
 
@@ -801,6 +803,10 @@ class ProfileInvocationExecutor:
         the per-record file is never touched. The sweep still closes through
         this executor (research R4): the spine append IS the canonical close
         path's write for the sweep caller.
+
+        ``auto_commit=False`` leaves the canonical completion uncommitted.
+        Only the final Git commit is skipped; custody, validation, evidence,
+        correlation links and propagation retain their existing behavior.
         """
         # A path alone is insufficient custody: an untracked record follows
         # checkout switches. Bind agent completion to its recorded branch
@@ -884,7 +890,9 @@ class ProfileInvocationExecutor:
         if self._propagator is not None:
             self._propagator.submit(completed)
 
-        self._commit_op_record(invocation_id, closed_by=closed_by)
+        self.last_op_commit = None
+        if auto_commit:
+            self._commit_op_record(invocation_id, closed_by=closed_by)
         return completed
 
     def _close_on_spine(self, completed: OpCompletedEvent) -> None:
