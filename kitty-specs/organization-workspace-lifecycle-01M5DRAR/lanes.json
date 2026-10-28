@@ -36,6 +36,7 @@
         "docs/plans/engineering-notes/2026-10-24-organization-lifecycle-rollout.md",
         "docs/plans/engineering-notes/2026-10-24-owned-lanes-analysis.md",
         "docs/plans/engineering-notes/2026-10-27-op-closeout-no-commit.md",
+        "docs/plans/engineering-notes/2026-10-28-lifecycle-foreground-ownership.md",
         "docs/plans/engineering-notes/2026-10-28-pytest-containment-and-private-yaml.md",
         "docs/reports/organization-workspace-lifecycle/**",
         "packs/built-in/missions/mission-steps/**",
@@ -61,13 +62,16 @@
         "src/specify_cli/invocation/lifecycle.py",
         "src/specify_cli/invocation/writer.py",
         "src/specify_cli/lanes/claim_base.py",
+        "src/specify_cli/lanes/implement_support.py",
         "src/specify_cli/lanes/worktree_allocator.py",
+        "src/specify_cli/orchestrator_api/wp_lifecycle.py",
         "src/specify_cli/workspace_lifecycle/adapters.py",
         "src/specify_cli/workspace_lifecycle/configuration.py",
         "src/specify_cli/workspace_lifecycle/coordinator.py",
         "src/specify_cli/workspace_lifecycle/discovery.py",
         "src/specify_cli/workspace_lifecycle/events.py",
         "src/specify_cli/workspace_lifecycle/inventory.py",
+        "src/specify_cli/workspace_lifecycle/original_run.py",
         "src/specify_cli/workspace_lifecycle/policy.py",
         "src/specify_cli/workspace_lifecycle/service.py",
         "src/specify_cli/workspace_lifecycle/state.py",
@@ -110,6 +114,7 @@
         "tests/workspace_lifecycle/test_policy.py",
         "tests/workspace_lifecycle/test_state.py",
         "tools/zig/workspace_finish.zig",
+        "tools/zig/workspace_host.zig",
         "tools/zig/workspace_ingress.zig"
       ],
       "predicted_surfaces": [],
@@ -117,10 +122,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-28T19:22:10.944992+00:00",
+  "computed_at": "2026-10-28T21:26:44.412233+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "4169a26283f38298625bcc399e968b9613b6f7d2"
+  "planning_commit_sha": "c4e064edfa3ff3124919236d52fa9a73b764b012"
 }
