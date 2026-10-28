@@ -21,6 +21,7 @@ agent_profile: implementer-ivan
 authoritative_surface: tests/_support/run_basetemp.py
 create_intent:
 - docs/plans/engineering-notes/2026-10-28-pytest-containment-and-private-yaml.md
+- docs/changelog/CHANGELOG.md
 execution_mode: code_change
 owned_files:
 - tests/_support/run_basetemp.py
@@ -75,6 +76,13 @@ Choose detected-preimage refusal rather than add an implicit persistent lock art
 - tests/kernel/test_yaml_io.py
 - tests/specify_cli/core/test_hosted_posture.py
 - docs/plans/engineering-notes/2026-10-28-pytest-containment-and-private-yaml.md (create intent)
+- docs/changelog/CHANGELOG.md (existing consumer-facing release notes)
+
+Ownership amendment: CONTRIBUTING requires an Unreleased entry for the private
+permission correction. Add only this existing documentation path; preserve the
+original eight paths, dependencies, current claim and event history. Validate
+and finalize this amendment through the public mission command before editing
+the changelog. No new implementation or runtime authority is added.
 
 No hosted-posture implementation or product root-discovery change is needed. Existing assertions stay intact. Source's known chmod/OFF reconciliation is evidence, not the upstream repair.
 
