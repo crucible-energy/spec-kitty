@@ -29,6 +29,15 @@ Repair the existing upgrade cache writer by delegating to
 same small correction as a seventh path in the compatibility data patch. The
 canonical resolver retains platform-specific default runtime location policy.
 
+Independent review questioned whether the direct cache import could bypass
+consumer admission. Actual fresh-process controls for relative, parent-segment,
+missing-home and invalid-scope inputs all refused before filesystem effects.
+Their trace identifies the existing authority: package import loads the operator
+environment through `bootstrap.env_file`, which calls
+`kernel.paths.get_runtime_state_root` and `consumer_agent_asset_root` before the
+cache module is reached. Retain that regression; do not add a duplicate guard or
+switch the cache to the different default runtime-state directory.
+
 Build a new private wheel and executable instead of modifying a retained runtime.
 Record the published archive, exact ports, wheel and installed file hashes, all
 dependency identities, dependency supplier and executable in external evidence.

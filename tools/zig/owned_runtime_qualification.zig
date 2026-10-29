@@ -169,10 +169,39 @@ const owned_fixture =
     \\js('qualification.json',{'actual_owned_next_advance':good,'true_material_drift_refused':True,'actual_workflow_helper_positive_and_negative':True,'public_owned_action_implement':'OWNED_ACTION_UNSUPPORTED with exact WP files and HEAD invariant','protected_fixture_primary_exact':True,'protected_fixture_native_home_exact':True,'actual_phoenix_qualified':False,'fixture_root':str(P),'retention':'Retain exact disposable SDK fixture and logs until independent review; no production runtime or ordinary adoption.'})
     \\print((P/'qualification.json').read_text())
 ;
+const cache_admission_fixture =
+    \\import hashlib,json,os,pathlib,subprocess,sys,tempfile
+    \\child="""import json,os
+    \\from types import SimpleNamespace
+    \\from unittest.mock import patch
+    \\try:
+    \\ from specify_cli.session_presence import upgrade_check
+    \\ provider=SimpleNamespace(get_latest=lambda package,prerelease=False:SimpleNamespace(version='4.0.0rc7'))
+    \\ with patch('specify_cli.distribution.upgrade_provider.resolve_upgrade_provider',return_value=provider):upgrade_check.refresh_cache_once()
+    \\ print(json.dumps({'refused':False,'cache_path':str(upgrade_check.CACHE_PATH)}))
+    \\except ValueError as error:
+    \\ import traceback
+    \\ print(json.dumps({'refused':True,'reason':str(error),'admission_frames':[{'file':frame.filename,'function':frame.name,'line':frame.lineno} for frame in traceback.extract_tb(error.__traceback__)]}))
+    \\"""
+    \\def snapshot(root):return {str(p.relative_to(root)):(hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else None,p.stat().st_mode,p.stat().st_ino,p.stat().st_mtime_ns) for p in root.rglob('*')}
+    \\with tempfile.TemporaryDirectory(prefix='owned-cache-admission-') as temporary:
+    \\ root=pathlib.Path(temporary);facts=[]
+    \\ for kind in ('relative','parent-segment','missing-home','invalid-scope'):
+    \\  case=root/kind;case.mkdir(mode=0o700);home=case/'protected-home';home.mkdir(mode=0o700)
+    \\  env={k:v for k,v in os.environ.items() if not k.startswith(('GIT_CONFIG','UV_','PIP_')) and k not in ('PYTHONPATH','PYTHONHOME','SPEC_KITTY_HOME','SPEC_KITTY_NO_UPGRADE_CHECK','SPEC_KITTY_PACKS_ROOT','SPECIFY_REPO_ROOT','SPEC_KITTY_REPO_ROOT','SPEC_KITTY_TEMPLATE_ROOT')}
+    \\  env.update(HOME=str(home),SPEC_KITTY_ASSET_SCOPE='consumer',XDG_CONFIG_HOME=str(case/'config'),XDG_CACHE_HOME=str(case/'cache'),XDG_STATE_HOME=str(case/'state'),PYTHONDONTWRITEBYTECODE='1')
+    \\  if kind=='relative':env['SPEC_KITTY_HOME']='relative-home'
+    \\  elif kind=='parent-segment':env['SPEC_KITTY_HOME']=str(case/'segment'/'..'/'outside')
+    \\  elif kind=='invalid-scope':env.update(SPEC_KITTY_ASSET_SCOPE='unadmitted',SPEC_KITTY_HOME=str(case/'operator'))
+    \\  before=snapshot(case);r=subprocess.run([sys.executable,'-I','-B','-c',child],cwd=case,env=env,capture_output=True,text=True,timeout=15)
+    \\  assert r.returncode==0,(kind,r.stderr)
+    \\  result=json.loads(r.stdout);after=snapshot(case);facts.append({'kind':kind,**result,'state_exact':before==after,'added_paths':sorted(set(after)-set(before))})
+    \\ print(json.dumps({'cases':facts,'all_refused_before_effects':all(x['refused'] and x['state_exact'] for x in facts)}))
+;
 fn probe(mode: []const u8) !std.json.Parsed(std.json.Value) {
     const python = c.getenv("OWNED_RUNTIME_PYTHON") orelse return error.ExplicitInstalledRuntimeRequired;
     const result = try std.process.run(std.testing.allocator, std.testing.io, .{
-        .argv = &.{ std.mem.span(python), "-I", "-B", "-c", if (std.mem.eql(u8, mode, "owned")) owned_fixture else fixture, mode },
+        .argv = &.{ std.mem.span(python), "-I", "-B", "-c", if (std.mem.eql(u8, mode, "cache-admission")) cache_admission_fixture else if (std.mem.eql(u8, mode, "owned")) owned_fixture else fixture, mode },
         .stdout_limit = .limited(256 * 1024),
         .stderr_limit = .limited(64 * 1024),
         .timeout = .{ .duration = .{ .clock = .awake, .raw = .fromSeconds(if (std.mem.eql(u8, mode, "owned")) 180 else 90) } },
@@ -222,4 +251,10 @@ test "actual upgrade cache refresh honors private runtime home while default use
     try std.testing.expect(facts.get("actual_foreground_refresh").?.bool);
     try std.testing.expect(facts.get("default_user_cache_native").?.bool);
     try std.testing.expect(facts.get("protected_native_state_exact").?.bool);
+}
+
+test "direct foreground cache writer refuses invalid consumer admission before filesystem effects" {
+    var parsed = try probe("cache-admission");
+    defer parsed.deinit();
+    try std.testing.expect(parsed.value.object.get("all_refused_before_effects").?.bool);
 }
