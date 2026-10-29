@@ -1,3 +1,10 @@
+---
+title: "Inspect immutable planning without borrowing write authority"
+description: "Documents bounded immutable planning inspection, canonical identity selection, exact Git preservation, and the separation from write and readiness authority."
+doc_status: active
+updated: "2026-10-29"
+---
+
 # Inspect immutable planning without borrowing write authority
 
 ## User experience findings

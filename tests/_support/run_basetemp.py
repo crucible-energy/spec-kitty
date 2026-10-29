@@ -550,8 +550,6 @@ def _admit_run_resources(config: pytest.Config) -> None:
     _ACTIVE_ENCLOSURE = context
     setattr(config, _ENCLOSURE_ATTR, context)
     if hasattr(config, "add_cleanup"):
-        previous = {name: os.environ.get(name) for name in ("TMPDIR", _ENCLOSURE_ENV)}
-        old_tempdir = tempfile.tempdir
         home_tmp = (
             context.tmp_parent
             if selected is not None or isinstance(context, _RunEnclosure) and not context.tmp_parent.exists()
@@ -560,9 +558,11 @@ def _admit_run_resources(config: pytest.Config) -> None:
         context.check(home_tmp)
         home_tmp.mkdir(mode=0o700)
         home_tmp.chmod(0o700)
-        os.environ["TMPDIR"] = str(home_tmp)
-        os.environ[_ENCLOSURE_ENV] = json.dumps(context.projection())
-        tempfile.tempdir = str(home_tmp)
+        environment = pytest.MonkeyPatch()
+        config.add_cleanup(environment.undo)
+        environment.setenv("TMPDIR", str(home_tmp))
+        environment.setenv(_ENCLOSURE_ENV, json.dumps(context.projection()))
+        environment.setattr(tempfile, "tempdir", str(home_tmp))
         if not explicit:
             if selected is None:
                 namespace = candidate / RUN_TMP_ROOT_NAME if debug_root else home_tmp / RUN_TMP_ROOT_NAME
@@ -570,15 +570,6 @@ def _admit_run_resources(config: pytest.Config) -> None:
                 context.check(selected)
             setattr(config, _ADMITTED_BASETEMP_ATTR, str(selected))
 
-        def restore() -> None:
-            for key, value in previous.items():
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value
-            tempfile.tempdir = old_tempdir
-
-        config.add_cleanup(restore)
         config.pluginmanager.register(_EnclosureHandoff(context), "spec-kitty-test-enclosure")
 
 

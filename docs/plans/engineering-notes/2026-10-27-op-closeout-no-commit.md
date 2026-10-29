@@ -1,3 +1,10 @@
+---
+title: "Explicit operation closeout commit policy"
+description: "Explains explicit no-commit operation closeout, retained custody and audit requirements, and the validation limits of the current lifecycle increment."
+doc_status: active
+updated: "2026-10-29"
+---
+
 # Explicit operation closeout commit policy
 
 Owner: WP15, organization-workspace-lifecycle-01M5DRAR. The real implementation

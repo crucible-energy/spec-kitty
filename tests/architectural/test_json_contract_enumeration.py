@@ -157,6 +157,7 @@ PARSEABLE: dict[str, tuple[tuple[str, ...], int, str]] = {
     "agent mission check-prerequisites": ((), 1, "outside"),
     "agent mission create": (("missing",), 1, "outside"),
     "agent mission finalize-tasks": ((), 1, "outside"),
+    "agent mission inspect": (("--mission", "missing", "--at", "HEAD"), 1, "outside"),
     "agent mission record-analysis": ((), 1, "outside"),
     "agent mission setup-plan": ((), 1, "outside"),
     "agent status emit": (("missing", "--to", "missing", "--actor", "missing"), 1, "outside"),

@@ -1,3 +1,10 @@
+---
+title: "Finite original foreground ownership"
+description: "Documents bounded native foreground ownership, original execution horizons, descendant retention and the remaining ordinary launcher integration requirements."
+doc_status: active
+updated: "2026-10-29"
+---
+
 # Finite original foreground ownership
 
 WP09 implementation is in progress. This note describes the source boundary;

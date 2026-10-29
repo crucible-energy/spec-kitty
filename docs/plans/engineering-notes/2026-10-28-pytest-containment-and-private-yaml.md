@@ -1,3 +1,10 @@
+---
+title: "Test containment and private YAML preservation"
+description: "Records private test-resource admission, preservation of YAML metadata and interrupted validation, plus the evidence required before releasing retained resources."
+doc_status: active
+updated: "2026-10-29"
+---
+
 # WP16: test containment and private YAML
 
 ## Objective and ownership

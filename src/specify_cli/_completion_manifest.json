@@ -85,6 +85,11 @@
        "hidden": false,
        "deprecated": false
       },
+      "inspect": {
+       "help": "Inspect saved planning identity/facts without changing the active checkout.",
+       "hidden": false,
+       "deprecated": false
+      },
       "acceptance-verdict": {
        "help": "Record an acceptance-criterion verdict, or register/execute a negative\ninvariant (FR-007/FR-008) — exactly one of ``--criterion``/\n``--negative-invariant``, both routed through the WP03 write seam.",
        "hidden": false,

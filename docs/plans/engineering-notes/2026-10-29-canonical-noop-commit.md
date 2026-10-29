@@ -1,3 +1,10 @@
+---
+title: "Canonical unchanged-artifact commit admission"
+description: "Explains authoritative unchanged-artifact detection before commit hooks, exact staged-state restoration, and mandatory hooks for genuine changes."
+doc_status: active
+updated: "2026-10-29"
+---
+
 # Canonical unchanged-artifact commit admission
 
 ## User experience findings
