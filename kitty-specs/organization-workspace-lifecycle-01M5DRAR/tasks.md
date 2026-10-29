@@ -65,11 +65,13 @@ T008 Exact owner/purpose/next/review obligations and revisioned history in Zig. 
 
 ## Work Package WP09: Automatic creator integration and distribution
 
-**Dependencies**: WP08, WP11
+**Dependencies**: WP08, WP11, WP15, WP16
 
 **Requirement Refs**: FR-011, FR-003, FR-004, FR-005, NFR-001
 
 T009 Integrate native obligations into supported creator startup/completion/recovery. Python edits are bounded migration glue; new implementation/tests use Zig. Package exact artifacts, refuse unsupported creators, and prove actual asynchronous cleanup plus preservation/interruption. No broad prune or trust bypass.
+
+Hosted-contract follow-up: this existing lane consumes the approved WP15 closeout and WP16 containment surfaces (including their WP14 dependency) before integration. Shared-file changes are sequential; prior accepted package histories remain intact.
 
 ## Work Package WP10: Organization rollout and observed closeout proof
 

@@ -4,6 +4,8 @@ title: Automatic creator integration and distribution
 dependencies:
 - WP08
 - WP11
+- WP15
+- WP16
 requirement_refs:
 - FR-011
 - FR-003
@@ -61,12 +63,30 @@ owned_files:
 - src/specify_cli/git/commit_helpers.py
 - tools/zig/commit_noop.zig
 - docs/plans/engineering-notes/2026-10-29-canonical-noop-commit.md
+- src/specify_cli/_completion_manifest.json
+- tests/architectural/test_json_contract_enumeration.py
+- tests/architectural/untrusted_path_audit/inventory.md
+- pyproject.toml
+- tests/_support/run_basetemp.py
+- docs/plans/engineering-notes/2026-10-27-op-closeout-no-commit.md
+- docs/plans/engineering-notes/2026-10-28-pytest-containment-and-private-yaml.md
 tags: []
 task_type: implement
 tracker_refs: []
 ---
 
 # WP09 — Automatic creator integration and distribution
+
+## Hosted contract propagation repair
+
+Exact published e476 CI failures reproduced as14focused failures before edits.
+Add missing required frontmatter to the five lifecycle notes without changing
+bodies; classify immutable inspect in the existing PARSEABLE mission JSON family
+and regenerate canonical completion data; document the Git-tree-only diagnostic
+path in the bidirectional containment inventory; remove stale formatter debt;
+use pytest.MonkeyPatch with registered undo for test enclosure globals. Keep
+checks, data floors, typed errors and all current approvals/history unchanged.
+This is a bounded lifecycle integration follow-up, not wholeWP09 completion.
 
 ## Canonical unchanged-commit hook correction
 
