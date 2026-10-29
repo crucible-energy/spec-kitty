@@ -104,6 +104,11 @@ pub const Result = struct {
     exit_code: ?u8,
     leader_reaped: bool,
     group_disposed: bool,
+    /// Original unreaped leader was terminal and its group had no live
+    /// members BEFORE disposal. Successful forced cleanup alone is not this
+    /// observation. This remains the cooperative original-group contract,
+    /// never containment of detached session escapes.
+    terminal_group_quiescent: bool = false,
     elapsed_ms: u64,
     max_sampled_processes: usize,
     max_sampled_resident_bytes: u64,
@@ -409,6 +414,7 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
     var failure: ?Failure = null;
     var max_processes: usize = 0;
     var max_resident: u64 = 0;
+    var terminal_group_quiescent = false;
     while (true) {
         var usage: Usage = .{};
         if (pending_signal.load(.monotonic) != 0) {
@@ -454,6 +460,7 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
             // A terminal leader remains WNOWAIT-owned while its entire original
             // group is disposed. Pipe EOF is never used as process completion.
             if (terminal) {
+                terminal_group_quiescent = usage.processes == 0;
                 if (!disposeOwned(&owner, io, limits.cleanup_ms, scope)) {
                     failure = .cleanup_failed;
                     if (!owner.valid and !owner.reaped) failure = .ownership_lost;
@@ -526,7 +533,7 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
     if (err.retained_known) stderr_retained = err.retained;
     const stdout = try allocator.dupe(u8, out.list.items);
     errdefer allocator.free(stdout);
-    return .{ .stdout = stdout, .stderr = try allocator.dupe(u8, err.list.items), .failure = failure, .exit_code = owner.exit_code, .leader_reaped = owner.reaped, .group_disposed = owner.disposed, .elapsed_ms = @intCast(@divTrunc(now(io) - started, std.time.ns_per_ms)), .max_sampled_processes = max_processes, .max_sampled_resident_bytes = max_resident, .stdout_observed_bytes = out.observed, .stderr_observed_bytes = err.observed, .stdout_retained_bytes = stdout_retained, .stderr_retained_bytes = stderr_retained };
+    return .{ .stdout = stdout, .stderr = try allocator.dupe(u8, err.list.items), .failure = failure, .exit_code = owner.exit_code, .leader_reaped = owner.reaped, .group_disposed = owner.disposed, .terminal_group_quiescent = terminal_group_quiescent, .elapsed_ms = @intCast(@divTrunc(now(io) - started, std.time.ns_per_ms)), .max_sampled_processes = max_processes, .max_sampled_resident_bytes = max_resident, .stdout_observed_bytes = out.observed, .stderr_observed_bytes = err.observed, .stdout_retained_bytes = stdout_retained, .stderr_retained_bytes = stderr_retained };
 }
 
 // SDK posix_spawn reports pre-exec failure without losing an already forked

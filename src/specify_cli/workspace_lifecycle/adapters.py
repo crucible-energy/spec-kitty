@@ -12,11 +12,11 @@ import secrets
 import stat
 import subprocess
 import sys
-import threading
 import tempfile
+import threading
 import time
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager, suppress
+from contextlib import AbstractContextManager, contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass, fields, replace
 from pathlib import Path
@@ -26,8 +26,8 @@ import psutil
 
 from kernel.atomic import atomic_write
 from kernel.git import GitCommandError, GitResult, run_git
-from kernel.git.remote import RemoteUnreachable, fetch_evidence_ref
 from kernel.git.listing import status_entries
+from kernel.git.remote import RemoteUnreachable, fetch_evidence_ref
 from kernel.git.worktree_registry import parse_worktree_records
 from kernel.git_topology import inspect_git_common_dir
 from kernel.locks import machine_file_lock
@@ -44,7 +44,7 @@ from specify_cli.workspace_lifecycle.policy import Evidence, Identity
 from specify_cli.workspace_lifecycle.state import Operation, StateError, StateStore
 
 if TYPE_CHECKING:
-    from specify_cli.workspace_lifecycle.original_run import OriginalWorkspaceRun
+    from specify_cli.workspace_lifecycle.original_run import OriginalWorkspaceRun, _AdmittedForegroundJob
 
 
 class GitHubDelivery:
@@ -818,9 +818,10 @@ class ManagedGitCreator:
         atomic_write(self._path, raw, durable=True, expected_parent=self._root_identity)
 
     @contextmanager
-    def _fence(self) -> Iterator[None]:
+    def _fence(self, *, timeout: float | None = None) -> Iterator[None]:
         self._check_root()
-        with machine_file_lock(self.store.root / f"creator-{self.token}.lock", blocking=True, timeout_s=self.store.timeout, private=True):
+        allowance = self.store.timeout if timeout is None else min(self.store.timeout, timeout)
+        with machine_file_lock(self.store.root / f"creator-{self.token}.lock", blocking=True, timeout_s=allowance, private=True):
             self._check_root()
             yield
 
@@ -965,23 +966,59 @@ class ManagedGitCreator:
         """
         if os.name != "posix" or not math.isfinite(timeout) or timeout <= 0 or timeout > self.operation_timeout:
             raise StateError("Bounded POSIX producer ownership required")
+        self._run_owned_producer(argv, timeout=timeout, context=self.producer())
+
+    @contextmanager
+    def _foreground_producer(self, original_run: OriginalWorkspaceRun, job: _AdmittedForegroundJob) -> Iterator[Path]:
+        from specify_cli.workspace_lifecycle.original_run import OriginalWorkspaceRun
+
+        if type(original_run) is not OriginalWorkspaceRun:
+            raise StateError("Original foreground scope required")
+        original_run.require_running_job(job, self)
+        if os.getpid() != self._pid or not self._capability or self._unconfirmed_producer:
+            raise StateError("Creator producer authority unavailable")
+        with self._fence(timeout=job.remaining()):
+            # Only short private/Git effects use the unchanged operation cap.
+            # The actual wait is governed by the prior native job admission.
+            with process_budget(min(self.operation_timeout, job.remaining())):
+                state = self._read()
+                if state.status != "active":
+                    raise StateError("Creator generation released")
+                ident = replace(self._fresh(state), lease_generation=secrets.token_hex(16))
+                self._write(replace(state, identity=ident, producer_succeeded=False))
+            yield Path(ident.path)
+            with process_budget(min(self.operation_timeout, job.remaining(settlement=True))):
+                current = self._read()
+                self._write(replace(current, identity=self._fresh(current)))
+
+    def _run_foreground_job(self, argv: list[str], *, original_run: OriginalWorkspaceRun, job: _AdmittedForegroundJob) -> None:
+        original_run.require_running_job(job, self)
+        allowance = job.remaining(settlement=True)
+        self._run_owned_producer(argv, timeout=allowance, context=self._foreground_producer(original_run, job), settlement_deadline=time.monotonic() + allowance)
+
+    def _run_owned_producer(self, argv: list[str], *, timeout: float, context: AbstractContextManager[Path], settlement_deadline: float | None = None) -> None:
         if not argv or len(argv) > 256 or any(not isinstance(arg, str) or "\0" in arg for arg in argv):
             raise ValueError("Explicit producer argument vector required")
-        with self.producer() as path:
-            state = self._read()
-            self._unconfirmed_producer = True
-            process = subprocess.Popen(
-                argv,
-                cwd=path,
-                env={**_git_env(), "SPEC_KITTY_LIFECYCLE_RESULT": str(self.store.root / f"producer-{self.token}-result.json")},
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
+        with context as path:
+            startup_allowance = (
+                self.operation_timeout if settlement_deadline is None else min(self.operation_timeout, max(0.0, settlement_deadline - time.monotonic()))
             )
+            with process_budget(startup_allowance):
+                state = self._read()
+                self._unconfirmed_producer = True
+                process = subprocess.Popen(
+                    argv,
+                    cwd=path,
+                    env={**_git_env(), "SPEC_KITTY_LIFECYCLE_RESULT": str(self.store.root / f"producer-{self.token}-result.json")},
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
             successful = False
             try:
-                successful = process.wait(timeout=timeout) == 0
+                wait_allowance = timeout if settlement_deadline is None else max(0.0, settlement_deadline - time.monotonic())
+                successful = process.wait(timeout=wait_allowance) == 0
                 # A foreground parent returning while its own group still runs
                 # is not joined producer completion. No snapshot grants release.
                 try:
@@ -996,16 +1033,18 @@ class ManagedGitCreator:
             finally:
                 if not successful:
                     try:
-                        self._write(replace(state, status="producer_unknown", producer_succeeded=False))
+                        with process_budget(self.operation_timeout):
+                            self._write(replace(state, status="producer_unknown", producer_succeeded=False))
                     finally:
-                        self._stop_producer(process)
+                        self._stop_producer(process, deadline=settlement_deadline)
                 if process.returncode is None:
-                    self._stop_producer(process)
-            self._write(replace(state, identity=self._fresh(state), producer_succeeded=True))
+                    self._stop_producer(process, deadline=settlement_deadline)
+            with process_budget(self.operation_timeout):
+                self._write(replace(state, identity=self._fresh(state), producer_succeeded=True))
             self._unconfirmed_producer = False
 
     @staticmethod
-    def _stop_producer(process: subprocess.Popen[bytes]) -> None:
+    def _stop_producer(process: subprocess.Popen[bytes], *, deadline: float | None = None) -> None:
         # wait()/poll() end PID/PGID custody. Never signal a numeric group after
         # reaping its leader: a later process may have reused that identifier.
         if process.returncode is not None:
@@ -1013,11 +1052,11 @@ class ManagedGitCreator:
         with suppress(ProcessLookupError):
             signal_owned_process_tree(process, force=False)
         try:
-            process.wait(timeout=0.5)
+            process.wait(timeout=0.5 if deadline is None else min(0.5, max(0.0, deadline - time.monotonic())))
         except subprocess.TimeoutExpired:
             with suppress(ProcessLookupError):
                 signal_owned_process_tree(process, force=True)
-            process.wait(timeout=0.5)
+            process.wait(timeout=0.5 if deadline is None else min(0.5, max(0.0, deadline - time.monotonic())))
         # Once wait reaps the leader, signalling authority ends. A remaining
         # or escaped producer is unconfirmed; durable producer_unknown retains it.
 

@@ -1,8 +1,158 @@
-//! Foreground lifetime acceptance. Policy implementation follows the committed RED.
+//! Finite foreground jobs. Admission data never grants creator release authority.
 const std = @import("std");
+const builtin = @import("builtin");
+const process = @import("validation_process_darwin.zig");
+const candidate = @import("validation_candidate.zig");
 const c = @cImport({
+    @cDefine("_FORTIFY_SOURCE", "0");
     @cInclude("stdlib.h");
+    @cInclude("sys/stat.h");
+    @cInclude("fcntl.h");
+    @cInclude("unistd.h");
+    @cInclude("time.h");
 });
+
+const Policy = struct {
+    execution_ms: u32,
+    settlement_ms: u32,
+    accountable_owner: []const u8,
+    purpose: []const u8,
+    next_action: []const u8,
+    review_event: []const u8,
+    stdout_bytes: usize = 1024 * 1024,
+    stderr_bytes: usize = 1024 * 1024,
+    processes: u16 = 8,
+    resident_bytes: u64 = 512 * 1024 * 1024,
+};
+const Admission = struct { policy: Policy, deadline_ns: i64, settlement_deadline_ns: i64 };
+const Run = struct {
+    admission: Admission,
+    argv: []const []const u8,
+    result_root: []const u8,
+    root_device: u64,
+    root_inode: u64,
+    generation: []const u8,
+};
+
+fn now() !i64 {
+    var value: c.struct_timespec = undefined;
+    if (c.clock_gettime(c.CLOCK_MONOTONIC, &value) != 0) return error.ClockUnavailable;
+    return @as(i64, @intCast(value.tv_sec)) * std.time.ns_per_s + @as(i64, @intCast(value.tv_nsec));
+}
+
+fn validate(policy: Policy) !void {
+    if (builtin.os.tag != .macos and builtin.os.tag != .linux) return error.UnsupportedForegroundHost;
+    if (policy.execution_ms == 0 or policy.execution_ms > 3_600_000 or policy.settlement_ms == 0 or policy.settlement_ms > 5000 or
+        policy.stdout_bytes > 16 * 1024 * 1024 or policy.stderr_bytes > 16 * 1024 * 1024 or policy.processes == 0 or policy.processes > 64 or policy.resident_bytes == 0)
+        return error.InvalidJobBudget;
+    inline for (.{ "accountable_owner", "purpose", "next_action", "review_event" }) |field| {
+        const text = @field(policy, field);
+        if (std.mem.trim(u8, text, " \r\n\t").len == 0 or text.len > 8192 or std.mem.indexOfScalar(u8, text, 0) != null or !std.unicode.utf8ValidateSlice(text)) return error.AccountableJobRequired;
+    }
+}
+
+fn parse(comptime T: type, allocator: std.mem.Allocator, raw: []const u8) !std.json.Parsed(T) {
+    if (raw.len > 65536) return error.InputBoundExceeded;
+    return std.json.parseFromSlice(T, allocator, raw, .{ .duplicate_field_behavior = .@"error", .ignore_unknown_fields = false });
+}
+
+fn openRoot(allocator: std.mem.Allocator, request: Run) !c_int {
+    if (!std.fs.path.isAbsolute(request.result_root)) return error.AbsoluteResultRootRequired;
+    var fd = c.open("/", c.O_RDONLY | c.O_DIRECTORY | c.O_NOFOLLOW | c.O_CLOEXEC);
+    if (fd < 0) return error.DirectoryUnavailable;
+    errdefer _ = c.close(fd);
+    var parts = std.mem.tokenizeScalar(u8, request.result_root, '/');
+    while (parts.next()) |part| {
+        if (std.mem.eql(u8, part, ".") or std.mem.eql(u8, part, "..")) return error.TraversalRefused;
+        const next = c.openat(fd, try allocator.dupeZ(u8, part), c.O_RDONLY | c.O_DIRECTORY | c.O_NOFOLLOW | c.O_CLOEXEC);
+        if (next < 0) return error.UnsafeResultRoot;
+        _ = c.close(fd);
+        fd = next;
+    }
+    var info: c.struct_stat = undefined;
+    if (c.fstat(fd, &info) != 0 or info.st_uid != c.getuid() or info.st_mode & 0o777 != 0o700 or
+        info.st_dev != request.root_device or info.st_ino != request.root_inode) return error.ResultRootChanged;
+    return fd;
+}
+
+fn createLog(allocator: std.mem.Allocator, root: c_int, generation: []const u8, suffix: []const u8) !std.Io.File {
+    const name = try std.fmt.allocPrintSentinel(allocator, "foreground-{s}-{s}", .{ generation, suffix }, 0);
+    const fd = c.openat(root, name, c.O_WRONLY | c.O_CREAT | c.O_EXCL | c.O_NOFOLLOW | c.O_CLOEXEC, @as(c_uint, 0o600));
+    if (fd < 0) return error.ExclusiveResultRequired;
+    return .{ .handle = fd, .flags = .{ .nonblocking = false } };
+}
+
+pub fn main(init: std.process.Init) void {
+    run(init) catch |failure| std.process.fatal("foreground job retained: {s}", .{@errorName(failure)});
+}
+
+fn run(init: std.process.Init) !void {
+    const allocator = init.arena.allocator();
+    const args = try init.minimal.args.toSlice(allocator);
+    if (args.len != 3) return error.InvalidArguments;
+    if (std.mem.eql(u8, args[1], "admit")) {
+        const policy = (try parse(Policy, allocator, args[2])).value;
+        try validate(policy);
+        const deadline = try now() + @as(i64, policy.execution_ms) * std.time.ns_per_ms;
+        const admission: Admission = .{ .policy = policy, .deadline_ns = deadline, .settlement_deadline_ns = deadline + @as(i64, policy.settlement_ms) * std.time.ns_per_ms };
+        try std.Io.File.stdout().writeStreamingAll(init.io, try candidate.json(allocator, admission));
+        return;
+    }
+    if (!std.mem.eql(u8, args[1], "run")) return error.UnknownOperation;
+    const request = (try parse(Run, allocator, args[2])).value;
+    const admission = request.admission;
+    try validate(admission.policy);
+    const remaining = try std.math.sub(i64, admission.deadline_ns, try now());
+    const expected_settlement = try std.math.add(i64, admission.deadline_ns, @as(i64, admission.policy.settlement_ms) * std.time.ns_per_ms);
+    if (remaining <= 0 or remaining > @as(i64, admission.policy.execution_ms) * std.time.ns_per_ms or
+        admission.settlement_deadline_ns != expected_settlement) return error.AdmissionExpiredOrChanged;
+    if (request.generation.len != 32) return error.InvalidGeneration;
+    for (request.generation) |char| if (!std.ascii.isDigit(char) and (char < 'a' or char > 'f')) return error.InvalidGeneration;
+    try process.validateSpawnInputs(request.argv, null);
+    const root = try openRoot(allocator, request);
+    defer _ = c.close(root);
+    const stdout = try createLog(allocator, root, request.generation, "stdout.log");
+    defer stdout.close(init.io);
+    const stderr = try createLog(allocator, root, request.generation, "stderr.log");
+    defer stderr.close(init.io);
+    // Pre-create the exact result before execution; failure leaves a retained
+    // empty/partial record, never a fabricated successful join.
+    const receipt = try createLog(allocator, root, request.generation, "execution.json");
+    defer receipt.close(init.io);
+    const result = try process.runLogged(allocator, init.io, .{
+        .argv = request.argv,
+        .limits = .{
+            .wall_ms = @intCast(@divFloor(remaining, std.time.ns_per_ms)),
+            .cleanup_ms = admission.policy.settlement_ms,
+            .stdout_bytes = admission.policy.stdout_bytes,
+            .stderr_bytes = admission.policy.stderr_bytes,
+            .processes = admission.policy.processes,
+            .resident_bytes = admission.policy.resident_bytes,
+        },
+    }, .{ .stdout = stdout, .stderr = stderr });
+    defer result.deinit(allocator);
+    const completed = try now();
+    // Raw output remains in its bounded logs, not duplicated into JSON or
+    // interpreted as UTF-8. The receipt carries actual terminal observations.
+    try receipt.writeStreamingAll(init.io, try candidate.json(allocator, .{ .admission = admission, .result = .{
+        .failure = result.failure,
+        .exit_code = result.exit_code,
+        .leader_reaped = result.leader_reaped,
+        .group_disposed = result.group_disposed,
+        .terminal_group_quiescent = result.terminal_group_quiescent,
+        .elapsed_ms = result.elapsed_ms,
+        .max_sampled_processes = result.max_sampled_processes,
+        .max_sampled_resident_bytes = result.max_sampled_resident_bytes,
+        .stdout_observed_bytes = result.stdout_observed_bytes,
+        .stderr_observed_bytes = result.stderr_observed_bytes,
+        .ownership_scope = result.ownership_scope,
+        .session_escape_containment_qualified = result.session_escape_containment_qualified,
+    }, .completed_ns = completed }));
+    if (c.fsync(receipt.handle) != 0 or c.fsync(stdout.handle) != 0 or c.fsync(stderr.handle) != 0) return error.ResultDurabilityUnknown;
+    // This profile is the existing cooperative original POSIX group. Its
+    // terminal proof is not a claim of containment for detached session escapes.
+    if (result.failure != null or result.exit_code != 0 or !result.leader_reaped or !result.group_disposed or !result.terminal_group_quiescent or completed > admission.deadline_ns) return error.ProducerNotSuccessfullyJoined;
+}
 
 // Python supplies the existing creator and real disposable Git/process fixture.
 // The native assertions below own the required outcomes; no model or host call.
@@ -192,3 +342,25 @@ test "contended creator fence cannot lend a job the store's longer timeout" {
     try std.testing.expect(facts.get("elapsed").?.float < facts.get("settlement_remaining").?.float + 0.15);
 }
 
+test "native admission refuses missing accountability and unsupported finite budgets" {
+    const original: Policy = .{ .execution_ms = 3000, .settlement_ms = 1000, .accountable_owner = "fixture", .purpose = "preserve original work", .next_action = "review", .review_event = "after bounded test" };
+    try validate(original);
+    var changed = original;
+    changed.execution_ms = 0;
+    try std.testing.expectError(error.InvalidJobBudget, validate(changed));
+    changed = original;
+    changed.execution_ms = 3_600_001;
+    try std.testing.expectError(error.InvalidJobBudget, validate(changed));
+    changed = original;
+    changed.settlement_ms = 5001;
+    try std.testing.expectError(error.InvalidJobBudget, validate(changed));
+    changed = original;
+    changed.accountable_owner = " \t";
+    try std.testing.expectError(error.AccountableJobRequired, validate(changed));
+    changed = original;
+    changed.processes = 0;
+    try std.testing.expectError(error.InvalidJobBudget, validate(changed));
+    changed = original;
+    changed.stdout_bytes = 16 * 1024 * 1024 + 1;
+    try std.testing.expectError(error.InvalidJobBudget, validate(changed));
+}
