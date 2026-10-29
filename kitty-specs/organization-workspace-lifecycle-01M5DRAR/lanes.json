@@ -88,8 +88,11 @@
         "tests/_support/run_basetemp.py",
         "tests/_support/test_run_basetemp.py",
         "tests/acceptance/test_owned_code_kind.py",
+        "tests/architectural/_universe_store.py",
         "tests/architectural/test_archive_root_byte_identical.py",
         "tests/architectural/test_json_contract_enumeration.py",
+        "tests/architectural/test_single_mission_surface_resolver.py",
+        "tests/architectural/test_universe_store.py",
         "tests/architectural/untrusted_path_audit/inventory.md",
         "tests/conftest.py",
         "tests/consolidation/**",
@@ -137,10 +140,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-29T05:35:48.019018+00:00",
+  "computed_at": "2026-10-29T06:07:29.369498+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "4c891944d1d144a9cfbad31cc991306f087591cb"
+  "planning_commit_sha": "a064b6aaea0e6c6fd3192b3d6f939135d2db96c4"
 }
