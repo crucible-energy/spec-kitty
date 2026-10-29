@@ -1310,7 +1310,7 @@ def _is_nested_alias_coordination_file(path: str, mission_slug: str | None, plan
     # Function-local: this module imports nothing from the coordination package at its top.
     from specify_cli.coordination.coherence import is_coordination_kind_file
 
-    return is_coordination_kind_file("/".join(parts[2:]))
+    return bool(is_coordination_kind_file("/".join(parts[2:])))
 
 
 def is_legitimate_three_way_resolution(
@@ -1383,7 +1383,7 @@ def is_legitimate_three_way_resolution(
         if blob_id_at(repo_root, contribution.lane_commit, path) != contribution.authored_blob:
             return False
     resolved_blob = three_way_merge_blob(repo_root, lane_a.lane_commit, lane_b.lane_commit, path)
-    return resolved_blob == target_blob
+    return bool(resolved_blob == target_blob)
 
 
 def route_terminus(entry_point: str) -> None:
@@ -2985,9 +2985,10 @@ class _PresenceScope:
     ``base`` is the target's pre-mutation tip (:func:`_bound_claim_base`). ``carried``
     are the commits after ``base`` the mission branch (*coord_base_ref*) already
     holds, or ``None`` when that range cannot be read. ``lane_bases`` maps a lane id
-    to its own base, the lane head when its first governed work began
-    (:func:`~specify_cli.consolidation.wp_attribution.first_governed_open_stamp`, the
-    closed world's first anchor), ``None`` when no stamp names it. ``canceled`` are
+    to its first known conservative governed-work fence
+    (:func:`~specify_cli.consolidation.wp_attribution.first_governed_open_stamp`).
+    A later stamp cannot prove creation when earlier events are unstamped;
+    ``None`` means no known stamp, never permission to invent an origin. ``canceled`` are
     the fully-canceled lanes' own commits measured from ``base`` (L1: the same base as
     the spine they are subtracted from).
     """
