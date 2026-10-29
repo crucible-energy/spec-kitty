@@ -29,6 +29,7 @@
         ".kittify/charter/charter.md",
         "AGENTS.md",
         "contracts/mission-status/schemas/OpsInvocation.yaml",
+        "docs/api/agent-subcommands.md",
         "docs/changelog/CHANGELOG.md",
         "docs/development/testing/testing-parallel.md",
         "docs/guides/how-to/workspace-lifecycle.md",
@@ -100,6 +101,7 @@
         "tests/lanes/test_claim_base.py",
         "tests/lanes/test_lane_tip_record_points.py",
         "tests/specify_cli/cli/commands/agent/fixtures/tasks_cli/help/move-task.help",
+        "tests/specify_cli/cli/commands/agent/test_mission_cli_golden_contract.py",
         "tests/specify_cli/cli/commands/agent/test_owned_checkout_move_task.py",
         "tests/specify_cli/cli/commands/test_doctor_cli_surface_golden.py",
         "tests/specify_cli/consolidation/test_single_branch_consolidate_e2e.py",
@@ -129,10 +131,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-29T01:42:43.261341+00:00",
+  "computed_at": "2026-10-29T02:35:25.687052+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "baf4c325bbdfb72da4e15773eca8f5b3b5c8e0a0"
+  "planning_commit_sha": "63c45678764ed4e12d7614a84df0ec089704242d"
 }
