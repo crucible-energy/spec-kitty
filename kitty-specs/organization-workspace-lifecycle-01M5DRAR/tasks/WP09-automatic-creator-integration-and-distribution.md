@@ -85,6 +85,7 @@ owned_files:
 - src/specify_cli/consolidation/wp_attribution.py
 - tools/zig/claim_origin.zig
 - docs/plans/engineering-notes/2026-10-29-first-claim-provenance.md
+- src/specify_cli/consolidation/phase_gate.py
 tags: []
 task_type: implement
 tracker_refs: []
@@ -375,3 +376,7 @@ no real missing-registration removal or owner-release authority.
 ## Production correctness findings to reproduce before repair
 
 The current API-only delivery verifier accepts arbitrary merge SHA with a nonexistent local source path. Before automatic retirement, fetch actual default, establish merge ancestry and exact delivered tree/PR identity, inspect review-thread disposition, and preserve exact unique source ancestry through a named recovery anchor or verified restorable snapshot. Shallow bundles require their exact boundary/prerequisites; bundle verify alone is insufficient. Keep unavailable checks and uncertain effects retained with reasons. Validate against real local Git fixtures plus bounded API fixtures, retaining counterexamples first.
+
+## Operative unknown-origin recovery diagnostics
+
+Keep the existing first-known conservative attribution fence unchanged; it is not creation evidence. In the existing phase_gate, after strict verification reports un-attributable content, append exact lane/WP/first-event/later-fence and owning-workflow recovery guidance. Unknown history alone must not refuse a safe passing claim. Preserve verdict, divergence, canceled/removed and missing-approved-content precedence, rollback and teardown protections. Exercise the actual gate and safe post-fence passing case in native controls. No new Python helper/schema, historical event rewrite, original project or runtime mutation, waiver or consolidation retry.
