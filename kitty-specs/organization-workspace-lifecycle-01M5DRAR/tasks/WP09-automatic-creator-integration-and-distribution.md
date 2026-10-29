@@ -41,6 +41,7 @@ create_intent:
 - tools/qualification/consumer-assets-rc7.patch
 - tools/zig/owned_runtime_qualification.zig
 - docs/plans/engineering-notes/2026-10-29-owned-runtime-qualification.md
+- src/specify_cli/session_presence/upgrade_check.py
 execution_mode: code_change
 owned_files:
 - src/specify_cli/workspace_lifecycle/worker.py
@@ -94,6 +95,7 @@ owned_files:
 - tools/qualification/consumer-assets-rc7.patch
 - tools/zig/owned_runtime_qualification.zig
 - docs/plans/engineering-notes/2026-10-29-owned-runtime-qualification.md
+- src/specify_cli/session_presence/upgrade_check.py
 tags: []
 task_type: implement
 tracker_refs: []
@@ -392,3 +394,7 @@ Keep the existing first-known conservative attribution fence unchanged; it is no
 ## Durable official-base owned-runtime qualification
 
 Reuse canonical committed owned-analysis RC7 port unchanged: it already repairs the actual owned-next currency root. Admit explicit operation-specific finalization and accepted consumer-assets/read-authority Sourcec9f compatibility data patches, one native actual-runtime qualification harness and an independently owned engineering note. No whole older module/tree install or new Python engine. Preserve current official guards and topology restrictions. Record durable source/base/patch/wheel/RECORD/API and dependency-lock/executable identities; all current artifacts remain retained until owner/consumer release. Exercise actual SDK-created owned mission, actual record-analysis then owned-next advancement, true material-drift refusal and workflow freshness positive/negative, public owned action-implement typed unsupported refusal/state invariance (not dispatch), fixture/real primary and shared-agent-asset protection. Reuse Phoenix exact historical scenario semantics only, not stale pins/API assumptions. Red-first uncovered defects, complete mandatory/installed/independent gates and separate Phoenix consumer receiving precede adoption. No actual project/runtime swap, completed mission restart, newmodel/provider/host action or ordinary121adoption claim.
+
+## Bounded consumer upgrade-cache root correction
+
+Actual installed SDK tests reproduced creation of protected HOME/.kittify/last-cli-check.json despite explicit SPEC_KITTY_HOME. Repair the existing cache owner to delegate to canonical kernel get_kittify_home; no new resolver or policy engine. Extend the admitted native fixture with exact cache-root and foreground cache-refresh evidence, retain default user behavior. The original upgrade checker spawns detached background refresh; bounded offline SDK qualification must use its explicit supported opt-out after independent fresh release resolution, and must not infer generic child settlement from parent group join. Preserve failed artifact, original specimen and all receipts; qualify a new private artifact, never live patch current consumers. Existing owner/independent receiving still required.
