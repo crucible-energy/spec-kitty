@@ -45,12 +45,28 @@ owned_files:
 - tools/zig/workspace_host.zig
 - docs/plans/engineering-notes/2026-10-28-lifecycle-foreground-ownership.md
 - tools/zig/validation_process_darwin.zig
+- src/kernel/owned_process.py
 tags: []
 task_type: implement
 tracker_refs: []
 ---
 
 # WP09 — Automatic creator integration and distribution
+
+## Original absolute horizon review correction
+
+Independent review of core 122390 found actual post-wait Git/failure persistence
+borrowing fresh short-operation time, and actual delayed log setup starting a
+producer after the original execution deadline. Both were reproduced before
+production repair. Admit only narrow optional absolute cleanup-horizon plumbing
+in the existing shared owned-process kernel. Python carries the original budget;
+policy and new acceptance tests remain native. Absent preserves legacy behavior;
+zero/expired remains distinct from absent, nonfinite values refuse, and nesting
+only tightens. Stop and bookkeeping share the same original horizon. Preserve
+uncertainty and the original failure if join/settlement cannot finish; never renew
+cleanup time or signal a reaped identity. Carry original absolute execution and
+settlement deadlines through the existing native primitive. No second runner,
+store, producer owner, PDB implementation or installed adoption claim is admitted.
 
 ## Native producer terminal observation amendment
 
