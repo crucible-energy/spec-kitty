@@ -39,6 +39,7 @@
         "docs/plans/engineering-notes/2026-10-27-op-closeout-no-commit.md",
         "docs/plans/engineering-notes/2026-10-28-lifecycle-foreground-ownership.md",
         "docs/plans/engineering-notes/2026-10-28-pytest-containment-and-private-yaml.md",
+        "docs/plans/engineering-notes/2026-10-29-canonical-noop-commit.md",
         "docs/plans/engineering-notes/2026-10-29-pinned-planning-inspection.md",
         "docs/reports/organization-workspace-lifecycle/**",
         "packs/built-in/missions/mission-steps/**",
@@ -63,6 +64,7 @@
         "src/specify_cli/context/mission_resolver.py",
         "src/specify_cli/core/owned_mission.py",
         "src/specify_cli/frontmatter.py",
+        "src/specify_cli/git/commit_helpers.py",
         "src/specify_cli/git/ref_advance.py",
         "src/specify_cli/invocation/executor.py",
         "src/specify_cli/invocation/lifecycle.py",
@@ -120,6 +122,7 @@
         "tests/workspace_lifecycle/test_inventory_cli.py",
         "tests/workspace_lifecycle/test_policy.py",
         "tests/workspace_lifecycle/test_state.py",
+        "tools/zig/commit_noop.zig",
         "tools/zig/mission_inspect.zig",
         "tools/zig/validation_process_darwin.zig",
         "tools/zig/workspace_finish.zig",
@@ -131,10 +134,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-29T02:35:25.687052+00:00",
+  "computed_at": "2026-10-29T03:05:10.329716+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "63c45678764ed4e12d7614a84df0ec089704242d"
+  "planning_commit_sha": "de9a936dbefca682cd4237bbb8fe8fb3dd591e46"
 }
