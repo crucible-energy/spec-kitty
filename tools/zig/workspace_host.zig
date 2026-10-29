@@ -171,6 +171,31 @@ const lifetime_fixture =
     \\ git('remote','add','origin','https://github.com/crucible-energy/fixture.git')
     \\ (repo/'seed.md').write_text('original source\n');git('add','seed.md');git('commit','-qm','seed');base=git('rev-parse','HEAD')
     \\ store=StateStore.initialize(ledger);path=root/'lane';seen=[]
+    \\ original_path=os.environ.get('PATH','');original_dyld=os.environ.get('DYLD_INSERT_LIBRARIES')
+    \\ if mode=='setup':
+    \\  source=root/'setup-delay.c';library=root/'setup-delay.dylib'
+    \\  source.write_text(r'''
+    \\#include <sys/stat.h>
+    \\#include <fcntl.h>
+    \\#include <unistd.h>
+    \\#include <stdarg.h>
+    \\#include <stdlib.h>
+    \\#include <string.h>
+    \\static int delayed_openat(int fd, const char *name, int flags, ...) {
+    \\  mode_t mode=0; if (flags & O_CREAT) { va_list ap;va_start(ap,flags);mode=va_arg(ap,int);va_end(ap); }
+    \\  int (*actual)(int,const char*,int,...)=openat;
+    \\  if (strstr(name,"foreground-") && strstr(name,"-execution.json")) {
+    \\    const char *marker=getenv("SPEC_KITTY_HOST_SETUP_DELAY_MARKER");
+    \\    if(marker) { int f=actual(AT_FDCWD,marker,O_WRONLY|O_CREAT|O_EXCL,0600);if(f>=0){write(f,"1",1);close(f);} }
+    \\    usleep(900000);
+    \\  }
+    \\  return actual(fd,name,flags,mode);
+    \\}
+    \\__attribute__((used)) static struct { const void *replacement; const void *original; }
+    \\interpose __attribute__((section("__DATA,__interpose"))) = { (const void*)delayed_openat, (const void*)openat };
+    \\''')
+    \\  subprocess.run([os.environ['SPEC_KITTY_HOST_TEST_ZIG'],'cc','-dynamiclib',str(source),'-o',str(library)],check=True,capture_output=True,timeout=20)
+    \\  os.environ['DYLD_INSERT_LIBRARIES']=str(library);os.environ['SPEC_KITTY_HOST_SETUP_DELAY_MARKER']=str(root/'setup-delay-observed')
     \\ def admitted(receipt):seen.append(not path.exists() and receipt['source']['head']==base)
     \\ args=dict(repo_root=repo,path=path,branch='topic/foreground-lifetime',repository='crucible-energy/fixture',repository_id=7,delivery=GitHubDelivery(),on_complete=lambda hint:None,expected_base_commit=base,accountable_owner='native-owned-fixture',on_admitted=admitted)
     \\ child="import pathlib,subprocess,time;time.sleep(0.4);pathlib.Path('produced.md').write_text('valuable admitted work\\n');subprocess.run(['git','add','produced.md'],check=True,timeout=3);subprocess.run(['git','commit','-qm','produced'],check=True,timeout=3)"
@@ -185,7 +210,7 @@ const lifetime_fixture =
     \\  else:
     \\   native=pathlib.Path(os.environ['SPEC_KITTY_HOST_TEST_BACKEND'])
     \\   digest=hashlib.sha256(native.read_bytes()).hexdigest() if native.is_file() else '0'*64
-    \\   job=OriginalWorkspaceRun.admit_foreground_job(native_executor=native,native_sha256=digest,execution_timeout=0.7 if mode in ('timeout','lock') else 3.0,settlement_timeout=0.1 if mode=='lock' else 1.0,accountable_owner='native-owned-fixture',purpose='prove finite foreground lifetime',next_action='independent native review',review_event='after bounded lifetime acceptance')
+    \\   job=OriginalWorkspaceRun.admit_foreground_job(native_executor=native,native_sha256=digest,execution_timeout=0.7 if mode in ('timeout','lock','setup','bookkeeping-success','bookkeeping-failure') else 3.0,settlement_timeout=0.1 if mode in ('lock','bookkeeping-success','bookkeeping-failure') else 1.0,accountable_owner='native-owned-fixture',purpose='prove finite foreground lifetime',next_action='independent native review',review_event='after bounded lifetime acceptance')
     \\   run=OriginalWorkspaceRun.create_for_job(job,store,**args)
     \\   # Only the producer fixture allowance shrinks; creation keeps its normal cap.
     \\   assert run._creator is not None
@@ -209,6 +234,28 @@ const lifetime_fixture =
     \\    child="import pathlib,time;pathlib.Path('valuable.md').write_text('retain failed work\\n');"+('raise SystemExit(3)' if mode=='nonzero' else 'time.sleep(5)')
     \\   if mode=='leftover':
     \\    child="import pathlib,subprocess,sys,time;pathlib.Path('valuable.md').write_text('retain failed work\\n');subprocess.Popen([sys.executable,'-B','-c','import time;time.sleep(5)'],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);time.sleep(0.05)"
+    \\   if mode in ('bookkeeping-success','bookkeeping-failure'):
+    \\    run._creator.operation_timeout=2.0
+    \\    facts['settlement_remaining']=job.remaining(settlement=True)
+    \\    child="import pathlib;pathlib.Path('valuable.md').write_text('retain failed work\\n');pathlib.Path('bookkeeping-ready').touch();"+('raise SystemExit(3)' if mode=='bookkeeping-failure' else '')
+    \\    if mode=='bookkeeping-success':
+    \\     shimdir=root/'shim';shimdir.mkdir();shim=shimdir/'git'
+    \\     shim.write_text('#!'+sys.executable+'\nimport pathlib,time,os,sys\nif pathlib.Path('+repr(str(path/'bookkeeping-ready'))+').exists():\n pathlib.Path('+repr(str(root/'bookkeeping-delay-observed'))+').touch();time.sleep(0.9)\nos.execv("/usr/bin/git",["git",*sys.argv[1:]])\n');shim.chmod(0o700)
+    \\     os.environ['PATH']=str(shimdir)+':'+original_path
+    \\    else:
+    \\     import specify_cli.workspace_lifecycle.adapters as adapters
+    \\     from kernel.owned_process import bounded_run
+    \\     real_write=adapters.atomic_write;real_stop=run._creator._stop_producer
+    \\     def slow_write(target,raw,**kwargs):
+    \\      if b'"status":"producer_unknown"' in raw:
+    \\       (root/'bookkeeping-delay-observed').touch();bounded_run([sys.executable,'-B','-c','import time;time.sleep(0.9)'],timeout=5)
+    \\      return real_write(target,raw,**kwargs)
+    \\     def observed_stop(process,**kwargs):
+    \\      facts['stop_elapsed']=time.monotonic()-started;return real_stop(process,**kwargs)
+    \\     adapters.atomic_write=slow_write;run._creator._stop_producer=observed_stop
+    \\   if mode=='setup':
+    \\    deadline=json.loads(job._admission)['deadline_ns']
+    \\    child="import pathlib,time,json;pathlib.Path('after-expiry.json').write_text(json.dumps({'observed_ns':time.clock_gettime_ns(time.CLOCK_MONOTONIC),'deadline_ns':"+str(deadline)+"}))"
     \\   if mode=='lock':
     \\    import threading
     \\    held=threading.Event();release=threading.Event()
@@ -218,13 +265,29 @@ const lifetime_fixture =
     \\    facts['settlement_remaining']=job.remaining(settlement=True)
     \\   started=time.monotonic()
     \\   if mode!='forged':run.run_foreground_job([sys.executable,'-B','-c',child],job)
-    \\   if mode not in ('forged','leftover','lock'):
+    \\   if mode not in ('forged','leftover','lock','setup','bookkeeping-success','bookkeeping-failure'):
     \\    facts['elapsed']=time.monotonic()-started
     \\    facts['success']=(path/'produced.md').read_text()=='valuable admitted work\n'
     \\    facts['head_advanced']=git('rev-parse','HEAD',cwd=path)!=base
     \\    facts['terminal_group_quiescent']=json.loads(next(ledger.glob('foreground-*-execution.json')).read_text())['result']['terminal_group_quiescent']
     \\ except Exception as error:
     \\  facts['error_type']=type(error).__name__;facts['error']=str(error)
+    \\ if mode in ('bookkeeping-success','bookkeeping-failure'):
+    \\  facts['elapsed']=time.monotonic()-started;os.environ['PATH']=original_path
+    \\  facts['bookkeeping_delay_seen']=(root/'bookkeeping-delay-observed').exists()
+    \\  facts['useful_work_retained']=(path/'valuable.md').read_text()=='retain failed work\n'
+    \\  facts['unreleased']=run._creator._read().status in ('active','producer_unknown')
+    \\  if mode=='bookkeeping-failure':adapters.atomic_write=real_write
+    \\  try:run.complete(pr=9)
+    \\  except StateError:facts['release_refused']=True
+    \\ if mode=='setup':
+    \\  if original_dyld is None:os.environ.pop('DYLD_INSERT_LIBRARIES',None)
+    \\  else:os.environ['DYLD_INSERT_LIBRARIES']=original_dyld
+    \\  facts['setup_delay_seen']=(root/'setup-delay-observed').exists()
+    \\  facts['late_marker_absent']=not (path/'after-expiry.json').exists()
+    \\  if not facts['late_marker_absent']:facts['late_marker']=json.loads((path/'after-expiry.json').read_text())
+    \\  try:run.complete(pr=9)
+    \\  except StateError:facts['release_refused']=True
     \\ if mode=='lock':
     \\  facts['elapsed']=time.monotonic()-started;release.set();blocker.join(timeout=2)
     \\  facts['holder_joined']=not blocker.is_alive()
@@ -340,6 +403,38 @@ test "contended creator fence cannot lend a job the store's longer timeout" {
         try std.testing.expect(facts.get(key) != null and facts.get(key).?.bool);
     }
     try std.testing.expect(facts.get("elapsed").?.float < facts.get("settlement_remaining").?.float + 0.15);
+}
+
+fn expectBookkeepingHorizon(mode: []const u8) !void {
+    var result = try probe(mode);
+    defer result.deinit();
+    const facts = result.value.object;
+    std.debug.print("{s} elapsed={d} original remaining={d}\n", .{ mode, facts.get("elapsed").?.float, facts.get("settlement_remaining").?.float });
+    inline for (.{ "bookkeeping_delay_seen", "useful_work_retained", "unreleased", "release_refused", "parent_unchanged", "admission_before_creation" }) |key| {
+        try std.testing.expect(facts.get(key) != null and facts.get(key).?.bool);
+    }
+    try std.testing.expect(facts.get("elapsed").?.float < facts.get("settlement_remaining").?.float + 0.15);
+    if (std.mem.eql(u8, mode, "bookkeeping-failure")) try std.testing.expect(facts.get("stop_elapsed").?.float < facts.get("settlement_remaining").?.float + 0.15);
+}
+
+test "post-wait Git bookkeeping cannot borrow a fresh operation horizon" {
+    try expectBookkeepingHorizon("bookkeeping-success");
+}
+
+test "failed persistence cannot postpone stop beyond original settlement" {
+    try expectBookkeepingHorizon("bookkeeping-failure");
+}
+
+test "actual delayed native log setup cannot start a producer after execution expiry" {
+    if (builtin.os.tag != .macos) return error.SkipZigTest;
+    var result = try probe("setup");
+    defer result.deinit();
+    const facts = result.value.object;
+    if (facts.get("error")) |failure| std.debug.print("native setup outcome: {s}\n", .{failure.string});
+    std.debug.print("native setup delay seen={any} late marker absent={any}\n", .{ facts.get("setup_delay_seen").?.bool, facts.get("late_marker_absent").?.bool });
+    inline for (.{ "setup_delay_seen", "late_marker_absent", "release_refused", "parent_unchanged", "admission_before_creation" }) |key| {
+        try std.testing.expect(facts.get(key) != null and facts.get(key).?.bool);
+    }
 }
 
 test "native admission refuses missing accountability and unsupported finite budgets" {
