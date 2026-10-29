@@ -72,6 +72,17 @@ and the named consumer's own checks precede any runtime replacement. They do not
 prove unrestricted SDK descendant ownership, successful unsupported dispatch,
 production readiness, Windows execution, or organization-wide adoption.
 
+The named consumer's first live-home qualification failed its preservation check:
+42 managed skill files changed permissions and 14 managed command files were
+replaced. The writer remains unconfirmed. Preserve that failure; synthetic
+success does not retrospectively pass it. Additional portable controls seed
+genuine managed skills with owner-read-only permissions and older managed
+command markers, then exercise private startup and the full owned workflow,
+including both plan-setup calls with the caller's search path. A new diagnostic
+receiving increment needs its own independent plan review and every original
+invariant; no native-file rollback, weaker check or runtime replacement follows
+from an unconfirmed cause.
+
 Ordinary full-agent launch and handback integration remains a separate blocker.
 Each repository retains its own pending execution and useful-work recovery
 obligations. Missing historical artifacts, unknown original worktree state and

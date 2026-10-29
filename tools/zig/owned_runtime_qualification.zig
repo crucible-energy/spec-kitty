@@ -45,7 +45,7 @@ const owned_fixture =
     \\import hashlib,json,os,pathlib,subprocess,sys
     \\for key in ('GIT_DIR','GIT_WORK_TREE','GIT_INDEX_FILE','GIT_COMMON_DIR','GIT_OBJECT_DIRECTORY','GIT_ALTERNATE_OBJECT_DIRECTORIES','GIT_CEILING_DIRECTORIES','GIT_DISCOVERY_ACROSS_FILESYSTEM'):
     \\ assert key not in os.environ,'Inherited Git override refused: '+key
-    \\P=pathlib.Path(os.environ['OWNED_RUNTIME_FIXTURE_ROOT']);P.mkdir(mode=0o700)
+    \\P=pathlib.Path(os.environ['OWNED_RUNTIME_FIXTURE_ROOT'])/sys.argv[1];P.mkdir(mode=0o700,parents=True)
     \\H=P/'protected-home';H.mkdir(mode=0o700);V=H/'.agents/skills/valuable/SKILL.md';V.parent.mkdir(parents=True);V.write_text('Protected native state must survive.\n')
     \\private=P/'operator';private.mkdir(mode=0o700)
     \\E={k:v for k,v in os.environ.items() if not k.startswith(('GIT_CONFIG','UV_','PIP_')) and k not in ('PYTHONPATH','PYTHONHOME','SPEC_KITTY_PACKS_ROOT','SPECIFY_REPO_ROOT','SPEC_KITTY_REPO_ROOT','SPEC_KITTY_TEMPLATE_ROOT','FORCE_COLOR')}
@@ -65,6 +65,23 @@ const owned_fixture =
     \\ assert not ok or r.returncode==0,(sequence,r.returncode,r.stdout[-2000:],r.stderr[-2000:])
     \\ return r
     \\def git(root,*args):return run([GIT,'-C',root,*args]).stdout
+    \\if sys.argv[1]=='owned-managed':
+    \\ import re
+    \\ original_environment=dict(E);seed_home=P/'managed-seed-runtime';seed_home.mkdir(mode=0o700)
+    \\ E.update(SPEC_KITTY_HOME=str(seed_home),SPEC_KITTY_ASSET_SCOPE='user',PATH='/opt/homebrew/Cellar/git/2.55.0/bin:/opt/homebrew/bin:/Users/sam/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin')
+    \\ seed=P/'managed-seed-project';seed.mkdir(mode=0o700)
+    \\ git(seed,'init','-q','-b','qualification');git(seed,'config','user.name','Managed fixture');git(seed,'config','user.email','fixture@example.invalid')
+    \\ run([SDK,'init','--ai','codex','--non-interactive'],cwd=seed)
+    \\ managed_skills=[p for p in (H/'.agents/skills').rglob('*') if p.is_file() and not p.is_symlink()]
+    \\ managed_commands=[p for p in (H/'.claude/commands').glob('spec-kitty.*.md') if p.is_file() and not p.is_symlink()]
+    \\ assert managed_skills and managed_commands
+    \\ for path in managed_skills:path.chmod(0o400)
+    \\ for path in managed_commands:
+    \\  updated,count=re.subn(r'(?m)^<!-- spec-kitty-command-version: [^\n]+ -->$','<!-- spec-kitty-command-version: 4.0.0rc7 -->',path.read_text());assert count==1
+    \\  path.chmod(0o600);path.write_text(updated);path.chmod(0o444)
+    \\ E.clear();E.update(original_environment);E['PATH']='/opt/homebrew/Cellar/git/2.55.0/bin:/opt/homebrew/bin:/Users/sam/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin'
+    \\ protected_home=home_snapshot()
+    \\ js('managed-native-seed.json',{'skill_files':len(managed_skills),'commands':len(managed_commands),'shape':'Genuine managed canonical names, skills0400/commandsplain4rc7mode0444','actual_sam_home_touched':False,'receiver_PATH_matched':True})
     \\F=P/'fixture-primary';F.mkdir(mode=0o700)
     \\run([GIT,'init','--initial-branch=codex/runtime-qualification-bootstrap',F])
     \\git(F,'config','user.name','Phoenix disposable qualification');git(F,'config','user.email','fixture@example.invalid');git(F,'config','gc.auto','0')
@@ -198,13 +215,44 @@ const cache_admission_fixture =
     \\  result=json.loads(r.stdout);after=snapshot(case);facts.append({'kind':kind,**result,'state_exact':before==after,'added_paths':sorted(set(after)-set(before))})
     \\ print(json.dumps({'cases':facts,'all_refused_before_effects':all(x['refused'] and x['state_exact'] for x in facts)}))
 ;
+const managed_native_fixture =
+    \\import hashlib,json,os,pathlib,re,subprocess,sys,tempfile
+    \\for key in ('GIT_DIR','GIT_WORK_TREE','GIT_INDEX_FILE','GIT_COMMON_DIR','GIT_OBJECT_DIRECTORY','GIT_ALTERNATE_OBJECT_DIRECTORIES','GIT_CEILING_DIRECTORIES','GIT_DISCOVERY_ACROSS_FILESYSTEM'):
+    \\ assert key not in os.environ,'Inherited Git override refused: '+key
+    \\sdk=str(pathlib.Path(sys.prefix)/'bin/spec-kitty')
+    \\with tempfile.TemporaryDirectory(prefix='owned-managed-native-') as temporary:
+    \\ root=pathlib.Path(temporary);home=root/'protected-home';home.mkdir(mode=0o700)
+    \\ seedhome=root/'seed-runtime';private=root/'consumer-runtime'
+    \\ for path in (seedhome,private):path.mkdir(mode=0o700)
+    \\ env={k:v for k,v in os.environ.items() if not k.startswith(('GIT_CONFIG','UV_','PIP_')) and k not in ('PYTHONPATH','PYTHONHOME','SPEC_KITTY_PACKS_ROOT','SPECIFY_REPO_ROOT','SPEC_KITTY_REPO_ROOT','SPEC_KITTY_TEMPLATE_ROOT','FORCE_COLOR')}
+    \\ env.update(HOME=str(home),SPEC_KITTY_HOME=str(seedhome),SPEC_KITTY_ASSET_SCOPE='user',SPEC_KITTY_NO_UPGRADE_CHECK='1',XDG_CONFIG_HOME=str(seedhome/'config'),XDG_CACHE_HOME=str(seedhome/'cache'),XDG_STATE_HOME=str(seedhome/'state'),GIT_CONFIG_GLOBAL='/dev/null',GIT_CONFIG_NOSYSTEM='1',GIT_TERMINAL_PROMPT='0',PYTHONDONTWRITEBYTECODE='1',NO_COLOR='1')
+    \\ def initialize(name,environment):
+    \\  repo=root/name;repo.mkdir(mode=0o700)
+    \\  for args in (['/usr/bin/git','init','-q','-b','qualification',str(repo)],['/usr/bin/git','-C',str(repo),'config','user.name','Managed native fixture'],['/usr/bin/git','-C',str(repo),'config','user.email','fixture@example.invalid']):subprocess.run(args,env=environment,capture_output=True,check=True,timeout=10)
+    \\  result=subprocess.run([sdk,'init','--ai','codex','--non-interactive'],cwd=repo,env=environment,capture_output=True,text=True,timeout=65)
+    \\  assert result.returncode==0,(name,result.returncode,result.stderr[-1600:])
+    \\ initialize('seed-project',env)
+    \\ skills=[p for p in (home/'.agents/skills').rglob('*') if p.is_file() and not p.is_symlink()]
+    \\ commands=[p for p in (home/'.claude/commands').glob('spec-kitty.*.md') if p.is_file() and not p.is_symlink()]
+    \\ assert skills and commands,'Genuine managed native seed not generated'
+    \\ for path in skills:path.chmod(0o400)
+    \\ for path in commands:
+    \\  raw=path.read_text();updated,count=re.subn(r'(?m)^<!-- spec-kitty-command-version: [^\n]+ -->$', '<!-- spec-kitty-command-version: 4.0.0rc7 -->',raw)
+    \\  assert count==1
+    \\  path.chmod(0o600);path.write_text(updated);path.chmod(0o444)
+    \\ def snapshot():return {str(p.relative_to(home)):(hashlib.sha256(p.read_bytes()).hexdigest(),p.stat().st_mode,p.stat().st_ino,p.stat().st_mtime_ns) for p in home.rglob('*') if p.is_file() and not p.is_symlink()}
+    \\ before=snapshot();env.update(SPEC_KITTY_HOME=str(private),SPEC_KITTY_ASSET_SCOPE='consumer',XDG_CONFIG_HOME=str(private/'config'),XDG_CACHE_HOME=str(private/'cache'),XDG_STATE_HOME=str(private/'state'))
+    \\ initialize('consumer-project',env);after=snapshot()
+    \\ changes=[{'path':p,'before':before.get(p),'after':after.get(p)} for p in sorted(set(before)|set(after)) if before.get(p)!=after.get(p)]
+    \\ print(json.dumps({'genuine_managed_skill_files':len(skills),'genuine_managed_commands':len(commands),'protected_managed_native_state_exact':not changes,'changes':changes,'actual_sam_home_touched':False,'interpretation':'Recreated managed-name/version/permission shape only; not exact lost native before content or actual receiver causation.'}))
+;
 fn probe(mode: []const u8) !std.json.Parsed(std.json.Value) {
     const python = c.getenv("OWNED_RUNTIME_PYTHON") orelse return error.ExplicitInstalledRuntimeRequired;
     const result = try std.process.run(std.testing.allocator, std.testing.io, .{
-        .argv = &.{ std.mem.span(python), "-I", "-B", "-c", if (std.mem.eql(u8, mode, "cache-admission")) cache_admission_fixture else if (std.mem.eql(u8, mode, "owned")) owned_fixture else fixture, mode },
+        .argv = &.{ std.mem.span(python), "-I", "-B", "-c", if (std.mem.eql(u8, mode, "managed-native")) managed_native_fixture else if (std.mem.eql(u8, mode, "cache-admission")) cache_admission_fixture else if (std.mem.eql(u8, mode, "owned") or std.mem.eql(u8, mode, "owned-managed")) owned_fixture else fixture, mode },
         .stdout_limit = .limited(256 * 1024),
         .stderr_limit = .limited(64 * 1024),
-        .timeout = .{ .duration = .{ .clock = .awake, .raw = .fromSeconds(if (std.mem.eql(u8, mode, "owned")) 180 else 90) } },
+        .timeout = .{ .duration = .{ .clock = .awake, .raw = .fromSeconds(if (std.mem.eql(u8, mode, "owned") or std.mem.eql(u8, mode, "owned-managed") or std.mem.eql(u8, mode, "managed-native")) 180 else 90) } },
     });
     defer std.testing.allocator.free(result.stdout);
     defer std.testing.allocator.free(result.stderr);
@@ -257,4 +305,19 @@ test "direct foreground cache writer refuses invalid consumer admission before f
     var parsed = try probe("cache-admission");
     defer parsed.deinit();
     try std.testing.expect(parsed.value.object.get("all_refused_before_effects").?.bool);
+}
+
+test "consumer SDK preserves genuine existing managed native assets with readonly modes and older command markers" {
+    var parsed = try probe("managed-native");
+    defer parsed.deinit();
+    try std.testing.expect(parsed.value.object.get("protected_managed_native_state_exact").?.bool);
+}
+
+test "owned workflow preserves canonical managed native state across both setup-plan calls and matched caller PATH" {
+    var parsed = try probe("owned-managed");
+    defer parsed.deinit();
+    const facts = parsed.value.object;
+    try std.testing.expect(facts.get("protected_fixture_primary_exact").?.bool);
+    try std.testing.expect(facts.get("protected_fixture_native_home_exact").?.bool);
+    try std.testing.expectEqualStrings("implement", facts.get("actual_owned_next_advance").?.object.get("action").?.string);
 }
