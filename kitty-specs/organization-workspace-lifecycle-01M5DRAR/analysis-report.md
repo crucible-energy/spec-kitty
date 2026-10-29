@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-29T15:28:12.241746+00:00'
+generated_at: '2026-10-29T17:41:28.872896+00:00'
 analyzer_agent: codex
 input_artifacts:
   spec.md:
@@ -1620,7 +1620,7 @@ input_artifacts:
     sha256: 51982b1661e69cc6e56342c8b6ba3291cc6743e2a9244db4ffaaf457a270ec16
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
-    sha256: da19640877001223216062d009008218f38c53ef8d066d4bd224a2f6e5cefd44
+    sha256: a373063df7dba3bc12b81d061629d3f7599eb54085b2d93f1d4b44afe9e0ae25
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
     sha256: a8ce616e70aa2b618ddfcd3c4760704409492ea70022f7b5c6dabaf82524f604
@@ -1911,31 +1911,38 @@ input_artifacts:
     sha256: 3c3a78cf69c6f1bad1c2d4b3758b8ffe9917c4d3319677b60b2faf6f78b33bbd
   template-selection:spec:
     path:
-    sha256: 428cfb2f4f34cf29f3c31480de8f7a2e5757f7dd1d2119264951f457505f65f3
+    sha256: 81e05cb32b810f2e2b5d3eee8eb10b3b6a8dd36f8020a3842dd680e29ea22c59
   template-selection:plan:
     path:
-    sha256: f72037d9c82ac17641307fa187fc782429752e1e062ed77938d606eace7f93dd
-verdict: ready
+    sha256: 98fde56fa051199f63b743d56110a7bebf7814c8a1b5ea714fb86c9396daf624
+verdict: unknown
 issue_counts:
-  low: 0
-  high: 0
-  critical: 0
-  medium: 0
-  info: 0
+  critical:
+  info:
+  high:
+  medium:
+  low:
 findings: []
-report_transaction: 8f6c782b4ef64f7291bf0adfe138e602
+report_transaction: 6829cca3dbc8452daa46bc00d1724cc9
 material_manifest_version: 1
 ---
 
-# Existing numbered-meta hook diagnostic follow-up
+# Protected attribution provenance — bounded next increment
 
-Parent supplied exact failed commit site and one reproduction lease. Source
-controlled exact-blob fixture retained actual current-context hook stderr and
-normal refusal; same hook passed with supported pinned read-only Biome2.5.0.
-Original birth environment remains unknown. Restore actionable diagnostic
-visibility only: preserve original subprocess failure/return code/captured
-bytes, mandatory hook and meta-only pathspec, ref rollback and scratch closeout.
-Native regression must fail for hidden stderr before repair and prove real
-multiline stderr rendering, unchanged refusal and preserved other work. No
-Python policy/test functions, Source runtime hotpatch or project mutation.
-No existing claim/pin/history/review/status advance is authorized.
+Existing owner/lane: Source WP09, the current organization-workspace-lifecycle mission and its existing checkout. Published diagnostic checkpoint ab5 is independently reviewed and privately installed; exact-head hosted checks are still running. No new lane or actual original-project retry is admitted by this preparation.
+
+## Evidence and defect boundary
+
+The official 4.0.0rc7 helper selects a later stamped reclaim after a genuine earlier unstamped implementation event. Its documented contract identifies the FIRST genuine governed implementation event. Read-only actual helper output and Git cutoff algebra explain exclusion of the reported84commit set; neither ancestry nor that observation establishes semantic approval. The retained local reflogs for the three legacy lanes do not include creation records, so they cannot manufacture missing birth authority. The fourth lane has a genuine modern first stamp that must remain bounded.
+
+## Implementation direction
+
+Before changing authored-content collection, port only the two live-path upstream dependent-authorship protection commits 2db04ded1fd877041457b60f1a1109304be738a7 and 3bde34db17ad841c86e6a9c26f8fdb29dd2457dd with explicit provenance. Both touch the existing live consolidation/reconciliation.py path; no retired path or old policy engine is to be resurrected. Then reproduce the earliest genuine claim contract natively and make the smallest correction in existing helpers. A later reclaim must not masquerade as original creation. Unknown legacy provenance follows the actual documented contract or a named recoverable refusal; it is not a grant to broaden arbitrary ancestry, alter historical events or delete resources.
+
+## Required controls
+
+Use native failing-first tests against actual helper/Git behavior, not mirrored policy assertions. Preserve modern first-stamp bounds, migration filtering, multiple-WP chronological ownership, rewritten/reapproved dependency rejection, canceled/removed-content rejection and approved-content presence. Retain historical review warnings. Run strict affected-module checks, required baseline and complete owning directories under separately bounded jobs; install and independently receive the exact protected candidate before any owner-authorized original retry. Do not rebase, force, fabricate claims, change strategy or edit the frozen original project's metadata/refs/runtime.
+
+## Governance and nonclaims
+
+Latest non-yanked public release including prereleases freshly resolves to4.0.0rc7. The explicit previously qualified rc7+ownedplanning runtime is planning-only, with verified published-base/archive and private wheel/entry identity. Required repository properties match latest-including-prereleases and preserve-finish-validate-pr-merge-verify-recover-retire. These declarations do not prove actual ordinary adoption. The actual whole-agent host launch/join/handback export is still unsubstantiated in the bounded architecture inputs; Parent retains routing. All121last-verified ordinary execution rows remain pending. No current shared runtime, original project, provider/host action or deletion is authorized by this scope.
