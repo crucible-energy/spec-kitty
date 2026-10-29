@@ -29,6 +29,8 @@ create_intent:
 - src/specify_cli/cli/commands/agent/mission_inspect.py
 - tools/zig/mission_inspect.zig
 - docs/plans/engineering-notes/2026-10-29-pinned-planning-inspection.md
+- tools/zig/commit_noop.zig
+- docs/plans/engineering-notes/2026-10-29-canonical-noop-commit.md
 execution_mode: code_change
 owned_files:
 - src/specify_cli/workspace_lifecycle/worker.py
@@ -56,12 +58,41 @@ owned_files:
 - docs/plans/engineering-notes/2026-10-29-pinned-planning-inspection.md
 - tests/specify_cli/cli/commands/agent/test_mission_cli_golden_contract.py
 - docs/api/agent-subcommands.md
+- src/specify_cli/git/commit_helpers.py
+- tools/zig/commit_noop.zig
+- docs/plans/engineering-notes/2026-10-29-canonical-noop-commit.md
 tags: []
 task_type: implement
 tracker_refs: []
 ---
 
 # WP09 — Automatic creator integration and distribution
+
+## Canonical unchanged-commit hook correction
+
+Parent assigned this concrete Cmail workflow blocker to the same Source lane;
+Root approved the exact bounded architecture before code edits. The original
+Cmail run and current Source producers are terminal/joined. Actual setup-plan
+consumed460.900s and the full native hook despite unchanged HEAD/tree/bytes and
+commit_created=false. RuntimeR remains a live seven-callback dependency; never
+replace it. Qualify a new isolated candidate after source review.
+
+In the ordinary existing safe_commit branch only, after all existing preflight,
+scoped snapshot and staging, use the existing authoritative selected staged-tree
+comparison before invoking Git commit. For a genuine no-op, restore the exact
+scoped pre-call patch and raise existing SafeCommitStagedTreeUnchanged. Preserve
+actual resolved target, locks, protection/path/foreign-stage guards, genuine-delta
+mandatory hooks and misleading-hook-output failure classification. Do not add an
+ambient caller shortcut, second runner or new Python policy engine. Retained
+Python correctness edit is narrowly architecture-approved; new actual behavioral
+assertions stay native. Expected-parent/index-deletion branches remain unchanged.
+
+Prove true pre-fix marker-hook RED through the existing canonical caller, plus
+real dirty hook, foreign/partial index preservation, protected/wrong placement,
+missing path and rejecting misleading hook negatives. Preserve all current query
+draft/history. Freeze the coherent combined lifecycle candidate before required
+owning/architecture gates and exact installed qualification; earlier incomplete
+or failed gates remain failed. No new lane, no installed/shared-runtime mutation.
 
 ## Immutable inspection contract join
 
