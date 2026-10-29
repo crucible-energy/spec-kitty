@@ -17,13 +17,13 @@
         "WP07",
         "WP08",
         "WP11",
-        "WP09",
-        "WP10",
         "WP12",
         "WP13",
         "WP14",
         "WP15",
-        "WP16"
+        "WP16",
+        "WP09",
+        "WP10"
       ],
       "write_scope": [
         ".kittify/charter/charter.md",
@@ -48,6 +48,7 @@
         "src/kernel/git_topology.py",
         "src/kernel/owned_process.py",
         "src/kernel/yaml_io.py",
+        "src/specify_cli/_completion_manifest.json",
         "src/specify_cli/acceptance/gates_core.py",
         "src/specify_cli/cli/commands/_organization_workspaces_doctor.py",
         "src/specify_cli/cli/commands/agent/mission.py",
@@ -88,6 +89,8 @@
         "tests/_support/test_run_basetemp.py",
         "tests/acceptance/test_owned_code_kind.py",
         "tests/architectural/test_archive_root_byte_identical.py",
+        "tests/architectural/test_json_contract_enumeration.py",
+        "tests/architectural/untrusted_path_audit/inventory.md",
         "tests/conftest.py",
         "tests/consolidation/**",
         "tests/contract/_mission_status_detail.py",
@@ -134,10 +137,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-29T03:05:10.329716+00:00",
+  "computed_at": "2026-10-29T05:35:48.019018+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "de9a936dbefca682cd4237bbb8fe8fb3dd591e46"
+  "planning_commit_sha": "4c891944d1d144a9cfbad31cc991306f087591cb"
 }
