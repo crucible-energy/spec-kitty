@@ -37,6 +37,10 @@ create_intent:
 - docs/plans/engineering-notes/2026-10-29-numbering-commit-diagnostics.md
 - tools/zig/claim_origin.zig
 - docs/plans/engineering-notes/2026-10-29-first-claim-provenance.md
+- tools/qualification/owned-finalization-rc7.patch
+- tools/qualification/consumer-assets-rc7.patch
+- tools/zig/owned_runtime_qualification.zig
+- docs/plans/engineering-notes/2026-10-29-owned-runtime-qualification.md
 execution_mode: code_change
 owned_files:
 - src/specify_cli/workspace_lifecycle/worker.py
@@ -86,6 +90,10 @@ owned_files:
 - tools/zig/claim_origin.zig
 - docs/plans/engineering-notes/2026-10-29-first-claim-provenance.md
 - src/specify_cli/consolidation/phase_gate.py
+- tools/qualification/owned-finalization-rc7.patch
+- tools/qualification/consumer-assets-rc7.patch
+- tools/zig/owned_runtime_qualification.zig
+- docs/plans/engineering-notes/2026-10-29-owned-runtime-qualification.md
 tags: []
 task_type: implement
 tracker_refs: []
@@ -380,3 +388,7 @@ The current API-only delivery verifier accepts arbitrary merge SHA with a nonexi
 ## Operative unknown-origin recovery diagnostics
 
 Keep the existing first-known conservative attribution fence unchanged; it is not creation evidence. In the existing phase_gate, after strict verification reports un-attributable content, append exact lane/WP/first-event/later-fence and owning-workflow recovery guidance. Unknown history alone must not refuse a safe passing claim. Preserve verdict, divergence, canceled/removed and missing-approved-content precedence, rollback and teardown protections. Exercise the actual gate and safe post-fence passing case in native controls. No new Python helper/schema, historical event rewrite, original project or runtime mutation, waiver or consolidation retry.
+
+## Durable official-base owned-runtime qualification
+
+Reuse canonical committed owned-analysis RC7 port unchanged: it already repairs the actual owned-next currency root. Admit explicit operation-specific finalization and accepted consumer-assets/read-authority Sourcec9f compatibility data patches, one native actual-runtime qualification harness and an independently owned engineering note. No whole older module/tree install or new Python engine. Preserve current official guards and topology restrictions. Record durable source/base/patch/wheel/RECORD/API and dependency-lock/executable identities; all current artifacts remain retained until owner/consumer release. Exercise actual SDK-created owned mission, actual record-analysis then owned-next advancement, true material-drift refusal and workflow freshness positive/negative, public owned action-implement typed unsupported refusal/state invariance (not dispatch), fixture/real primary and shared-agent-asset protection. Reuse Phoenix exact historical scenario semantics only, not stale pins/API assumptions. Red-first uncovered defects, complete mandatory/installed/independent gates and separate Phoenix consumer receiving precede adoption. No actual project/runtime swap, completed mission restart, newmodel/provider/host action or ordinary121adoption claim.
