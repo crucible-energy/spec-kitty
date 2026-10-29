@@ -89,6 +89,40 @@ const owned_fixture =
     \\git(F,'add','.');git(F,'commit','-m','Seed disposable runtime qualification');git(F,'branch','-m','main')
     \\O=P/'fixture-owned';git(F,'worktree','add','-b','codex/runtime-qualification-owner',O,'main')
     \\protected={'head':git(F,'rev-parse','HEAD').decode(),'status':git(F,'--no-optional-locks','status','--porcelain').decode(),'index_sha256':h((F/'.git/index').read_bytes())}
+    \\if sys.argv[1]=='operations':
+    \\ import shlex
+    \\ foreign=O/'foreign-owned.txt';foreign.write_text('Preserve another task staged content.\n');git(O,'add',foreign.name)
+    \\ staged=git(O,'diff','--cached','--binary');branch=git(O,'branch','--show-current').decode().strip();original_head=git(O,'rev-parse','HEAD')
+    \\ def open_op(checkout=O,ok=True):return run([SDK,'dispatch','diagnose local checkout custody only','--profile','generic-agent','--owned-checkout',checkout,'--json'],cwd=O,ok=ok)
+    \\ outcomes=[]
+    \\ for outcome in ('done','failed','abandoned'):
+    \\  opened=open_op();payload=json.loads(opened.stdout);assert payload['status']=='open'
+    \\  args=shlex.split(payload['close_contract']['command']);assert args[args.index('--owned-checkout')+1]==str(O)
+    \\  args[0]=SDK;args[args.index('--outcome')+1]=outcome
+    \\  record=O/'kitty-ops'/(payload['invocation_id']+'.jsonl');assert record.is_file() and not (F/'kitty-ops').exists()
+    \\  run([*args,'--no-commit','--json'],cwd=P)
+    \\  events=[json.loads(line) for line in record.read_text().splitlines()];assert [e['event'] for e in events]==['started','completed'];assert events[-1]['outcome']==outcome
+    \\  assert git(O,'rev-parse','HEAD')==original_head and git(O,'diff','--cached','--binary')==staged
+    \\  outcomes.append(outcome)
+    \\ opened=json.loads(open_op().stdout);record=O/'kitty-ops'/(opened['invocation_id']+'.jsonl');before_record=record.read_bytes()
+    \\ args=shlex.split(opened['close_contract']['command']);args[0]=SDK;args[args.index('--outcome')+1]='abandoned'
+    \\ git(O,'checkout','-b','codex/fixture-other-owner');refused=run([*args,'--no-commit','--json'],cwd=P,ok=False);assert refused.returncode!=0 and record.read_bytes()==before_record
+    \\ git(O,'checkout',branch);run([*args,'--no-commit','--json'],cwd=P)
+    \\ rejected={}
+    \\ rejected['protected']=open_op(F,ok=False).returncode
+    \\ E['SPEC_KITTY_ALLOW_PROTECTED_BRANCH_COMMITS']='1';rejected['protected_hatch']=open_op(F,ok=False).returncode;E.pop('SPEC_KITTY_ALLOW_PROTECTED_BRANCH_COMMITS')
+    \\ detached=P/'fixture-detached';git(F,'worktree','add','--detach',detached,'main');rejected['detached']=open_op(detached,ok=False).returncode
+    \\ unrelated=P/'foreign-repository';unrelated.mkdir();git(unrelated,'init','-q','-b','codex/foreign');git(unrelated,'config','user.name','Foreign fixture');git(unrelated,'config','user.email','fixture@example.invalid');(unrelated/'seed').write_text('Foreign repository must not receive an Op.');git(unrelated,'add','.');git(unrelated,'commit','-m','Foreign seed');rejected['foreign']=open_op(unrelated,ok=False).returncode
+    \\ assert all(v!=0 for v in rejected.values()) and not (F/'kitty-ops').exists() and not (detached/'kitty-ops').exists() and not (unrelated/'kitty-ops').exists()
+    \\ # The normal owning close still commits only its Op; --no-commit is not a forced substitute.
+    \\ opened=json.loads(open_op().stdout);args=shlex.split(opened['close_contract']['command']);args[0]=SDK;args[args.index('--outcome')+1]='done';run([*args,'--json'],cwd=P)
+    \\ assert git(O,'diff','--cached','--binary')==staged and foreign.read_text()=='Preserve another task staged content.\n'
+    \\ normal_record='kitty-ops/'+opened['invocation_id']+'.jsonl';assert git(O,'rev-parse','HEAD')!=original_head and git(O,'show','HEAD:'+normal_record)==(O/normal_record).read_bytes()
+    \\ assert git(O,'diff-tree','--no-commit-id','--name-only','-r','HEAD').decode().splitlines()==[normal_record]
+    \\ assert git(F,'rev-parse','HEAD').decode()==protected['head'] and git(F,'--no-optional-locks','status','--porcelain').decode()==protected['status'] and h((F/'.git/index').read_bytes())==protected['index_sha256']
+    \\ assert protected_home==home_snapshot()
+    \\ print(json.dumps({'actual_outcomes':outcomes,'normal_close_commits_own_record':True,'switched_branch_refused_before_append':True,'foreign_protected_detached_refused':rejected,'primary_and_native_unchanged':True,'foreign_staged_state_exact':True,'actual_host_actions':False}))
+    \\ sys.exit(0)
     \\r=run([SDK,'agent','mission','create','owned-runtime-qualification','--mission-type','software-dev','--topology','single_branch','--owned-checkout',O,'--target-branch','main','--pr-bound','--friendly-name','Disposable owned runtime qualification','--purpose-tldr','Prove owned-root analysis freshness without production effects.','--purpose-context','Disposable caller-specific qualification of the existing corrected runtime artifact; no Phoenix or host mutation.','--json'],cwd=O)
     \\created=json.loads(r.stdout);assert created['result']=='success';M=created['mission_slug'];D=pathlib.Path(created['mission_dir']);assert D.parent==O/'kitty-specs'
     \\js('constructor.json',created)
@@ -249,10 +283,10 @@ const managed_native_fixture =
 fn probe(mode: []const u8) !std.json.Parsed(std.json.Value) {
     const python = c.getenv("OWNED_RUNTIME_PYTHON") orelse return error.ExplicitInstalledRuntimeRequired;
     const result = try std.process.run(std.testing.allocator, std.testing.io, .{
-        .argv = &.{ std.mem.span(python), "-I", "-B", "-c", if (std.mem.eql(u8, mode, "managed-native")) managed_native_fixture else if (std.mem.eql(u8, mode, "cache-admission")) cache_admission_fixture else if (std.mem.eql(u8, mode, "owned") or std.mem.eql(u8, mode, "owned-managed")) owned_fixture else fixture, mode },
+        .argv = &.{ std.mem.span(python), "-I", "-B", "-c", if (std.mem.eql(u8, mode, "managed-native")) managed_native_fixture else if (std.mem.eql(u8, mode, "cache-admission")) cache_admission_fixture else if (std.mem.eql(u8, mode, "owned") or std.mem.eql(u8, mode, "owned-managed") or std.mem.eql(u8, mode, "operations")) owned_fixture else fixture, mode },
         .stdout_limit = .limited(256 * 1024),
         .stderr_limit = .limited(64 * 1024),
-        .timeout = .{ .duration = .{ .clock = .awake, .raw = .fromSeconds(if (std.mem.eql(u8, mode, "owned") or std.mem.eql(u8, mode, "owned-managed") or std.mem.eql(u8, mode, "managed-native")) 180 else 90) } },
+        .timeout = .{ .duration = .{ .clock = .awake, .raw = .fromSeconds(if (std.mem.eql(u8, mode, "owned") or std.mem.eql(u8, mode, "owned-managed") or std.mem.eql(u8, mode, "managed-native") or std.mem.eql(u8, mode, "operations")) 180 else 90) } },
     });
     defer std.testing.allocator.free(result.stdout);
     defer std.testing.allocator.free(result.stderr);
@@ -320,4 +354,15 @@ test "owned workflow preserves canonical managed native state across both setup-
     try std.testing.expect(facts.get("protected_fixture_primary_exact").?.bool);
     try std.testing.expect(facts.get("protected_fixture_native_home_exact").?.bool);
     try std.testing.expectEqualStrings("implement", facts.get("actual_owned_next_advance").?.object.get("action").?.string);
+}
+
+test "standalone operation opens and closes only in its owned checkout with real outcomes and custody refusals" {
+    var parsed = try probe("operations");
+    defer parsed.deinit();
+    const facts = parsed.value.object;
+    try std.testing.expect(facts.get("normal_close_commits_own_record").?.bool);
+    try std.testing.expect(facts.get("switched_branch_refused_before_append").?.bool);
+    try std.testing.expect(facts.get("primary_and_native_unchanged").?.bool);
+    try std.testing.expect(facts.get("foreign_staged_state_exact").?.bool);
+    try std.testing.expectEqual(@as(usize, 3), facts.get("actual_outcomes").?.array.items.len);
 }

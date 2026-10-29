@@ -1,0 +1,254 @@
+--- a/src/specify_cli/core/owned_mission.py
++++ b/src/specify_cli/core/owned_mission.py
+@@ -656,0 +657,60 @@
++
++
++_OPERATION_ROOT_TOKEN = object()
++
++
++@dataclass(frozen=True)
++class OperationRoot:
++    """Validated standalone operation custody, not mission or execution authority.
++
++    Only the canonical ownership minter constructs this fact. ``writing`` records
++    the checked mode; legacy non-Git roots still reach the existing context error.
++    Writers retain their current-branch and commit guards at the actual effect.
++    """
++
++    repository_root: Path
++    checkout: Path
++    branch: str | None
++    writing: bool
++    _token: object = field(default=None, repr=False, compare=False)
++
++    def __post_init__(self) -> None:
++        if self._token is not _OPERATION_ROOT_TOKEN:
++            raise TypeError("OperationRoot is minted only by resolve_operation_root")
++
++
++def resolve_operation_root(repository_root: Path, checkout: Path | None, *, writing: bool) -> OperationRoot:
++    """Mint standalone custody using the shared claim and strict protection rules.
++
++    Explicit read-only primary and detached selection remain supported. A write
++    requires an attached unprotected branch before any registry construction.
++    """
++    from kernel.git_topology import NotAGitRepositoryError, git_toplevel
++    from specify_cli.core.checkout_ownership import error_for_claim, resolve_ownership_claim
++    from specify_cli.core.git_ops import resolve_primary_branch
++
++    primary = repository_root.resolve()
++    selected = primary
++    if checkout is not None:
++        claim = resolve_ownership_claim(checkout, resolved_primary=primary)
++        error = error_for_claim(claim)
++        if error is not None:
++            raise error
++        selected = claim.claimed_checkout
++    branch = None
++    if writing:
++        try:
++            git_toplevel(selected)
++        except NotAGitRepositoryError:
++            return OperationRoot(primary, selected, branch, writing, _token=_OPERATION_ROOT_TOKEN)
++        branch = get_current_branch(selected)
++        if branch is None:
++            raise ValueError("Operation records require an attached feature branch; detached HEAD is read-only.")
++        primary_branch = resolve_primary_branch(primary, bias=False)
++        if any(ProtectionPolicy.resolve(root).is_protected_target(branch, primary_branch=primary_branch, allow_bypass=False) for root in {primary, selected}):
++            raise ValueError(f"Refusing operation writes on protected branch '{branch}'; use --owned-checkout on a feature branch.")
++    else:
++        branch = get_current_branch(selected)
++    return OperationRoot(primary, selected, branch, writing, _token=_OPERATION_ROOT_TOKEN)
++
++
+--- a/src/specify_cli/cli/commands/dispatch.py
++++ b/src/specify_cli/cli/commands/dispatch.py
+@@ -13 +13 @@
+-from typing import TYPE_CHECKING, NoReturn
++from typing import TYPE_CHECKING, Annotated, NoReturn
+@@ -20,0 +21 @@
++    from specify_cli.core.owned_mission import OperationRoot
+@@ -33,0 +35,4 @@
++from kernel.git_topology import GitTopologyError
++from specify_cli.core.checkout_ownership import CheckoutOwnershipError
++from specify_cli.git.protection_policy import ProtectionConfigError
++from specify_cli.cli.commands._owned_checkout import OwnedCheckoutOption, owned_checkout_option
+@@ -36,0 +42 @@
++    build_close_contract,
+@@ -46 +51,0 @@
+-
+@@ -58,0 +64,11 @@
++
++
++def _operation_checkout(primary: Path, owned_checkout: OwnedCheckoutOption, *, writing: bool) -> OperationRoot:
++    """Render custody refusal before an executor can create any state."""
++    from specify_cli.core.owned_mission import resolve_operation_root
++
++    try:
++        return resolve_operation_root(primary, owned_checkout, writing=writing)
++    except (CheckoutOwnershipError, GitTopologyError, ProtectionConfigError, ValueError) as exc:
++        typer.echo(json.dumps({"error": "operation_checkout_refused", "message": str(exc)}), err=True)
++        raise typer.Exit(2) from exc
+@@ -86 +102 @@
+-            "To set a governance baseline, run (see all presets with "
++            "To set a governance baseline, run (see all packs with "
+@@ -88 +104 @@
+-            "  spec-kitty charter activate --preset minimal\n"
++            "  spec-kitty charter pack apply minimal\n"
+@@ -232,5 +248,4 @@
+-    console.print(
+-        f"  [dim]spec-kitty profile-invocation complete "
+-        f"--invocation-id {payload.invocation_id} "
+-        f"--outcome <done|failed|abandoned> "
+-        f"\\[--evidence <file>] \\[--artifact <path>] \\[--commit <sha>][/dim]"
++    contract = build_close_contract(
++        payload.invocation_id,
++        getattr(payload, "mode_of_work", None),
++        owned_checkout=getattr(payload, "_owned_checkout", None),
+@@ -237,0 +253,4 @@
++    optional = " [--artifact <path>] [--commit <sha>]"
++    if "evidence_flag" in contract:
++        optional = " [--evidence <file>]" + optional
++    console.print(f"  {contract['command']}{optional}", markup=False)
+@@ -284,0 +304 @@
++    owned_checkout: OperationRoot | None = None,
+@@ -350,0 +371 @@
++    payload._owned_checkout = owned_checkout
+@@ -381,0 +403 @@
++    owned_checkout: Annotated[Path | None, owned_checkout_option(help="Verified checkout that owns this operation's records and commits.")] = None,
+@@ -391 +413,2 @@
+-    repo_root = _get_repo_root()
++    custody = _operation_checkout(_get_repo_root(), owned_checkout, writing=not dry_run)
++    repo_root = custody.checkout
+@@ -400,0 +424 @@
++        owned_checkout=custody if owned_checkout is not None else None,
+--- a/src/specify_cli/cli/commands/profile_invocation.py
++++ b/src/specify_cli/cli/commands/profile_invocation.py
+@@ -11 +11 @@
+-from typing import Literal
++from typing import Annotated, Literal
+@@ -16 +16,2 @@
+-from specify_cli.cli.commands.dispatch import _build_executor
++from specify_cli.cli.commands.dispatch import _build_executor, _operation_checkout
++from specify_cli.cli.commands._owned_checkout import owned_checkout_option
+@@ -28 +28,0 @@
+-
+@@ -43,4 +43 @@
+-_OPENER_EPILOG = (
+-    'Open:  spec-kitty dispatch "<request>"\n\n'
+-    "Close: spec-kitty profile-invocation complete --invocation-id <id> --outcome <outcome>"
+-)
++_OPENER_EPILOG = 'Open:  spec-kitty dispatch "<request>"\n\nClose: spec-kitty profile-invocation complete --invocation-id <id> --outcome <outcome>'
+@@ -115,0 +113,2 @@
++    no_commit: bool = typer.Option(False, "--no-commit", help="Close the Op locally without recording a commit."),
++    owned_checkout: Annotated[Path | None, owned_checkout_option(help="Verified checkout holding the operation opened by dispatch.")] = None,
+@@ -138 +137,3 @@
+-    repo_root = _get_repo_root()
++    primary = find_repo_root(owned_checkout) if owned_checkout is not None else _get_repo_root()
++    custody = _operation_checkout(primary, owned_checkout, writing=True)
++    repo_root = custody.checkout
+@@ -149,0 +151 @@
++            auto_commit=not no_commit,
+@@ -164,0 +167,2 @@
++    if no_commit and not json_output:
++        console.print("  Op journal saved locally and left uncommitted.")
+--- a/src/specify_cli/invocation/executor.py
++++ b/src/specify_cli/invocation/executor.py
+@@ -22,0 +23 @@
++    from specify_cli.core.owned_mission import OperationRoot
+@@ -40,0 +42 @@
++    InvocationWriteError,
+@@ -188 +190,6 @@
+-def build_close_contract(invocation_id: str, mode_of_work: str | None = None) -> dict[str, object]:
++def build_close_contract(
++    invocation_id: str,
++    mode_of_work: str | None = None,
++    *,
++    owned_checkout: OperationRoot | None = None,
++) -> dict[str, object]:
+@@ -203,0 +211,7 @@
++    if owned_checkout is not None:
++        from shlex import quote
++        from specify_cli.core.owned_mission import OperationRoot
++
++        if not isinstance(owned_checkout, OperationRoot):
++            raise TypeError("Close contract requires a validated OperationRoot")
++        contract["command"] = f"{contract['command']} --owned-checkout {quote(str(owned_checkout.checkout))}"
+@@ -235,0 +250 @@
++    _owned_checkout: OperationRoot | None
+@@ -250,0 +266 @@
++        "_owned_checkout",
+@@ -288 +304 @@
+-        result = self._serialize_slots(exclude=frozenset({"mode_of_work"}))
++        result = self._serialize_slots(exclude=frozenset({"mode_of_work", "_owned_checkout"}))
+@@ -292 +308,5 @@
+-        result["close_contract"] = build_close_contract(self.invocation_id, getattr(self, "mode_of_work", None))
++        result["close_contract"] = build_close_contract(
++            self.invocation_id,
++            getattr(self, "mode_of_work", None),
++            owned_checkout=getattr(self, "_owned_checkout", None),
++        )
+@@ -321 +341 @@
+-        result = self._serialize_slots(exclude=frozenset({"mode_of_work", "invocation_id"}))
++        result = self._serialize_slots(exclude=frozenset({"mode_of_work", "invocation_id", "_owned_checkout"}))
+@@ -417 +437,2 @@
+-        #: executor (``None`` before the first close). Read by the doctor sweep
++        #: executor (``None`` before the first close or after an explicit
++        #: no-commit close). Read by the doctor sweep
+@@ -466,0 +488 @@
++        checkout_branch = self._current_branch()
+@@ -493 +515 @@
+-        durable_model_id = catalog_candidate.model_id if catalog_candidate is not None else None
++        recommended_model_id = catalog_candidate.model_id if catalog_candidate is not None else None
+@@ -512,2 +534,5 @@
+-            model_id=durable_model_id,
+-        )
++            recommended_model_id=recommended_model_id,
++            checkout_branch=checkout_branch,
++        )
++        if self._current_branch() != checkout_branch:
++            raise InvocationWriteError("Checkout branch changed while opening the operation; no record was written.")
+@@ -749,0 +775 @@
++        auto_commit: bool = True,
+@@ -779,0 +806,4 @@
++
++        ``auto_commit=False`` leaves the canonical completion uncommitted.
++        Only the final Git commit is skipped; custody, validation, evidence,
++        correlation links and propagation retain their existing behavior.
+@@ -780,0 +811,8 @@
++        # A path alone is insufficient custody: an untracked record follows
++        # checkout switches. Bind agent completion to its recorded branch
++        # before any append, promotion or correlation-link effect. Legacy
++        # records without a branch remain readable/closable as before.
++        checkout_branch = self._read_started_event(invocation_id).get("checkout_branch") if closed_by == "agent" else None
++        if checkout_branch is not None and (not isinstance(checkout_branch, str) or not checkout_branch or self._current_branch() != checkout_branch):
++            raise InvocationError("Operation checkout branch changed; return to the original branch before closing.")
++
+@@ -855 +893,3 @@
+-        self._commit_op_record(invocation_id, closed_by=closed_by)
++        self.last_op_commit = None
++        if auto_commit:
++            self._commit_op_record(invocation_id, closed_by=closed_by)
+--- a/src/specify_cli/invocation/record.py
++++ b/src/specify_cli/invocation/record.py
+@@ -60,0 +61,2 @@
++    # Historical dispatch records put an advisory catalog choice here. Keep it
++    # readable for audit; it is never evidence of actual model execution.
+@@ -61,0 +64,2 @@
++    recommended_model_id: str | None = Field(default=None, min_length=1)
++    checkout_branch: str | None = Field(default=None, min_length=1)
+--- a/src/specify_cli/git/protection_policy.py
++++ b/src/specify_cli/git/protection_policy.py
+@@ -260 +260 @@
+-    def is_protected_target(self, branch: str, *, primary_branch: str) -> bool:
++    def is_protected_target(self, branch: str, *, primary_branch: str, allow_bypass: bool = True) -> bool:
+@@ -291,0 +292,3 @@
++            allow_bypass: Whether operator/mission bypasses may relax this
++                check. Authoring flows with a mandatory PR-only contract pass
++                ``False``; the existing default preserves other workflows.
+@@ -297 +300 @@
+-        if self.operator_hatch_active or (self.mission_bypass_branch is not None and branch == self.mission_bypass_branch):
++        if allow_bypass and (self.operator_hatch_active or (self.mission_bypass_branch is not None and branch == self.mission_bypass_branch)):
+@@ -299 +302 @@
+-        return branch == primary_branch or self.is_protected(branch)
++        return branch == primary_branch or branch in self.protected_branches

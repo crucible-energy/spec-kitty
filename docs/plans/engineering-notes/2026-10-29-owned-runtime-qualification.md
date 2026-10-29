@@ -89,3 +89,12 @@ obligations. Missing historical artifacts, unknown original worktree state and
 unresolved attribution authority remain preserved; neither age nor a new runtime
 grants deletion permission. External receipts record actual test outcomes and
 failed stages without changing a frozen candidate merely to record a pass.
+
+
+## Standalone operation compatibility
+
+The RC7 owned-next artifact did not include Source's standalone operation custody closure. Actual installed dispatch refused `--owned-checkout` before opening an Op. A new private candidate ports the existing canonical dispatch, completion, typed `OperationRoot`, executor and record schema. Its first actual open found the published protection method lacked `allow_bypass=False`; the existing strict method was ported rather than dropping that argument. Unrelated bounded-subprocess changes were excluded. Source record/executor advisory model attribution remains paired and grants no actual model execution.
+
+The installed standalone regression uses a disposable real linked checkout. It opens and closes real journal records as `done`, `failed`, and `abandoned`, verifies generated close commands outside the checkout, checks explicit no-commit preservation and a normal selective owning commit, and refuses foreign, protected (including operator hatch), detached, and switched-branch effects. Primary HEAD/index/status, native content/metadata and unrelated staged bytes must survive. This is local operation custody, not an actual researcher audit, host admission or whole-agent lifecycle contract.
+
+Existing consumer runtime and its dependency supplier stay immutable while the new candidate passes its complete installed regression, owning checks and independent receiving. Previous failed launches and the incomplete strict-API candidate remain failed evidence; no actual host, receiver, key or Store operation is performed by these fixtures.
