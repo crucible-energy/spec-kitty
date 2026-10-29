@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-29T03:05:16.628734+00:00'
+generated_at: '2026-10-29T05:35:53.249988+00:00'
 analyzer_agent: codex
 input_artifacts:
   spec.md:
@@ -15,7 +15,7 @@ input_artifacts:
     sha256: 024d2a7023298c18fe62f5bc67e931eaf7c56b8fccf9fefe9bd25513796cc425
   tasks.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md
-    sha256: 42e44958bf996860291623c9fda1594baaf61fa89dcdf7805415622a9d8edf4e
+    sha256: 3c996b3599ebbe45253ba76cb3aa1f8954c0937c635899b7fcf16ef0856f6acb
   charter:
     path: .kittify/charter/charter.yaml
     sha256: ea64c01993e97626ecd9494ce5e5816d01f36fd2870169e48504ac86ed114d29
@@ -1620,7 +1620,7 @@ input_artifacts:
     sha256: 51982b1661e69cc6e56342c8b6ba3291cc6743e2a9244db4ffaaf457a270ec16
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
-    sha256: e3f8dd284c5acc37d565beb6ff1c7a2fd1e2a761272f66e44c2708513b209641
+    sha256: 19542a0973b99181015c7d9c75d5024891eb8063018120552b8632490cdb8af4
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
     sha256: a8ce616e70aa2b618ddfcd3c4760704409492ea70022f7b5c6dabaf82524f604
@@ -1683,7 +1683,7 @@ input_artifacts:
     sha256: 3a45e63c62aec1948af1c569e1ff0c02a477cd3a80e654578f24b19504faf46a
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks.md
-    sha256: 42e44958bf996860291623c9fda1594baaf61fa89dcdf7805415622a9d8edf4e
+    sha256: 3c996b3599ebbe45253ba76cb3aa1f8954c0937c635899b7fcf16ef0856f6acb
   material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/wps.yaml:
     path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/wps.yaml
     sha256:
@@ -1911,29 +1911,40 @@ input_artifacts:
     sha256: 3c3a78cf69c6f1bad1c2d4b3758b8ffe9917c4d3319677b60b2faf6f78b33bbd
   template-selection:spec:
     path:
-    sha256: dd6ad9deb085a033f1bc480465d3621e10992074a4c85676711c791f6f0eb1c2
+    sha256: fc0e6a81e4470618692f4b751377ef1b29e5fd583c07cffebe9a525e6daf2ab4
   template-selection:plan:
     path:
-    sha256: d9c36da1985f5c8318ded3f81880e070aed92a4998eb6c7b1f02e459c60d6d39
+    sha256: c945409a2bb2dec8bc0e2425566c352b837f8c11c4e2fe55b8576da4fc1d7125
 verdict: ready
 issue_counts:
-  critical: 0
-  medium: 0
-  low: 0
   high: 0
+  medium: 0
+  critical: 0
+  low: 0
   info: 0
 findings: []
-report_transaction: 0091ef8c6ea647c3bf0707bd27d047fa
+report_transaction: dcf83ee51ffa416cafe24861d29e4114
 material_manifest_version: 1
 ---
 
-# Same-lane canonical unchanged commit correction
+# Same-lane hosted contract propagation plan
 
-Parent assigned implementation; Root approved exact existing staged-tree authority
-after unchanged preflight/snapshot/stage, exact restoration and typed unchanged
-before hook. Original Cmail460.900s and all current Source producers joined.
-Supported scope before true native marker-hook RED and retained Python repair.
-Preserve expected-parent/index-deletion, mandatory real-delta hooks and all named
-negative controls. No caller ambient shortcut, test suppression, live runtime
-replacement or ownership transfer. Current query draft/approvals/history exact.
-This is planning consistency only, not implementation/installed/rollout approval.
+Exact published e476 hosted docs/fast-architecture failures reproduced locally:
+14 failed before source edits. Repair required note frontmatter; classify the
+new immutable query as PARSEABLE like adjacent mission JSON surfaces, preserving
+its independently approved contract and exact enumeration; regenerate canonical
+completion data; document its Git-tree-only diagnostic path in the existing
+bidirectional audit inventory; remove two already-formatted debt exclusions;
+replace test enclosure manual environment/tempdir changes with pytest.MonkeyPatch
+and early registered undo. Preserve all guards, ownership, complete doc bodies,
+approved WP15/WP16 histories, product code and the private e476 consumer artifact.
+No DEFERRED addition, new Python policy/tests, runtime hotpatch, owner transfer or
+ordinary adoption. Readiness here is planning consistency only: implementation,
+focused/full owning checks, review and publication are pending, not green.
+
+The ownership guard correctly refused four unordered scope overlaps. This
+follow-up actually consumes accepted WP15 closeout policy and WP16 containment
+(with WP14 prerequisite), in the same existing lane after their acceptance.
+Record those real dependencies in WP09 and its task overview; preserve every
+approved package prompt/status/history. No codebase-wide declaration, overlap
+waiver or guard change. Source14RED and failed scope receipt remain retained.
