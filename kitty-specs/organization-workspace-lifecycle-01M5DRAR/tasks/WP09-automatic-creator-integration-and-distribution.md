@@ -54,12 +54,25 @@ owned_files:
 - src/specify_cli/cli/commands/agent/mission_inspect.py
 - tools/zig/mission_inspect.zig
 - docs/plans/engineering-notes/2026-10-29-pinned-planning-inspection.md
+- tests/specify_cli/cli/commands/agent/test_mission_cli_golden_contract.py
+- docs/api/agent-subcommands.md
 tags: []
 task_type: implement
 tracker_refs: []
 ---
 
 # WP09 — Automatic creator integration and distribution
+
+## Immutable inspection contract join
+
+Actual full owning validation exposed the exact frozen command-set contract
+excluding the deliberately added inspect command. Targeted unchanged assertion
+reproduced before repair. Amend the existing golden data in place to include
+inspect and its exact mission/at/json flags, preserving symmetric equality and
+all original commands/flags; do not waive or delete the guard. New behavioral
+acceptance remains native. Refresh the two relevant live generated CLI reference
+sections through canonical renderer/capture functions and retain companion docs,
+without regenerating unrelated command pages or altering historical missions.
 
 ## Immutable planning inspection blocker correction
 
