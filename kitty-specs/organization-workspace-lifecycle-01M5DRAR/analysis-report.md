@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-28T23:44:06.154376+00:00'
+generated_at: '2026-10-29T01:14:38.897299+00:00'
 analyzer_agent: codex
 input_artifacts:
   spec.md:
@@ -1620,7 +1620,7 @@ input_artifacts:
     sha256: 51982b1661e69cc6e56342c8b6ba3291cc6743e2a9244db4ffaaf457a270ec16
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
-    sha256: 296a8b77bbb61766521a527074d159e195b842d662de6aa10f1673d1e2240f14
+    sha256: e96a320f98804a080c0da2681a1eb32d0e89cb7d050f5dd1bba4bb3e4c6bd297
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
     sha256: a8ce616e70aa2b618ddfcd3c4760704409492ea70022f7b5c6dabaf82524f604
@@ -1911,34 +1911,29 @@ input_artifacts:
     sha256: 3c3a78cf69c6f1bad1c2d4b3758b8ffe9917c4d3319677b60b2faf6f78b33bbd
   template-selection:spec:
     path:
-    sha256: 8f56fa4d9986317f53a3fc7340b6bb6139cbacb22b07f6d5211b7e73d167832d
+    sha256: 32a361b894053bc203394d24f35f0cce2f4b002b3e152685c35a1bcd5226d11b
   template-selection:plan:
     path:
-    sha256: 2a242a0585aa8f0322b9cca55288913c59d295a928a241eecc28421651eb0038
+    sha256: 5e6a12617a135c0c0ba2ca57031db30306cb936e3dd002de90c3d5ddf4b66ec8
 verdict: ready
 issue_counts:
   high: 0
   low: 0
-  medium: 0
   critical: 0
+  medium: 0
   info: 0
 findings: []
-report_transaction: 5364b4f1d3f74e608ae235a6710fde69
+report_transaction: ef346a572bfa4fcb886c497a6b81b81f
 material_manifest_version: 1
 ---
 
-# WP09 narrow native terminal observation planning consistency
+# WP09 original absolute horizon planning consistency
 
-The current implementation work package adds the existing native process primitive
-as an owned path for a narrow terminal/quiescence result observation. This permits
-reproduction and repair of the distinction between forced disposal and natural
-producer completion without changing the primitive's current validation cleanup
-semantics, creating a runner or store, or reopening approved work packages.
-
-Planning scope is consistent with the ratified original-object foreground design.
-The concrete source audit remains an implementation finding requiring actual
-parent-exit/live-descendant reproduction before repair. This planning verdict
-approves no code, installed runtime, creator release or repository adoption.
-General disk-growth/reserve qualification, caller integration and installed/
-independent acceptance remain open. Existing active work and recovery obligations
-are preserved; no engine advance or additional claim is requested.
+Root explicitly admitted the narrow existing kernel budget seam after canonical
+path admission and actual RED. Actual post-wait Git and failed-persistence REDs
+are retained in lifecycle-wp09-review-timing-red-r1. Actual delayed setup hook
+fired and forbidden late marker appeared in lifecycle-wp09-review-setup-red-r2.
+Python carries optional original deadlines only; native policy/tests remain the
+single authority. No second runner or PDB implementation. Preserve all approved
+WPs and event history. This is planning admission, never code approval, installed
+qualification, creator release or organization rollout.
