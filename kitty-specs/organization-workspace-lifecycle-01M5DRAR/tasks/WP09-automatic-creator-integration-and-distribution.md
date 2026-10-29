@@ -35,6 +35,8 @@ create_intent:
 - docs/plans/engineering-notes/2026-10-29-canonical-noop-commit.md
 - tools/zig/mission_number_commit.zig
 - docs/plans/engineering-notes/2026-10-29-numbering-commit-diagnostics.md
+- tools/zig/claim_origin.zig
+- docs/plans/engineering-notes/2026-10-29-first-claim-provenance.md
 execution_mode: code_change
 owned_files:
 - src/specify_cli/workspace_lifecycle/worker.py
@@ -79,12 +81,34 @@ owned_files:
 - src/specify_cli/consolidation/mission_number/bake.py
 - tools/zig/mission_number_commit.zig
 - docs/plans/engineering-notes/2026-10-29-numbering-commit-diagnostics.md
+- src/specify_cli/consolidation/reconciliation.py
+- src/specify_cli/consolidation/wp_attribution.py
+- tools/zig/claim_origin.zig
+- docs/plans/engineering-notes/2026-10-29-first-claim-provenance.md
 tags: []
 task_type: implement
 tracker_refs: []
 ---
 
 # WP09 — Automatic creator integration and distribution
+
+## Protected first-claim provenance for useful-work integration
+
+The official published release selects later stamped reclaims after genuine
+legacy unstamped first claims. Reproduce the FIRST genuine governed claim
+contract in native regressions; do not invent a historical creation stamp or
+read broad ancestry as semantic approval. Preserve the documented legacy
+contract or a named recoverable refusal for unknown origin. Before changing
+dependent authored-content collection, port the two live-path official
+upstream protection commits 2db04ded1fd877041457b60f1a1109304be738a7
+and 3bde34db17ad841c86e6a9c26f8fdb29dd2457dd with explicit provenance.
+Native controls must retain modern creation bounds, migration filtering,
+multi-WP ordering, rewritten dependency rejection, canceled/removed-content
+rejection and approved-content presence. Reuse existing functions/backends;
+no new Python policy engine, force, historical event/claim rewrite, original
+project/runtime edit or unauthorized consolidation retry. Unknown lane
+provenance never grants workspace/resource retirement authority. Qualify and
+independently review the exact protected installed candidate before delivery.
 
 ## Numbering commit diagnostics for useful-work integration
 
