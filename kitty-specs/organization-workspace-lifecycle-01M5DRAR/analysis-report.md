@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-29T17:45:41.601408+00:00'
+generated_at: '2026-10-29T18:37:34.566369+00:00'
 analyzer_agent: codex
 input_artifacts:
   spec.md:
@@ -1620,7 +1620,7 @@ input_artifacts:
     sha256: 51982b1661e69cc6e56342c8b6ba3291cc6743e2a9244db4ffaaf457a270ec16
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
-    sha256: a373063df7dba3bc12b81d061629d3f7599eb54085b2d93f1d4b44afe9e0ae25
+    sha256: 1e83bbf17034085eaeb63a4a1df6dd97fddeef75ae60f51af5892f8da334a9f3
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
     sha256: a8ce616e70aa2b618ddfcd3c4760704409492ea70022f7b5c6dabaf82524f604
@@ -1911,40 +1911,22 @@ input_artifacts:
     sha256: 3c3a78cf69c6f1bad1c2d4b3758b8ffe9917c4d3319677b60b2faf6f78b33bbd
   template-selection:spec:
     path:
-    sha256: 7d18a95e10d5b58a6a09ca12c189f122f5204397fba2c77330006a8b02b9aabd
+    sha256: ef7c499384ae6884e23642980040755c726959560e74401cf859f2bcbd2445ea
   template-selection:plan:
     path:
-    sha256: 09fcfc4e3b3976ba6b717197eff93665eed668e5e4fb7aa291d1398a5895498e
+    sha256: 48f9d0bef32ffa2fac7af74daa668ee34178e4f700e6c737f48f52fded618876
 verdict: ready
 issue_counts:
-  low: 0
-  medium: 0
-  critical: 0
   high: 0
+  low: 0
+  critical: 0
+  medium: 0
   info: 0
 findings: []
-report_transaction: 705d8fc9b8e040eca7c872525cd8e1d1
+report_transaction: 08c40926289f4369b0688029cadce25a
 material_manifest_version: 1
 ---
 
-Planning readiness only: no implementation, guard correctness, original project retry or ordinary host adoption is approved by this report.
+# Operative provenance diagnostic scope
 
-# Protected attribution provenance — bounded next increment
-
-Existing owner/lane: Source WP09, the current organization-workspace-lifecycle mission and its existing checkout. Published diagnostic checkpoint ab5 is independently reviewed and privately installed; exact-head hosted checks are still running. No new lane or actual original-project retry is admitted by this preparation.
-
-## Evidence and defect boundary
-
-The official 4.0.0rc7 helper selects a later stamped reclaim after a genuine earlier unstamped implementation event. Its documented contract identifies the FIRST genuine governed implementation event. Read-only actual helper output and Git cutoff algebra explain exclusion of the reported84commit set; neither ancestry nor that observation establishes semantic approval. The retained local reflogs for the three legacy lanes do not include creation records, so they cannot manufacture missing birth authority. The fourth lane has a genuine modern first stamp that must remain bounded.
-
-## Implementation direction
-
-Before changing authored-content collection, port only the two live-path upstream dependent-authorship protection commits 2db04ded1fd877041457b60f1a1109304be738a7 and 3bde34db17ad841c86e6a9c26f8fdb29dd2457dd with explicit provenance. Both touch the existing live consolidation/reconciliation.py path; no retired path or old policy engine is to be resurrected. Then reproduce the earliest genuine claim contract natively and make the smallest correction in existing helpers. A later reclaim must not masquerade as original creation. Unknown legacy provenance follows the actual documented contract or a named recoverable refusal; it is not a grant to broaden arbitrary ancestry, alter historical events or delete resources.
-
-## Required controls
-
-Use native failing-first tests against actual helper/Git behavior, not mirrored policy assertions. Preserve modern first-stamp bounds, migration filtering, multiple-WP chronological ownership, rewritten/reapproved dependency rejection, canceled/removed-content rejection and approved-content presence. Retain historical review warnings. Run strict affected-module checks, required baseline and complete owning directories under separately bounded jobs; install and independently receive the exact protected candidate before any owner-authorized original retry. Do not rebase, force, fabricate claims, change strategy or edit the frozen original project's metadata/refs/runtime.
-
-## Governance and nonclaims
-
-Latest non-yanked public release including prereleases freshly resolves to4.0.0rc7. The explicit previously qualified rc7+ownedplanning runtime is planning-only, with verified published-base/archive and private wheel/entry identity. Required repository properties match latest-including-prereleases and preserve-finish-validate-pr-merge-verify-recover-retire. These declarations do not prove actual ordinary adoption. The actual whole-agent host launch/join/handback export is still unsubstantiated in the bounded architecture inputs; Parent retains routing. All121last-verified ordinary execution rows remain pending. No current shared runtime, original project, provider/host action or deletion is authorized by this scope.
+Independent Root design receiving requires preserving existing first-known conservative attribution fences. Missing original creation metadata is not admission authority and is not alone a new blanket refusal. Extend existing phase_gate only to append exact first-event/later-fence and owner recovery guidance when strict verification already reports un-attributable content. Preserve original verdict, divergence, missing-content/canceled precedence, result persistence and rollback/teardown behavior. No new helper, schema, Python engine or historical event write. Canonical status/history remain exact; no original Subsequent retry. Native fixture must exercise actual gate refusal plus safe post-fence passing control and rewritten/current-dependency-merged negatives. Required full/installed/independent gates remain. All121ordinary rows pending genuine whole-agent host contract; no deletion or host action.
