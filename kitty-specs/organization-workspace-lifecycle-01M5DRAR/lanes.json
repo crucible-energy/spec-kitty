@@ -81,6 +81,7 @@
         "src/specify_cli/lanes/implement_support.py",
         "src/specify_cli/lanes/worktree_allocator.py",
         "src/specify_cli/orchestrator_api/wp_lifecycle.py",
+        "src/specify_cli/session_presence/upgrade_check.py",
         "src/specify_cli/workspace_lifecycle/adapters.py",
         "src/specify_cli/workspace_lifecycle/configuration.py",
         "src/specify_cli/workspace_lifecycle/coordinator.py",
@@ -152,10 +153,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-29T20:19:40.149903+00:00",
+  "computed_at": "2026-10-29T20:59:11.831202+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "22c8190fb28675d8c423acecd9caf6d72d2161ef"
+  "planning_commit_sha": "5e63e518a07f6852c3808f5b8b79e164c3df43f2"
 }
