@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-29T06:07:34.950499+00:00'
+generated_at: '2026-10-29T15:28:12.241746+00:00'
 analyzer_agent: codex
 input_artifacts:
   spec.md:
@@ -1620,7 +1620,7 @@ input_artifacts:
     sha256: 51982b1661e69cc6e56342c8b6ba3291cc6743e2a9244db4ffaaf457a270ec16
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
-    sha256: 4bb060a7de81132b18d9a897bc951e7493d128cfaca47d7f008fb8bf4ade6ee9
+    sha256: da19640877001223216062d009008218f38c53ef8d066d4bd224a2f6e5cefd44
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
     sha256: a8ce616e70aa2b618ddfcd3c4760704409492ea70022f7b5c6dabaf82524f604
@@ -1911,33 +1911,31 @@ input_artifacts:
     sha256: 3c3a78cf69c6f1bad1c2d4b3758b8ffe9917c4d3319677b60b2faf6f78b33bbd
   template-selection:spec:
     path:
-    sha256: 5b464823b50bda0a6891e8db58e241516cb639e85ab9554351479b6828819153
+    sha256: 428cfb2f4f34cf29f3c31480de8f7a2e5757f7dd1d2119264951f457505f65f3
   template-selection:plan:
     path:
-    sha256: 7731bbb9908fb73f3f908ffad614454e9db48a09c45b7201b422691b21551b13
+    sha256: f72037d9c82ac17641307fa187fc782429752e1e062ed77938d606eace7f93dd
 verdict: ready
 issue_counts:
   low: 0
-  medium: 0
-  critical: 0
   high: 0
+  critical: 0
+  medium: 0
   info: 0
 findings: []
-report_transaction: e8a8c13525e04c1ea76aa4f1ee068e87
+report_transaction: 8f6c782b4ef64f7291bf0adfe138e602
 material_manifest_version: 1
 ---
 
-# Existing hosted session-contract follow-up
+# Existing numbered-meta hook diagnostic follow-up
 
-Six remaining hosted failures reproduced on clean ddf42e6 before code edits.
-Root accepted exact diagnostic-only classification in the existing documented
-guard: no wildcard or functional exemption, no filesystem-current resolver in
-an immutable query, no altered selection/OwnedCheckout authority. Correct the
-nonrecipe closeout help wording. Exclude only the volatile test-enclosure
-projection from semantic collection-cache inputs; resource admission, actual
-source/options/profile/authority and other semantic environment switches stay
-checked/keyed. Fold the new variable into existing invariant case data; real
-fresh-session parity and genuine semantic-change negatives remain mandatory.
-Scope is existing WP09 after its actual approved WP15/16 dependencies. No new
-Python policy/test functions, broad exception, runtime swap, host action or
-ordinary adoption. This is planning consistency, not a test/implementation pass.
+Parent supplied exact failed commit site and one reproduction lease. Source
+controlled exact-blob fixture retained actual current-context hook stderr and
+normal refusal; same hook passed with supported pinned read-only Biome2.5.0.
+Original birth environment remains unknown. Restore actionable diagnostic
+visibility only: preserve original subprocess failure/return code/captured
+bytes, mandatory hook and meta-only pathspec, ref rollback and scratch closeout.
+Native regression must fail for hidden stderr before repair and prove real
+multiline stderr rendering, unchanged refusal and preserved other work. No
+Python policy/test functions, Source runtime hotpatch or project mutation.
+No existing claim/pin/history/review/status advance is authorized.
