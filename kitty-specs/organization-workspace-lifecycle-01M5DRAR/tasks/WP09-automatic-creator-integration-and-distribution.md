@@ -70,12 +70,27 @@ owned_files:
 - tests/_support/run_basetemp.py
 - docs/plans/engineering-notes/2026-10-27-op-closeout-no-commit.md
 - docs/plans/engineering-notes/2026-10-28-pytest-containment-and-private-yaml.md
+- tests/architectural/test_single_mission_surface_resolver.py
+- src/specify_cli/cli/commands/profile_invocation.py
+- tests/architectural/_universe_store.py
+- tests/architectural/test_universe_store.py
 tags: []
 task_type: implement
 tracker_refs: []
 ---
 
 # WP09 — Automatic creator integration and distribution
+
+## Hosted session and diagnostic-contract repair
+
+The remaining six hosted failures were reproduced before edits. Root accepted
+exact diagnostic-only classification for the private immutable-index carrier,
+not a wildcard/functional exemption or current-filesystem resolver. Rephrase
+nonrecipe closeout help without changing behavior. Keep volatile test-enclosure
+transport identity out of the semantic collection-cache key only; actual source,
+options/profile/authority and admission/resource checks remain independent.
+Preserve exact parity/mutation tests and genuine semantic-change negatives.
+No new lane, Python policy engine, runtime swap or ordinary adoption is granted.
 
 ## Hosted contract propagation repair
 
