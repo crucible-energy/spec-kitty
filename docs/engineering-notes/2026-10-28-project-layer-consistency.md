@@ -313,3 +313,29 @@ and scoped test roots remain owner-held until evidence extraction and joined
 closeout; no historical source or failed finalization is replayed. The separate
 installed-wheel startup timing gate, human review and protected-main delivery
 remain open. Published source is not a release or production-readiness proof.
+
+**Observed follow-through, October 28, 2026:** The complete existing quality
+workflow [40784837310](https://github.com/crucible-energy/spec-kitty/actions/runs/40784837310)
+passed at `5829f8954a43151a45782c3a223f0b168119aefa`. Its actual clean-install
+startup check measured a 0.638-second median against the unchanged 1.050-second
+ceiling. Earlier failed runs remain failed. A separate installed Linux arm64
+comparison used identical runtime dependencies, five interleaved samples per
+revision and unchanged fixtures; it found no slowdown in that tested mode.
+Neither result establishes a universal speedup or other deployment performance.
+
+The canonical operation-completion command auto-committed the previously local
+journal as `ec61c86ccb1692d661324fc575ebed17794fd777`, moving local HEAD after
+the qualified product candidate was frozen. That side effect was missed at
+invocation and reported to the delivery owner when discovered. The commit adds
+only the operation journal; product bytes and the qualified remote commit remain
+unchanged. Preserve this traceability commit. Close operations before freezing
+future publication candidates. The journal's automatically supplied `model_id`
+is configuration metadata, not verified attribution for this agent's execution;
+actual model usage and cost were not measured, and no processing setting changed.
+
+Current review-thread reads found zero threads; human review and protected-main
+merge remain pending. The independent benchmark container and scoped test roots
+are closed with external receipts. Small Git merge reproductions remain retained
+for review, and the isolated governing runtime remains a live dependency of this
+workspace's seven configured callbacks. No runtime, shared cache or other owner's
+workspace is eligible for deletion on the strength of these test results.
