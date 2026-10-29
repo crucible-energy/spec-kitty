@@ -66,7 +66,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
 # ---------------------------------------------------------------------------
 
 
-# The exact 10 subcommands `app` exposes, in alphabetical (Typer help) order.
+# The exact deliberately supported subcommands; additions require an explicit contract join.
 # `repair` was added by WP08 of coord-write-placement-closure-01KYCF83 (the
 # Gap-2 cross-partition content repair cure, FR-005/NFR-005) after the
 # original #2056 characterization. `acceptance-verdict` was added by WP04 of
@@ -76,6 +76,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
 # append-only drift, per DIRECTIVE_044.
 _EXPECTED_COMMANDS: frozenset[str] = frozenset(
     {
+        "inspect",  # Immutable planning inspection, lifecycle WP09; no write/advance options.
         "branch-context",
         "create",
         "check-prerequisites",
@@ -95,6 +96,7 @@ _EXPECTED_COMMANDS: frozenset[str] = frozenset(
 # boolean-pair flags are listed explicitly. A positional argument is recorded
 # separately in ``_EXPECTED_POSITIONALS``.
 _EXPECTED_FLAGS: dict[str, frozenset[str]] = {
+    "inspect": frozenset({"--mission", "--at", "--json"}),
     "branch-context": frozenset({"--json", "--target-branch"}),
     "create": frozenset(
         {
@@ -239,12 +241,12 @@ def runner() -> CliRunner:
 
 
 # ---------------------------------------------------------------------------
-# T001 — the command set is exactly the 10 frozen commands
+# T001 — the command set is exactly the explicitly frozen contract
 # ---------------------------------------------------------------------------
 
 
-def test_app_exposes_exactly_ten_frozen_commands(runner: CliRunner) -> None:
-    """``app --help`` lists exactly the 10 contracted commands — no more, no fewer."""
+def test_app_exposes_exact_frozen_commands(runner: CliRunner) -> None:
+    """``app --help`` lists exactly the contracted commands — no more, no fewer."""
     result = runner.invoke(mission_app, ["--help"], catch_exceptions=False)
     assert result.exit_code == 0, result.stdout
 

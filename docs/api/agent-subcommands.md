@@ -2,7 +2,7 @@
 title: Agent Subcommand Reference
 description: Reference for spec-kitty agent subcommands. Learn how agent-only actions like config, status, decision, and retrospect behave in workflows.
 doc_status: active
-updated: '2026-10-10'
+updated: '2026-10-28'
 ---
 # Agent Subcommand Reference
 
@@ -96,6 +96,19 @@ flat calls retain their existing routing. Recording a verdict does not establish
 acceptance or release readiness by itself.
 
 <!-- BEGIN GENERATED -->
+## Inspect immutable planning facts
+
+Use `spec-kitty agent mission inspect --mission HANDLE --at REF --json` when the
+saved mission is not in the active checkout. The revision resolves once to a
+commit; the query returns historical identity, metadata/artifact hashes and
+saved status. It preserves HEAD, refs, index, dirty/untracked work and config.
+Missing, ambiguous, unsafe or excessive inputs refuse without repair.
+
+`current_readiness_qualified` is false: this query does not simulate `next`,
+qualify a historical analysis report, grant workspace custody or advance state.
+Current write/owned-branch guards remain mandatory.
+
+
 # Agent Subcommand Reference
 
 ## spec-kitty agent
@@ -749,6 +762,8 @@ _Mission lifecycle commands for AI agents_
 ╭─ Commands ───────────────────────────────────────────────────────────────────╮
 │ record-analysis      Persist `/spec-kitty.analyze` output as                 │
 │                      `analysis-report.md`.                                   │
+│ inspect              Inspect saved planning identity/facts without changing  │
+│                      the active checkout.                                    │
 │ acceptance-verdict   Record an acceptance-criterion verdict, or              │
 │                      register/execute a negative                             │
 │                      invariant (FR-007/FR-008) — exactly one of              │
@@ -1235,6 +1250,24 @@ _Mission lifecycle commands for AI agents_
 │                                          object -- investigate that          │
 │                                          divergence manually.                │
 │ --help                     -h            Show this message and exit.         │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+## spec-kitty agent mission inspect
+
+```
+ Usage: spec-kitty agent mission inspect [OPTIONS]
+
+ Inspect saved planning identity/facts without changing the active checkout.
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --mission          TEXT  Canonical mission handle in the selected commit  │
+│                             [required]                                       │
+│ *  --at               TEXT  Git revision resolved once to an immutable       │
+│                             commit                                           │
+│                             [required]                                       │
+│    --json                   Emit immutable observations as JSON              │
+│    --help     -h            Show this message and exit.                      │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 

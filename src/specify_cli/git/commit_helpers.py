@@ -901,6 +901,19 @@ def _staged_tree_is_empty_for_paths(repo_path: Path, normalized_files: list[str]
     return result.returncode == 0
 
 
+def _raise_if_staged_tree_unchanged(
+    worktree_root: Path,
+    normalized_files: list[str],
+    requested_staged_patch: str,
+    *,
+    destination_ref: str,
+) -> None:
+    """Restore requested staging and report a genuine no-op before hooks run."""
+    if _staged_tree_is_empty_for_paths(worktree_root, normalized_files):
+        _restore_staged_patch(worktree_root, normalized_files, requested_staged_patch, destination_ref=destination_ref)
+        raise SafeCommitStagedTreeUnchanged(destination_ref=destination_ref)
+
+
 def _run_commit_capture_sha(
     repo_path: Path,
     commit_message: str,
@@ -1773,6 +1786,11 @@ def safe_commit(
         _restore_staged_patch(worktree_root, normalized_files, requested_staged_patch, destination_ref=destination_ref)
         bad_path, git_reason = stage_failure
         raise RuntimeError(f"safe_commit: failed to stage requested files in {worktree_root}: {bad_path!r}: {git_reason}")
+
+    # An authoritative scoped comparison must precede commit hooks: an unchanged
+    # artifact is not a commit attempt. Restore even partially staged requested
+    # content before returning the existing typed no-op result.
+    _raise_if_staged_tree_unchanged(worktree_root, normalized_files, requested_staged_patch, destination_ref=destination_ref)
 
     # 8-9. Commit ONLY the requested paths via `git commit --only`
     # (FR-011/FR-012/#4888): this is the structural fix. `--only` commits

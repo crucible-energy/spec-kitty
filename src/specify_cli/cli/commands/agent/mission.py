@@ -5,7 +5,7 @@
 extracted every cohesive seam into a dedicated one-way leaf module. What remains
 here is a thin shim that owns ONLY:
 
-* the ``mission`` Typer ``app`` and its 9 ``@app.command`` registrations
+* the ``mission`` Typer ``app`` and its ``@app.command`` registrations
   (each delegating to a seam command function), and
 * a re-export block that keeps every historical ``mission.<name>`` patch
   target + ``from ...mission import <name>`` edge resolving (no business logic).
@@ -42,6 +42,7 @@ from typing import cast
 # Re-exported so the WP06 merge seam's ``mission.resolve_mission_handle`` access
 # and historical patch targets keep resolving.
 from specify_cli.cli.selector_resolution import resolve_mission_handle as resolve_mission_handle
+
 # Re-exported so the WP06 accept/merge seams can resolve the top-level delegators
 # via the ``mission`` module — preserving both the lazy-import boundary (the seams
 # never import the accept/merge graph at module scope) and the historical
@@ -56,6 +57,7 @@ from specify_cli.core.git_preflight import (
 )
 from specify_cli.core.paths import locate_project_root as locate_project_root
 from specify_cli.core.paths import get_main_repo_root as get_main_repo_root
+
 # Re-exported so the WP06 merge seam's ``mission.get_feature_target_branch``
 # access keeps resolving.
 from specify_cli.core.paths import get_feature_target_branch as get_feature_target_branch
@@ -94,6 +96,7 @@ from specify_cli.core.wps_manifest import (
 from specify_cli.missions._resolve_planning_branch import (
     PlanningBranchResolutionFailed as PlanningBranchResolutionFailed,
 )
+
 # Re-exported so the setup-plan seam's historical patch boundary and configured
 # content-template selection remain available after setup-plan extraction.
 from specify_cli.runtime.resolver import (
@@ -165,6 +168,7 @@ from specify_cli.cli.commands.agent.mission_parsing import (
 from specify_cli.cli.commands.agent.mission_record_analysis import (
     record_analysis,
 )
+from specify_cli.cli.commands.agent.mission_inspect import inspect_mission
 from specify_cli.cli.commands.agent.mission_record_analysis import (
     _enforce_analysis_report_write_preflight as _enforce_analysis_report_write_preflight,
     _resolve_record_analysis_placement_ref as _resolve_record_analysis_placement_ref,
@@ -326,6 +330,7 @@ app = typer.Typer(name="mission", help="Mission lifecycle commands for AI agents
 # is unchanged (each seam defines the callable; mission.py owns the app — one-way:
 # the seams never import ``app``).
 app.command(name="record-analysis")(record_analysis)
+app.command(name="inspect")(inspect_mission)
 app.command(name="acceptance-verdict")(acceptance_verdict)
 app.command(name="branch-context")(branch_context)
 app.command(name="create")(create_mission)
