@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-29T01:42:48.852460+00:00'
+generated_at: '2026-10-29T02:35:31.911205+00:00'
 analyzer_agent: codex
 input_artifacts:
   spec.md:
@@ -1620,7 +1620,7 @@ input_artifacts:
     sha256: 51982b1661e69cc6e56342c8b6ba3291cc6743e2a9244db4ffaaf457a270ec16
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
-    sha256: 8b8b763e2c6bcabeab182f66808a4060a81fcf91cdf942f37bfe543929ea1c7c
+    sha256: 77e96b9c3a35885de4dcf333f988674bb04711c68500d94ec448ebe9df0b0d3d
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
     sha256: a8ce616e70aa2b618ddfcd3c4760704409492ea70022f7b5c6dabaf82524f604
@@ -1911,30 +1911,28 @@ input_artifacts:
     sha256: 3c3a78cf69c6f1bad1c2d4b3758b8ffe9917c4d3319677b60b2faf6f78b33bbd
   template-selection:spec:
     path:
-    sha256: 151555b3369c2192d91c375f4cd7e3ecee5fb6e72b7bcf768069c02a79646ec8
+    sha256: afa546ae55f8064320252eac8b9644ffb722286d7d5b895e2c39f1d66fe0aec3
   template-selection:plan:
     path:
-    sha256: abd53b53eae68e9390505d118911d120e8b4cace8b905a37384b4150ec68c62d
+    sha256: 01aa8f12a2d60f3572624727f072bd29d1ade6584c8c3b366b07cd2819427c26
 verdict: ready
 issue_counts:
-  high: 0
-  medium: 0
   low: 0
+  medium: 0
+  high: 0
   critical: 0
   info: 0
 findings: []
-report_transaction: c526c242c7b24c02a6d55316357bd989
+report_transaction: 026e3187e2044a25a9017c4dcb5f4f5f
 material_manifest_version: 1
 ---
 
-# WP09 immutable planning inspection scope consistency
+# Existing immutable inspection CLI contract join
 
-Root assigned this current PDB useful-work blocker and accepted the narrow
-immutable inspect design. Existing canonical Git readers and handle resolver
-remain sole authorities; Python adapters add no replacement domain policy or
-advancing guard override. New actual acceptance/refusal assertions are native.
-The immutable real PDB planning commit and exact meta identity are independently
-observed; no source/branch/index/claim/runtime state changed. Canonical scope
-admission and actual command-absence RED precede code implementation. This is
-planning consistency only, not code review, installation or cleanup adoption.
-All approved WPs, status and history remain unchanged.
+The actual unchanged golden equality assertion reproduced the intended new
+command being absent from its expected data. Add the exact public command and
+flags to that existing characterization, preserve every original contract entry
+and symmetric assertions, and join generated user docs through canonical helpers.
+This admits maintenance of an existing Python golden contract; new behavioral
+acceptance remains native. No test suppression, weaker assertion, historical
+mission edit or readiness/rollout claim. Scope only, no implementation approval.
