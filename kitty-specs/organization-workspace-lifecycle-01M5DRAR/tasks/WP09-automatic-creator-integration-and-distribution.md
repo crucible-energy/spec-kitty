@@ -26,6 +26,9 @@ create_intent:
 - tools/zig/workspace_ingress.zig
 - tools/zig/workspace_host.zig
 - docs/plans/engineering-notes/2026-10-28-lifecycle-foreground-ownership.md
+- src/specify_cli/cli/commands/agent/mission_inspect.py
+- tools/zig/mission_inspect.zig
+- docs/plans/engineering-notes/2026-10-29-pinned-planning-inspection.md
 execution_mode: code_change
 owned_files:
 - src/specify_cli/workspace_lifecycle/worker.py
@@ -46,12 +49,35 @@ owned_files:
 - docs/plans/engineering-notes/2026-10-28-lifecycle-foreground-ownership.md
 - tools/zig/validation_process_darwin.zig
 - src/kernel/owned_process.py
+- src/specify_cli/cli/commands/agent/mission.py
+- src/specify_cli/context/mission_resolver.py
+- src/specify_cli/cli/commands/agent/mission_inspect.py
+- tools/zig/mission_inspect.zig
+- docs/plans/engineering-notes/2026-10-29-pinned-planning-inspection.md
 tags: []
 task_type: implement
 tracker_refs: []
 ---
 
 # WP09 — Automatic creator integration and distribution
+
+## Immutable planning inspection blocker correction
+
+Root assigned and accepted a narrow read-only pinned planning query in this same
+Source lane after the timing corrections qualified. Add `agent mission inspect
+--mission HANDLE --at REF --json`: immutable planning identity/facts only, never
+simulated next, current ready/analysis authority or runtime advancement. Reuse
+existing canonical bounded Git object readers and the single mission handle
+resolution algorithm; no new Python policy fork, fake checkout or branch change.
+Python command/index adapters remain narrow existing-authority glue. New actual
+acceptance/refusal assertions live in tools/zig/mission_inspect.zig. Preserve the
+advancing owned-branch guard, claim/event history, dirty/untracked state, settings
+and existing approved WPs. Pin REF once before enumeration; bound object/byte
+reads and fail closed on missing/ambiguous/unsafe inputs. Installed qualification
+must prove the supported query without borrowing local report receipts or
+claiming cleanup/rollout adoption. This is an existing useful-work blocker, not
+a competing mission or creator harness. Native Parent content auth/dispatch does
+not constitute Git creator or foreground OS process ownership.
 
 ## Original absolute horizon review correction
 
