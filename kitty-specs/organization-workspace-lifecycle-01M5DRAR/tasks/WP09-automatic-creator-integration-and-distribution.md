@@ -33,6 +33,8 @@ create_intent:
 - docs/plans/engineering-notes/2026-10-29-pinned-planning-inspection.md
 - tools/zig/commit_noop.zig
 - docs/plans/engineering-notes/2026-10-29-canonical-noop-commit.md
+- tools/zig/mission_number_commit.zig
+- docs/plans/engineering-notes/2026-10-29-numbering-commit-diagnostics.md
 execution_mode: code_change
 owned_files:
 - src/specify_cli/workspace_lifecycle/worker.py
@@ -74,12 +76,29 @@ owned_files:
 - src/specify_cli/cli/commands/profile_invocation.py
 - tests/architectural/_universe_store.py
 - tests/architectural/test_universe_store.py
+- src/specify_cli/consolidation/mission_number/bake.py
+- tools/zig/mission_number_commit.zig
+- docs/plans/engineering-notes/2026-10-29-numbering-commit-diagnostics.md
 tags: []
 task_type: implement
 tracker_refs: []
 ---
 
 # WP09 — Automatic creator integration and distribution
+
+## Numbering commit diagnostics for useful-work integration
+
+The existing Subsequent owner reported a normal consolidation refusal at the
+mandatory detached numbered-meta commit. A single leased exact-blob fixture
+reproduced the current-context hook failure; explicit existing read-only Biome
+2.5.0 passed the same hook and meta-only commit. Original birth environment is
+unknown, so no retrospective parity is claimed. Preserve this original refusal
+and normal rollback, captured output, mandatory hooks and exact commit scope.
+Add bounded native failing-first proof that public exception rendering exposes
+all captured stderr without changing the CalledProcessError status/cause or
+ref/cleanup outcomes; use only a narrow existing commit-site diagnostic change.
+No new policy engine/function, hook bypass, Source/project runtime hotpatch,
+Subsequent write or ordinary repository adoption is granted.
 
 ## Hosted session and diagnostic-contract repair
 
