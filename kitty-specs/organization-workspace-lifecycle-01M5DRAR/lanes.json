@@ -64,6 +64,7 @@
         "src/specify_cli/consolidation/**",
         "src/specify_cli/consolidation/mission_number/bake.py",
         "src/specify_cli/consolidation/phase_advance.py",
+        "src/specify_cli/consolidation/phase_gate.py",
         "src/specify_cli/consolidation/preflight.py",
         "src/specify_cli/consolidation/reconciliation.py",
         "src/specify_cli/consolidation/wp_attribution.py",
@@ -147,10 +148,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-29T17:41:23.656765+00:00",
+  "computed_at": "2026-10-29T18:37:29.320089+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "5638933817feac792dbf6064d138933ccba438de"
+  "planning_commit_sha": "7484d356d94e1a53e2b86d0c690cfbe8462e24c9"
 }
