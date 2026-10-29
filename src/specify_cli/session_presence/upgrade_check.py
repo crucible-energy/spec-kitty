@@ -2,7 +2,7 @@
 
 Background refresh only — never blocks the foreground. Never raises on any failure.
 
-Cache location: ``~/.kittify/last-cli-check.json``
+Cache location: the canonical runtime home (including ``SPEC_KITTY_HOME``).
 TTL: 3600 seconds (1 hour)
 
 The refresh path resolves the upgrade provider and CLI package name via
@@ -17,7 +17,7 @@ import os
 import subprocess
 import sys
 from kernel.clock import now_utc, now_utc_iso, parse_iso, timedelta
-from kernel.paths import is_windows
+from kernel.paths import get_kittify_home, is_windows
 from pathlib import Path
 
 from specify_cli.core.env import is_truthy
@@ -34,7 +34,7 @@ __all__ = [
 # trace — kept importable but not exported so the gate does not flag it as
 # unused.
 
-CACHE_PATH: Path = Path.home() / ".kittify" / "last-cli-check.json"
+CACHE_PATH: Path = get_kittify_home() / "last-cli-check.json"
 TTL_SECONDS: int = 3600
 OPT_OUT_ENV_VAR: str = "SPEC_KITTY_NO_UPGRADE_CHECK"
 
@@ -87,7 +87,7 @@ def refresh_cache_once() -> None:
 
 
 class UpgradeChecker:
-    """Manage the version cache at ``~/.kittify/last-cli-check.json``.
+    """Manage the version cache in the canonical runtime home.
 
     All public methods are safe to call unconditionally — any I/O or subprocess
     error is swallowed so callers never need to guard against exceptions.
