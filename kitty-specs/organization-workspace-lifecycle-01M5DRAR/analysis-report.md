@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-29T18:37:34.566369+00:00'
+generated_at: '2026-10-29T20:19:45.479510+00:00'
 analyzer_agent: codex
 input_artifacts:
   spec.md:
@@ -1620,7 +1620,7 @@ input_artifacts:
     sha256: 51982b1661e69cc6e56342c8b6ba3291cc6743e2a9244db4ffaaf457a270ec16
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
-    sha256: 1e83bbf17034085eaeb63a4a1df6dd97fddeef75ae60f51af5892f8da334a9f3
+    sha256: a7565effd806832ad7d348ef6671a983e4fd151b6ad69365493a51363c94fe52
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
     sha256: a8ce616e70aa2b618ddfcd3c4760704409492ea70022f7b5c6dabaf82524f604
@@ -1911,22 +1911,37 @@ input_artifacts:
     sha256: 3c3a78cf69c6f1bad1c2d4b3758b8ffe9917c4d3319677b60b2faf6f78b33bbd
   template-selection:spec:
     path:
-    sha256: ef7c499384ae6884e23642980040755c726959560e74401cf859f2bcbd2445ea
+    sha256: c389b364c94035adf2fae241010bd87d0bc8ae59be88e73ba53dfd532a50f829
   template-selection:plan:
     path:
-    sha256: 48f9d0bef32ffa2fac7af74daa668ee34178e4f700e6c737f48f52fded618876
+    sha256: b794947309bfe77b6d612da7040817cb6c6b7aa6ef47fe98c3d86b62c12a5481
 verdict: ready
 issue_counts:
-  high: 0
-  low: 0
-  critical: 0
   medium: 0
+  low: 0
+  high: 0
+  critical: 0
   info: 0
 findings: []
-report_transaction: 08c40926289f4369b0688029cadce25a
+report_transaction: 3f6814266f5f46179b139c88c83eaf8e
 material_manifest_version: 1
 ---
 
-# Operative provenance diagnostic scope
+# Durable owned-runtime qualification — existing WP09 next slice
 
-Independent Root design receiving requires preserving existing first-known conservative attribution fences. Missing original creation metadata is not admission authority and is not alone a new blanket refusal. Extend existing phase_gate only to append exact first-event/later-fence and owner recovery guidance when strict verification already reports un-attributable content. Preserve original verdict, divergence, missing-content/canceled precedence, result persistence and rollback/teardown behavior. No new helper, schema, Python engine or historical event write. Canonical status/history remain exact; no original Subsequent retry. Native fixture must exercise actual gate refusal plus safe post-fence passing control and rewritten/current-dependency-merged negatives. Required full/installed/independent gates remain. All121ordinary rows pending genuine whole-agent host contract; no deletion or host action.
+## Objective and accountable owners
+Source remains the sole implementation/artifact owner in the existing checkout and WP09. Root retains the historical missing-artifact obligation until real candidate proof and independently receives the new exact artifact; Phoenix alone owns actual Run58/runtime adoption. No completed G8 mission restart, new engineering lane, model/provider/host action or actual consumer advancement is admitted.
+
+## Evidence and reuse
+Latest non-yanked public release including prereleases freshly resolves to4.0.0rc7. The required repository release/lifecycle properties and isolated planning-only executable identity are recorded alongside this analysis. Official archive is91e98774b7a69a273f9146656482e1e2bddd274a2178dfc6ac9c1f3bcede0c80. The canonical committed six-file tools/qualification/owned-analysis-rc7.patch already fixes the actual owned-next currency root; retained planning next_cmd exactly matches historical correctedc47b1f27. Do not duplicate that repair or replace installed/shared package files. The existing operation-specific finalization projection6bec1160 is another explicit source port input. Neither planning-only evidence nor7query/identity controls proves the requested advancement.
+
+The accepted consumer-asset/read-authority closure is sourcec9f90a3a7f67176608f2284316a7a290c6688d86. All8runtime paths remain live in publishedRC7. Project only necessary existing canonical changes without module wholesale copy, fuzz, retired resurrection or new Python engine. Merely setting SPEC_KITTY_HOME/SCOPE does not implement missing agent-asset isolation. Keep implementation/finalization/merge authority restrictions explicit; preservation and actual hash-drift refusals remain mandatory.
+
+## Scope and artifact
+Reuse canonical tools/qualification inputs, source provenance and existing supported build backends. Add canonical exact operation-specific finalization/consumer-assets compatibility patches, one native actual-runtime qualification harness and an independently owned engineering note with required metadata. Record complete official-base/port provenance, new private wheel/RECORD/inventory, exact executable/version, frozen dependency identities and actual source/API contract in a durable owner-retained descriptor. New artifacts live in this workspace until explicit owner/consumer release, not ephemeral borrowed /tmp. Do not claim oldf265/94f5/52dependency equivalence. No whole older8ee or Source SDK install into stockRC7.
+
+## Native acceptance
+Reuse the hash-verified Phoenix unrun scenario semantics, not vanished pins or historical API assumptions: normal SDK-created disposable owned mission; actual record-analysis then owned-next advancement; genuine material drift refusal; actual current workflow freshness positive/negative; public owned action-implement typed unsupported refusal with state invariance, not dispatch success; protected fixture and actual primary invariance. Use actual installed backend/API and native assertions, with red-first proof of concrete uncovered custody/advance defects before repair. Source synthetic home tests do not alone attest actual shared-home consumer admission. Keep all current producers untouched, pin/bound/join new independently owned validation, retain uncertain effects with recovery obligations, and independently receive the exact frozen artifact before Phoenix's separate current consumer qualification.
+
+## Limits and nonclaims
+No new Python helper/policy engine or authority schema; existing canonical functions may be projected as compatibility fixes through explicit data patches. New test/harness implementation is native Zig. Source required gates and independent receiving remain necessary. All121last-verified ordinary adoption rows stay pending the genuine whole-agent host launch/join/handback contract; no lifecycle-wide cleanup, actual original mission approval, source/default release or space savings follows from artifact qualification.
