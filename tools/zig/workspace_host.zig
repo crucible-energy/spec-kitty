@@ -102,10 +102,16 @@ fn run(init: std.process.Init) !void {
     const request = (try parse(Run, allocator, args[2])).value;
     const admission = request.admission;
     try validate(admission.policy);
-    const remaining = try std.math.sub(i64, admission.deadline_ns, try now());
+    // Sample the destination clock first: conversion can only shorten the
+    // original horizons, including time spent preparing logs before spawn.
+    const boot_started = std.Io.Clock.boot.now(init.io).nanoseconds;
+    const admitted_now = try now();
+    const remaining = try std.math.sub(i64, admission.deadline_ns, admitted_now);
     const expected_settlement = try std.math.add(i64, admission.deadline_ns, @as(i64, admission.policy.settlement_ms) * std.time.ns_per_ms);
     if (remaining <= 0 or remaining > @as(i64, admission.policy.execution_ms) * std.time.ns_per_ms or
         admission.settlement_deadline_ns != expected_settlement) return error.AdmissionExpiredOrChanged;
+    const execution_deadline = boot_started + remaining;
+    const settlement_deadline = boot_started + @as(i96, admission.settlement_deadline_ns) - admitted_now;
     if (request.generation.len != 32) return error.InvalidGeneration;
     for (request.generation) |char| if (!std.ascii.isDigit(char) and (char < 'a' or char > 'f')) return error.InvalidGeneration;
     try process.validateSpawnInputs(request.argv, null);
@@ -121,8 +127,10 @@ fn run(init: std.process.Init) !void {
     defer receipt.close(init.io);
     const result = try process.runLogged(allocator, init.io, .{
         .argv = request.argv,
+        .absolute_deadline_ns = execution_deadline,
+        .absolute_cleanup_deadline_ns = settlement_deadline,
         .limits = .{
-            .wall_ms = @intCast(@divFloor(remaining, std.time.ns_per_ms)),
+            .wall_ms = admission.policy.execution_ms,
             .cleanup_ms = admission.policy.settlement_ms,
             .stdout_bytes = admission.policy.stdout_bytes,
             .stderr_bytes = admission.policy.stderr_bytes,
@@ -210,7 +218,7 @@ const lifetime_fixture =
     \\  else:
     \\   native=pathlib.Path(os.environ['SPEC_KITTY_HOST_TEST_BACKEND'])
     \\   digest=hashlib.sha256(native.read_bytes()).hexdigest() if native.is_file() else '0'*64
-    \\   job=OriginalWorkspaceRun.admit_foreground_job(native_executor=native,native_sha256=digest,execution_timeout=0.7 if mode in ('timeout','lock','setup','bookkeeping-success','bookkeeping-failure') else 3.0,settlement_timeout=0.1 if mode in ('lock','bookkeeping-success','bookkeeping-failure') else 1.0,accountable_owner='native-owned-fixture',purpose='prove finite foreground lifetime',next_action='independent native review',review_event='after bounded lifetime acceptance')
+    \\   job=OriginalWorkspaceRun.admit_foreground_job(native_executor=native,native_sha256=digest,execution_timeout=1.5 if mode in ('bookkeeping-success','bookkeeping-failure') else 0.7 if mode in ('timeout','lock','setup') else 3.0,settlement_timeout=0.1 if mode in ('lock','bookkeeping-success','bookkeeping-failure') else 1.0,accountable_owner='native-owned-fixture',purpose='prove finite foreground lifetime',next_action='independent native review',review_event='after bounded lifetime acceptance')
     \\   run=OriginalWorkspaceRun.create_for_job(job,store,**args)
     \\   # Only the producer fixture allowance shrinks; creation keeps its normal cap.
     \\   assert run._creator is not None
@@ -240,7 +248,7 @@ const lifetime_fixture =
     \\    child="import pathlib;pathlib.Path('valuable.md').write_text('retain failed work\\n');pathlib.Path('bookkeeping-ready').touch();"+('raise SystemExit(3)' if mode=='bookkeeping-failure' else '')
     \\    if mode=='bookkeeping-success':
     \\     shimdir=root/'shim';shimdir.mkdir();shim=shimdir/'git'
-    \\     shim.write_text('#!'+sys.executable+'\nimport pathlib,time,os,sys\nif pathlib.Path('+repr(str(path/'bookkeeping-ready'))+').exists():\n pathlib.Path('+repr(str(root/'bookkeeping-delay-observed'))+').touch();time.sleep(0.9)\nos.execv("/usr/bin/git",["git",*sys.argv[1:]])\n');shim.chmod(0o700)
+    \\     shim.write_text('#!'+sys.executable+'\nimport pathlib,time,os,sys\nif pathlib.Path('+repr(str(path/'bookkeeping-ready'))+').exists():\n pathlib.Path('+repr(str(root/'bookkeeping-delay-observed'))+').touch();time.sleep(1.8)\nos.execv("/usr/bin/git",["git",*sys.argv[1:]])\n');shim.chmod(0o700)
     \\     os.environ['PATH']=str(shimdir)+':'+original_path
     \\    else:
     \\     import specify_cli.workspace_lifecycle.adapters as adapters
@@ -248,7 +256,7 @@ const lifetime_fixture =
     \\     real_write=adapters.atomic_write;real_stop=run._creator._stop_producer
     \\     def slow_write(target,raw,**kwargs):
     \\      if b'"status":"producer_unknown"' in raw:
-    \\       (root/'bookkeeping-delay-observed').touch();bounded_run([sys.executable,'-B','-c','import time;time.sleep(0.9)'],timeout=5)
+    \\       (root/'bookkeeping-delay-observed').touch();bounded_run([sys.executable,'-B','-c','import time;time.sleep(1.8)'],timeout=5)
     \\      return real_write(target,raw,**kwargs)
     \\     def observed_stop(process,**kwargs):
     \\      facts['stop_elapsed']=time.monotonic()-started;return real_stop(process,**kwargs)
@@ -414,7 +422,10 @@ fn expectBookkeepingHorizon(mode: []const u8) !void {
         try std.testing.expect(facts.get(key) != null and facts.get(key).?.bool);
     }
     try std.testing.expect(facts.get("elapsed").?.float < facts.get("settlement_remaining").?.float + 0.15);
-    if (std.mem.eql(u8, mode, "bookkeeping-failure")) try std.testing.expect(facts.get("stop_elapsed").?.float < facts.get("settlement_remaining").?.float + 0.15);
+    if (std.mem.eql(u8, mode, "bookkeeping-failure")) {
+        try std.testing.expect(facts.get("stop_elapsed").?.float < facts.get("settlement_remaining").?.float + 0.15);
+        try std.testing.expectEqualStrings("Owned producer did not complete successfully", facts.get("error").?.string);
+    }
 }
 
 test "post-wait Git bookkeeping cannot borrow a fresh operation horizon" {
@@ -458,4 +469,53 @@ test "native admission refuses missing accountability and unsupported finite bud
     changed = original;
     changed.stdout_bytes = 16 * 1024 * 1024 + 1;
     try std.testing.expectError(error.InvalidJobBudget, validate(changed));
+}
+
+const kernel_horizon_fixture =
+    \\import json,math,pathlib,subprocess,sys,time
+    \\sys.path.insert(0,str(pathlib.Path.cwd()/'src'))
+    \\from kernel.owned_process import bounded_run,process_budget,process_deadline
+    \\facts={};invalid=0
+    \\for value in (math.inf,-math.inf,math.nan):
+    \\ try:
+    \\  with process_budget(1,cleanup_deadline=value):pass
+    \\ except ValueError:invalid+=1
+    \\facts['nonfinite_refused']=invalid==3
+    \\with process_budget(0.3,cleanup_deadline=time.monotonic()+0.2):
+    \\ outer=process_deadline()
+    \\ with process_budget(5,cleanup_deadline=time.monotonic()+10):facts['nested_tightens']=process_deadline()<=outer
+    \\facts['restored']=process_deadline() is None
+    \\with process_budget(1,cleanup_deadline=0):
+    \\ try:bounded_run([sys.executable,'-B','-c',"raise SystemExit('must not start')"],timeout=5)
+    \\ except subprocess.TimeoutExpired:facts['expired_refused']=True
+    \\started=time.monotonic();horizon=started+0.3
+    \\with process_budget(5,cleanup_deadline=horizon):
+    \\ try:bounded_run([sys.executable,'-B','-c','import time;time.sleep(5)'],timeout=5)
+    \\ except subprocess.TimeoutExpired:facts['timeout_preserved']=True
+    \\facts['elapsed']=time.monotonic()-started
+    \\with process_budget(1):facts['legacy_success']=bounded_run([sys.executable,'-B','-c','print(17)'],text=True,timeout=1).stdout.strip()=='17'
+    \\print(json.dumps(facts))
+;
+
+test "existing kernel optional original cleanup horizon tightens and retains legacy absence" {
+    const raw = c.getenv("SPEC_KITTY_HOST_TEST_PYTHON") orelse return error.ExplicitFixtureInterpreterRequired;
+    const result = try std.process.run(std.testing.allocator, std.testing.io, .{
+        .argv = &.{ std.mem.span(raw), "-B", "-c", kernel_horizon_fixture },
+        .stdout_limit = .limited(8192),
+        .stderr_limit = .limited(8192),
+        .timeout = .{ .duration = .{ .clock = .awake, .raw = .fromSeconds(10) } },
+    });
+    defer std.testing.allocator.free(result.stdout);
+    defer std.testing.allocator.free(result.stderr);
+    if (result.term != .exited or result.term.exited != 0) {
+        std.debug.print("kernel horizon fixture: {s}\n", .{result.stderr});
+        return error.FixtureFailed;
+    }
+    var parsed = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, result.stdout, .{});
+    defer parsed.deinit();
+    const facts = parsed.value.object;
+    inline for (.{ "nonfinite_refused", "nested_tightens", "restored", "expired_refused", "timeout_preserved", "legacy_success" }) |field| {
+        try std.testing.expect(facts.get(field).?.bool);
+    }
+    try std.testing.expect(facts.get("elapsed").?.float <= 0.4);
 }

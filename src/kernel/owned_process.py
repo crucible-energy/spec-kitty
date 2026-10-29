@@ -11,6 +11,7 @@ import os
 import time
 import signal
 import subprocess
+import sys
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager, suppress
 from contextvars import ContextVar
@@ -19,6 +20,7 @@ from typing import Literal, TypeVar, overload
 
 __all__ = ["bounded_run", "budget_active", "process_budget", "process_deadline", "signal_owned_process_tree"]
 _deadline: ContextVar[float | None] = ContextVar("owned_process_deadline", default=None)
+_cleanup_deadline: ContextVar[float | None] = ContextVar("owned_process_cleanup_deadline", default=None)
 _Output = TypeVar("_Output", str, bytes)
 
 
@@ -57,16 +59,25 @@ def signal_owned_process_tree(
 
 
 @contextmanager
-def process_budget(seconds: float) -> Iterator[None]:
+def process_budget(seconds: float, *, cleanup_deadline: float | None = None) -> Iterator[None]:
     """Bound actual subprocess calls in this context; nested budgets only tighten."""
     if not math.isfinite(seconds) or seconds <= 0:
         raise ValueError("Finite positive process budget required")
+    if cleanup_deadline is not None and not math.isfinite(cleanup_deadline):
+        raise ValueError("Finite absolute cleanup deadline required")
     deadline = time.monotonic() + seconds
     outer = _deadline.get()
+    inherited_cleanup = _cleanup_deadline.get()
+    if inherited_cleanup is not None:
+        cleanup_deadline = min(inherited_cleanup, cleanup_deadline) if cleanup_deadline is not None else inherited_cleanup
+    if cleanup_deadline is not None:
+        deadline = min(deadline, cleanup_deadline)
     token = _deadline.set(min(deadline, outer) if outer is not None else deadline)
+    cleanup_token = _cleanup_deadline.set(cleanup_deadline)
     try:
         yield
     finally:
+        _cleanup_deadline.reset(cleanup_token)
         _deadline.reset(token)
 
 
@@ -77,6 +88,21 @@ def process_deadline() -> float | None:
 
 def budget_active() -> bool:
     return process_deadline() is not None
+
+
+def _capture_deadline(limit: float, deadline: float | None, cleanup_deadline: float | None) -> float:
+    execution = time.monotonic() + limit
+    if deadline is not None:
+        execution = min(execution, deadline)
+    if cleanup_deadline is not None:
+        # Reserve join time inside the original horizon, never a fresh wait.
+        remaining = max(0.0, cleanup_deadline - time.monotonic())
+        execution = min(execution, cleanup_deadline - min(0.5, remaining / 2))
+    return execution
+
+
+def _cleanup_allowance(deadline: float | None) -> float:
+    return 0.5 if deadline is None else min(0.5, max(0.0, deadline - time.monotonic()))
 
 
 @overload
@@ -144,6 +170,10 @@ def bounded_run(
         raise ValueError("Finite process timeout or active budget required")
     if limit <= 0:
         raise subprocess.TimeoutExpired(argv, max(limit, 0))
+    cleanup_deadline = _cleanup_deadline.get()
+    execution_deadline = _capture_deadline(limit, deadline, cleanup_deadline)
+    if cleanup_deadline is not None and time.monotonic() >= execution_deadline:
+        raise subprocess.TimeoutExpired(argv, 0)
     process = subprocess.Popen(
         argv,
         cwd=cwd,
@@ -158,27 +188,37 @@ def bounded_run(
     )
     try:
         try:
-            stdout, stderr = process.communicate(input=input, timeout=limit)
-        except subprocess.TimeoutExpired:
+            stdout, stderr = process.communicate(input=input, timeout=limit if cleanup_deadline is None else max(0.0, execution_deadline - time.monotonic()))
+        except subprocess.TimeoutExpired as exc:
             # Do not poll/reap before signalling: an unreaped child reserves the
             # identifier even if it has already exited while a descendant holds IO.
             signal_owned_process_tree(process, force=True)
             try:
-                process.communicate(timeout=0.5)
+                process.communicate(timeout=_cleanup_allowance(cleanup_deadline))
             except subprocess.TimeoutExpired:
                 _close_capture(process)
-                process.wait(timeout=0.5)
+                try:
+                    process.wait(timeout=_cleanup_allowance(cleanup_deadline))
+                except subprocess.TimeoutExpired:
+                    if cleanup_deadline is None:
+                        raise
+                    exc.add_note("Owned child join unconfirmed within original cleanup horizon")
             raise
         result = subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)
         if check:
             result.check_returncode()
         return result
     finally:
+        original_failure = sys.exception()
         if process.returncode is None:
             with suppress(ProcessLookupError):
                 signal_owned_process_tree(process, force=True)
             try:
-                process.wait(timeout=0.5)
+                process.wait(timeout=_cleanup_allowance(cleanup_deadline))
+            except subprocess.TimeoutExpired as exc:
+                if original_failure is None or cleanup_deadline is None:
+                    raise
+                original_failure.add_note(f"Owned child join unconfirmed: {exc}")
             finally:
                 _close_capture(process)
         else:

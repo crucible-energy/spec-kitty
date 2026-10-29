@@ -993,8 +993,13 @@ class ManagedGitCreator:
 
     def _run_foreground_job(self, argv: list[str], *, original_run: OriginalWorkspaceRun, job: _AdmittedForegroundJob) -> None:
         original_run.require_running_job(job, self)
+        # Sample the receiving clock before reading native remaining time. This
+        # bridge may shorten the original horizon; it cannot renew it.
+        started = time.monotonic()
         allowance = job.remaining(settlement=True)
-        self._run_owned_producer(argv, timeout=allowance, context=self._foreground_producer(original_run, job), settlement_deadline=time.monotonic() + allowance)
+        deadline = started + allowance
+        with process_budget(allowance, cleanup_deadline=deadline):
+            self._run_owned_producer(argv, timeout=allowance, context=self._foreground_producer(original_run, job), settlement_deadline=deadline)
 
     def _run_owned_producer(self, argv: list[str], *, timeout: float, context: AbstractContextManager[Path], settlement_deadline: float | None = None) -> None:
         if not argv or len(argv) > 256 or any(not isinstance(arg, str) or "\0" in arg for arg in argv):
@@ -1032,12 +1037,30 @@ class ManagedGitCreator:
                 raise StateError("Owned producer timed out") from exc
             finally:
                 if not successful:
-                    try:
-                        with process_budget(self.operation_timeout):
-                            self._write(replace(state, status="producer_unknown", producer_succeeded=False))
-                    finally:
-                        self._stop_producer(process, deadline=settlement_deadline)
-                if process.returncode is None:
+                    if settlement_deadline is None:
+                        try:
+                            with process_budget(self.operation_timeout):
+                                self._write(replace(state, status="producer_unknown", producer_succeeded=False))
+                        finally:
+                            self._stop_producer(process)
+                    else:
+                        # Stop first. Slow persistence cannot delay signalling
+                        # or replace the original producer failure. Exhaustion
+                        # retains the live object's unconfirmed generation.
+                        failure = sys.exception()
+                        try:
+                            self._stop_producer(process, deadline=settlement_deadline)
+                        except Exception as exc:
+                            if failure is not None:
+                                failure.add_note(f"Original producer stop unconfirmed: {exc}")
+                        try:
+                            with process_budget(self.operation_timeout):
+                                self._write(replace(state, status="producer_unknown", producer_succeeded=False))
+                        except Exception as exc:
+                            if failure is not None:
+                                failure.add_note(f"Original producer persistence unconfirmed: {exc}")
+                # Job failure already attempted its bounded stop above.
+                if process.returncode is None and (successful or settlement_deadline is None):
                     self._stop_producer(process, deadline=settlement_deadline)
             with process_budget(self.operation_timeout):
                 self._write(replace(state, identity=self._fresh(state), producer_succeeded=True))

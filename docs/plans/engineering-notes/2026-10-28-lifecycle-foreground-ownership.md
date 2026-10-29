@@ -54,6 +54,30 @@ foreground policy requires that observation as well as real join/disposal; the
 primitive's existing validation cleanup semantics stay unchanged. Raw output
 stays in its bounded files instead of being copied or decoded into JSON.
 
+Independent review reproduced two original-horizon leaks in core122390. Actual
+post-wait Git bookkeeping spent 2.131 seconds with only0.309 seconds remaining;
+failed persistence spent1.057 seconds with0.312 seconds remaining before stop.
+An actual macOS log-creation interposer then delayed setup900ms and observed the
+producer write after its execution deadline. The earlier setup test whose hook
+did not fire is explicitly not accepted as the intended failing reproduction.
+
+The correction carries the original absolute settlement horizon through the
+existing shared kernel budget context, including nested short Git/persistence
+calls. Its optional cleanup deadline distinguishes absent legacy behavior from
+zero/expired refusal, rejects nonfinite values, and only tightens when nested.
+Actual captures reserve join time inside that original horizon; they do not add
+fresh half-second waits. Failure stops before bookkeeping and preserves the
+original error plus uncertainty when persistence or join cannot finish. The
+creating object stays unconfirmed and cannot release useful work.
+
+The native bridge samples its destination clock before the admission clock,
+conservatively converting both original horizons once before log setup. Existing
+pre-spawn/loop absolute deadline checks enforce that conservative horizon. The native
+process primitive accepts an optional absolute cleanup cap, including aggregate
+check-scope disposal. Legacy callers without that field retain their behavior.
+These source corrections still require exact-candidate validation and independent
+review; they are not installed acceptance or repository rollout.
+
 ## Known limitations and remaining validation
 
 This is a cooperative original POSIX-group profile. Availability on macOS or

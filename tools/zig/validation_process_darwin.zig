@@ -92,6 +92,7 @@ pub const Options = struct {
     budget_probe: ?*const fn (?*anyopaque) bool = null,
     budget_context: ?*anyopaque = null,
     absolute_deadline_ns: ?i96 = null,
+    absolute_cleanup_deadline_ns: ?i96 = null,
     stdout_sink: ?std.Io.File = null,
     stderr_sink: ?std.Io.File = null,
     display_bytes: usize = 8192,
@@ -297,10 +298,10 @@ pub const CheckScope = struct {
         return outcome;
     }
 
-    fn dispose(self: *CheckScope, owner: *Ownership, io: std.Io) bool {
+    fn dispose(self: *CheckScope, owner: *Ownership, io: std.Io, absolute_deadline: ?i96) bool {
         const started = now(io);
         const remaining = @max(0, @as(i96, self.limits.cleanup_ms) * std.time.ns_per_ms - self.cleanup_used_ns);
-        const disposed = owner.disposeUntil(io, started + remaining);
+        const disposed = owner.disposeUntil(io, @min(started + remaining, absolute_deadline orelse std.math.maxInt(i96)));
         self.cleanup_used_ns += @max(0, now(io) - started);
         return disposed;
     }
@@ -377,9 +378,9 @@ const SignalBridge = struct {
     }
 };
 
-fn disposeOwned(owner: *Ownership, io: std.Io, cleanup_ms: u32, scope: ?*CheckScope) bool {
-    if (scope) |check| return check.dispose(owner, io);
-    return owner.dispose(io, cleanup_ms);
+fn disposeOwned(owner: *Ownership, io: std.Io, options: Options, scope: ?*CheckScope) bool {
+    if (scope) |check| return check.dispose(owner, io, options.absolute_cleanup_deadline_ns);
+    return owner.disposeUntil(io, @min(now(io) + @as(i96, options.limits.cleanup_ms) * std.time.ns_per_ms, options.absolute_cleanup_deadline_ns orelse std.math.maxInt(i96)));
 }
 
 fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started: i96, scope: ?*CheckScope) !Result {
@@ -403,7 +404,7 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
     var child = try spawnOwned(allocator, io, options, deadline, scope);
     var owner = Ownership{ .pid = child.id.? };
     defer {
-        if (owner.valid and !owner.reaped) _ = disposeOwned(&owner, io, limits.cleanup_ms, scope);
+        if (owner.valid and !owner.reaped) _ = disposeOwned(&owner, io, options, scope);
         if (child.stdout) |file| file.close(io);
         if (child.stderr) |file| file.close(io);
         child.id = null;
@@ -461,7 +462,7 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
             // group is disposed. Pipe EOF is never used as process completion.
             if (terminal) {
                 terminal_group_quiescent = usage.processes == 0;
-                if (!disposeOwned(&owner, io, limits.cleanup_ms, scope)) {
+                if (!disposeOwned(&owner, io, options, scope)) {
                     failure = .cleanup_failed;
                     if (!owner.valid and !owner.reaped) failure = .ownership_lost;
                 }
@@ -523,7 +524,7 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
             break;
         }
     }
-    if (!owner.reaped and owner.valid and !disposeOwned(&owner, io, limits.cleanup_ms, scope)) {
+    if (!owner.reaped and owner.valid and !disposeOwned(&owner, io, options, scope)) {
         failure = .cleanup_failed;
         if (!owner.valid and !owner.reaped) failure = .ownership_lost;
     }
@@ -602,7 +603,7 @@ fn spawnOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, deadli
         return error.SpawnFailed;
     }
     var owner = Ownership{ .pid = pid };
-    errdefer _ = disposeOwned(&owner, io, options.limits.cleanup_ms, scope);
+    errdefer _ = disposeOwned(&owner, io, options, scope);
     if (actions_error != 0 or attributes_error != 0) return error.SpawnMetadataCleanupFailed;
     return .{ .id = pid, .thread_handle = {}, .stdin = null, .stdout = .{ .handle = out[0], .flags = .{ .nonblocking = false } }, .stderr = .{ .handle = err[0], .flags = .{ .nonblocking = false } }, .request_resource_usage_statistics = false };
 }
@@ -677,7 +678,7 @@ fn spawnOwnedLinux(allocator: std.mem.Allocator, io: std.Io, options: Options, d
         return error.SpawnFailed;
     }
     var owner = Ownership{ .pid = pid };
-    errdefer _ = disposeOwned(&owner, io, options.limits.cleanup_ms, scope);
+    errdefer _ = disposeOwned(&owner, io, options, scope);
     if (actions_error != 0 or attributes_error != 0) return error.SpawnMetadataCleanupFailed;
     return .{ .id = pid, .thread_handle = {}, .stdin = null, .stdout = .{ .handle = out[0], .flags = .{ .nonblocking = false } }, .stderr = .{ .handle = err[0], .flags = .{ .nonblocking = false } }, .request_resource_usage_statistics = false };
 }
