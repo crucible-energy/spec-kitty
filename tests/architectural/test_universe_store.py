@@ -206,6 +206,7 @@ def test_key_changes_with_the_value_of_a_switch(repo: Path) -> None:
         "SPEC_KITTY_REAL_HOME_FOR_TESTS",
         "SPEC_KITTY_ENABLE_SAAS_SYNC",
         "SPEC_KITTY_TEST_VENV",
+        "SPEC_KITTY_TEST_ENCLOSURE",
     ],
 )
 def test_key_ignores_per_process_and_session_variables(repo: Path, name: str) -> None:

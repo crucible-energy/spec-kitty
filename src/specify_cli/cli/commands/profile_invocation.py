@@ -110,7 +110,7 @@ def complete_invocation(
         help="Git commit SHA most directly produced by this invocation. Singular.",
     ),
     json_output: bool = typer.Option(False, "--json", help="Output JSON payload"),
-    no_commit: bool = typer.Option(False, "--no-commit", help="Close the Op locally without creating a Git commit."),
+    no_commit: bool = typer.Option(False, "--no-commit", help="Close the Op locally without recording a commit."),
     owned_checkout: Annotated[Path | None, owned_checkout_option(help="Verified checkout holding the operation opened by dispatch.")] = None,
 ) -> None:
     """Close an open invocation record. --invocation-id and --outcome are required.
