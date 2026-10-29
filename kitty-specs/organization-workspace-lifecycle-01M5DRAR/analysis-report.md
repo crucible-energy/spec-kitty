@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-29T01:14:38.897299+00:00'
+generated_at: '2026-10-29T01:42:48.852460+00:00'
 analyzer_agent: codex
 input_artifacts:
   spec.md:
@@ -1620,7 +1620,7 @@ input_artifacts:
     sha256: 51982b1661e69cc6e56342c8b6ba3291cc6743e2a9244db4ffaaf457a270ec16
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
-    sha256: e96a320f98804a080c0da2681a1eb32d0e89cb7d050f5dd1bba4bb3e4c6bd297
+    sha256: 8b8b763e2c6bcabeab182f66808a4060a81fcf91cdf942f37bfe543929ea1c7c
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
     sha256: a8ce616e70aa2b618ddfcd3c4760704409492ea70022f7b5c6dabaf82524f604
@@ -1911,29 +1911,30 @@ input_artifacts:
     sha256: 3c3a78cf69c6f1bad1c2d4b3758b8ffe9917c4d3319677b60b2faf6f78b33bbd
   template-selection:spec:
     path:
-    sha256: 32a361b894053bc203394d24f35f0cce2f4b002b3e152685c35a1bcd5226d11b
+    sha256: 151555b3369c2192d91c375f4cd7e3ecee5fb6e72b7bcf768069c02a79646ec8
   template-selection:plan:
     path:
-    sha256: 5e6a12617a135c0c0ba2ca57031db30306cb936e3dd002de90c3d5ddf4b66ec8
+    sha256: abd53b53eae68e9390505d118911d120e8b4cace8b905a37384b4150ec68c62d
 verdict: ready
 issue_counts:
   high: 0
+  medium: 0
   low: 0
   critical: 0
-  medium: 0
   info: 0
 findings: []
-report_transaction: ef346a572bfa4fcb886c497a6b81b81f
+report_transaction: c526c242c7b24c02a6d55316357bd989
 material_manifest_version: 1
 ---
 
-# WP09 original absolute horizon planning consistency
+# WP09 immutable planning inspection scope consistency
 
-Root explicitly admitted the narrow existing kernel budget seam after canonical
-path admission and actual RED. Actual post-wait Git and failed-persistence REDs
-are retained in lifecycle-wp09-review-timing-red-r1. Actual delayed setup hook
-fired and forbidden late marker appeared in lifecycle-wp09-review-setup-red-r2.
-Python carries optional original deadlines only; native policy/tests remain the
-single authority. No second runner or PDB implementation. Preserve all approved
-WPs and event history. This is planning admission, never code approval, installed
-qualification, creator release or organization rollout.
+Root assigned this current PDB useful-work blocker and accepted the narrow
+immutable inspect design. Existing canonical Git readers and handle resolver
+remain sole authorities; Python adapters add no replacement domain policy or
+advancing guard override. New actual acceptance/refusal assertions are native.
+The immutable real PDB planning commit and exact meta identity are independently
+observed; no source/branch/index/claim/runtime state changed. Canonical scope
+admission and actual command-absence RED precede code implementation. This is
+planning consistency only, not code review, installation or cleanup adoption.
+All approved WPs, status and history remain unchanged.
