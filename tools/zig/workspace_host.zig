@@ -519,3 +519,53 @@ test "existing kernel optional original cleanup horizon tightens and retains leg
     }
     try std.testing.expect(facts.get("elapsed").?.float <= 0.4);
 }
+
+// Exercise the real allocator with an original foreground creator. A path
+// returned by the allocator is an observation, never a reconstructed owner.
+const lane_creation_fixture =
+    \\import hashlib,json,os,pathlib,subprocess,sys,tempfile
+    \\sys.path.insert(0,str(pathlib.Path.cwd()/'src'))
+    \\from specify_cli.workspace_lifecycle.original_run import OriginalWorkspaceRun
+    \\from specify_cli.workspace_lifecycle.adapters import GitHubDelivery
+    \\from specify_cli.workspace_lifecycle.state import StateStore
+    \\from specify_cli.lanes.models import ExecutionLane,LanesManifest
+    \\from specify_cli.lanes.persistence import write_lanes_json
+    \\from specify_cli.lanes.worktree_allocator import allocate_lane_worktree,predict_lane_worktree
+    \\root=pathlib.Path(tempfile.mkdtemp(prefix='owned-allocator-')).resolve();repo=root/'repo';repo.mkdir();ledger=root/'ledger';ledger.mkdir(mode=0o700)
+    \\def git(*args):return subprocess.check_output(['git','-C',str(repo),*args],stderr=subprocess.PIPE,text=True,timeout=5).strip()
+    \\git('init','-q','-b','main');git('config','user.name','Owned fixture');git('config','user.email','fixture@example.invalid');git('config','commit.gpgsign','false');git('config','gc.auto','0');git('remote','add','origin','https://github.com/crucible-energy/fixture.git')
+    \\slug='fixture';feature=repo/'kitty-specs'/slug;feature.mkdir(parents=True);(feature/'meta.json').write_text(json.dumps({'mission_id':slug,'mission_slug':slug,'topology':'lanes','target_branch':'main'}))
+    \\manifest=LanesManifest(version=1,mission_slug=slug,mission_id=slug,mission_branch='kitty/mission-fixture',target_branch='main',lanes=[ExecutionLane(lane_id='lane-a',wp_ids=('WP01',),write_scope=('src/**',),predicted_surfaces=('core',),depends_on_lanes=(),parallel_group=0)],computed_at='2026-10-30T00:00:00Z',computed_from='fixture');write_lanes_json(feature,manifest)
+    \\(repo/'seed').write_text('primary preserved\n');git('add','.');git('commit','-qm','seed');base=git('rev-parse','HEAD');path,branch=predict_lane_worktree(repo,slug,'lane-a');seen=[]
+    \\native=pathlib.Path(os.environ['SPEC_KITTY_HOST_TEST_BACKEND']);digest=hashlib.sha256(native.read_bytes()).hexdigest()
+    \\job=OriginalWorkspaceRun.admit_foreground_job(native_executor=native,native_sha256=digest,execution_timeout=30,settlement_timeout=2,accountable_owner='owned-allocator-fixture',purpose='bind ordinary allocation before effects',next_action='review retained fixture',review_event='after test')
+    \\def admitted(receipt):seen.append(not path.exists() and receipt['source']['head']==base)
+    \\creation=OriginalWorkspaceRun.prepare_lane_allocation(job,StateStore.initialize(ledger),repo_root=repo,path=path,branch=branch,repository='crucible-energy/fixture',repository_id=7,delivery=GitHubDelivery(),on_complete=lambda hint:None,expected_base_commit=base,accountable_owner='owned-allocator-fixture',on_admitted=admitted)
+    \\actual,actual_branch=allocate_lane_worktree(repo,slug,'WP01',manifest,_original_creation=creation)
+    \\run=creation.original_run
+    \\facts={'registered_before_creation':seen==[True],'same_original_scope':run.path==actual and run.branch=='refs/heads/'+actual_branch,'expected_parent':git('rev-parse',actual_branch)==base,'primary_unchanged':git('rev-parse','main')==base and (repo/'seed').read_text()=='primary preserved\n','retained_fixture':str(root)}
+    \\print(json.dumps(facts))
+;
+
+test "ordinary allocator retains its original admitted creator before effects" {
+    const raw = c.getenv("SPEC_KITTY_HOST_TEST_PYTHON") orelse return error.ExplicitFixtureInterpreterRequired;
+    const result = try std.process.run(std.testing.allocator, std.testing.io, .{
+        .argv = &.{ std.mem.span(raw), "-B", "-c", lane_creation_fixture },
+        .stdout_limit = .limited(8192),
+        .stderr_limit = .limited(8192),
+        .timeout = .{ .duration = .{ .clock = .awake, .raw = .fromSeconds(40) } },
+    });
+    defer std.testing.allocator.free(result.stdout);
+    defer std.testing.allocator.free(result.stderr);
+    if (result.term != .exited or result.term.exited != 0) {
+        std.debug.print("ordinary allocation fixture: {s}\n", .{result.stderr});
+        return error.FixtureFailed;
+    }
+    var parsed = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, result.stdout, .{});
+    defer parsed.deinit();
+    const facts = parsed.value.object;
+    inline for (.{ "registered_before_creation", "same_original_scope", "expected_parent", "primary_unchanged" }) |field| {
+        try std.testing.expect(facts.get(field).?.bool);
+    }
+    std.debug.print("retained creator fixture: {s}\n", .{facts.get("retained_fixture").?.string});
+}
