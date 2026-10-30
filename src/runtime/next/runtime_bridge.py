@@ -74,6 +74,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -1429,6 +1430,23 @@ def _dn_decision_materialize(ctx: DecideNextContext) -> Decision:
     )
 
 
+def _retry_analysis_refusal(
+    mission_type: str,
+    step_id: str,
+    retry_analysis_guard: Callable[[], str | None] | None,
+) -> str | None:
+    if mission_type != MISSION_TYPE_SOFTWARE_DEV or step_id != "implement":
+        return None
+    if retry_analysis_guard is None:
+        return "Retry requires a current analysis report; analysis verification is unavailable"
+    result = retry_analysis_guard()
+    if result is None:
+        return None
+    if not isinstance(result, str) or not result:
+        return "Retry requires a current analysis report; analysis verification returned an invalid result"
+    return result
+
+
 def retry_failed_step_via_runtime(
     agent: str,
     mission_slug: str,
@@ -1438,6 +1456,7 @@ def retry_failed_step_via_runtime(
     step_id: str,
     result: str,
     owned: OwnedCheckout | None = None,
+    retry_analysis_guard: Callable[[], str | None] | None = None,
 ) -> Decision:
     """Reissue one unsuccessful step without reporting its attempt as successful."""
     if not agent or not run_id or not step_id or result not in ("failed", "blocked"):
@@ -1475,6 +1494,8 @@ def retry_failed_step_via_runtime(
         )
 
     try:
+        if reason := _retry_analysis_refusal(ctx.mission_type, step_id, retry_analysis_guard):
+            return refused(reason)
         plan = _engine_adapter.plan_retry_failed_step(ctx.run_ref, agent, expected_step_id=step_id, expected_result=result)
         resolution = _resolve_planned_wp_workspace(
             plan.decision,
@@ -1502,10 +1523,16 @@ def retry_failed_step_via_runtime(
         )
         if decision.kind != DecisionKind.step:
             return decision
+        if decision.run_id != run_id or decision.step_id != step_id:
+            return refused("The mapped retry no longer matches the original run and step")
+        if resolution is not None and (decision.action, decision.wp_id, decision.workspace_path) != resolution[:3]:
+            return refused("The mapped retry no longer matches the selected action, work package and workspace")
         config_root = owned.owned_root if owned is not None else repo_root
         current_ref = _io_seam.get_or_start_run(mission_slug, config_root, ctx.mission_type, owned=owned, required_run_id=run_id)
         if Path(current_ref.run_dir) != Path(ctx.run_ref.run_dir):
             return refused("The mission's indexed run location changed during retry planning")
+        if reason := _retry_analysis_refusal(ctx.mission_type, step_id, retry_analysis_guard):
+            return refused(reason)
         # Do not fall back to next_step on a stale plan: that would report a
         # different step as successful. The owner must inspect and plan again.
         _engine_adapter.commit_advance(ctx.run_ref, plan, agent, ctx.emitter_for_engine)

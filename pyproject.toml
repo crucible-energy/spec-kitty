@@ -1594,7 +1594,6 @@ exclude = [
     "tests/next/test_plan_mission_runtime.py",
     "tests/next/test_prompt_file_invariant.py",
     "tests/next/test_prompt_step_schema_extensions.py",
-    "tests/next/test_runtime_bridge_blocked_paths.py",
     "tests/next/test_runtime_pkg_notice_unit.py",
     "tests/packaging/test_windows_no_keyring.py",
     "tests/paths/test_render_runtime_path.py",

@@ -25,6 +25,7 @@ import io
 import importlib
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
@@ -77,6 +78,21 @@ def decide_next(
 def _runtime_bridge_module():
     """Return the patched bridge when tests/consumers installed one."""
     return sys.modules.get("runtime.next.runtime_bridge") or importlib.import_module("runtime.next.runtime_bridge")
+
+
+def _retry_analysis_guard(mission_slug: str, repo_root: Path, *, owned: OwnedCheckout | None = None) -> Callable[[], str | None]:
+    """Check the canonical report without writing a retry or lifecycle event."""
+
+    def check() -> str | None:
+        from specify_cli.analysis_report import check_analysis_report_current
+
+        feature_dir = placement_seam(repo_root, mission_slug, owned=owned).read_dir(MissionArtifactKind.ANALYSIS_REPORT)
+        freshness = check_analysis_report_current(feature_dir, owned.owned_root if owned is not None else repo_root, owned=owned)
+        if freshness.ok:
+            return None
+        return "Retry requires a current analysis report; refresh it through the canonical record-analysis workflow"
+
+    return check
 
 
 def _legacy_main_repo_guard() -> None:
@@ -269,6 +285,7 @@ def next_step(
                 step_id=retry_step,
                 result=retry_result,
                 owned=owned,
+                retry_analysis_guard=_retry_analysis_guard(mission_slug, repo_root, owned=owned),
             )
             if decision.kind == "step":
                 if owned is None:
