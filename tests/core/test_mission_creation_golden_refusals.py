@@ -29,7 +29,7 @@ and 2 failed-create restore cells):
     the validated owned checkout's. The other repository's state (porcelain,
     branches, missions, working tree) is captured too, under ``watched``.
 12. ``protected_recreate``: a protected ``single_branch`` create re-run into
-    its own existing scaffold (predict-then-plant).
+    its own existing scaffold.
 13. ``refused_mint_orphan_retry``: cell 3's refused mint leaves no scaffold, so
     the retry after ``stray.txt`` is removed succeeds (#5704).
 14. ``malformed_config_invalid_yaml``: ``.kittify/config.yaml`` is not YAML.
@@ -189,18 +189,16 @@ def test_protected_recreate(tmp_path: Path) -> None:
     slug = "ref-protected-recreate"
     kwargs: dict[str, Any] = {"target_branch": PRIMARY_BRANCH}
 
-    def plant(repo: Path, _mid8: str) -> Callable[[], MissionCreationResult]:
-        create_mission_core(
-            repo,
-            slug,
-            topology=MissionTopology.SINGLE_BRANCH,
-            allow_worktree_context=True,
-            allow_duplicate=True,
-            **kwargs,
-        )
-        return _create(repo, slug, MissionTopology.SINGLE_BRANCH, **kwargs)
-
-    observed = run_cell_in_one_mid8_bucket(tmp_path, _protected_main, plant, slugs=[slug])
+    repo = _protected_main(tmp_path)
+    create_mission_core(
+        repo,
+        slug,
+        topology=MissionTopology.SINGLE_BRANCH,
+        allow_worktree_context=True,
+        allow_duplicate=True,
+        **kwargs,
+    )
+    observed = run_cell(repo, tmp_path, _create(repo, slug, MissionTopology.SINGLE_BRANCH, **kwargs), slugs=[slug])
     assert_golden(_FAMILY, "protected_recreate", observed)
 
 

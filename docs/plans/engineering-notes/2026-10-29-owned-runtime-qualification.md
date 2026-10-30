@@ -132,3 +132,36 @@ compatibility: required macOS setuid `ps` refuses even minimal confinement. Do
 not replace the legacy contract with a different native identity contract or copy
 a privileged executable to claim a pass. Phoenix owns that migration. The SDK
 checks can run under inherited unused-root exclusions without that command.
+
+## Approved owned completion after squash delivery
+
+The selected owned task could be canonically approved after its source landed,
+but `move-task --to done` refused owned checkouts and `consolidate` has no owned
+selector. Dossier reconciliation compares recorded artifacts; it is not a task
+completion seam. Copying the mission to the primary or forcing a terminal state
+would introduce a different authority and is not a repair.
+
+Extend the existing `move-task` seam only for an already approved owned task
+with paired `--review-source-commit` and `--review-delivery-commit` identities.
+Reuse `resolve_owned_review_source` for exact source/delivery trees, complete
+history, target ancestry, original task attempt and unchanged owned source.
+Recheck the same verifier at the late ancestry boundary. Existing review currency,
+subtask, issue-matrix, protection, index, selective commit and override refusals
+remain mandatory. Local history inspection is not independent remote PR approval;
+the owning workflow still verifies the real merged PR and actual default branch.
+
+The real CLI regression keeps the mission absent from primary and sibling
+checkouts. It verifies approved exact delivery completes while premature,
+missing-proof, mismatched, forced and dirty-owned attempts refuse without effects.
+This narrow path neither grants checkout retirement nor supplies general planned
+or missing-review reconciliation. Private runtime installation, independent
+receiving and actual consumer completion remain separately recorded boundaries.
+
+The source may be reviewed and accepted before the squash publication. For
+completion only, compare authored mission metadata independently of the
+canonical acceptance bookkeeping and the supported phase migration; require
+the published and current metadata bytes to match exactly. Allow the original
+source attempt to be approved in this ordering. Ordinary review remains strict,
+and acceptance bookkeeping never grants review or merge authority. The real
+public-CLI fixture exercises acceptance before publication as well as authored
+metadata drift and the existing negative controls.

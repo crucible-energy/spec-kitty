@@ -426,7 +426,8 @@ def _mt_preflight_owned_request(st: _MoveTaskState) -> None:
     """
     assert st.owned is not None
     require_unstaged_index(st.owned)
-    if st.target_lane not in (
+    completing_delivered = st.target_lane == Lane.DONE and bool(st.review_source_commit and st.review_delivery_commit)
+    if not completing_delivered and st.target_lane not in (
         Lane.PLANNED,
         Lane.CLAIMED,
         Lane.IN_PROGRESS,
@@ -632,18 +633,23 @@ def _mt_resolve_targets(st: _MoveTaskState, ports: TasksPorts) -> None:
             "OWNED_TRANSITION_UNSUPPORTED",
             "Owned checkout does not support transitions from this lane.",
         )
+    if st.owned is not None and st.target_lane == Lane.DONE and st.old_lane != Lane.APPROVED:
+        raise ActionContextError(
+            "OWNED_TRANSITION_UNSUPPORTED",
+            "Owned completion requires the current task attempt to be approved.",
+        )
     # #4758 FR-002: refuse leaving ``planned`` with no ``lanes.json`` to rebuild
     # from, before any mission write below.
     _mt_guard_planned_boundary_lanes(st)
     # Event-store write leg — the SAME coord husk as ``mt_feature_dir``.
     st.feature_dir = st.mt_feature_dir
-    if st.owned is not None and st.target_lane in (Lane.FOR_REVIEW, Lane.APPROVED):
+    if st.owned is not None and st.target_lane in (Lane.FOR_REVIEW, Lane.APPROVED, Lane.DONE):
         st.review_base_ref = _mt_resolve_owned_review_base(st)
     if st.review_source_commit is not None or st.review_delivery_commit is not None:
-        if st.owned is None or st.target_lane not in (Lane.FOR_REVIEW, Lane.APPROVED) or not st.review_source_commit or not st.review_delivery_commit:
+        if st.owned is None or st.target_lane not in (Lane.FOR_REVIEW, Lane.APPROVED, Lane.DONE) or not st.review_source_commit or not st.review_delivery_commit:
             raise ActionContextError(
                 "OWNED_REVIEW_SOURCE_INVALID",
-                "Paired review-source and delivery commits require owned for_review or approved admission.",
+                "Paired review-source and delivery commits require owned review, approval or post-delivery completion admission.",
             )
         # Inspect before a deferred deliverable commit or verdict write. The
         # explicit history proof cannot turn pending implementation into a
@@ -938,7 +944,9 @@ def _mt_require_owned_implementation(st: _MoveTaskState) -> None:
 
         assert st.review_delivery_commit is not None
         assert st.wp is not None
-        proof = resolve_owned_review_source(st.owned, st.wp.path, source_commit, st.review_delivery_commit, st.target_branch)
+        proof = resolve_owned_review_source(
+            st.owned, st.wp.path, source_commit, st.review_delivery_commit, st.target_branch, completion=st.target_lane == Lane.DONE
+        )
         patterns = tuple(pattern.replace("\\", "/").removeprefix("./") for pattern in proof.owned_files if pattern.strip())
         if (
             proof.task_id != st.task_id
@@ -1210,6 +1218,12 @@ def _mt_done_ancestry_facts(st: _MoveTaskState) -> tuple[str | None, bool, str]:
 
     if st.target_lane != Lane.DONE:
         return None, False, ""
+    if st.owned is not None:
+        # The explicit delivery arm was inspected before any write by the same
+        # canonical verifier used for post-squash review. Recheck at the late
+        # ancestry boundary; never re-resolve this mission in the primary.
+        _mt_require_owned_implementation(st)
+        return "code_change", True, "Exact owned source/delivery tree and target ancestry verified."
     try:
         done_workspace = _tasks.resolve_workspace_for_wp(st.main_repo_root, st.mission_slug, st.task_id)
         done_execution_mode: str | None = done_workspace.execution_mode

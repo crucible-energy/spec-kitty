@@ -941,6 +941,136 @@ def test_explicit_review_source_retains_normal_reviewer_and_durable_verdict(fina
     assert (snapshot(primary), snapshot(sibling)) == others
 
 
+def test_owned_approved_squash_can_complete_only_with_exact_delivery(finalized_checkouts):
+    """Post-delivery completion uses the approved attempt, never a primary copy."""
+    source, delivery = _squashed_review_source(finalized_checkouts)
+    primary, owned, sibling = finalized_checkouts
+    others = snapshot(primary), snapshot(sibling)
+    submitted = CliRunner().invoke(tasks_app, _source_review_args(owned, source, delivery))
+    assert submitted.exit_code == 0, submitted.output
+    common = ["move-task", "WP01", "--reviewer", "reviewer", "--mission", SLUG, "--owned-checkout", str(owned), "--json"]
+    proof = ["--review-source-commit", source, "--review-delivery-commit", delivery]
+    before_review = tuple(snapshot(root) for root in finalized_checkouts)
+    premature = CliRunner().invoke(tasks_app, [*common, "--to", "done", *proof])
+    assert premature.exit_code == 1, premature.output
+    assert tuple(snapshot(root) for root in finalized_checkouts) == before_review
+    claimed = CliRunner().invoke(tasks_app, [*common, "--to", "in_review"])
+    assert claimed.exit_code == 0, claimed.output
+    approved = CliRunner().invoke(tasks_app, [*common, "--to", "approved", "--approval-ref", "local-review", *proof])
+    assert approved.exit_code == 0, approved.output
+    before = tuple(snapshot(root) for root in finalized_checkouts)
+    refused = CliRunner().invoke(tasks_app, [*common, "--to", "done"])
+    assert refused.exit_code == 1, refused.output
+    assert tuple(snapshot(root) for root in finalized_checkouts) == before
+    mismatch = CliRunner().invoke(tasks_app, [*common, "--to", "done", "--review-source-commit", source, "--review-delivery-commit", source])
+    assert mismatch.exit_code == 1, mismatch.output
+    assert tuple(snapshot(root) for root in finalized_checkouts) == before
+    forced = CliRunner().invoke(tasks_app, [*common, "--to", "done", "--force", *proof])
+    assert forced.exit_code == 1, forced.output
+    assert tuple(snapshot(root) for root in finalized_checkouts) == before
+    (owned / "app.py").write_text("VALUE = 3\n", encoding="utf-8")
+    dirty_before = tuple(snapshot(root) for root in finalized_checkouts)
+    dirty = CliRunner().invoke(tasks_app, [*common, "--to", "done", *proof])
+    assert dirty.exit_code == 1, dirty.output
+    assert tuple(snapshot(root) for root in finalized_checkouts) == dirty_before
+    (owned / "app.py").write_text("VALUE = 2\n", encoding="utf-8")
+    completed = CliRunner().invoke(tasks_app, [*common, "--to", "done", *proof])
+    assert completed.exit_code == 0, completed.output
+    mission = owned / "kitty-specs" / SLUG
+    state = json.loads((mission / "status.json").read_text(encoding="utf-8"))["work_packages"]["WP01"]
+    assert state["lane"] == "done"
+    assert git(owned, "show", "HEAD:app.py") == "VALUE = 2"
+    assert git(owned, "status", "--porcelain") == ""
+    assert not (primary / "kitty-specs" / SLUG).exists()
+    assert (snapshot(primary), snapshot(sibling)) == others
+
+
+@pytest.mark.parametrize("initial_phase", [None, 0])
+@pytest.mark.parametrize("accepted_before_publication", [False, True])
+@pytest.mark.parametrize("authored_scope_change", [False, True])
+def test_owned_completion_consumes_reviewed_source_published_after_approval(finalized_checkouts, accepted_before_publication, authored_scope_change, initial_phase):
+    """Real ordering: implement, review, optionally accept, publish, complete."""
+    from specify_cli.acceptance.matrix import AcceptanceCriterion, AcceptanceMatrix, write_acceptance_matrix
+    from specify_cli.mission_metadata import write_meta
+    from tests.integration.test_explicit_checkout_commands import run_owned_accept
+
+    primary, owned, sibling = finalized_checkouts
+    mission = owned / "kitty-specs" / SLUG
+    meta = json.loads((mission / "meta.json").read_text(encoding="utf-8"))
+    meta.update(created_at="2026-10-30T00:00:00Z", friendly_name="Disposable owned completion")
+    if initial_phase is not None:
+        meta["status_phase"] = initial_phase
+    write_meta(mission, meta)
+    for name in ("src", "tests", "docs"):
+        (owned / name).mkdir()
+        (owned / name / ".gitkeep").touch()
+    (mission / "contracts").mkdir()
+    (mission / "contracts/.gitkeep").touch()
+    write_acceptance_matrix(
+        mission,
+        AcceptanceMatrix(
+            mission_slug=SLUG,
+            criteria=[
+                AcceptanceCriterion(criterion_id="AC1", description="The owned app contains its validated value", proof_type="automated_test", pass_fail="pass")
+            ],
+        ),
+    )
+    git(owned, "add", "kitty-specs", "src", "tests", "docs")
+    git(owned, "commit", "-qm", "declare disposable acceptance inputs")
+    prepared = invoke("finalize-tasks", owned, "--refresh-planning-commit")
+    assert prepared.exit_code == 0, prepared.output
+    parent = git(owned, "rev-parse", "HEAD")
+    others = snapshot(primary), snapshot(sibling)
+    common = ["move-task", "WP01", "--mission", SLUG, "--owned-checkout", str(owned), "--json"]
+    started = CliRunner().invoke(tasks_app, [*common, "--to", "doing", "--agent", "implementer"])
+    assert started.exit_code == 0, started.output
+    (owned / "app.py").write_text("VALUE = 2\n", encoding="utf-8")
+    git(owned, "add", "app.py")
+    git(owned, "commit", "-qm", "implement before review and publication")
+    submitted = CliRunner().invoke(tasks_app, [*common, "--to", "for_review", "--agent", "implementer"])
+    assert submitted.exit_code == 0, submitted.output
+    claimed = CliRunner().invoke(tasks_app, [*common, "--to", "in_review", "--reviewer", "reviewer"])
+    assert claimed.exit_code == 0, claimed.output
+    approved = CliRunner().invoke(tasks_app, [*common, "--to", "approved", "--reviewer", "reviewer", "--approval-ref", "local-review"])
+    assert approved.exit_code == 0, approved.output
+    assert (owned / "app.py").read_text(encoding="utf-8") == "VALUE = 2\n"
+    if authored_scope_change:
+        meta = json.loads((mission / "meta.json").read_text(encoding="utf-8"))
+        meta["purpose_context"] = "Unreviewed authored scope change is not acceptance bookkeeping."
+        write_meta(mission, meta)
+        git(owned, "add", "kitty-specs")
+        git(owned, "commit", "-qm", "adversarial authored change before publication")
+    if accepted_before_publication:
+        accepted = run_owned_accept(owned, SLUG, "--mode", "local", "--actor", "reviewer")
+        assert accepted.exit_code == 0, accepted.output
+        meta = json.loads((mission / "meta.json").read_text(encoding="utf-8"))
+        assert meta["acceptance_history"] and meta["accept_commit"] and meta["status_phase"] == "1"
+    source = git(owned, "rev-parse", "HEAD")
+    git(owned, "branch", "recovery/approved-original-source", source)
+    delivery = git(owned, "commit-tree", git(owned, "rev-parse", source + "^{tree}"), "-p", parent, "-m", "publish approved source by squash")
+    git(owned, "reset", "--hard", delivery)
+    prepared = invoke("finalize-tasks", owned, "--refresh-planning-commit")
+    assert prepared.exit_code == 0, prepared.output
+    before_completion = snapshot(owned)
+    ordinary_review = CliRunner().invoke(tasks_app, _source_review_args(owned, source, delivery))
+    assert ordinary_review.exit_code == 1, ordinary_review.output
+    assert json.loads(ordinary_review.stdout)["error_code"] == "OWNED_REVIEW_SOURCE_INVALID"
+    assert snapshot(owned) == before_completion
+    completed = CliRunner().invoke(
+        tasks_app,
+        [*common, "--to", "done", "--reviewer", "reviewer", "--review-source-commit", source, "--review-delivery-commit", delivery],
+    )
+    if authored_scope_change:
+        assert completed.exit_code == 1, completed.output
+        assert json.loads(completed.stdout)["error_code"] == "OWNED_REVIEW_SOURCE_INVALID"
+        assert snapshot(owned) == before_completion
+    else:
+        assert completed.exit_code == 0, completed.output
+        assert json.loads((mission / "status.json").read_text(encoding="utf-8"))["work_packages"]["WP01"]["lane"] == "done"
+    assert not (primary / "kitty-specs" / SLUG).exists()
+    assert (snapshot(primary), snapshot(sibling)) == others
+
+
 @pytest.mark.parametrize("replace_link", [False, True])
 def test_review_source_preserves_link_entry_identity_without_reading_target(finalized_checkouts, replace_link):
     from mission_runtime import ActionContextError

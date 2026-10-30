@@ -461,7 +461,7 @@ class OwnedReviewSource:
 class _ReviewSourceInspection:
     """One bounded, read-only Git inspection shared by the source validators."""
 
-    def __init__(self, owned: OwnedCheckout, task_path: Path, source: str, delivery: str, target: str) -> None:
+    def __init__(self, owned: OwnedCheckout, task_path: Path, source: str, delivery: str, target: str, *, completion: bool = False) -> None:
         import os
         import time
 
@@ -470,6 +470,7 @@ class _ReviewSourceInspection:
         self.source = source
         self.delivery = delivery
         self.target = target
+        self.completion = completion
         self.deadline = time.monotonic() + 10
         self.inspected_bytes = 0
         self.environment = {**os.environ, "GIT_NO_REPLACE_OBJECTS": "1", "GIT_OPTIONAL_LOCKS": "0"}
@@ -634,6 +635,28 @@ class _ReviewSourceInspection:
             raise ValueError("Original source and delivered tree differ")
         return head
 
+    def completed_metadata(self, base: str, path: str) -> None:
+        """Compare authored intent; delivered/current metadata stays byte-exact.
+
+        Acceptance fields are not acceptance evidence here. They may be stamped
+        between the claim base and publication by their canonical writers.
+        Neither VCS authority nor any unrecognized authored field is waived.
+        """
+        from kernel.vcs_lock import VCS_LOCK_META_FIELDS
+        from specify_cli.acceptance import ACCEPTANCE_HISTORY_FIELD, ACCEPTANCE_PROVENANCE_FIELDS
+        from specify_cli.migration.runtime_state_cutover import _SNAPSHOT_AUTHORITY_PHASE, _STATUS_PHASE_KEY
+        from specify_cli.status.cutover_eligibility import _raw_phase_state
+
+        before = self.document(base, path)
+        published = self.document(self.source, path)
+        mutable = (set(ACCEPTANCE_PROVENANCE_FIELDS) - VCS_LOCK_META_FIELDS) | {ACCEPTANCE_HISTORY_FIELD}
+        if before.get(_STATUS_PHASE_KEY) != published.get(_STATUS_PHASE_KEY):
+            if _raw_phase_state(before) not in ("absent", "early") or published.get(_STATUS_PHASE_KEY) != _SNAPSHOT_AUTHORITY_PHASE:
+                raise ValueError("Completion source has an unsupported runtime-state phase change")
+            mutable.add(_STATUS_PHASE_KEY)
+        if {key: value for key, value in before.items() if key not in mutable} != {key: value for key, value in published.items() if key not in mutable}:
+            raise ValueError("Original and published authored mission scope differs")
+
     def scope(self, head: str) -> tuple[str, str, str, tuple[str, ...]]:
         import re
 
@@ -664,7 +687,13 @@ class _ReviewSourceInspection:
         # mission contract. Never compare a symlink's dereferenced bytes.
         for path in (relative_task, directory + "/meta.json"):
             entries = [tree_entry(owned.owned_root, ref, path, env=self.environment, timeout=self.remaining()) for ref in (base, self.source, head)]
-            if entries[0] is None or entries[0].mode != "100644" or any(entry != entries[0] for entry in entries[1:]):
+            if any(entry is None or entry.mode != "100644" for entry in entries):
+                raise ValueError("Original and current authored mission or task scope differs")
+            if self.completion and path == directory + "/meta.json":
+                if entries[1] != entries[2]:
+                    raise ValueError("Current mission metadata differs from its exact published source")
+                self.completed_metadata(base, path)
+            elif any(entry != entries[0] for entry in entries[1:]):
                 raise ValueError("Original and current authored mission or task scope differs")
         metadata = self.document(self.source, directory + "/meta.json")
         if (
@@ -689,7 +718,8 @@ class _ReviewSourceInspection:
         if any(not isinstance(event, dict) for event in events):
             raise ValueError("Invalid original status event")
         transitions = [event for event in events if event.get("wp_id") == task_id and "to_lane" in event]
-        if not transitions or transitions[-1].get("to_lane") not in ("in_progress", "for_review", "in_review"):
+        allowed_source_lanes = ("in_progress", "for_review", "in_review", "approved") if self.completion else ("in_progress", "for_review", "in_review")
+        if not transitions or transitions[-1].get("to_lane") not in allowed_source_lanes:
             raise ValueError("Original source does not bind an active task attempt")
         for line in current[len(original) :].splitlines():
             event = json.loads(line, object_pairs_hook=self.unique)
@@ -711,6 +741,8 @@ def resolve_owned_review_source(
     source_commit: str,
     delivered_commit: str,
     target_branch: str,
+    *,
+    completion: bool = False,
 ) -> OwnedReviewSource:
     """Inspect a preserved implementation window, not PR or release authority.
 
@@ -721,9 +753,9 @@ def resolve_owned_review_source(
     from kernel.git import changed_paths, status_entries
 
     try:
-        if not isinstance(owned, OwnedCheckout):
+        if not isinstance(owned, OwnedCheckout) or not isinstance(completion, bool):
             raise ValueError("Review-source evidence requires a validated owned checkout")
-        inspection = _ReviewSourceInspection(owned, task_path, source_commit, delivered_commit, target_branch)
+        inspection = _ReviewSourceInspection(owned, task_path, source_commit, delivered_commit, target_branch, completion=completion)
         head = inspection.history()
         base, relative_task, task_id, owned_files = inspection.scope(head)
         inspection.attempt(head, task_id)
