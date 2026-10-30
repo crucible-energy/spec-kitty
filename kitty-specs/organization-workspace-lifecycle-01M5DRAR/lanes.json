@@ -30,6 +30,7 @@
         "AGENTS.md",
         "contracts/mission-status/schemas/OpsInvocation.yaml",
         "docs/api/agent-subcommands.md",
+        "docs/architecture/runtime-loop.md",
         "docs/changelog/CHANGELOG.md",
         "docs/development/testing/testing-parallel.md",
         "docs/guides/how-to/workspace-lifecycle.md",
@@ -56,6 +57,7 @@
         "src/runtime/next/runtime_bridge.py",
         "src/runtime/next/runtime_bridge_engine.py",
         "src/runtime/next/runtime_bridge_io.py",
+        "src/runtime/next/runtime_bridge_query.py",
         "src/specify_cli/_completion_manifest.json",
         "src/specify_cli/acceptance/gates_core.py",
         "src/specify_cli/cli/commands/_organization_workspaces_doctor.py",
@@ -125,6 +127,7 @@
         "tests/lanes/test_claim_base.py",
         "tests/lanes/test_lane_tip_record_points.py",
         "tests/next/test_engine_plan_advance.py",
+        "tests/next/test_next_command_integration.py",
         "tests/next/test_runtime_bridge_blocked_paths.py",
         "tests/runtime/test_bridge_engine.py",
         "tests/runtime/test_run_index_port.py",
@@ -168,7 +171,7 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-30T13:45:14.899748+00:00",
+  "computed_at": "2026-10-30T13:55:18.837067+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
