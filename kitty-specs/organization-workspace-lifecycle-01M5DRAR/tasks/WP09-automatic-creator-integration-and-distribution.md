@@ -44,6 +44,7 @@ create_intent:
 - src/specify_cli/session_presence/upgrade_check.py
 - src/specify_cli/cli/commands/_owned_retry_lifecycle.py
 - tests/specify_cli/next/test_owned_retry_lifecycle.py
+- src/runtime/next/run_lock.py
 execution_mode: code_change
 owned_files:
 - src/specify_cli/workspace_lifecycle/worker.py
@@ -128,6 +129,7 @@ owned_files:
 - tests/integration/test_owned_next_runtime.py
 - tests/specify_cli/next/test_owned_retry_lifecycle.py
 - tests/specify_cli/invocation/test_lifecycle_pairing.py
+- src/runtime/next/run_lock.py
 tags: []
 task_type: implement
 tracker_refs: []

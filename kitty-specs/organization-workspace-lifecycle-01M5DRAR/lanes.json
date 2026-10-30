@@ -54,6 +54,7 @@
         "src/kernel/yaml_io.py",
         "src/runtime/next/_internal_runtime/engine.py",
         "src/runtime/next/_internal_runtime/schema.py",
+        "src/runtime/next/run_lock.py",
         "src/runtime/next/runtime_bridge.py",
         "src/runtime/next/runtime_bridge_engine.py",
         "src/runtime/next/runtime_bridge_io.py",
@@ -178,7 +179,7 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-30T14:58:54.709222+00:00",
+  "computed_at": "2026-10-30T15:26:40.313647+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
