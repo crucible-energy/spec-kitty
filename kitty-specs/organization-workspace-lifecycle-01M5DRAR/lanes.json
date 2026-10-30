@@ -59,6 +59,7 @@
         "src/runtime/next/runtime_bridge_io.py",
         "src/runtime/next/runtime_bridge_query.py",
         "src/specify_cli/_completion_manifest.json",
+        "src/specify_cli/acceptance/__init__.py",
         "src/specify_cli/acceptance/gates_core.py",
         "src/specify_cli/cli/commands/_organization_workspaces_doctor.py",
         "src/specify_cli/cli/commands/agent/mission.py",
@@ -90,6 +91,7 @@
         "src/specify_cli/lanes/worktree_allocator.py",
         "src/specify_cli/orchestrator_api/wp_lifecycle.py",
         "src/specify_cli/session_presence/upgrade_check.py",
+        "src/specify_cli/status/__init__.py",
         "src/specify_cli/workspace_lifecycle/adapters.py",
         "src/specify_cli/workspace_lifecycle/configuration.py",
         "src/specify_cli/workspace_lifecycle/coordinator.py",
@@ -143,6 +145,7 @@
         "tests/specify_cli/lanes/test_worktree_allocator_recovery.py",
         "tests/specify_cli/next/test_runtime_bridge.py",
         "tests/specify_cli/next/test_runtime_bridge_dispatch.py",
+        "tests/status/test_cutover_eligibility.py",
         "tests/tasks/test_frontmatter_unit.py",
         "tests/terminus/**",
         "tests/workspace_lifecycle/test_acceptance.py",
@@ -171,7 +174,7 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-30T13:55:18.837067+00:00",
+  "computed_at": "2026-10-30T14:01:30.895279+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"

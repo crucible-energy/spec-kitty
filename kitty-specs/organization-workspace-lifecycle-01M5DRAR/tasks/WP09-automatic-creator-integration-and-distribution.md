@@ -119,6 +119,9 @@ owned_files:
 - src/runtime/next/runtime_bridge_query.py
 - tests/next/test_next_command_integration.py
 - docs/architecture/runtime-loop.md
+- src/specify_cli/acceptance/__init__.py
+- src/specify_cli/status/__init__.py
+- tests/status/test_cutover_eligibility.py
 tags: []
 task_type: implement
 tracker_refs: []
