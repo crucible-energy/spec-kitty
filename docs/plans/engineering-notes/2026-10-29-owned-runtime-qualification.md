@@ -98,3 +98,37 @@ The RC7 owned-next artifact did not include Source's standalone operation custod
 The installed standalone regression uses a disposable real linked checkout. It opens and closes real journal records as `done`, `failed`, and `abandoned`, verifies generated close commands outside the checkout, checks explicit no-commit preservation and a normal selective owning commit, and refuses foreign, protected (including operator hatch), detached, and switched-branch effects. Primary HEAD/index/status, native content/metadata and unrelated staged bytes must survive. This is local operation custody, not an actual researcher audit, host admission or whole-agent lifecycle contract.
 
 Existing consumer runtime and its dependency supplier stay immutable while the new candidate passes its complete installed regression, owning checks and independent receiving. Previous failed launches and the incomplete strict-API candidate remain failed evidence; no actual host, receiver, key or Store operation is performed by these fixtures.
+
+## Owned acceptance classification compatibility
+
+Issue #144 exposed a missing compatibility port: the installed RC7 acceptance
+classifier omitted validated owning-checkout authority while reading WP kinds.
+A code mission absent from the primary checkout was classified as planning-only,
+skipping all four matrix checks even with a missing or failing matrix. Existing
+canonical source fix `6ce9f43cf385d2eab410a88bc3a6dde7520e32fd` already propagates
+the validated owner through the normalized WP index and both branch/lane gates.
+Port that exact seven-addition/five-deletion correction; do not create a second
+classifier or alter matrix policy. The owned compatibility patch now carries
+that acceptance correction alongside the earlier operation closure.
+
+A native failing-first regression runs the actual installed public `accept
+--diagnose` command against a real distinct primary/linked owned checkout. Its
+immutable authored source and mission archives preserve real evidence paths;
+the mission is absent from primary. The corrected runtime must evaluate the
+passing code matrix, refuse missing and failing matrices, and retain the
+explicit planning-only control. All commands remain read-only and preserve
+primary, owning files/HEAD and native fixture state. Historical source commit
+ancestry is not fabricated when importing the disposable archive.
+
+Build a separate private artifact and preserve the existing runtime and supplier.
+The new acceptance-classifier test supplements the existing complete installed
+regression; earlier SDK isolation/operation success did not cover this classifier.
+Independent source/artifact receiving and actual Auth-owner CLI receiving are
+separate gates. Source branch publication is not default delivery or organization
+adoption; issue #144 stays open until its owning delivery obligations are proved.
+
+The SDK kernel-exclusion profile is also separate from Phoenix's legacy lifecycle
+compatibility: required macOS setuid `ps` refuses even minimal confinement. Do
+not replace the legacy contract with a different native identity contract or copy
+a privileged executable to claim a pass. Phoenix owns that migration. The SDK
+checks can run under inherited unused-root exclusions without that command.

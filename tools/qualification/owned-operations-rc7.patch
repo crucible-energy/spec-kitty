@@ -252,3 +252,26 @@
 @@ -299 +302 @@
 -        return branch == primary_branch or self.is_protected(branch)
 +        return branch == primary_branch or branch in self.protected_branches
+
+diff --git a/src/specify_cli/acceptance/gates_core.py b/src/specify_cli/acceptance/gates_core.py
+index ac10703849..0d6a295f01 100644
+--- a/src/specify_cli/acceptance/gates_core.py
++++ b/src/specify_cli/acceptance/gates_core.py
+@@ -246 +246 @@ def _resolve_lanes_manifest_or_stop(
+-def _wp_kinds_for_manifest(repo_root: Path, mission_slug: str) -> Mapping[str, Any]:
++def _wp_kinds_for_manifest(repo_root: Path, mission_slug: str, *, owned: OwnedCheckout | None = None) -> Mapping[str, Any]:
+@@ -267 +267 @@ def _wp_kinds_for_manifest(repo_root: Path, mission_slug: str) -> Mapping[str, A
+-    index = build_normalized_wp_index(repo_root, mission_slug)
++    index = build_normalized_wp_index(repo_root, mission_slug, owned=owned)
+@@ -278,0 +279,2 @@ def _evaluate_branch_gate(
++    *,
++    owned: OwnedCheckout | None = None,
+@@ -311 +313 @@ def _evaluate_branch_gate(
+-    mission_has_code = _mission_has_code_fn(lanes_manifest, _wp_kinds_for_manifest(repo_root, feature_dir.name))
++    mission_has_code = _mission_has_code_fn(lanes_manifest, _wp_kinds_for_manifest(repo_root, feature_dir.name, owned=owned))
+@@ -836 +838 @@ def _check_lane_gates(
+-    should_continue = _evaluate_branch_gate(repo_root, lanes_manifest, feature_dir, branch, activity_issues, skipped_checks, blocked_checks)
++    should_continue = _evaluate_branch_gate(repo_root, lanes_manifest, feature_dir, branch, activity_issues, skipped_checks, blocked_checks, owned=owned)
+@@ -850 +852 @@ def _check_lane_gates(
+-        mission_has_code = _mission_has_code_fn(lanes_manifest, _wp_kinds_for_manifest(repo_root, feature_dir.name))
++        mission_has_code = _mission_has_code_fn(lanes_manifest, _wp_kinds_for_manifest(repo_root, feature_dir.name, owned=owned))
