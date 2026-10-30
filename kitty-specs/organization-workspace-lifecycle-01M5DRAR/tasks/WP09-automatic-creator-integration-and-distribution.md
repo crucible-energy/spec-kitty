@@ -96,6 +96,8 @@ owned_files:
 - tools/zig/owned_runtime_qualification.zig
 - docs/plans/engineering-notes/2026-10-29-owned-runtime-qualification.md
 - src/specify_cli/session_presence/upgrade_check.py
+- tests/integration/test_explicit_checkout_commands.py
+- tools/qualification/owned-operations-rc7.patch
 tags: []
 task_type: implement
 tracker_refs: []
@@ -398,3 +400,11 @@ Reuse canonical committed owned-analysis RC7 port unchanged: it already repairs 
 ## Bounded consumer upgrade-cache root correction
 
 Actual installed SDK tests reproduced creation of protected HOME/.kittify/last-cli-check.json despite explicit SPEC_KITTY_HOME. Repair the existing cache owner to delegate to canonical kernel get_kittify_home; no new resolver or policy engine. Extend the admitted native fixture with exact cache-root and foreground cache-refresh evidence, retain default user behavior. The original upgrade checker spawns detached background refresh; bounded offline SDK qualification must use its explicit supported opt-out after independent fresh release resolution, and must not infer generic child settlement from parent group join. Preserve failed artifact, original specimen and all receipts; qualify a new private artifact, never live patch current consumers. Existing owner/independent receiving still required.
+
+## Owned acceptance compatibility and contract-test maintenance
+
+Port existing canonical owned acceptance propagation for issue144 and prove actual
+installed code matrix positive/missing/failing/planning-only controls. Reconcile
+issue145 test expectations with explicit planning capabilities, canonical stdout
+JSON, and Git link-object versus escaped-directory containment. Preserve every
+refusal and unchanged-state assertion; do not alter production checks or policy.
