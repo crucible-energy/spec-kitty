@@ -55,6 +55,7 @@
         "src/runtime/next/_internal_runtime/schema.py",
         "src/runtime/next/runtime_bridge.py",
         "src/runtime/next/runtime_bridge_engine.py",
+        "src/runtime/next/runtime_bridge_io.py",
         "src/specify_cli/_completion_manifest.json",
         "src/specify_cli/acceptance/gates_core.py",
         "src/specify_cli/cli/commands/_organization_workspaces_doctor.py",
@@ -126,6 +127,7 @@
         "tests/next/test_engine_plan_advance.py",
         "tests/next/test_runtime_bridge_blocked_paths.py",
         "tests/runtime/test_bridge_engine.py",
+        "tests/runtime/test_run_index_port.py",
         "tests/specify_cli/cli/commands/agent/fixtures/tasks_cli/help/move-task.help",
         "tests/specify_cli/cli/commands/agent/test_mission_cli_golden_contract.py",
         "tests/specify_cli/cli/commands/agent/test_owned_checkout_move_task.py",
@@ -166,7 +168,7 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-30T13:42:01.529750+00:00",
+  "computed_at": "2026-10-30T13:45:14.899748+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"

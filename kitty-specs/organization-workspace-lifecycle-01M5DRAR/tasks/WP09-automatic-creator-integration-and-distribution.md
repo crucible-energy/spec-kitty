@@ -114,6 +114,8 @@ owned_files:
 - tests/specify_cli/next/test_runtime_bridge.py
 - tests/specify_cli/next/test_runtime_bridge_dispatch.py
 - tests/next/test_runtime_bridge_blocked_paths.py
+- src/runtime/next/runtime_bridge_io.py
+- tests/runtime/test_run_index_port.py
 tags: []
 task_type: implement
 tracker_refs: []
