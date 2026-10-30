@@ -280,10 +280,60 @@ const managed_native_fixture =
     \\ changes=[{'path':p,'before':before.get(p),'after':after.get(p)} for p in sorted(set(before)|set(after)) if before.get(p)!=after.get(p)]
     \\ print(json.dumps({'genuine_managed_skill_files':len(skills),'genuine_managed_commands':len(commands),'protected_managed_native_state_exact':not changes,'changes':changes,'actual_sam_home_touched':False,'interpretation':'Recreated managed-name/version/permission shape only; not exact lost native before content or actual receiver causation.'}))
 ;
+const acceptance_fixture =
+    \\import hashlib,json,os,pathlib,subprocess,sys,tarfile
+    \\P=pathlib.Path(os.environ['OWNED_RUNTIME_FIXTURE_ROOT'])/'acceptance';P.mkdir(mode=0o700,parents=True)
+    \\F=P/'primary';F.mkdir();O=P/'owned';H=P/'native-home';H.mkdir();C=P/'operator';C.mkdir()
+    \\V=H/'.agents/skills/valuable/SKILL.md';V.parent.mkdir(parents=True);V.write_text('Valuable native state remains outside SDK authority.\n');V.chmod(0o400)
+    \\E={k:v for k,v in os.environ.items() if not k.startswith(('GIT_CONFIG','UV_','PIP_')) and k not in ('PYTHONPATH','PYTHONHOME','GIT_DIR','GIT_WORK_TREE','GIT_COMMON_DIR','GIT_INDEX_FILE','SPECIFY_REPO_ROOT','SPEC_KITTY_REPO_ROOT','SPEC_KITTY_PACKS_ROOT','SPEC_KITTY_TEMPLATE_ROOT','BASH_ENV','ENV','GH_TOKEN','GITHUB_TOKEN','SSH_AUTH_SOCK','SSH_AGENT_PID')}
+    \\E.update(HOME=str(H),SPEC_KITTY_HOME=str(C),SPEC_KITTY_ASSET_SCOPE='consumer',SPEC_KITTY_NO_UPGRADE_CHECK='1',PYTHONDONTWRITEBYTECODE='1',GIT_CONFIG_NOSYSTEM='1',GIT_CONFIG_GLOBAL='/dev/null',GIT_CONFIG_SYSTEM='/dev/null',GIT_OPTIONAL_LOCKS='0',GIT_TERMINAL_PROMPT='0',PATH='/opt/homebrew/Cellar/git/2.55.0/bin:/usr/bin:/bin',XDG_CONFIG_HOME=str(C/'config'),XDG_CACHE_HOME=str(C/'cache'),XDG_STATE_HOME=str(C/'state'),NO_COLOR='1')
+    \\SDK=pathlib.Path(sys.prefix)/'bin/spec-kitty';M='inference-protected-signing-01M65BHK';sequence=0
+    \\h=lambda b:hashlib.sha256(b).hexdigest()
+    \\def run(args,cwd,allowed=(0,)):
+    \\ global sequence
+    \\ sequence+=1;r=subprocess.run([str(x)for x in args],cwd=cwd,env=E,capture_output=True,timeout=45)
+    \\ (P/f'{sequence:02d}.stdout.log').write_bytes(r.stdout);(P/f'{sequence:02d}.stderr.log').write_bytes(r.stderr)
+    \\ assert r.returncode in allowed,(sequence,args,r.returncode,r.stderr[-1500:]);return r
+    \\def git(root,*args):return run(['/opt/homebrew/Cellar/git/2.55.0/bin/git','--no-optional-locks','-C',root,*args],root).stdout.decode()
+    \\(F/'.kittify').mkdir();(F/'.kittify/config.yaml').write_text('agents:\n  available: [codex]\n')
+    \\git(F,'init','-q','-b','main');git(F,'config','user.name','Disposable acceptance fixture');git(F,'config','user.email','fixture@example.invalid');git(F,'config','commit.gpgsign','false');git(F,'add','.');git(F,'commit','-qm','Primary without owning mission');git(F,'worktree','add','-qb','codex/inference-signing',str(O))
+    \\for key,digest in [('OWNED_ACCEPTANCE_SOURCE_ARCHIVE','b36e04cf831edbaa6e8e4e58c895cacd4b4ef9fce36046ba5dffa4123e52a581'),('OWNED_ACCEPTANCE_MISSION_ARCHIVE','0ff8338c6460dcfb6cfb46b0a718865c639b802e39aab16dcdfb4e6416709da9')]:
+    \\ archive=pathlib.Path(os.environ[key]);assert h(archive.read_bytes())==digest
+    \\ with tarfile.open(archive)as tf:
+    \\  for member in tf.getmembers():
+    \\   path=pathlib.PurePosixPath(member.name);assert not path.is_absolute() and '..'not in path.parts and '.git'not in path.parts
+    \\   assert member.isfile()or member.isdir()or member.issym(),member.name
+    \\   if member.issym():assert not pathlib.PurePosixPath(member.linkname).is_absolute()and '..'not in pathlib.PurePosixPath(member.linkname).parts
+    \\ run(['/usr/bin/tar','-xf',archive,'-C',O],F)
+    \\git(O,'add','.');git(O,'commit','-qm','Immutable source and authored mission fixture')
+    \\D=O/'kitty-specs'/M;matrix=D/'acceptance-matrix.json';original=matrix.read_bytes();task=next((D/'tasks').glob('WP01-*.md'));task_before=task.read_bytes();lanes=D/'lanes.json';lanes_before=lanes.read_bytes()
+    \\def snapshot(root):
+    \\ files={}
+    \\ for base,dirs,names in os.walk(root,followlinks=False):
+    \\  dirs[:]=sorted(d for d in dirs if d!='.git')
+    \\  for name in sorted(names):
+    \\   if name=='.git':continue
+    \\   p=pathlib.Path(base)/name;s=p.lstat();files[str(p.relative_to(root))]=(h(p.read_bytes()),s.st_mode,s.st_ino,s.st_mtime_ns)
+    \\ return {'head':git(root,'rev-parse','HEAD'),'status':git(root,'status','--porcelain=v1','--untracked-files=all'),'files':files}
+    \\primary=snapshot(F);native=(h(V.read_bytes()),V.stat().st_mode,V.stat().st_ino,V.stat().st_mtime_ns);assert not(F/'kitty-specs'/M).exists()
+    \\def diagnose(label):
+    \\ before=snapshot(O);r=run([SDK,'accept','--mission',M,'--owned-checkout',O,'--mode','local','--actor','codex','--diagnose','--json'],O,(0,1));summary=json.loads(r.stdout)
+    \\ (P/(label+'.json')).write_text(json.dumps(summary,indent=2)+'\n');assert snapshot(O)==before and snapshot(F)==primary;assert native==(h(V.read_bytes()),V.stat().st_mode,V.stat().st_ino,V.stat().st_mtime_ns)
+    \\ return summary
+    \\positive=diagnose('positive');matrix.unlink();missing=diagnose('missing')
+    \\failing=json.loads(original);failing['criteria'][0]['pass_fail']='fail';matrix.write_text(json.dumps(failing,indent=2)+'\n');failed=diagnose('failing')
+    \\# Planning-only control has explicit planning frontmatter, not an inferred default.
+    \\matrix.unlink();assert b'execution_mode: code_change'in task_before;task.write_bytes(task_before.replace(b'execution_mode: code_change',b'execution_mode: planning_artifact',1));planning=json.loads(lanes_before);planning['planning_artifact_wps']=['WP01'];lanes.write_text(json.dumps(planning,indent=2)+'\n');planning_result=diagnose('planning-only')
+    \\# Restore exactly the authored bytes; do not synthesize review evidence or history.
+    \\task.write_bytes(task_before);lanes.write_bytes(lanes_before);matrix.write_bytes(original)
+    \\def wrongly_skips(summary):return any('planning_artifact-only'in x['detail']for x in summary['skipped_checks'])
+    \\facts={'positive_matrix_evaluated':not wrongly_skips(positive),'positive_ok':positive['ok'],'missing_refuses_matrix':not missing['ok']and any(x['check']=='acceptance_matrix'for x in missing['blocked_checks']),'failing_refuses_verdict':not failed['ok']and not wrongly_skips(failed)and any('verdict'in x['detail'].lower()or 'fail'in x['detail'].lower()for x in failed['failed_checks']),'planning_only_skips_matrix':wrongly_skips(planning_result),'primary_mission_absent':not(F/'kitty-specs'/M).exists(),'primary_native_unchanged':snapshot(F)==primary and native==(h(V.read_bytes()),V.stat().st_mode,V.stat().st_ino,V.stat().st_mtime_ns),'scope':'Disposable exact authored source+mission fixture; historical commit ancestry not reconstructed, no actual Auth mutation'}
+    \\(P/'facts.json').write_text(json.dumps(facts,indent=2)+'\n');print(json.dumps(facts))
+;
 fn probe(mode: []const u8) !std.json.Parsed(std.json.Value) {
     const python = c.getenv("OWNED_RUNTIME_PYTHON") orelse return error.ExplicitInstalledRuntimeRequired;
     const result = try std.process.run(std.testing.allocator, std.testing.io, .{
-        .argv = &.{ std.mem.span(python), "-I", "-B", "-c", if (std.mem.eql(u8, mode, "managed-native")) managed_native_fixture else if (std.mem.eql(u8, mode, "cache-admission")) cache_admission_fixture else if (std.mem.eql(u8, mode, "owned") or std.mem.eql(u8, mode, "owned-managed") or std.mem.eql(u8, mode, "operations")) owned_fixture else fixture, mode },
+        .argv = &.{ std.mem.span(python), "-I", "-B", "-c", if (std.mem.eql(u8, mode, "acceptance")) acceptance_fixture else if (std.mem.eql(u8, mode, "managed-native")) managed_native_fixture else if (std.mem.eql(u8, mode, "cache-admission")) cache_admission_fixture else if (std.mem.eql(u8, mode, "owned") or std.mem.eql(u8, mode, "owned-managed") or std.mem.eql(u8, mode, "operations")) owned_fixture else fixture, mode },
         .stdout_limit = .limited(256 * 1024),
         .stderr_limit = .limited(64 * 1024),
         .timeout = .{ .duration = .{ .clock = .awake, .raw = .fromSeconds(if (std.mem.eql(u8, mode, "owned") or std.mem.eql(u8, mode, "owned-managed") or std.mem.eql(u8, mode, "managed-native") or std.mem.eql(u8, mode, "operations")) 180 else 90) } },
@@ -365,4 +415,17 @@ test "standalone operation opens and closes only in its owned checkout with real
     try std.testing.expect(facts.get("primary_and_native_unchanged").?.bool);
     try std.testing.expect(facts.get("foreign_staged_state_exact").?.bool);
     try std.testing.expectEqual(@as(usize, 3), facts.get("actual_outcomes").?.array.items.len);
+}
+
+test "owned code acceptance evaluates its matrix and refuses missing or failed evidence while planning stays planning" {
+    var parsed = try probe("acceptance");
+    defer parsed.deinit();
+    const facts = parsed.value.object;
+    try std.testing.expect(facts.get("positive_matrix_evaluated").?.bool);
+    try std.testing.expect(facts.get("positive_ok").?.bool);
+    try std.testing.expect(facts.get("missing_refuses_matrix").?.bool);
+    try std.testing.expect(facts.get("failing_refuses_verdict").?.bool);
+    try std.testing.expect(facts.get("planning_only_skips_matrix").?.bool);
+    try std.testing.expect(facts.get("primary_mission_absent").?.bool);
+    try std.testing.expect(facts.get("primary_native_unchanged").?.bool);
 }
