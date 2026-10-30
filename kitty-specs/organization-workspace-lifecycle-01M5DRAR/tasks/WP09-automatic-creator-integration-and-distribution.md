@@ -130,6 +130,9 @@ owned_files:
 - tests/specify_cli/next/test_owned_retry_lifecycle.py
 - tests/specify_cli/invocation/test_lifecycle_pairing.py
 - src/runtime/next/run_lock.py
+- src/kernel/locks.py
+- tests/kernel/test_locks.py
+- tests/kernel/test_locks_symlink_safe.py
 tags: []
 task_type: implement
 tracker_refs: []

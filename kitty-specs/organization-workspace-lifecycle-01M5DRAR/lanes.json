@@ -50,6 +50,7 @@
         "pyproject.toml",
         "src/kernel/git/remote.py",
         "src/kernel/git_topology.py",
+        "src/kernel/locks.py",
         "src/kernel/owned_process.py",
         "src/kernel/yaml_io.py",
         "src/runtime/next/_internal_runtime/engine.py",
@@ -128,6 +129,8 @@
         "tests/integration/test_owned_lifecycle_acceptance_finalize.py",
         "tests/integration/test_owned_next_runtime.py",
         "tests/kernel/test_git_remote.py",
+        "tests/kernel/test_locks.py",
+        "tests/kernel/test_locks_symlink_safe.py",
         "tests/kernel/test_yaml_io.py",
         "tests/lanes/test_claim_base.py",
         "tests/lanes/test_lane_tip_record_points.py",
@@ -179,7 +182,7 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-30T15:26:40.313647+00:00",
+  "computed_at": "2026-10-30T16:08:27.961631+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
