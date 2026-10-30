@@ -62,6 +62,7 @@
         "src/specify_cli/acceptance/__init__.py",
         "src/specify_cli/acceptance/gates_core.py",
         "src/specify_cli/cli/commands/_organization_workspaces_doctor.py",
+        "src/specify_cli/cli/commands/_owned_retry_lifecycle.py",
         "src/specify_cli/cli/commands/agent/mission.py",
         "src/specify_cli/cli/commands/agent/mission_inspect.py",
         "src/specify_cli/cli/commands/agent/tasks.py",
@@ -124,6 +125,7 @@
         "tests/integration/test_owned_analysis_implementation_cli.py",
         "tests/integration/test_owned_lifecycle_acceptance_e2e.py",
         "tests/integration/test_owned_lifecycle_acceptance_finalize.py",
+        "tests/integration/test_owned_next_runtime.py",
         "tests/kernel/test_git_remote.py",
         "tests/kernel/test_yaml_io.py",
         "tests/lanes/test_claim_base.py",
@@ -143,6 +145,7 @@
         "tests/specify_cli/invocation/cli/test_owned_checkout.py",
         "tests/specify_cli/invocation/test_executor.py",
         "tests/specify_cli/lanes/test_worktree_allocator_recovery.py",
+        "tests/specify_cli/next/test_owned_retry_lifecycle.py",
         "tests/specify_cli/next/test_runtime_bridge.py",
         "tests/specify_cli/next/test_runtime_bridge_dispatch.py",
         "tests/status/test_cutover_eligibility.py",
@@ -174,10 +177,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-30T14:01:30.895279+00:00",
+  "computed_at": "2026-10-30T14:50:28.063515+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "c58314a7274da61bdb4fae6e4952d30071fd51bc"
+  "planning_commit_sha": "44816af09cef607400203265ef9e5b93da0bd4ba"
 }
