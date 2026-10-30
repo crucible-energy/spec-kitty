@@ -522,7 +522,7 @@ class _LockCore:
         if fd is None:
             return
         try:
-            if self.single_link_regular:
+            if self.private or self.single_link_regular:
                 self.validate_fd(fd)
             # TRUNCATE rather than unlink so the on-disk inode survives and
             # concurrent acquirers serialise against our OS lock until

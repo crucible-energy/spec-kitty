@@ -605,6 +605,27 @@ def test_single_link_regular_refuses_late_link_without_truncating(tmp_path: Path
         pass  # Refusal still released the OS lock.
 
 
+def test_private_lock_refuses_late_link_without_truncating(tmp_path: Path) -> None:
+    path = tmp_path / "private.lock"
+    alias = tmp_path / "late-link"
+    lock = machine_file_lock(path, private=True)
+    lock.__enter__()
+    try:
+        try:
+            os.link(path, alias)
+        except OSError as exc:
+            pytest.skip(f"Hard links unavailable on this filesystem: {exc}")
+        record = path.read_bytes()
+        with pytest.raises(OSError, match="Private lock"):
+            lock.__exit__(None, None, None)
+    finally:
+        lock.__exit__(None, None, None)
+    assert path.read_bytes() == record == alias.read_bytes()
+    alias.unlink()
+    with machine_file_lock(path, private=True):
+        pass  # Refusal still released the OS lock.
+
+
 def test_single_link_regular_allows_existing_normal_mode_and_rejects_reentrancy(tmp_path: Path) -> None:
     path = tmp_path / "refresh.lock"
     path.write_bytes(b"")
