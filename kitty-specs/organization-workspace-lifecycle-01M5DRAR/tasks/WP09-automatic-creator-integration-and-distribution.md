@@ -106,6 +106,14 @@ owned_files:
 - tests/core/test_mission_creation_golden_refusals.py
 - src/runtime/next/_internal_runtime/engine.py
 - tests/next/test_engine_plan_advance.py
+- src/runtime/next/_internal_runtime/schema.py
+- src/runtime/next/runtime_bridge.py
+- src/runtime/next/runtime_bridge_engine.py
+- src/specify_cli/cli/commands/next_cmd.py
+- tests/runtime/test_bridge_engine.py
+- tests/specify_cli/next/test_runtime_bridge.py
+- tests/specify_cli/next/test_runtime_bridge_dispatch.py
+- tests/next/test_runtime_bridge_blocked_paths.py
 tags: []
 task_type: implement
 tracker_refs: []
