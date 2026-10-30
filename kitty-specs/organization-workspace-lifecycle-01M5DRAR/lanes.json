@@ -51,6 +51,7 @@
         "src/kernel/git_topology.py",
         "src/kernel/owned_process.py",
         "src/kernel/yaml_io.py",
+        "src/runtime/next/_internal_runtime/engine.py",
         "src/specify_cli/_completion_manifest.json",
         "src/specify_cli/acceptance/gates_core.py",
         "src/specify_cli/cli/commands/_organization_workspaces_doctor.py",
@@ -118,6 +119,7 @@
         "tests/kernel/test_yaml_io.py",
         "tests/lanes/test_claim_base.py",
         "tests/lanes/test_lane_tip_record_points.py",
+        "tests/next/test_engine_plan_advance.py",
         "tests/specify_cli/cli/commands/agent/fixtures/tasks_cli/help/move-task.help",
         "tests/specify_cli/cli/commands/agent/test_mission_cli_golden_contract.py",
         "tests/specify_cli/cli/commands/agent/test_owned_checkout_move_task.py",
@@ -156,10 +158,10 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-30T12:24:52.606778+00:00",
+  "computed_at": "2026-10-30T12:56:15.052289+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
   ],
-  "planning_commit_sha": "c2c6c15f5b44565128ae1b0bf1bea0b9dfad1727"
+  "planning_commit_sha": "c58314a7274da61bdb4fae6e4952d30071fd51bc"
 }

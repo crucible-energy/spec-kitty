@@ -104,6 +104,8 @@ owned_files:
 - tests/specify_cli/cli/commands/agent/fixtures/tasks_cli/help/move-task.help
 - src/specify_cli/core/owned_mission.py
 - tests/core/test_mission_creation_golden_refusals.py
+- src/runtime/next/_internal_runtime/engine.py
+- tests/next/test_engine_plan_advance.py
 tags: []
 task_type: implement
 tracker_refs: []
