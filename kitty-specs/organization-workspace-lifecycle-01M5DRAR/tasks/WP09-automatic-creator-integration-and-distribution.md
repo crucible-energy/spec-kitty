@@ -27,6 +27,8 @@ authoritative_surface: src/specify_cli/workspace_lifecycle/worker.py
 create_intent:
 - tools/zig/workspace_ingress.zig
 - tools/zig/workspace_host.zig
+- tools/zig/workspace_preservation.zig
+- tools/qualification/workspace-preservation-rc7.patch
 - docs/plans/engineering-notes/2026-10-28-lifecycle-foreground-ownership.md
 - src/specify_cli/cli/commands/agent/mission_inspect.py
 - tools/zig/mission_inspect.zig
@@ -61,6 +63,20 @@ owned_files:
 - src/specify_cli/workspace_lifecycle/original_run.py
 - src/specify_cli/lanes/implement_support.py
 - src/specify_cli/orchestrator_api/wp_lifecycle.py
+- src/specify_cli/core/mission_creation_rollback.py
+- src/specify_cli/coordination/workspace.py
+- src/specify_cli/cli/commands/mission_type.py
+- src/specify_cli/git/destructive_guard.py
+- src/specify_cli/consolidation/phase_teardown.py
+- src/specify_cli/orchestrator_api/consolidation.py
+- tests/specify_cli/coordination/test_workspace.py
+- tests/core/test_mission_creation_family.py
+- tests/core/test_mission_creation_invariants.py
+- tests/integration/test_mission_close_discard_coord_teardown.py
+- tests/specify_cli/cli/commands/test_mission_close_discard_single_branch_target.py
+- tests/architectural/test_destructive_op_routing.py
+- tools/zig/workspace_preservation.zig
+- tools/qualification/workspace-preservation-rc7.patch
 - tools/zig/workspace_host.zig
 - docs/plans/engineering-notes/2026-10-28-lifecycle-foreground-ownership.md
 - tools/zig/validation_process_darwin.zig
@@ -280,6 +296,27 @@ unqualified whole-platform closure is introduced.
 ## Objectives & Success Criteria
 
 Integrate native obligations into supported creator startup/completion/recovery. Python edits are bounded migration glue; new implementation/tests use Zig. Package exact artifacts, refuse unsupported creators, and prove actual asynchronous cleanup plus preservation/interruption. No broad prune or trust bypass.
+
+### Preservation correction for missing, dirty and unmerged work
+
+Actual isolated Git fixtures reproduced repository-wide pruning of unrelated
+missing registrations, forced removal of a missing coordination registration,
+deletion of dirty or ignored work during discard/teardown, deletion of an
+unmerged lane ref, and deletion of pre-existing mission content during rollback
+of a reused coordination checkout. The exact fetched default, current Source
+and private RC7 cases are separately recorded in the external preservation
+analysis; synthetic data and index snapshots remain retained.
+
+Admit only the named existing Source boundaries and a current-RC compatibility
+patch, with native failing-first tests. Missing paths are not evidence of owner
+release or recovery; no unscoped prune or forced missing-registration removal
+is permitted. Dirty, ignored, unmerged, active, reused or uncertain work remains
+under its existing owner with a durable recovery obligation. Preserve genuine
+creator-owned rollback and delivered/released cleanup positive controls, exact
+branch ancestry and current working data. Never claim cleanup from a callback,
+path, discard request or absence alone. Keep earlier WP approvals and prior
+evidence unchanged. Installed artifacts and actual host adoption remain separate
+gates; no shared runtime swap or real cleanup is authorized by this amendment.
 
 ## Context & Constraints
 
