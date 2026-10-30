@@ -107,6 +107,7 @@
         "tests/contract/_mission_status_detail.py",
         "tests/contract/test_mission_status_detail.py",
         "tests/contract/test_mission_status_ops.py",
+        "tests/core/test_mission_creation_golden_refusals.py",
         "tests/git/test_ref_advance_cas.py",
         "tests/integration/migration/test_wp03_advance_to_approval.py",
         "tests/integration/test_explicit_checkout_commands.py",
@@ -155,7 +156,7 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-30T10:16:43.966449+00:00",
+  "computed_at": "2026-10-30T12:24:52.606778+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"
