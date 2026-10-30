@@ -98,6 +98,10 @@ owned_files:
 - src/specify_cli/session_presence/upgrade_check.py
 - tests/integration/test_explicit_checkout_commands.py
 - tools/qualification/owned-operations-rc7.patch
+- src/specify_cli/cli/commands/agent/tasks.py
+- src/specify_cli/cli/commands/agent/tasks_move_task.py
+- tests/specify_cli/cli/commands/agent/test_owned_checkout_move_task.py
+- tests/specify_cli/cli/commands/agent/fixtures/tasks_cli/help/move-task.help
 tags: []
 task_type: implement
 tracker_refs: []
