@@ -489,7 +489,6 @@ exclude = [
     "src/specify_cli/cli/commands/agent/release.py",
     "src/specify_cli/cli/commands/agent/status.py",
     "src/specify_cli/cli/commands/agent/surface_presence.py",
-    "src/specify_cli/cli/commands/agent/tasks.py",
     "src/specify_cli/cli/commands/agent/tasks_command_adapters.py",
     "src/specify_cli/cli/commands/agent/tasks_dependency_graph.py",
     "src/specify_cli/cli/commands/agent/tasks_materialization.py",

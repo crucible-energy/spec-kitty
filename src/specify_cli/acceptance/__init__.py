@@ -9,6 +9,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from kernel.clock import now_utc_stamp
 from kernel.git import GitCommandError, GitPath, StatusEntry, changed_paths
+from kernel.vcs_lock import VCS_LOCK_META_FIELDS
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
@@ -85,6 +86,10 @@ ACCEPTANCE_PROVENANCE_FIELDS: tuple[str, ...] = (
     "vcs",
     "vcs_locked_at",
 )
+
+# Acceptance evidence can be stamped after review, but VCS authority remains
+# part of authored scope. Keep the distinction at the provenance owner.
+ACCEPTANCE_NON_VCS_PROVENANCE_FIELDS = frozenset(ACCEPTANCE_PROVENANCE_FIELDS) - VCS_LOCK_META_FIELDS
 
 # FR-009/FR-010 (#3599): the accept triple is sourced from the per-type
 # expected-artifacts.yaml path_pattern authority, not hardcoded literals --
@@ -2013,6 +2018,7 @@ def perform_acceptance(
 __all__ = [
     "ACCEPTANCE_CHECKS_FAILED_MESSAGE",
     "ACCEPTANCE_HISTORY_FIELD",
+    "ACCEPTANCE_NON_VCS_PROVENANCE_FIELDS",
     "ACCEPTANCE_PROVENANCE_FIELDS",
     "AcceptanceError",
     "AcceptanceMode",

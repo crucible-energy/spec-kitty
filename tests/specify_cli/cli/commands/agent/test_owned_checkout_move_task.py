@@ -29,6 +29,37 @@ __all__ = ["checkouts", "claim_counter"]
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
 
 
+@pytest.mark.parametrize("field", ["vcs", "vcs_locked_at"])
+@pytest.mark.parametrize("change", ["add_null", "remove_null", "change_value"])
+def test_completion_metadata_keeps_vcs_authority_exact(field: str, change: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.core.owned_mission import _ReviewSourceInspection
+
+    before = {"target_branch": "main"}
+    published = {"target_branch": "main", "accepted_at": "2026-10-30T00:00:00Z"}
+    if change == "add_null":
+        published[field] = None
+    elif change == "remove_null":
+        before[field] = None
+    else:
+        before[field], published[field] = "old", "new"
+    inspection = object.__new__(_ReviewSourceInspection)
+    inspection.source = "source"
+    monkeypatch.setattr(_ReviewSourceInspection, "document", lambda _self, ref, _path: before if ref == "base" else published)
+    with pytest.raises(ValueError, match="authored mission scope differs"):
+        inspection.completed_metadata("base", "meta.json")
+
+
+def test_completion_metadata_allows_acceptance_evidence_without_changing_scope(monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.core.owned_mission import _ReviewSourceInspection
+
+    before = {"target_branch": "main", "vcs": "git", "vcs_locked_at": None}
+    published = {**before, "accepted_at": "2026-10-30T00:00:00Z", "acceptance_history": [{"result": "accepted"}]}
+    inspection = object.__new__(_ReviewSourceInspection)
+    inspection.source = "source"
+    monkeypatch.setattr(_ReviewSourceInspection, "document", lambda _self, ref, _path: before if ref == "base" else published)
+    inspection.completed_metadata("base", "meta.json")
+
+
 def test_owned_gate_baseline_reads_selected_mission_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     mission = tmp_path / "kitty-specs" / SLUG
     wp = mission / "tasks" / "WP01-test.md"

@@ -642,16 +642,15 @@ class _ReviewSourceInspection:
         between the claim base and publication by their canonical writers.
         Neither VCS authority nor any unrecognized authored field is waived.
         """
-        from kernel.vcs_lock import VCS_LOCK_META_FIELDS
-        from specify_cli.acceptance import ACCEPTANCE_HISTORY_FIELD, ACCEPTANCE_PROVENANCE_FIELDS
+        from specify_cli.acceptance import ACCEPTANCE_HISTORY_FIELD, ACCEPTANCE_NON_VCS_PROVENANCE_FIELDS
         from specify_cli.migration.runtime_state_cutover import _SNAPSHOT_AUTHORITY_PHASE, _STATUS_PHASE_KEY
-        from specify_cli.status.cutover_eligibility import _raw_phase_state
+        from specify_cli.status import classify_runtime_status_phase
 
         before = self.document(base, path)
         published = self.document(self.source, path)
-        mutable = (set(ACCEPTANCE_PROVENANCE_FIELDS) - VCS_LOCK_META_FIELDS) | {ACCEPTANCE_HISTORY_FIELD}
+        mutable = set(ACCEPTANCE_NON_VCS_PROVENANCE_FIELDS) | {ACCEPTANCE_HISTORY_FIELD}
         if before.get(_STATUS_PHASE_KEY) != published.get(_STATUS_PHASE_KEY):
-            if _raw_phase_state(before) not in ("absent", "early") or published.get(_STATUS_PHASE_KEY) != _SNAPSHOT_AUTHORITY_PHASE:
+            if classify_runtime_status_phase(before) not in ("absent", "early") or published.get(_STATUS_PHASE_KEY) != _SNAPSHOT_AUTHORITY_PHASE:
                 raise ValueError("Completion source has an unsupported runtime-state phase change")
             mutable.add(_STATUS_PHASE_KEY)
         if {key: value for key, value in before.items() if key not in mutable} != {key: value for key, value in published.items() if key not in mutable}:

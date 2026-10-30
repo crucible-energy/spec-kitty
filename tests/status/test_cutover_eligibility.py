@@ -48,6 +48,17 @@ from specify_cli.status.store import append_event
 
 pytestmark = pytest.mark.fast
 
+
+@pytest.mark.parametrize(
+    ("meta", "expected"),
+    [({}, "absent"), ({"status_phase": 0}, "early"), ({"status_phase": "1"}, "stamped"), ({"status_phase": "-1"}, "malformed")],
+)
+def test_status_facade_classifies_raw_runtime_phase(meta: dict, expected: str) -> None:
+    from specify_cli.status import classify_runtime_status_phase
+
+    assert classify_runtime_status_phase(meta) == expected
+
+
 _MISSION_SLUG = "cutover-eligibility-wp03"
 _MISSION_ID = "01CUTOVERWP03000000000001"
 
