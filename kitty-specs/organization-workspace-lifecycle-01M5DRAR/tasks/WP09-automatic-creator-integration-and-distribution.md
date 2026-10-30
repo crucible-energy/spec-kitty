@@ -102,6 +102,7 @@ owned_files:
 - src/specify_cli/cli/commands/agent/tasks_move_task.py
 - tests/specify_cli/cli/commands/agent/test_owned_checkout_move_task.py
 - tests/specify_cli/cli/commands/agent/fixtures/tasks_cli/help/move-task.help
+- src/specify_cli/core/owned_mission.py
 tags: []
 task_type: implement
 tracker_refs: []
