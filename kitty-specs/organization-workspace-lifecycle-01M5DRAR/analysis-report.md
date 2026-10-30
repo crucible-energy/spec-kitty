@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-30T19:57:29.268694+00:00'
+generated_at: '2026-10-30T20:03:27.509872+00:00'
 analyzer_agent: codex
 input_artifacts:
   spec.md:
@@ -1620,7 +1620,7 @@ input_artifacts:
     sha256: 51982b1661e69cc6e56342c8b6ba3291cc6743e2a9244db4ffaaf457a270ec16
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
-    sha256: 94cc09ac81c19168f7bd2f89cc5ab8da087806bc1b582909edffde74f7919aeb
+    sha256: a5eeb01275ea454ccac9e771e11d1015409f989ba9ac79747ddd443a91ddf2c9
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
     sha256: a8ce616e70aa2b618ddfcd3c4760704409492ea70022f7b5c6dabaf82524f604
@@ -1917,10 +1917,10 @@ input_artifacts:
     sha256: dc017857248bd9971452aa841e91d966de6e9cdc90f4960637d71c5c0ede6ee5
 verdict: blocked
 issue_counts:
-  medium: 0
-  critical: 0
   high: 5
+  medium: 0
   low: 0
+  critical: 0
   info: 0
 findings:
 - id: LIFECYCLE-MISSING-REGISTRATION
@@ -1943,7 +1943,7 @@ findings:
   severity: high
   category: implementation
   summary: The configured ordinary external host has not yet demonstrated original-creator lifetime, joined descendants and owner-authorized cleanup.
-report_transaction: 444921a9952e430a875bd0784e347bbe
+report_transaction: ac6f4647041e470693dce380544d1e81
 material_manifest_version: 1
 ---
 
@@ -1953,4 +1953,4 @@ The mission requires retaining active, dirty, unknown, missing or runtime-depend
 
 Freshly fetched default commit `e851d756e487a6ae0fb39d40fe3f759ec78198ad` was reproduced in `outputs/lifecycle-default-stale-prune-red-r1/`; current Source rollback and coordination functions were reproduced in `outputs/lifecycle-stale-registration-prune-red-r1/`, `outputs/lifecycle-stale-coordination-prune-red-r1/` and `outputs/lifecycle-reused-coordination-rollback-red-r1/`. The current Source and exact default discard helpers were exercised for dirty worktrees in `outputs/lifecycle-dirty-discard-red-r2/` and unique unmerged commits in `outputs/lifecycle-unmerged-discard-red-r1/`. Current Source ignored-only coordination teardown was exercised in `outputs/lifecycle-coordination-ignored-red-r1/`. The private RC7 guard and ignored-only discard helper were exercised in `outputs/lifecycle-stale-registration-prune-red-r1/rc7-result.json` and `outputs/lifecycle-rc7-ignored-discard-red-r1/`. The synthetic tests retained recovery copies; they do not establish which users approved any real discard.
 
-WP09 already prohibits broad pruning and assigns ordinary creator integration, but its current owned paths do not include the reproduced Source rollback, coordination and discard helpers or a new RC7 preservation compatibility patch. Their exact ownership and canonical task admission must be reconciled before editing them. The active ordinary allocation bridge has bounded synthetic source evidence and a scoped independent review; installed behavior, actual external-host lifetime, complete setup deadline/descendant bounds and organization-wide operation remain unproved. These findings block mission readiness. This is a bounded analysis of the newly identified preservation and ownership gaps, not a completed audit of every work package.
+WP09 now includes the reproduced Source rollback, coordination and discard helpers and an RC7 preservation compatibility patch in its canonically finalized ownership scope. The reproduced defects remain open until repaired and validated; scope admission does not establish a fix. The active ordinary allocation bridge has bounded synthetic source evidence and a scoped independent review; installed behavior, actual external-host lifetime, complete setup deadline/descendant bounds and organization-wide operation remain unproved. These findings block mission readiness. This is a bounded analysis of the newly identified preservation and ownership gaps, not a completed audit of every work package.
