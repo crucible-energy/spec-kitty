@@ -52,7 +52,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated, Final, NoReturn, cast
+from typing import Annotated, Final, NoReturn
 
 import typer
 
@@ -158,18 +158,17 @@ def resolve_owned_or_adopt(
     root = get_main_repo_root(repository_root).resolve()
     if owned_claim is not None:
         checkout = owned_claim if owned_claim.is_absolute() else cwd / owned_claim
-        return cast(
-            OwnedCheckout,
-            resolve_owned_mission(
-                root,
-                checkout,
-                handle,
-                target_override=target_override,
-                allowed_topologies=allowed_topologies,
-                discover_sole=discover_sole,
-            ),
+        validated: OwnedCheckout = resolve_owned_mission(
+            root,
+            checkout,
+            handle,
+            target_override=target_override,
+            allowed_topologies=allowed_topologies,
+            discover_sole=discover_sole,
         )
-    return cast(OwnedCheckout | None, adopt_owned_checkout(root, cwd, handle, allowed_topologies=allowed_topologies))
+        return validated
+    adopted: OwnedCheckout | None = adopt_owned_checkout(root, cwd, handle, allowed_topologies=allowed_topologies)
+    return adopted
 
 
 def resolve_owned_or_refuse(
