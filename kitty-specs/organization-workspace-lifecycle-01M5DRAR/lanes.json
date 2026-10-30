@@ -144,6 +144,7 @@
         "tests/specify_cli/invocation/cli/test_complete.py",
         "tests/specify_cli/invocation/cli/test_owned_checkout.py",
         "tests/specify_cli/invocation/test_executor.py",
+        "tests/specify_cli/invocation/test_lifecycle_pairing.py",
         "tests/specify_cli/lanes/test_worktree_allocator_recovery.py",
         "tests/specify_cli/next/test_owned_retry_lifecycle.py",
         "tests/specify_cli/next/test_runtime_bridge.py",
@@ -177,7 +178,7 @@
       "parallel_group": 0
     }
   ],
-  "computed_at": "2026-10-30T14:50:28.063515+00:00",
+  "computed_at": "2026-10-30T14:58:54.709222+00:00",
   "computed_from": "dependency_graph+ownership",
   "planning_artifact_wps": [
     "WP10"

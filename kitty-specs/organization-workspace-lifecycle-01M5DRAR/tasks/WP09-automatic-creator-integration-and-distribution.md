@@ -127,6 +127,7 @@ owned_files:
 - src/specify_cli/cli/commands/_owned_retry_lifecycle.py
 - tests/integration/test_owned_next_runtime.py
 - tests/specify_cli/next/test_owned_retry_lifecycle.py
+- tests/specify_cli/invocation/test_lifecycle_pairing.py
 tags: []
 task_type: implement
 tracker_refs: []
