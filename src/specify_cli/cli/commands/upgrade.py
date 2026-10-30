@@ -224,7 +224,7 @@ def _agent_check_payload() -> dict[str, object]:
     cli_status = result.cli_status
     install_method = detect_runtime().install_method
     latest_version = cli_status.latest_version
-    hint = build_upgrade_hint(install_method, target_version=latest_version)
+    hint = build_upgrade_hint(install_method, target_version=latest_version, installed_version=cli_status.installed_version)
 
     payload: dict[str, object] = {
         "schema_version": 1,
@@ -612,7 +612,7 @@ def _check_project_not_too_new(
                     env_ci=False,
                     stdout_is_tty=False,
                 )
-                result = _plan(inv)
+                result = _plan(inv, read_only=True, project_root_resolver=lambda _path: project_path, include_migrations=False)
                 print(json.dumps(result.rendered_json, indent=2))
             else:
                 from specify_cli.compat._detect.runtime import detect_runtime as _detect_runtime
@@ -2237,7 +2237,7 @@ def _run_planner_json(
 
     current_version = VersionDetector(project_path).detect_version()
     validation_error = validate_upgrade_target(current_version, target_version)
-    result = plan(invocation, read_only=True, query_latest=True, include_migrations=False, **kwargs)  # type: ignore[arg-type]
+    result = plan(invocation, read_only=True, query_latest=True, project_root_resolver=lambda _path: project_path, include_migrations=False, **kwargs)  # type: ignore[arg-type]
 
     payload = dict(result.rendered_json)
     semantic_code = result.exit_code

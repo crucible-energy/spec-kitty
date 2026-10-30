@@ -35,6 +35,170 @@ from runtime.next import runtime_bridge_decision_mapping as decision_mapping
 pytestmark = pytest.mark.fast
 
 
+@pytest.mark.parametrize("case", ["missing", "stale", "raises", "changes", "wrong_action", "wrong_wp", "wrong_workspace", "wrong_run", "wrong_step", "current"])
+def test_retry_implementation_never_issues_without_current_analysis(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str) -> None:
+    """A retry must not turn a stale report or a remapped step into issuance."""
+    from runtime.next import runtime_bridge as bridge
+
+    ctx = SimpleNamespace(
+        mission_type="software-dev",
+        now="2026-10-30T00:00:00Z",
+        progress=None,
+        origin={},
+        run_ref=SimpleNamespace(run_id="original", run_dir=str(tmp_path / "run")),
+        feature_dir=tmp_path,
+        emitter_for_engine=object(),
+    )
+    plan = SimpleNamespace(decision=SimpleNamespace(kind="step", step_id="implement"))
+    issued: list[str] = []
+    monkeypatch.setattr(bridge._mapping, "_merged_mission_short_circuit", lambda **_kwargs: None)
+    monkeypatch.setattr(bridge, "_dn_bootstrap", lambda *_args, **_kwargs: (ctx, None))
+    monkeypatch.setattr(bridge._engine_adapter, "plan_retry_failed_step", lambda *_args, **_kwargs: plan)
+    monkeypatch.setattr(bridge, "_resolve_planned_wp_workspace", lambda *_args, **_kwargs: ("implement", "WP01", str(tmp_path), None, "implement"))
+    monkeypatch.setattr(bridge._io_seam, "get_or_start_run", lambda *_args, **_kwargs: ctx.run_ref)
+    monkeypatch.setattr(
+        bridge._mapping,
+        "_map_runtime_decision",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            kind="step",
+            run_id="other" if case == "wrong_run" else "original",
+            step_id="review" if case == "wrong_step" else "implement",
+            action="analyze" if case == "wrong_action" else "implement",
+            wp_id="WP02" if case == "wrong_wp" else "WP01",
+            workspace_path=str(tmp_path / "other") if case == "wrong_workspace" else str(tmp_path),
+        ),
+    )
+    monkeypatch.setattr(bridge._engine_adapter, "commit_advance", lambda *_args, **_kwargs: issued.append("issued"))
+
+    answers = iter([None, "analysis report became stale"] if case == "changes" else ["analysis report is stale"] if case == "stale" else [None, None])
+
+    def analysis_guard() -> str | None:
+        if case == "raises":
+            raise OSError("analysis unavailable")
+        return next(answers)
+
+    kwargs = {} if case == "missing" else {"retry_analysis_guard": analysis_guard}
+    result = bridge.retry_failed_step_via_runtime("agent", "mission", tmp_path, run_id="original", step_id="implement", result="failed", **kwargs)
+    assert result.kind == (DecisionKind.step if case == "current" else DecisionKind.blocked)
+    assert issued == (["issued"] if case == "current" else [])
+
+
+@pytest.mark.parametrize("failure", ["stale", "board_changed", "prompt_blocked", "index_changed", "none"])
+def test_retry_refuses_without_falling_back_or_issuing_wrong_work(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str) -> None:
+    from runtime.next import runtime_bridge as bridge
+
+    ctx = SimpleNamespace(
+        mission_type="software-dev",
+        now="2026-10-30T00:00:00Z",
+        progress=None,
+        origin={},
+        run_ref=SimpleNamespace(run_id="original", run_dir=str(tmp_path / "run")),
+        feature_dir=tmp_path,
+        emitter_for_engine=object(),
+    )
+    plan = SimpleNamespace(decision=SimpleNamespace(kind="step", step_id="implement"))
+    seen: list[str] = []
+    monkeypatch.setattr(bridge._mapping, "_merged_mission_short_circuit", lambda **_kwargs: None)
+    monkeypatch.setattr(bridge, "_dn_bootstrap", lambda *_args, **kwargs: (ctx, None) if kwargs["required_run_id"] == "original" else (None, None))
+    monkeypatch.setattr(bridge._engine_adapter, "plan_retry_failed_step", lambda *_args, **_kwargs: plan)
+    monkeypatch.setattr(
+        bridge._io_seam, "get_or_start_run", lambda *_args, **_kwargs: SimpleNamespace(run_dir=str(tmp_path / ("other" if failure == "index_changed" else "run")))
+    )
+    board_step = "review" if failure == "board_changed" else "implement"
+    monkeypatch.setattr(bridge, "_resolve_planned_wp_workspace", lambda *_args, **_kwargs: ("implement", "WP01", str(tmp_path), None, board_step))
+    monkeypatch.setattr(
+        bridge._mapping,
+        "_map_runtime_decision",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            kind="blocked" if failure == "prompt_blocked" else "step",
+            run_id="original",
+            step_id="implement",
+            action="implement",
+            wp_id="WP01",
+            workspace_path=str(tmp_path),
+        ),
+    )
+
+    def commit(*_args, **_kwargs):
+        seen.append("commit")
+        if failure == "stale":
+            raise bridge._engine_adapter.StaleAdvancePlan("run changed")
+
+    monkeypatch.setattr(bridge._engine_adapter, "commit_advance", commit)
+    monkeypatch.setattr(bridge, "runtime_next_step", lambda *_args, **_kwargs: pytest.fail("retry must never fall back to success"))
+    decision = bridge.retry_failed_step_via_runtime(
+        "agent", "mission", tmp_path, run_id="original", step_id="implement", result="failed", retry_analysis_guard=lambda: None
+    )
+    assert decision.kind == (DecisionKind.step if failure == "none" else DecisionKind.blocked)
+    assert seen == (["commit"] if failure in ("stale", "none") else [])
+
+
+def test_cli_retry_requires_complete_identity_before_resolving_a_checkout(monkeypatch: pytest.MonkeyPatch) -> None:
+    import typer
+    from specify_cli.cli.commands import next_cmd
+
+    monkeypatch.setattr(next_cmd, "locate_project_root", lambda: pytest.fail("incomplete retry must not resolve a checkout"))
+    with pytest.raises(typer.Exit):
+        next_cmd.next_step(agent="agent", mission="mission", retry_step="implement")
+
+
+def test_retry_bootstrap_never_starts_when_required_run_was_not_loaded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from runtime.next import runtime_bridge as bridge
+
+    monkeypatch.setattr(bridge._io_seam, "get_or_start_run", lambda *_args, **_kwargs: pytest.fail("must not start a replacement run"))
+    with pytest.raises(ValueError, match="original run was not loaded"):
+        bridge._dn_load_run_ref("mission", tmp_path, "software-dev", object(), owned=None, required_ref=None, required_run_id="original")
+
+
+def test_cli_retry_dispatches_exact_identity_without_pairing_a_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from specify_cli.cli.commands import next_cmd
+
+    calls: list[dict[str, object]] = []
+    result = SimpleNamespace(kind="step")
+    monkeypatch.setattr(next_cmd, "locate_project_root", lambda: tmp_path)
+    monkeypatch.setattr(next_cmd, "_resolve_next_owned", lambda *_args: None)
+    monkeypatch.setattr(next_cmd, "_resolve_slug_or_exit", lambda *_args, **_kwargs: "mission")
+    monkeypatch.setattr(next_cmd, "_maybe_emit_runtime_notice", lambda *_args: None)
+    monkeypatch.setattr(next_cmd, "_run_charter_preflight_for_next", lambda *_args, **kwargs: calls.append(kwargs))
+    monkeypatch.setattr(
+        next_cmd, "_runtime_bridge_module", lambda: SimpleNamespace(retry_failed_step_via_runtime=lambda *_args, **kwargs: calls.append(kwargs) or result)
+    )
+    monkeypatch.setattr(next_cmd, "_pair_previous_lifecycle_record", lambda *_args, **_kwargs: pytest.fail("retry cannot pair success"))
+    monkeypatch.setattr(next_cmd, "_write_issuance_lifecycle_record", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(next_cmd, "_print_decision", lambda *_args, **_kwargs: None)
+    next_cmd.next_step(agent="agent", mission="mission", retry_run_id="original", retry_step="implement", retry_result="failed")
+    assert calls[0]["advancing"] is True
+    assert {key: value for key, value in calls[1].items() if key != "retry_analysis_guard"} == {
+        "run_id": "original",
+        "step_id": "implement",
+        "result": "failed",
+        "owned": None,
+    }
+    assert callable(calls[1]["retry_analysis_guard"])
+
+
+def test_refused_owned_retry_never_commits_unrelated_mission_changes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import typer
+    from specify_cli.cli.commands import _owned_retry_lifecycle
+    from specify_cli.cli.commands import next_cmd
+
+    owned = SimpleNamespace(owned_root=tmp_path, repository_root=tmp_path)
+    monkeypatch.setattr(next_cmd, "locate_project_root", lambda: tmp_path)
+    monkeypatch.setattr(next_cmd, "_resolve_next_owned", lambda *_args: owned)
+    monkeypatch.setattr(next_cmd, "_resolve_slug_or_exit", lambda *_args, **_kwargs: "mission")
+    monkeypatch.setattr(next_cmd, "_maybe_emit_runtime_notice", lambda *_args: None)
+    monkeypatch.setattr(next_cmd, "_run_charter_preflight_for_next", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(_owned_retry_lifecycle, "capture_owned_retry_lifecycle", lambda *_args: SimpleNamespace(close=lambda: None))
+    monkeypatch.setattr(
+        next_cmd, "_runtime_bridge_module", lambda: SimpleNamespace(retry_failed_step_via_runtime=lambda *_args, **_kwargs: SimpleNamespace(kind="blocked"))
+    )
+    monkeypatch.setattr(next_cmd, "_write_issuance_lifecycle_record", lambda *_args, **_kwargs: pytest.fail("refusal has no issuance"))
+    monkeypatch.setattr(_owned_retry_lifecycle, "commit_owned_retry_lifecycle", lambda *_args, **_kwargs: pytest.fail("refusal must not commit"))
+    monkeypatch.setattr(next_cmd, "_print_decision", lambda *_args, **_kwargs: None)
+    with pytest.raises(typer.Exit):
+        next_cmd.next_step(agent="agent", mission="mission", retry_run_id="original", retry_step="implement", retry_result="failed")
+
+
 # ---------------------------------------------------------------------------
 # 2156 — _build_wp_iteration_decision blocked when prompt unresolvable
 # ---------------------------------------------------------------------------
@@ -58,9 +222,7 @@ def _runtime_decision(**overrides: object) -> SimpleNamespace:
 class TestWPIterationDecisionBlockedBranch:
     """``runtime_bridge_decision_mapping._build_wp_iteration_decision`` blocked path."""
 
-    def test_wp_iteration_blocked_when_prompt_unresolvable_with_guard_failures(
-        self, tmp_path: Path
-    ) -> None:
+    def test_wp_iteration_blocked_when_prompt_unresolvable_with_guard_failures(self, tmp_path: Path) -> None:
         """Direct unit-level call to `_build_wp_iteration_decision`.
 
         Ensures the blocked branch (line 2156-2172) fires when the helper
@@ -119,9 +281,7 @@ class TestWPIterationDecisionBlockedBranch:
 class TestMapRuntimeDecisionNoActionNoStepId:
     """``runtime_bridge_decision_mapping._map_runtime_decision`` no-action AND no-step_id branch."""
 
-    def test_map_runtime_decision_emits_blocked_when_no_action_and_no_step_id(
-        self, tmp_path: Path
-    ) -> None:
+    def test_map_runtime_decision_emits_blocked_when_no_action_and_no_step_id(self, tmp_path: Path) -> None:
         """Drive the no-action `else` branch of the non-WP step mapping.
 
         Pre-condition: `_state_to_action` returns (None, None, None) AND
@@ -183,9 +343,7 @@ class TestDecideNextViaRuntimeGuardFailureBlocked:
         )
         return feature_dir
 
-    def test_guard_failure_on_non_wp_step_yields_blocked_with_prompt_error(
-        self, tmp_path: Path
-    ) -> None:
+    def test_guard_failure_on_non_wp_step_yields_blocked_with_prompt_error(self, tmp_path: Path) -> None:
         """Lines 1561-1609 — the prompt-error branch of the guard handler.
 
         Drives the branch where ``_state_to_action`` returns a usable
@@ -220,9 +378,7 @@ class TestDecideNextViaRuntimeGuardFailureBlocked:
                 return_value=snapshot,
             ),
         ):
-            sync_factory.return_value = SimpleNamespace(
-                seed_from_snapshot=lambda *_a, **_k: None
-            )
+            sync_factory.return_value = SimpleNamespace(seed_from_snapshot=lambda *_a, **_k: None)
             decision = rb.decide_next_via_runtime(
                 agent="claude",
                 mission_slug=mission_slug,
@@ -239,9 +395,7 @@ class TestDecideNextViaRuntimeGuardFailureBlocked:
         assert decision.action == "specify"
         assert decision.prompt_file is None
 
-    def test_guard_failure_on_non_wp_step_with_resolvable_prompt(
-        self, tmp_path: Path
-    ) -> None:
+    def test_guard_failure_on_non_wp_step_with_resolvable_prompt(self, tmp_path: Path) -> None:
         """Lines 1561-1609 — the prompt-attached branch (line 1609+).
 
         Same setup as above but with a resolvable prompt: the decision is
@@ -277,9 +431,7 @@ class TestDecideNextViaRuntimeGuardFailureBlocked:
                 return_value=snapshot,
             ),
         ):
-            sync_factory.return_value = SimpleNamespace(
-                seed_from_snapshot=lambda *_a, **_k: None
-            )
+            sync_factory.return_value = SimpleNamespace(seed_from_snapshot=lambda *_a, **_k: None)
             decision = rb.decide_next_via_runtime(
                 agent="claude",
                 mission_slug=mission_slug,
@@ -297,9 +449,7 @@ class TestDecideNextViaRuntimeGuardFailureBlocked:
         if decision.prompt_file is not None:
             assert Path(decision.prompt_file).exists()
 
-    def test_guard_failure_blocks_if_resolved_prompt_disappears(
-        self, tmp_path: Path
-    ) -> None:
+    def test_guard_failure_blocks_if_resolved_prompt_disappears(self, tmp_path: Path) -> None:
         """A prompt can disappear after resolution; keep the step invariant hard."""
         from runtime.next import runtime_bridge as rb
 
@@ -331,9 +481,7 @@ class TestDecideNextViaRuntimeGuardFailureBlocked:
                 return_value=snapshot,
             ),
         ):
-            sync_factory.return_value = SimpleNamespace(
-                seed_from_snapshot=lambda *_a, **_k: None
-            )
+            sync_factory.return_value = SimpleNamespace(seed_from_snapshot=lambda *_a, **_k: None)
             decision = rb.decide_next_via_runtime(
                 agent="claude",
                 mission_slug=mission_slug,
@@ -348,9 +496,7 @@ class TestDecideNextViaRuntimeGuardFailureBlocked:
         assert decision.guard_failures == ["specify_guard_failure"]
         assert decision.prompt_file is None
 
-    def test_guard_failure_on_non_wp_step_no_action_mapped(
-        self, tmp_path: Path
-    ) -> None:
+    def test_guard_failure_on_non_wp_step_no_action_mapped(self, tmp_path: Path) -> None:
         """Lines 1584-1587 — `_state_to_action` returns (None, ...) branch.
 
         When no action can be mapped for the current step, the helper
@@ -378,9 +524,7 @@ class TestDecideNextViaRuntimeGuardFailureBlocked:
                 return_value=snapshot,
             ),
         ):
-            sync_factory.return_value = SimpleNamespace(
-                seed_from_snapshot=lambda *_a, **_k: None
-            )
+            sync_factory.return_value = SimpleNamespace(seed_from_snapshot=lambda *_a, **_k: None)
             decision = rb.decide_next_via_runtime(
                 agent="claude",
                 mission_slug=mission_slug,
@@ -400,9 +544,7 @@ class TestDecideNextViaRuntimeGuardFailureBlocked:
 class TestResolvedPromptRaceFallbacks:
     """Cover every runtime bridge path that catches ``InvalidStepDecision``."""
 
-    def test_wp_iteration_blocks_if_resolved_prompt_disappears(
-        self, tmp_path: Path
-    ) -> None:
+    def test_wp_iteration_blocks_if_resolved_prompt_disappears(self, tmp_path: Path) -> None:
         from runtime.next.runtime_bridge_decision_mapping import _build_wp_iteration_decision
 
         prompt_path = tmp_path / "implement-prompt.md"
@@ -440,9 +582,7 @@ class TestResolvedPromptRaceFallbacks:
         assert decision.reason == "prompt_file_not_resolvable"
         assert decision.prompt_file is None
 
-    def test_map_wp_step_blocks_if_resolved_prompt_disappears(
-        self, tmp_path: Path
-    ) -> None:
+    def test_map_wp_step_blocks_if_resolved_prompt_disappears(self, tmp_path: Path) -> None:
         from runtime.next.runtime_bridge_decision_mapping import _map_runtime_decision
 
         prompt_path = tmp_path / "implement-prompt.md"
@@ -482,9 +622,7 @@ class TestResolvedPromptRaceFallbacks:
         assert decision.reason == "prompt_file_not_resolvable"
         assert decision.prompt_file is None
 
-    def test_map_non_wp_step_blocks_if_resolved_prompt_disappears(
-        self, tmp_path: Path
-    ) -> None:
+    def test_map_non_wp_step_blocks_if_resolved_prompt_disappears(self, tmp_path: Path) -> None:
         from runtime.next.runtime_bridge_decision_mapping import _map_runtime_decision
 
         prompt_path = tmp_path / "specify-prompt.md"

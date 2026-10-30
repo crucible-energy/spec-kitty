@@ -40,13 +40,15 @@ from specify_cli.consolidation.config import MergeStrategy
 from specify_cli.consolidation.drivers import MergeDriverOutcome, run_meta_driver
 from specify_cli.consolidation.mission_number import is_assigned_mission_number
 
+from tests._support.feature_landing import (
+    init_feature_repo as _init_git_repo,
+    write_feature_meta as _write_meta,
+    write_feature_lanes_manifest as _write_lanes_manifest,
+)
 from tests.integration.test_merge_lane_planning_data_loss import (
     _commit_file,
     _git,
-    _init_git_repo,
     _seed_wp_approved,
-    _write_lanes_manifest,
-    _write_meta,
     _write_wp_file,
 )
 from specify_cli.consolidation import phase_bookkeeping
@@ -245,9 +247,9 @@ def _cut_mission_and_lane_branches(repo: Path, slug: str, *, code_relpath: str) 
     path since the merge base).
     """
     mission_branch = f"kitty/mission-{slug}"
-    _git(repo, "branch", mission_branch, "main")
+    _git(repo, "branch", mission_branch, "feature/integration")
     lane_branch = f"kitty/mission-{slug}-lane-a"
-    _git(repo, "branch", lane_branch, "main")
+    _git(repo, "branch", lane_branch, "feature/integration")
     _commit_file(
         repo,
         branch=lane_branch,
@@ -255,7 +257,7 @@ def _cut_mission_and_lane_branches(repo: Path, slug: str, *, code_relpath: str) 
         content="x = 1\n",
         message=f"feat({slug}): WP01 approved code",
     )
-    _git(repo, "checkout", "main")
+    _git(repo, "checkout", "feature/integration")
     restamp_log_at_lane_tips(repo, repo / "kitty-specs" / slug)
 
     meta_path = repo / "kitty-specs" / slug / "meta.json"
@@ -280,7 +282,7 @@ def _consolidate(repo: Path, slug: str) -> None:
 
 
 def _target_meta(repo: Path, slug: str) -> dict[str, object]:
-    text = _git(repo, "show", f"main:kitty-specs/{slug}/meta.json").stdout
+    text = _git(repo, "show", f"feature/integration:kitty-specs/{slug}/meta.json").stdout
     return json.loads(text)
 
 
@@ -375,9 +377,9 @@ def test_target_already_assigned_wins_over_stale_mission_branch_value(tmp_path: 
     _git(tmp_path, "commit", "-m", "bootstrap target-wins mission")
 
     mission_branch = f"kitty/mission-{slug}"
-    _git(tmp_path, "branch", mission_branch, "main")
+    _git(tmp_path, "branch", mission_branch, "feature/integration")
     lane_branch = f"kitty/mission-{slug}-lane-a"
-    _git(tmp_path, "branch", lane_branch, "main")
+    _git(tmp_path, "branch", lane_branch, "feature/integration")
     _commit_file(
         tmp_path,
         branch=lane_branch,
@@ -398,7 +400,7 @@ def test_target_already_assigned_wins_over_stale_mission_branch_value(tmp_path: 
     # target's OWN copy already carries the CORRECT, authoritative value (3),
     # plus the accept-style edit so both sides genuinely diverge for the
     # squash driver.
-    _git(tmp_path, "checkout", "main")
+    _git(tmp_path, "checkout", "feature/integration")
     restamp_log_at_lane_tips(tmp_path, tmp_path / "kitty-specs" / slug)
     target_meta_path = tmp_path / "kitty-specs" / slug / "meta.json"
     target_meta = json.loads(target_meta_path.read_text(encoding="utf-8"))
@@ -471,7 +473,7 @@ def test_readback_mismatch_exits_nonzero_and_never_prints_false_assigned(tmp_pat
     # both be named, not just the recorded (wrong) value.
     assert "expected 1" in output, f"expected number (1) not named in error output: {output!r}"
     assert f"consolidate --mission {slug} --resume" in output, f"the --resume remedy is not named in error output: {output!r}"
-    assert f"git show main:kitty-specs/{slug}/meta.json" in output, f"the git show remedy is not named in error output: {output!r}"
+    assert f"git show feature/integration:kitty-specs/{slug}/meta.json" in output, f"the git show remedy is not named in error output: {output!r}"
     assert "Assigned" not in output, (
         f"#4900 regression: a false 'Assigned mission_number=' line was printed even though read-back verification failed. Output: {output!r}"
     )
@@ -555,7 +557,7 @@ def test_read_mission_number_from_ref_assigned(tmp_path: Path) -> None:
     _git(tmp_path, "add", ".")
     _git(tmp_path, "commit", "-m", "seed m with mission_number=4")
 
-    assert read_mission_number_from_ref(tmp_path, "main", "m") == 4
+    assert read_mission_number_from_ref(tmp_path, "feature/integration", "m") == 4
 
 
 def test_read_mission_number_from_ref_null(tmp_path: Path) -> None:
@@ -571,7 +573,7 @@ def test_read_mission_number_from_ref_null(tmp_path: Path) -> None:
     _git(tmp_path, "add", ".")
     _git(tmp_path, "commit", "-m", "seed m with mission_number=null")
 
-    assert read_mission_number_from_ref(tmp_path, "main", "m") is None
+    assert read_mission_number_from_ref(tmp_path, "feature/integration", "m") is None
 
 
 def test_read_mission_number_from_ref_unreadable_ref(tmp_path: Path) -> None:
@@ -657,7 +659,7 @@ def test_unassignable_mission_number_exits_nonzero(tmp_path: Path, capsys: pytes
 
 
 def _main_sha(repo: Path) -> str:
-    return subprocess.run(["git", "rev-parse", "main"], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
+    return subprocess.run(["git", "rev-parse", "feature/integration"], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
 
 
 def _assert_restored_to_pre_run(repo: Path, meta_path: Path, pre_run_meta: bytes, pre_run_main: str) -> None:

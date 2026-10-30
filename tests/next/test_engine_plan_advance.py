@@ -196,3 +196,205 @@ def test_existing_template_path_is_the_live_template_only_while_it_exists(tmp_pa
     snapshot = MissionRunSnapshot(run_id="r", mission_key="m", template_path=template_path, template_hash="h")
 
     assert existing_template_path(snapshot) == (template_file if on_disk == "present" else None)
+
+
+@pytest.mark.parametrize("result", ["failed", "blocked"])
+def test_retry_preserves_failed_attempt_and_reissues_original_step(tmp_path: Path, result: str) -> None:
+    """A deliberate retry never treats the failed attempt as success."""
+    from runtime.next._internal_runtime import engine
+
+    run_ref = _start_run(tmp_path, low_significance_gate=False)
+    failed = next_step(run_ref, agent_id="agent-1", result=result, emitter=NullEmitter())
+    assert failed.kind == "blocked"
+    run_dir = Path(run_ref.run_dir)
+    original_events = (run_dir / "run.events.jsonl").read_bytes()
+    original_state = _read_snapshot(run_dir)
+    assert original_state.issued_step_id is None and "lead_in" not in original_state.completed_steps
+    retry = getattr(engine, "plan_retry_failed_step", None)
+    assert callable(retry), "No supported retry exists for a persisted unsuccessful step"
+    before = _run_files(run_ref)
+    plan = retry(run_ref, agent_id="agent-1", expected_step_id="lead_in", expected_result=result)
+    assert _run_files(run_ref) == before, "retry planning must not mutate the original run"
+    decision = commit_advance(run_ref, plan, "agent-1", NullEmitter())
+    after = _read_snapshot(run_dir)
+    assert (decision.kind, decision.step_id) == ("step", "lead_in")
+    assert after.run_id == original_state.run_id and after.issued_step_id == "lead_in"
+    assert "lead_in" not in after.completed_steps and after.blocked_reason is None
+    events = (run_dir / "run.events.jsonl").read_bytes()
+    assert events.startswith(original_events)
+    import json
+
+    issued = json.loads(events.splitlines()[-1])
+    assert issued["event_type"] == "NextStepIssued"
+    assert issued["payload"]["actor"]["tool"] == "spec-kitty next retry-failed-step"
+
+
+@pytest.mark.parametrize("corruption", ["wrong_step", "wrong_result", "audit_rejection", "pending_decision", "journal_tail", "template_change"])
+def test_retry_refuses_mismatched_or_ambiguous_authority_without_mutation(tmp_path: Path, corruption: str) -> None:
+    from runtime.next._internal_runtime import engine
+    from runtime.next._internal_runtime.schema import MissionRuntimeError
+
+    run_ref = _start_run(tmp_path, low_significance_gate=False)
+    next_step(run_ref, agent_id="agent-1", result="failed", emitter=NullEmitter())
+    run_dir = Path(run_ref.run_dir)
+    kwargs = {"expected_step_id": "lead_in", "expected_result": "failed"}
+    if corruption == "wrong_step":
+        kwargs["expected_step_id"] = "second"
+    elif corruption == "wrong_result":
+        kwargs["expected_result"] = "blocked"
+    elif corruption in ("audit_rejection", "pending_decision"):
+        state = _read_snapshot(run_dir)
+        update = {"blocked_reason": "Audit step 'review' rejected by owner"} if corruption == "audit_rejection" else {"pending_decisions": {"audit:review": {}}}
+        engine._write_snapshot(run_dir, state.model_copy(update=update))
+    elif corruption == "journal_tail":
+        with (run_dir / "run.events.jsonl").open("ab") as handle:
+            handle.write(b'{"event_type":"unrelated","payload":{}}\n')
+    else:
+        with (run_dir / "mission_template_frozen.yaml").open("ab") as handle:
+            handle.write(b"\n# changed\n")
+    before = _run_files(run_ref)
+    with pytest.raises(MissionRuntimeError):
+        engine.plan_retry_failed_step(run_ref, "agent-1", **kwargs)
+    assert _run_files(run_ref) == before
+
+
+def test_retry_rejects_stale_history_and_forged_unblock_without_writing(tmp_path: Path) -> None:
+    from runtime.next._internal_runtime import engine
+    from runtime.next._internal_runtime.schema import MissionRuntimeError
+
+    run_ref = _start_run(tmp_path, low_significance_gate=False)
+    next_step(run_ref, agent_id="agent-1", result="failed", emitter=NullEmitter())
+    run_dir = Path(run_ref.run_dir)
+    plan = engine.plan_retry_failed_step(run_ref, "agent-1", expected_step_id="lead_in", expected_result="failed")
+    with (run_dir / "run.events.jsonl").open("ab") as handle:
+        handle.write(b'{"event_type":"unrelated","payload":{}}\n')
+    before = _run_files(run_ref)
+    with pytest.raises(engine.StaleAdvancePlan):
+        commit_advance(run_ref, plan, "agent-1", NullEmitter())
+    assert _run_files(run_ref) == before
+    normal = plan_advance(run_ref, "agent-1", "success")
+    forged = normal.model_copy(update={"snapshot": normal.snapshot.model_copy(update={"blocked_reason": None})})
+    with pytest.raises(MissionRuntimeError):
+        commit_advance(run_ref, forged, "agent-1", NullEmitter())
+    assert _run_files(run_ref) == before
+
+
+def test_retry_parses_the_checked_template_bytes_without_reopening(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from runtime.next._internal_runtime import engine
+
+    run_ref = _start_run(tmp_path, low_significance_gate=False)
+    next_step(run_ref, agent_id="agent-1", result="failed", emitter=NullEmitter())
+
+    def reject_reopen(*_args: Any, **_kwargs: Any) -> None:
+        raise AssertionError("retry must parse the bytes it checked")
+
+    monkeypatch.setattr(engine, "_load_frozen_template", reject_reopen)
+    plan = engine.plan_retry_failed_step(run_ref, "agent-1", expected_step_id="lead_in", expected_result="failed")
+    assert (plan.decision.kind, plan.decision.step_id) == ("step", "lead_in")
+
+
+def test_retry_refuses_a_symlinked_frozen_template(tmp_path: Path) -> None:
+    from runtime.next._internal_runtime import engine
+    from runtime.next._internal_runtime.schema import MissionRuntimeError
+
+    run_ref = _start_run(tmp_path, low_significance_gate=False)
+    next_step(run_ref, agent_id="agent-1", result="failed", emitter=NullEmitter())
+    run_dir = Path(run_ref.run_dir)
+    frozen = run_dir / "mission_template_frozen.yaml"
+    other = run_dir / "template-copy.yaml"
+    other.write_bytes(frozen.read_bytes())
+    frozen.unlink()
+    frozen.symlink_to(other)
+    before = (run_dir / "run.events.jsonl").read_bytes()
+    with pytest.raises((MissionRuntimeError, OSError)):
+        engine.plan_retry_failed_step(run_ref, "agent-1", expected_step_id="lead_in", expected_result="failed")
+    assert (run_dir / "run.events.jsonl").read_bytes() == before
+
+
+def test_interrupted_retry_retains_history_and_refuses_ambiguous_reissue(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from runtime.next._internal_runtime import engine
+    from runtime.next._internal_runtime.schema import MissionRuntimeError
+
+    run_ref = _start_run(tmp_path, low_significance_gate=False)
+    next_step(run_ref, agent_id="agent-1", result="failed", emitter=NullEmitter())
+    run_dir = Path(run_ref.run_dir)
+    original = (run_dir / "run.events.jsonl").read_bytes()
+    plan = engine.plan_retry_failed_step(run_ref, "agent-1", expected_step_id="lead_in", expected_result="failed")
+
+    def fail_write(*_args: Any, **_kwargs: Any) -> None:
+        raise OSError("injected snapshot failure")
+
+    monkeypatch.setattr(engine, "_write_snapshot", fail_write)
+    with pytest.raises(OSError, match="injected snapshot failure"):
+        commit_advance(run_ref, plan, "agent-1", NullEmitter())
+    assert (run_dir / "run.events.jsonl").read_bytes().startswith(original)
+    assert _read_snapshot(run_dir).blocked_reason is not None
+    before = _run_files(run_ref)
+    with pytest.raises(MissionRuntimeError):
+        engine.plan_retry_failed_step(run_ref, "agent-1", expected_step_id="lead_in", expected_result="failed")
+    assert _run_files(run_ref) == before
+
+
+def test_competing_retry_commits_issue_the_step_at_most_once(tmp_path: Path) -> None:
+    import json
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    from kernel.locks import LockNotAcquired
+    from runtime.next._internal_runtime import engine
+
+    run_ref = _start_run(tmp_path, low_significance_gate=False)
+    next_step(run_ref, agent_id="agent-1", result="failed", emitter=NullEmitter())
+    plan = engine.plan_retry_failed_step(run_ref, "agent-1", expected_step_id="lead_in", expected_result="failed")
+    barrier = threading.Barrier(2)
+
+    def commit() -> str:
+        barrier.wait(timeout=5)
+        try:
+            commit_advance(run_ref, plan, "agent-1", NullEmitter())
+            return "issued"
+        except (LockNotAcquired, engine.StaleAdvancePlan):
+            return "refused"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = [future.result(timeout=15) for future in (pool.submit(commit), pool.submit(commit))]
+    assert sorted(results) == ["issued", "refused"]
+    run_dir = Path(run_ref.run_dir)
+    events = [json.loads(line) for line in (run_dir / "run.events.jsonl").read_text(encoding="utf-8").splitlines()]
+    retries = [
+        event
+        for event in events
+        if event.get("event_type") == "NextStepIssued" and event.get("payload", {}).get("actor", {}).get("tool") == "spec-kitty next retry-failed-step"
+    ]
+    assert len(retries) == 1
+    assert _read_snapshot(run_dir).issued_step_id == "lead_in"
+
+
+def test_retry_shares_the_published_run_cursor_lock(tmp_path: Path) -> None:
+    """An installed current runtime must exclude this Source retry writer."""
+    from kernel.locks import LockNotAcquired, machine_file_lock
+    from runtime.next._internal_runtime import engine
+
+    run_ref = _start_run(tmp_path, low_significance_gate=False)
+    published_lock = Path(run_ref.run_dir) / "state.json.lock"
+    with engine._run_write_lock(run_ref), pytest.raises(LockNotAcquired), machine_file_lock(published_lock):
+        pass
+
+
+def test_run_cursor_lock_refuses_hardlinked_sentinel(tmp_path: Path) -> None:
+    import os
+
+    from runtime.next._internal_runtime import engine
+
+    run_ref = _start_run(tmp_path, low_significance_gate=False)
+    sidecar = Path(run_ref.run_dir) / "state.json.lock"
+    sidecar.unlink()  # This disposable fixture has no holder after _start_run.
+    victim = tmp_path / "sentinel"
+    victim.write_bytes(b"preserve this evidence\n")
+    try:
+        os.link(victim, sidecar)
+    except OSError as exc:
+        pytest.skip(f"Hard links unavailable on this filesystem: {exc}")
+    with pytest.raises(OSError, match="single-link regular"), engine._run_write_lock(run_ref):
+        pytest.fail("A hard-linked run cursor must not be acquired")
+    assert victim.read_bytes() == b"preserve this evidence\n"

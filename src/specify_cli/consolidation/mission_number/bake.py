@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import os
 from pathlib import Path
 
 from specify_cli.cli.console import console
@@ -609,12 +610,18 @@ def _write_mission_number_to_branch(
         # temp worktree (`commit --only -- <rel_meta>`)"; safe_commit refuses a
         # detached HEAD. ``--only`` needs no prior ``git add``; hooks still run.
         commit_msg = f"chore({mission_slug}): assign mission_number={next_number}"
-        _subprocess.run(
-            ["git", "-c", "commit.gpgsign=false", "commit", "--only", "-m", commit_msg, "--", rel_meta.as_posix()],
-            cwd=str(mission_tmp_path),
-            capture_output=True,
-            check=True,
-        )
+        try:
+            _subprocess.run(
+                ["git", "-c", "commit.gpgsign=false", "commit", "--only", "-m", commit_msg, "--", rel_meta.as_posix()],
+                cwd=str(mission_tmp_path),
+                capture_output=True,
+                check=True,
+            )
+        except _subprocess.CalledProcessError as exc:
+            # Keep the original refusal and captured bytes for rollback/recovery,
+            # while exposing the hook's actual diagnostic in exception renderers.
+            exc.add_note("Mission-number commit stdout:\n" + os.fsdecode(exc.stdout or b"") + "\nMission-number commit stderr:\n" + os.fsdecode(exc.stderr or b""))
+            raise
 
         new_sha = _subprocess.run(
             ["git", "rev-parse", "HEAD"],

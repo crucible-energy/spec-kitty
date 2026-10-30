@@ -241,6 +241,18 @@ _ALLOWLISTED_SELECTION_CALLSITES: dict[str, str] = _scan.ALLOWLISTED_SELECTION_C
 #: and disambiguate purely by ``token_substring``, proving the two-axis
 #: descriptor shape.
 _RAW_JOIN_SITES: tuple[ContentDescriptor, ...] = (
+    ContentDescriptor(
+        rel_path="specify_cli/context/mission_resolver.py",
+        qualname="_pinned_mission_index",
+        token_substring="missions . append ( ResolvedMission ( identity , slug , root",
+        occurrence=None,
+        rationale=(
+            "DIAG — private immutable-index identity carrier only: inspect_mission_at uses the selected identity "
+            "for bounded Git object reads at one resolved commit. The derived feature_dir never reaches a "
+            "filesystem open/stat/write, public payload or OwnedCheckout. Consulting the current-filesystem "
+            "resolver here would mix an unrelated active branch into the pinned observation."
+        ),
+    ),
     # ----- surface_resolver.py: _coord_mid8 fail-closed raise payloads -----
     # Both joins compose paths ONLY inside a ``StatusReadPathNotFound(...)``
     # constructor call inside a ``raise`` statement.  No FS open/stat/write

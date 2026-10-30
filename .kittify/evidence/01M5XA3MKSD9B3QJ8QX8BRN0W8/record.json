@@ -1,0 +1,8 @@
+{
+  "event": "completed",
+  "invocation_id": "01M5XA3MKSD9B3QJ8QX8BRN0W8",
+  "completed_at": "2026-10-27T01:17:01.508594+00:00",
+  "outcome": "done",
+  "closed_by": "agent",
+  "evidence_ref": "/private/tmp/pdb-mission-control-20261024/qualified-rc7-original-run-r1/installed-qualification.json"
+}

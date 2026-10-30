@@ -220,7 +220,19 @@ spec-kitty next --agent <name> --mission <slug> --result failed --json
 spec-kitty next --agent <name> --mission <slug> --result blocked --json
 ```
 
-If `--result` is omitted, the command stays in read-only query mode. Query mode may still accept `--agent` as a compatibility form, but it does not advance mission state.
+If `--result` and retry options are omitted, the command stays in read-only query mode. Query mode may still accept `--agent` as a compatibility form, but it does not advance mission state.
+
+### Retry an unsuccessful step
+
+After correcting the cause of a `failed` or `blocked` step, query the original run and use its run ID, failed step and result to request a retry:
+
+```bash
+spec-kitty next --agent <name> --mission <slug> --retry-run-id <run-id> --retry-step <step-id> --retry-result failed --json
+```
+
+Use `blocked` instead of `failed` when that was the actual result. Retry verifies the current indexed run, original unsuccessful events, frozen template, planner, work-package selection and prompt. It preserves the unsuccessful attempt and records a new issuance; it does not report the failed attempt as successful. A rejected audit, pending decision, changed run or ambiguous history is refused. Do not combine retry options with `--result` or `--answer`.
+
+Cooperating current engine writers serialize on the run lock. Older runtimes do not participate; the run owner must ensure they are not writing the same run before retrying. If an interruption leaves the journal and snapshot out of agreement, preserve both and investigate rather than deleting or rewriting events. A refusal is not an approval or production-readiness decision.
 
 ## Things to Be Aware Of
 

@@ -66,7 +66,6 @@ this module, so a patch on that name keeps intercepting.
 
 from __future__ import annotations
 
-import fnmatch
 import json
 import logging
 from collections.abc import Iterable
@@ -288,6 +287,8 @@ class _MoveTaskState:
     profile: str | None = None
     invocation_id: str | None = None
     owned: OwnedCheckout | None = None
+    review_source_commit: str | None = None
+    review_delivery_commit: str | None = None
     # --- phase A: resolved targets ---
     target_lane: Lane = Lane.PLANNED
     repo_root: Path = field(default_factory=Path)
@@ -425,7 +426,8 @@ def _mt_preflight_owned_request(st: _MoveTaskState) -> None:
     """
     assert st.owned is not None
     require_unstaged_index(st.owned)
-    if st.target_lane not in (
+    completing_delivered = st.target_lane == Lane.DONE and bool(st.review_source_commit and st.review_delivery_commit)
+    if not completing_delivered and st.target_lane not in (
         Lane.PLANNED,
         Lane.CLAIMED,
         Lane.IN_PROGRESS,
@@ -631,13 +633,28 @@ def _mt_resolve_targets(st: _MoveTaskState, ports: TasksPorts) -> None:
             "OWNED_TRANSITION_UNSUPPORTED",
             "Owned checkout does not support transitions from this lane.",
         )
+    if st.owned is not None and st.target_lane == Lane.DONE and st.old_lane != Lane.APPROVED:
+        raise ActionContextError(
+            "OWNED_TRANSITION_UNSUPPORTED",
+            "Owned completion requires the current task attempt to be approved.",
+        )
     # #4758 FR-002: refuse leaving ``planned`` with no ``lanes.json`` to rebuild
     # from, before any mission write below.
     _mt_guard_planned_boundary_lanes(st)
     # Event-store write leg — the SAME coord husk as ``mt_feature_dir``.
     st.feature_dir = st.mt_feature_dir
-    if st.owned is not None and st.target_lane in (Lane.FOR_REVIEW, Lane.APPROVED):
+    if st.owned is not None and st.target_lane in (Lane.FOR_REVIEW, Lane.APPROVED, Lane.DONE):
         st.review_base_ref = _mt_resolve_owned_review_base(st)
+    if st.review_source_commit is not None or st.review_delivery_commit is not None:
+        if st.owned is None or st.target_lane not in (Lane.FOR_REVIEW, Lane.APPROVED, Lane.DONE) or not st.review_source_commit or not st.review_delivery_commit:
+            raise ActionContextError(
+                "OWNED_REVIEW_SOURCE_INVALID",
+                "Paired review-source and delivery commits require owned review, approval or post-delivery completion admission.",
+            )
+        # Inspect before a deferred deliverable commit or verdict write. The
+        # explicit history proof cannot turn pending implementation into a
+        # delivered source, even when ordinary auto-commit is enabled.
+        _mt_require_owned_implementation(st)
     # FR-007 / IC-04: prior-owner attribution is snapshot-sourced (the WP file no
     # longer carries the ``agent`` runtime field post-cutover) — read via the
     # ungated snapshot accessor in an extracted helper, not
@@ -740,6 +757,7 @@ def _mt_resolve_owned_review_base(st: _MoveTaskState) -> str:
     """Resolve one immutable, suitable review base for an owned checkout."""
     from specify_cli.cli.commands.agent import tasks as _tasks
     from specify_cli.core.vcs.git import capture_branch_tip
+    from specify_cli.lanes.claim_base import read_claim_base
     from specify_cli.lanes.persistence import require_lanes_json
     from specify_cli.lanes.planning_commit_classify import PinClass, classify_recorded_pin
     from specify_cli.lanes.worktree_allocator import ORPHANED_PIN_RECOVERY_HINT
@@ -813,6 +831,22 @@ def _mt_resolve_owned_review_base(st: _MoveTaskState) -> str:
             "OWNED_REVIEW_BASE_INVALID",
             "Owned review base must be an ancestor of HEAD in the selected checkout.",
         )
+    # Re-finalizing genuine planning can advance the mission-wide pin beyond
+    # an already implemented WP. Its immutable claim ref remains the review
+    # window. Preserve the validated planning fallback for historical rebuilt
+    # missions only when Git establishes genuine absence, never a read error.
+    try:
+        claimed = read_claim_base(st.main_repo_root, st.mission_slug, st.task_id, strict=True)
+    except RuntimeError as exc:
+        raise ActionContextError("OWNED_REVIEW_BASE_INVALID", str(exc)) from exc
+    if claimed is not None:
+        claim_commit = resolve_commit(claimed)
+        if claim_commit is None or claim_commit == head_commit or git_merge_base(owned.owned_root, head_commit, claim_commit) != claim_commit:
+            raise ActionContextError(
+                "OWNED_REVIEW_BASE_INVALID",
+                "Owned claim base must resolve to a different ancestor commit of HEAD; no planning fallback is permitted.",
+            )
+        return claim_commit
     return base_commit
 
 
@@ -880,21 +914,17 @@ def _mt_owned_file_patterns(st: _MoveTaskState) -> tuple[str, ...]:
 
 def _mt_matches_owned_file(path: str, patterns: tuple[str, ...]) -> bool:
     """Match a repository-relative path with commit-guard-compatible globs."""
-    normalized = path.replace("\\", "/").removeprefix("./")
-    for pattern in patterns:
-        if fnmatch.fnmatch(normalized, pattern):
-            return True
-        prefix = pattern.replace("/**", "").replace("/*", "").rstrip("/")
-        if prefix and normalized.startswith(prefix + "/"):
-            return True
-    return False
+    from specify_cli.core.owned_mission import matches_owned_file
+
+    return matches_owned_file(path, patterns)
 
 
 def _mt_require_owned_implementation(st: _MoveTaskState) -> None:
     """Require a committed implementation delta in the WP's authored scope."""
     assert st.owned is not None
     assert st.review_base_ref is not None
-    patterns = _mt_owned_file_patterns(st)
+    source_commit: str | None = getattr(st, "review_source_commit", None)
+    patterns = () if source_commit is not None else _mt_owned_file_patterns(st)
     changed = merge_base_changed_files_checked(
         st.owned.owned_root,
         st.review_base_ref,
@@ -905,10 +935,30 @@ def _mt_require_owned_implementation(st: _MoveTaskState) -> None:
         raise ActionContextError(
             "OWNED_IMPLEMENTATION_MISSING",
             "Owned review could not read the committed change set: the merge-base diff against review base "
-            f"{st.review_base_ref} (lanes.json `planning_commit_sha`) failed in {st.owned.owned_root}. "
-            "Make sure that commit is reachable in this checkout (fetch it, or recreate the local branch that carries it), "
-            f"or repoint `planning_commit_sha` in {st.feature_dir / 'lanes.json'} to a commit that is an ancestor of HEAD, then retry.",
+            f"{st.review_base_ref} (recorded claim base or validated legacy planning base) failed in {st.owned.owned_root}. "
+            "Restore the recorded base through the owning claim or planning recovery workflow, "
+            "verify it is reachable and an ancestor of this checkout, then retry; do not move the mission planning pin to repair a claim base.",
         )
+    if source_commit is not None:
+        from specify_cli.core.owned_mission import resolve_owned_review_source
+
+        assert st.review_delivery_commit is not None
+        assert st.wp is not None
+        proof = resolve_owned_review_source(
+            st.owned, st.wp.path, source_commit, st.review_delivery_commit, st.target_branch, completion=st.target_lane == Lane.DONE
+        )
+        patterns = tuple(pattern.replace("\\", "/").removeprefix("./") for pattern in proof.owned_files if pattern.strip())
+        if (
+            proof.task_id != st.task_id
+            or not patterns
+            or not any(_mt_matches_owned_file(path, patterns) for path in proof.source_changes)
+            or any(_mt_matches_owned_file(path, patterns) for path in (*proof.current_changes, *proof.dirty_paths))
+        ):
+            raise ActionContextError(
+                "OWNED_REVIEW_SOURCE_INVALID",
+                "Review-source evidence requires original owned implementation and unchanged current committed/index/worktree entries.",
+            )
+        return
     if not patterns or not any(_mt_matches_owned_file(path, patterns) for path in changed):
         raise ActionContextError(
             "OWNED_IMPLEMENTATION_MISSING",
@@ -1168,6 +1218,12 @@ def _mt_done_ancestry_facts(st: _MoveTaskState) -> tuple[str | None, bool, str]:
 
     if st.target_lane != Lane.DONE:
         return None, False, ""
+    if st.owned is not None:
+        # The explicit delivery arm was inspected before any write by the same
+        # canonical verifier used for post-squash review. Recheck at the late
+        # ancestry boundary; never re-resolve this mission in the primary.
+        _mt_require_owned_implementation(st)
+        return "code_change", True, "Exact owned source/delivery tree and target ancestry verified."
     try:
         done_workspace = _tasks.resolve_workspace_for_wp(st.main_repo_root, st.mission_slug, st.task_id)
         done_execution_mode: str | None = done_workspace.execution_mode
@@ -1548,6 +1604,8 @@ class _MoveTaskArgs:
     profile: str | None = None
     invocation_id: str | None = None
     owned: OwnedCheckout | None = None
+    review_source_commit: str | None = None
+    review_delivery_commit: str | None = None
 
 
 def _do_move_task(args: _MoveTaskArgs, *, ports: TasksPorts | None = None) -> None:
@@ -1583,6 +1641,8 @@ def _do_move_task(args: _MoveTaskArgs, *, ports: TasksPorts | None = None) -> No
 
     ports = ports or _default_move_task_ports()
     st = _MoveTaskState(
+        review_source_commit=args.review_source_commit,
+        review_delivery_commit=args.review_delivery_commit,
         task_id=args.task_id,
         to=args.to,
         mission=args.mission,

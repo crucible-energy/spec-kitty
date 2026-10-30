@@ -606,14 +606,66 @@ def bound_image(role: str) -> Path | None:
 def foundation_controls() -> str:
     """Pinned private-ownership regressions; real external signals run above.
 
-    Reuse the exact test data without importing a sibling checkout. Only the
-    excessive process-budget value changes from 33 to 65 for the new 64 limit.
+    Keep the historical fixture byte-identical. Adapt its process budget from
+    33 to 65 for the new 64 limit, and require an actual kernel stop witness
+    before the stopped-child cancellation control requests cancellation.
     Forked owners in the upstream signal helper are intentionally exercised by
     the public Python controls instead, so one native trace has one owner.
     """
     source = FOUNDATION.read_text()
     controls = source[source.index("\nfn fixture(") : source.index("\n// The signal comes")]
     controls += source[source.index("\nfn priorSignal(") :]
+    stopped_begin = controls.index('\ntest "stopped owned child can be cancelled and disposed"')
+    stopped_end = controls.index('\ntest "only exited killed and dumped wait events are terminal"', stopped_begin)
+    controls = (
+        controls[:stopped_begin]
+        + r"""
+
+test "stopped owned child can be cancelled and disposed" {
+    if (builtin.os.tag != .macos) return error.SkipZigTest;
+    const Witness = struct {
+        stopped_pid: ?i32 = null,
+        captured_prefix: bool = false,
+        fn observe(context: *anyopaque, state: InFlight) ?Failure {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            self.captured_prefix = state.stdout_preview > 0;
+            return null;
+        }
+        fn probe(context: ?*anyopaque) bool {
+            const raw = context orelse return false;
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            if (!self.captured_prefix) return false;
+            var info: c.siginfo_t = std.mem.zeroes(c.siginfo_t);
+            // Inspect this parent's children without consuming the owner's wait event.
+            if (c.waitid(c.P_ALL, 0, &info, c.WSTOPPED | c.WNOHANG | c.WNOWAIT) != 0 or
+                info.si_pid <= 0 or info.si_code != c.CLD_STOPPED) return false;
+            self.stopped_pid = info.si_pid;
+            return true;
+        }
+    };
+    var witness: Witness = .{};
+    try std.testing.expect(!Witness.probe(&witness));
+    const result = try run(std.testing.allocator, std.testing.io, .{
+        .argv = &.{ "/bin/sh", "-c", "printf '%s' $$; kill -STOP $$; exit 7" },
+        .cancel_probe = Witness.probe,
+        .cancel_context = &witness,
+        .retained_monitor = .{ .context = &witness, .poll = Witness.observe },
+    });
+    defer result.deinit(std.testing.allocator);
+    try std.testing.expectEqual(@as(?Failure, .cancelled), result.failure);
+    try std.testing.expect(result.leader_reaped and result.group_disposed);
+    try std.testing.expect(witness.captured_prefix);
+    const pid = std.fmt.parseInt(i32, result.stdout, 10) catch |err| {
+        std.debug.print("invalid stopped-child PID capture: {any}\n", .{result.stdout});
+        return err;
+    };
+    // An unrelated stopped child cannot count as this test's readiness witness.
+    try std.testing.expectEqual(@as(?i32, pid), witness.stopped_pid);
+    try std.testing.expect(!liveProcess(pid));
+}
+"""
+        + controls[stopped_end:]
+    )
     controls = controls.replace(".processes = 33", ".processes = 65")
     return (
         controls
@@ -2037,15 +2089,18 @@ def run_owned_sampler_worker_protocol(
 
 def sampler_start_frame(owner_pid: int, deadline_ns: int | None = None) -> bytes:
     clock = getattr(time, "CLOCK_MONOTONIC_RAW" if sys.platform == "darwin" else "CLOCK_BOOTTIME")
-    return json.dumps(
-        {
-            "schema_version": 1,
-            "command": "start",
-            "owner_pid": owner_pid,
-            "deadline_boot_ns": str(deadline_ns if deadline_ns is not None else time.clock_gettime_ns(clock) + 10_000_000_000),
-        },
-        separators=(",", ":"),
-    ).encode() + b"\n"
+    return (
+        json.dumps(
+            {
+                "schema_version": 1,
+                "command": "start",
+                "owner_pid": owner_pid,
+                "deadline_boot_ns": str(deadline_ns if deadline_ns is not None else time.clock_gettime_ns(clock) + 10_000_000_000),
+            },
+            separators=(",", ":"),
+        ).encode()
+        + b"\n"
+    )
 
 
 @pytest.mark.parametrize("middle", ["ordinary", "nonzero"])

@@ -6,13 +6,15 @@ and an ``auto-approval:`` reference, so a reviewer name is no evidence of a revi
 
 from __future__ import annotations
 
+from tests.terminus.feature_fixture_support import feature_build_coord_mission_mixed_lane_canceled as build_coord_mission_mixed_lane_canceled
+
 import subprocess
 from pathlib import Path
 
 import pytest
 
 from tests.terminus.conftest import _git as git
-from tests.terminus.conftest import CoordMission, blob_present_at, build_coord_mission_mixed_lane_canceled, git_rev, run_terminus
+from tests.terminus.conftest import CoordMission, blob_present_at, git_rev, run_terminus
 from tests.terminus.mixed_lane_support import ATTEST_FLAG, collapse
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]

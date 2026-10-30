@@ -1,17 +1,13 @@
 """Repro #4985 — an explicit ``--target`` is lost to stale meta across a crash.
 
-Mechanism (DEBRIEF §4, root R4 / companion C-1): meta.json records
-``target_branch: main`` while the operator ran ``merge --target develop``. When the
-merge is interrupted and resumed, the explicit-flag provenance is not persisted as
-the authority, so the stale meta ``main`` wins over the operator's explicit
-``develop``. Backstopped by C-1 (WP09): the resolved target is persisted ONCE as
-the single authority, and an explicit ``--target`` always wins over stale meta.
+The historical issue used main/develop. Under current PR-only policy, exercise
+the same stale-metadata precedence using two eligible integration branches,
+with a separate protected primary. An explicit target must win without changing
+the stale metadata target or advancing the primary. This is not permission to
+override protected bookkeeping; its refusal remains independently tested.
 
-RED-first: driven through the REAL ``spec-kitty merge --resume --target develop``
-CLI (no ``_run_git`` / subprocess mocking); the interrupted state is written with
-``save_state`` (fixture setup, not a mock). Today the resumed merge still resolves
-against meta's ``main`` and never lands the approved work on ``develop`` →
-``xfail(strict=True)``. Approved SHAs come from lane-branch tips (RN-Q3).
+Use the real consolidation CLI and Git. The interrupted state is written through
+``save_state``; approved SHAs come from lane-branch tips (RN-Q3).
 """
 
 from __future__ import annotations
@@ -22,11 +18,11 @@ import pytest
 
 from tests.terminus.conftest import (
     CoordMission,
-    build_coord_mission,
     run_terminus,
     sha_reachable,
 )
 from tests.terminus.conftest import _git as git
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
 
@@ -50,23 +46,26 @@ def _persist_interrupted_merge(mission: CoordMission, wp_ids: list[str], target:
 
 
 def test_4985_explicit_target_wins_over_stale_meta_on_resume(tmp_path: Path) -> None:
-    # meta.json declares target_branch=main (the fixture default / stale value).
     mission = build_coord_mission(tmp_path, wps=("WP01",), mid8="01M4985A")
-    assert mission.target_branch == "main"
-    git(mission.repo, "branch", "develop", "main")
-    git(mission.repo, "checkout", "-q", "develop")
+    stale_target = mission.target_branch
+    stale_tip = mission.rev(stale_target)
+    explicit_target = "feature/explicit-target"
+    git(mission.repo, "branch", explicit_target, stale_target)
+    git(mission.repo, "checkout", "-q", explicit_target)
     approved = mission.approved_shas_from_lane_tips(["WP01"])
-    _persist_interrupted_merge(mission, ["WP01"], target="develop")
+    _persist_interrupted_merge(mission, ["WP01"], target=explicit_target)
 
     # The operator re-states the explicit target on resume; it must win over stale meta.
-    run_terminus(mission, ["consolidate", "--resume", "--target", "develop", "--yes"])
+    result = run_terminus(mission, ["consolidate", "--resume", "--target", explicit_target, "--yes"])
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert mission.rev(stale_target) == stale_tip, "Resume moved the stale metadata target"
 
     for shas in approved.values():
         for sha in shas:
-            assert sha_reachable(mission.repo, sha, "develop"), (
-                f"approved commit {sha[:10]} did NOT land on the explicit --target 'develop' after --resume — stale meta 'main' won (#4985)"
+            assert sha_reachable(mission.repo, sha, explicit_target), (
+                f"approved commit {sha[:10]} did NOT land on explicit target {explicit_target} after resume (#4985)"
             )
     # And the stale target must NOT have received the work.
     for shas in approved.values():
         for sha in shas:
-            assert not sha_reachable(mission.repo, sha, "main"), f"approved commit {sha[:10]} landed on stale-meta 'main' instead of develop (#4985)"
+            assert not sha_reachable(mission.repo, sha, stale_target), f"approved commit {sha[:10]} landed on stale target {stale_target} (#4985)"

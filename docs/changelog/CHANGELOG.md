@@ -15,7 +15,23 @@ All notable changes to the Spec Kitty CLI and templates are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 4.0.0rc6
+## [Unreleased] - 4.0.0rc7
+
+- **[Fixed] Private settings stay private when updated**. YAML updates retain existing file permissions, complete short writes, and refuse changed destinations or unsupported access controls before replacement. Test startup also refuses unsafe temporary or configuration locations before creating files.
+
+- **[Fixed] Shared status-event history merges without a false concurrent-fork conflict** (#134). Identical post-base review cycles are shared history when one log extends the other. The released cancellation/rejection guard remains active for independent departures; conflicting event payloads and malformed input still refuse before writing. The driver uses the maintained public status facade. The fork's source-version bump required by that facade export does not establish full official RC7 source convergence, publication or runtime adoption.
+
+- **NEXT resumes active work for its recorded owner** (#60). Finalized-board query and step selection distinguish an existing claim from a new planned claim. The same owner can continue dependency-ready active work while downstream planned packages wait. Other, unknown and anonymous owners refuse; canonical history and existing execution gates remain unchanged.
+
+- **Owned plain-LANES status reads the selected checkout** (#60). `agent tasks status` supports explicit selection and cwd adoption for a validated plain-LANES planning checkout, preserving its canonical events and diagnosing a stale primary copy. General lifecycle mutation, coordination topology and workspace admission remain unchanged; this is inspection, not active-work continuation or retained-history adoption.
+
+- **Linked upgrade previews describe the selected checkout** (#60). The legacy JSON preview and too-new-schema refusal use that checkout's project metadata without changing the general canonical-root resolver or actual apply routing. A separate repository root checkout's future schema no longer poisons a healthy selected checkout. Upgrade hints return a manual note rather than an install command for an older or uncomparable selected release; release-channel selection and package provenance remain unchanged. This is not a legacy-charter migration or consumer admission.
+
+- **Retained runtime history can be previewed in an explicitly owned checkout** (#60). `migrate backfill-runtime-state --mission <handle> --owned-checkout <path> --dry-run` validates the selected checkout and inspects only its retained dossier, including coordinated Missions. The JSON labels that scope and explicitly denies canonical status adoption. Owned live migration and implicit corpus walks refuse; existing calls are unchanged. The recovery guide no longer recommends manually disabling metadata validation to flip `status_phase`. Live coordinated recovery remains a separate open gate.
+
+- **Owned review can reconcile an identical-tree squash after a planning refresh.** Pair `move-task --review-source-commit <original-commit>` with `--review-delivery-commit <delivery-commit>` on an owned `for_review` or `approved` transition. The local proof checks immutable task/mission scope, original claim precedence, attempt history, entry modes, index flags and working bytes; changed or unavailable evidence refuses. Existing reviewer, index, regression and verdict guards remain mandatory. These flags do not verify PR acceptance or grant release, cleanup or runtime authority.
+
+- **Owned analysis works on a mission's declared LANES target checkout.** `agent mission record-analysis` and `check-prerequisites` accept that target without widening implementation, finalization or merge authority. Report-only recording checks the selected checkout's Git operation state; an unrelated primary checkout's merge no longer blocks it. A merge, rebase or index lock in the selected checkout still refuses the transaction.
 
 _4.0.0rc6 candidate cycle. Entries land here until the release chore finalizes
 this section at publish._

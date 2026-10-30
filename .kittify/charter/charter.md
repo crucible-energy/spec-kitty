@@ -439,11 +439,11 @@ requires them to pass — a failing run has no power to block a PR. The binding 
 Agents are **not allowed** to push directly to `origin/main` under any circumstances. This includes `spec-kitty merge`.
 
 **Required workflow for mission merges:**
-1. Run `spec-kitty merge` locally — this merges lane branches into local `main`.
-2. Create the ticket branch: `git checkout -b issue-<n>-<slug>`
-3. Push it: `git push origin issue-<n>-<slug>`
-4. Open a PR targeting `main`: `gh pr create --title "..." --body "..."`
-5. Do **not** merge it; the programme merge agent owns that step.
+1. Start on an owned named feature/integration branch before any mission writes.
+2. Run `spec-kitty consolidate --mission <handle> --target <feature-or-integration-branch>` after acceptance. Local `main` is never a consolidation target.
+3. Push that feature/integration branch to the single intended remote.
+4. Open a PR from that branch targeting `main`.
+5. Do **not** merge it; the programme merge agent owns that step. After verified PR acceptance, fetch and fast-forward local `main` from the accepted remote history. Never first integrate the change into local `main`.
 
 **Required workflow for all other changes (hotfixes, docs, config):**
 1. Start work on a named branch, never on `main` directly.

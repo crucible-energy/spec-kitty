@@ -16,16 +16,26 @@ rooted at ``tmp_path`` regardless.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
 
-from kernel.locks import LockAcquireTimeout, LockNotAcquired, SyncMachineFileLock, force_release
+from kernel.locks import LockAcquireTimeout, LockNotAcquired, SyncMachineFileLock, force_release, machine_file_lock
 from kernel.no_follow import NoFollowPathError
 
 pytestmark = [pytest.mark.unit, pytest.mark.fast]
 
 _VICTIM_BYTES = b"do not disclose -- attacker-chosen victim content\n"
+
+
+def test_single_link_regular_lock_refuses_fifo_without_blocking(tmp_path: Path) -> None:
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("FIFO creation is not available on this platform")
+    path = tmp_path / "fifo.lock"
+    os.mkfifo(path)
+    with pytest.raises(OSError, match="single-link regular"), machine_file_lock(path, single_link_regular=True):
+        pytest.fail("A FIFO must never be used as a lock record")
 
 
 @pytest.fixture()

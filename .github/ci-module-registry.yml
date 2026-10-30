@@ -272,6 +272,7 @@ modules:
   - src/specify_cli/status/**
   - src/specify_cli/tool_surface/**
   - src/specify_cli/zeitgeist_client/**
+  - src/specify_cli/workspace_lifecycle/**
   cov_targets:
   - specify_cli
   - glossary
@@ -299,6 +300,7 @@ modules:
   # unit tests, claimed alongside its tool_surface sibling so they run per-PR.
   - tests/specify_cli/asset_preservation
   - tests/zeitgeist_client
+  - tests/workspace_lifecycle
   # ci-coverage-honesty-01M3CZVN (WP02 T008/T010, FR-005/FR-009): enrol five
   # previously out-of-matrix trees into this aggregate row's per-PR execution so
   # the src packages they exercise leave the in-matrix-dark baseline. This row's

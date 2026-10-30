@@ -1135,8 +1135,11 @@ source-closed, no-process-creation Darwin qualification; its scope string or a
 caller Boolean cannot authorize arbitrary executor cleanup or reuse. Preserve
 that boundary while preparing the declared Windows Job backend and T011.
 
-The [platform control](../../../tests/local_validation/test_platforms.py)
-prepares a self-contained Windows ARM64 native image against an explicitly
+The historical platform-control source `tests/local_validation/test_platforms.py`
+was retained only in its owning native-validation lane and is not published in
+this source lineage. Its publication and current kernel qualification remain
+with that owner; the following records historical preparation, not a shipped
+control. It prepares a self-contained Windows ARM64 native image against an explicitly
 unqualified direct-child baseline. A real kernel witness must observe the
 finite descendant alive after leader return, preserve an unrelated retained
 process, and join both finite controls. It reads or waits on a matching

@@ -36,9 +36,7 @@ _GITDIR_PREFIX = "gitdir:"
 #     (WP01 verified: merge.py callers only receive CLI-created slugs that
 #     never emit interior dots; the widening is safe and non-breaking).
 # ---------------------------------------------------------------------------
-_SAFE_PATH_SEGMENT_RE: re.Pattern[str] = re.compile(
-    r"^[A-Za-z0-9][A-Za-z0-9._-]*$"
-)
+_SAFE_PATH_SEGMENT_RE: re.Pattern[str] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
 class UnsafePathSegmentError(GuardedReadError, ValueError):
@@ -84,34 +82,24 @@ def assert_safe_path_segment(value: str) -> str:
 
     # Reject empty or whitespace-only
     if not stripped:
-        raise UnsafePathSegmentError(
-            f"Not a safe path segment: {value!r} — value must not be empty or whitespace-only."
-        )
+        raise UnsafePathSegmentError(f"Not a safe path segment: {value!r} — value must not be empty or whitespace-only.")
 
     # Reject leading or trailing whitespace — a value that differs from its
     # stripped form is ambiguous and would silently produce wrong path segments.
     if value != stripped:
-        raise UnsafePathSegmentError(
-            f"Not a safe path segment: {value!r} — value must not contain leading or trailing whitespace."
-        )
+        raise UnsafePathSegmentError(f"Not a safe path segment: {value!r} — value must not contain leading or trailing whitespace.")
 
     # Reject any ".." substring (covers ..foo, foo.., a..b, and literal ..)
     if ".." in stripped:
-        raise UnsafePathSegmentError(
-            f"Not a safe path segment: {value!r} — value must not contain '..' (traversal guard)."
-        )
+        raise UnsafePathSegmentError(f"Not a safe path segment: {value!r} — value must not contain '..' (traversal guard).")
 
     # Reject leading dot (covers .hidden, .dot-only, etc.)
     if stripped.startswith("."):
-        raise UnsafePathSegmentError(
-            f"Not a safe path segment: {value!r} — value must not begin with '.' (traversal guard)."
-        )
+        raise UnsafePathSegmentError(f"Not a safe path segment: {value!r} — value must not begin with '.' (traversal guard).")
 
     # Reject path separators (/ and \) — catches a/b, a\b, /absolute, trailing/
     if "/" in stripped or "\\" in stripped:
-        raise UnsafePathSegmentError(
-            f"Not a safe path segment: {value!r} — value must not contain path separators."
-        )
+        raise UnsafePathSegmentError(f"Not a safe path segment: {value!r} — value must not contain path separators.")
 
     # Reject non-ASCII and enforce the segment grammar
     if not _SAFE_PATH_SEGMENT_RE.fullmatch(stripped):
@@ -151,8 +139,7 @@ def safe_mission_slug(slug: str | None, fallback: str) -> str:
         assert_safe_path_segment(slug)
     except ValueError as exc:
         logger.warning(
-            "Refusing to use unsafe mission_slug %r as a path segment (traversal guard); "
-            "falling back to trusted %r: %s",
+            "Refusing to use unsafe mission_slug %r as a path segment (traversal guard); falling back to trusted %r: %s",
             slug,
             fallback,
             exc,
@@ -269,7 +256,10 @@ def locate_project_root(start: Path | None = None, *, stop: Path | None = None) 
                         # Navigate: .git/worktrees/name -> .git -> main repo root
                         main_git_dir = gitdir.parent.parent
                         main_repo = main_git_dir.parent
-                        if main_repo.exists() and (main_repo / KITTIFY_DIR).is_dir():
+                        # A real linked checkout remains its own Git boundary
+                        # even before governance is initialized in its primary.
+                        # Never adopt an unrelated ancestor governance marker.
+                        if main_repo.exists() and ((main_repo / KITTIFY_DIR).is_dir() or (main_git_dir / "HEAD").is_file()):
                             return main_repo
             except (OSError, ValueError):
                 # If we can't read or parse the .git file, continue searching
@@ -414,11 +404,7 @@ def resolve_canonical_root(cwd: Path | None = None) -> Path:
         WorkspaceRootNotFound: when ``cwd`` is not inside a git repo.
     """
     start = (cwd or Path.cwd()).resolve()
-    ceilings = {
-        Path(part).resolve()
-        for part in os.environ.get("GIT_CEILING_DIRECTORIES", "").split(os.pathsep)
-        if part
-    }
+    ceilings = {Path(part).resolve() for part in os.environ.get("GIT_CEILING_DIRECTORIES", "").split(os.pathsep) if part}
 
     for candidate in [start, *start.parents]:
         git_path = candidate / ".git"
@@ -540,10 +526,7 @@ class MissionMetaReadError(GuardedReadError, RuntimeError):
     def __init__(self, meta_path: Path, cause: Exception) -> None:
         self.meta_path = meta_path
         self.cause = cause
-        super().__init__(
-            f"Cannot read {meta_path}: {cause}"
-            " — fail-closed (meta.json exists but is corrupt or unreadable)"
-        )
+        super().__init__(f"Cannot read {meta_path}: {cause} — fail-closed (meta.json exists but is corrupt or unreadable)")
         # Populate the GuardedReadError envelope path (contracts/error-envelope.md).
         # Set only ``path`` — ``reason`` would override the crafted __str__ message.
         self.path = str(meta_path)
@@ -647,9 +630,7 @@ def load_meta_fail_closed(feature_dir: Path) -> dict[str, Any] | None:
     try:
         # allow_missing=True  -> None when file is absent (field-absent case)
         # on_malformed="raise" -> ValueError when file exists but is corrupt
-        meta: dict[str, Any] | None = load_meta(
-            feature_dir, allow_missing=True, on_malformed="raise"
-        )
+        meta: dict[str, Any] | None = load_meta(feature_dir, allow_missing=True, on_malformed="raise")
         return meta
     except ValueError as exc:
         raise MissionMetaReadError(meta_path, exc) from exc
@@ -994,9 +975,7 @@ class RetentionDecision:
     override_notices: tuple[str, ...]
 
 
-def _resolve_one(
-    *, label: str, explicit: bool | None, raw_retain: object | None
-) -> tuple[bool, str, str | None, str | None]:
+def _resolve_one(*, label: str, explicit: bool | None, raw_retain: object | None) -> tuple[bool, str, str | None, str | None]:
     """Resolve one retention field: explicit CLI flag > meta.json > default.
 
     Precedence per ``contracts/retention-resolver-contract.md`` (#3131):
@@ -1035,10 +1014,7 @@ def _resolve_one(
         return False, "meta", warning, None
 
     if meta_is_malformed:
-        warning = (
-            f"malformed retain_{label} value in meta.json ({raw_retain!r}); "
-            "treated as retaining (fail-closed)"
-        )
+        warning = f"malformed retain_{label} value in meta.json ({raw_retain!r}); treated as retaining (fail-closed)"
         return False, "meta", warning, None
 
     return True, "default", None, None
@@ -1081,21 +1057,15 @@ def resolve_merge_retention(
     """
     raw_branches, raw_worktrees = read_retention_from_meta(primary_meta_dir)
 
-    delete_branch, branch_source, branch_warning, branch_override = _resolve_one(
-        label="branches", explicit=explicit_delete_branch, raw_retain=raw_branches
-    )
-    remove_worktree, worktree_source, worktree_warning, worktree_override = (
-        _resolve_one(
-            label="worktrees",
-            explicit=explicit_remove_worktree,
-            raw_retain=raw_worktrees,
-        )
+    delete_branch, branch_source, branch_warning, branch_override = _resolve_one(label="branches", explicit=explicit_delete_branch, raw_retain=raw_branches)
+    remove_worktree, worktree_source, worktree_warning, worktree_override = _resolve_one(
+        label="worktrees",
+        explicit=explicit_remove_worktree,
+        raw_retain=raw_worktrees,
     )
 
     warnings = tuple(w for w in (branch_warning, worktree_warning) if w is not None)
-    override_notices = tuple(
-        n for n in (branch_override, worktree_override) if n is not None
-    )
+    override_notices = tuple(n for n in (branch_override, worktree_override) if n is not None)
 
     return RetentionDecision(
         delete_branch=delete_branch,
@@ -1141,10 +1111,7 @@ def require_explicit_feature(feature: str | None, *, command_hint: str = "") -> 
             raise RuntimeError("project root not found")
         mission_specs = root / KITTY_SPECS_DIR
         if mission_specs.is_dir():
-            slugs = sorted(
-                d.name for d in mission_specs.iterdir()
-                if d.is_dir() and not d.name.startswith(".")
-            )
+            slugs = sorted(d.name for d in mission_specs.iterdir() if d.is_dir() and not d.name.startswith("."))
             if slugs:
                 listing = "\n".join(f"  - {s}" for s in slugs[:15])
                 if len(slugs) > 15:
@@ -1160,10 +1127,7 @@ def require_explicit_feature(feature: str | None, *, command_hint: str = "") -> 
             root = locate_project_root()
             if root is None:
                 raise RuntimeError("project root not found")
-            first = sorted(
-                d.name for d in (root / KITTY_SPECS_DIR).iterdir()
-                if d.is_dir() and not d.name.startswith(".")
-            )[0]
+            first = sorted(d.name for d in (root / KITTY_SPECS_DIR).iterdir() if d.is_dir() and not d.name.startswith("."))[0]
             example_slug = first
         except Exception:
             pass

@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 import typer
 
-from kernel.git import GitCommandError, GitPath
+from kernel.git import GitCommandError, GitPath, run_git
 from kernel.git import changed_paths as git_changed_paths
 from kernel.git_topology import GitTopologyError, git_common_dir
 
@@ -27,7 +27,7 @@ from specify_cli.cli.console import console
 from specify_cli.coordination.coherence import is_coordination_kind_file
 from specify_cli.core.constants import KITTY_SPECS_DIR
 from specify_cli.core.env import is_interactive
-from specify_cli.core.git_ops import run_command
+from specify_cli.core.git_ops import resolve_primary_branch, run_command
 from specify_cli.core.git_preflight import (
     build_git_preflight_failure_payload,
     run_git_preflight,
@@ -38,6 +38,7 @@ from specify_cli.consolidation._constants import (
     _STATUS_EVENTS_FILENAME,
     _STATUS_FILENAME,
 )
+from specify_cli.git.protection_policy import ProtectionPolicy
 from specify_cli.git.ref_advance import reset_would_obstruct_untracked
 from specify_cli.consolidation.approved_bound import is_approved_reviewed_attestation
 from specify_cli.consolidation.git_probes import _has_branch_ref, _lane_already_integrated, sha_reachable_from
@@ -243,6 +244,36 @@ def _check_mission_branch(
         "remediation": f"git branch {expected_branch} {base_sha}",
     }
     return False, blocker_payload
+
+
+def _enforce_pr_only_target(repo_root: Path, target_branch: str) -> str:
+    """Validate a concrete local branch through the canonical strict policy.
+
+    Revisions/HEAD/options cannot stand in for a branch. Fully qualified local
+    heads are normalized before the same protection decision all writers use.
+    This read-only gate must precede coordination seeding and state admission.
+    """
+    branch = target_branch.removeprefix("refs/heads/")
+    try:
+        run_git(repo_root, "check-ref-format", "--branch", branch, timeout=5)
+        run_git(repo_root, "show-ref", "--verify", "--quiet", "refs/heads/" + branch, timeout=5)
+        symbolic = run_git(repo_root, "symbolic-ref", "--quiet", "--no-recurse", "refs/heads/" + branch, timeout=5, check=False)
+        if symbolic.returncode != 1:
+            console.print("[red]PR-only consolidation requires a concrete local branch, not a symbolic alias.[/red]")
+            raise typer.Exit(1)
+    except GitCommandError as exc:
+        console.print("[red]PR-only consolidation requires an existing local feature/integration branch.[/red]")
+        raise typer.Exit(1) from exc
+    policy = ProtectionPolicy.resolve(repo_root)
+    primary = resolve_primary_branch(repo_root, bias=False)
+    if policy.is_protected_target(branch, primary_branch=primary, allow_bypass=False):
+        console.print(f"[red]PR-only consolidation:[/red] target '{branch}' is protected. Consolidate on a feature/integration branch, then open a PR.")
+        console.print(
+            "[yellow]If this is an interrupted consolidation, inspect its saved state and use "
+            "'spec-kitty consolidate --abort' for guarded recovery; this refusal does not undo earlier mutations.[/yellow]"
+        )
+        raise typer.Exit(1)
+    return branch
 
 
 def _enforce_planning_artifact_target_branch(repo_root: Path, target_branch: str) -> None:

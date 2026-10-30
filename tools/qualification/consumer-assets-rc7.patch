@@ -1,0 +1,184 @@
+diff --git a/src/kernel/paths.py b/src/kernel/paths.py
+index 96dda9f5e8..4b519703be 100644
+--- a/src/kernel/paths.py
++++ b/src/kernel/paths.py
+@@ -308,6 +308,26 @@ def get_packs_root_default() -> Path:
+     return get_built_in_pack_root().parent
+ 
+ 
++def consumer_agent_asset_root() -> Path | None:
++    """Select private agent assets, or retain native user roots by default.
++
++    This only selects paths. Existing asset owners retain ancestry, ownership,
++    content and apply-time checks. Consumer scope takes precedence over native
++    agent configuration roots; it never changes those agents' configuration.
++    """
++    scope = os.environ.get("SPEC_KITTY_ASSET_SCOPE", "user")
++    if scope == "user":
++        return None
++    if scope != "consumer":
++        raise ValueError("SPEC_KITTY_ASSET_SCOPE must be 'user' or 'consumer'")
++    if not os.environ.get("SPEC_KITTY_HOME"):
++        raise ValueError("SPEC_KITTY_ASSET_SCOPE=consumer requires an absolute SPEC_KITTY_HOME")
++    home = get_kittify_home()
++    if not home.is_absolute() or ".." in home.parts:
++        raise ValueError("SPEC_KITTY_ASSET_SCOPE=consumer requires an absolute SPEC_KITTY_HOME without '..'")
++    return home / "agent-assets"
++
++
+ def get_runtime_state_root() -> Path:
+     """Return the spec-kitty runtime STATE root for the current platform.
+ 
+@@ -338,6 +358,8 @@ def get_runtime_state_root() -> Path:
+     Returns:
+         Path: Absolute path to the runtime state root.
+     """
++    # Scope admission precedes even pre-import environment/auth state reads.
++    consumer_agent_asset_root()
+     if env_home := os.environ.get("SPEC_KITTY_HOME"):
+         return Path(env_home)
+ 
+@@ -541,6 +563,7 @@ def repo_tree_path(file_path: Path, repo_root: Path) -> tuple[Path, str]:
+ __all__ = [
+     "BUILT_IN_PACK_SIBLING_PATTERN",
+     "MISSION_ASSETS_SIBLING_PATTERN",
++    "consumer_agent_asset_root",
+     "get_built_in_pack_root",
+     "get_kittify_home",
+     "get_package_asset_root",
+diff --git a/src/specify_cli/runtime/agent_commands.py b/src/specify_cli/runtime/agent_commands.py
+index eafc81f466..ff26ccffb1 100644
+--- a/src/specify_cli/runtime/agent_commands.py
++++ b/src/specify_cli/runtime/agent_commands.py
+@@ -106,6 +106,10 @@ def get_global_command_dir(agent_key: str) -> Path:
+         "llxprt" → ~/Library/Preferences/llxprt-code/commands/ (macOS)
+     """
+     from specify_cli.core.config import AGENT_COMMAND_CONFIG
++    from kernel.paths import consumer_agent_asset_root
++
++    if (private_root := consumer_agent_asset_root()) is not None:
++        return private_root / str(AGENT_COMMAND_CONFIG[agent_key]["dir"])
+ 
+     if agent_key == "opencode":
+         custom_config_dir = os.environ.get("OPENCODE_CONFIG_DIR")
+diff --git a/src/specify_cli/runtime/asset_preparation.py b/src/specify_cli/runtime/asset_preparation.py
+index 90c7c99060..32697cbbc0 100644
+--- a/src/specify_cli/runtime/asset_preparation.py
++++ b/src/specify_cli/runtime/asset_preparation.py
+@@ -158,6 +158,7 @@ _SOURCE_ENV = (
+     "HOME",
+     "USERPROFILE",
+     "SPEC_KITTY_HOME",
++    "SPEC_KITTY_ASSET_SCOPE",
+     "SPEC_KITTY_TEMPLATE_ROOT",
+     "SPEC_KITTY_PACKS_ROOT",
+     "XDG_CONFIG_HOME",
+diff --git a/src/specify_cli/runtime/home.py b/src/specify_cli/runtime/home.py
+index a0aa4b8f49..c1385f4f3b 100644
+--- a/src/specify_cli/runtime/home.py
++++ b/src/specify_cli/runtime/home.py
+@@ -15,9 +15,11 @@ from __future__ import annotations
+ 
+ import os
+ from pathlib import Path
++from typing import cast
+ 
+ import kernel.paths
+ from kernel.paths import is_windows
++from kernel.paths import consumer_agent_asset_root
+ 
+ 
+ def get_kittify_home() -> Path:
+@@ -32,13 +34,16 @@ def get_kittify_home() -> Path:
+     The ``SPEC_KITTY_HOME`` environment variable always wins regardless of
+     platform.
+     """
++    # Validate an explicit consumer scope before any owner can bootstrap.
++    consumer_agent_asset_root()
+     if env_home := os.environ.get("SPEC_KITTY_HOME"):
+         return Path(env_home)
+ 
+     if is_windows():
+         from specify_cli.paths import get_runtime_root  # noqa: PLC0415
+ 
+-        return get_runtime_root().base
++        # The lazy package facade is Any; RuntimeRoot.base is a Path.
++        return cast(Path, get_runtime_root().base)
+ 
+     return Path.home() / ".kittify"
+ 
+diff --git a/src/specify_cli/skills/installer.py b/src/specify_cli/skills/installer.py
+index 41c686ff60..13f6cc6cb7 100644
+--- a/src/specify_cli/skills/installer.py
++++ b/src/specify_cli/skills/installer.py
+@@ -472,7 +472,9 @@ def _command_parent_receipts(assessment: OwnerAssessment) -> dict[Path, SkillPat
+ 
+ 
+ def _agent_config_identity() -> str:
+-    return json.dumps({"agents": AGENT_SKILL_CONFIG, "global_home": str(Path.home())}, sort_keys=True, separators=(",", ":"))
++    from kernel.paths import consumer_agent_asset_root
++
++    return json.dumps({"agents": AGENT_SKILL_CONFIG, "global_home": str(consumer_agent_asset_root() or Path.home())}, sort_keys=True, separators=(",", ":"))
+ 
+ 
+ def _skill_bytes_state(content: bytes, mode: int) -> FileState:
+diff --git a/src/specify_cli/skills/paths.py b/src/specify_cli/skills/paths.py
+index a805228da2..12aef32999 100644
+--- a/src/specify_cli/skills/paths.py
++++ b/src/specify_cli/skills/paths.py
+@@ -9,6 +9,7 @@ from pathlib import Path
+ import stat
+ 
+ from specify_cli.tool_surface.operations import FileState
++from kernel.paths import consumer_agent_asset_root
+ 
+ from specify_cli.core.config import AGENT_SKILL_CONFIG, SKILL_CLASS_WRAPPER
+ 
+@@ -41,7 +42,7 @@ def get_primary_global_skill_root(agent_key: str) -> Path | None:
+         return None
+ 
+     normalized = root.strip("/")
+-    return Path.home() / normalized
++    return (consumer_agent_asset_root() or Path.home()) / normalized
+ 
+ 
+ def iter_installable_agents() -> list[str]:
+diff --git a/src/specify_cli/session_presence/upgrade_check.py b/src/specify_cli/session_presence/upgrade_check.py
+--- a/src/specify_cli/session_presence/upgrade_check.py
++++ b/src/specify_cli/session_presence/upgrade_check.py
+@@ -2,7 +2,7 @@
+ 
+ Background refresh only — never blocks the foreground. Never raises on any failure.
+ 
+-Cache location: ``~/.kittify/last-cli-check.json``
++Cache location: the canonical runtime home (including ``SPEC_KITTY_HOME``).
+ TTL: 3600 seconds (1 hour)
+ 
+ The refresh path resolves the upgrade provider and CLI package name via
+@@ -17,7 +17,7 @@
+ import subprocess
+ import sys
+ from kernel.clock import now_utc, now_utc_iso, parse_iso, timedelta
+-from kernel.paths import is_windows
++from kernel.paths import get_kittify_home, is_windows
+ from pathlib import Path
+ 
+ from specify_cli.core.env import is_truthy
+@@ -34,7 +34,7 @@
+ # trace — kept importable but not exported so the gate does not flag it as
+ # unused.
+ 
+-CACHE_PATH: Path = Path.home() / ".kittify" / "last-cli-check.json"
++CACHE_PATH: Path = get_kittify_home() / "last-cli-check.json"
+ TTL_SECONDS: int = 3600
+ OPT_OUT_ENV_VAR: str = "SPEC_KITTY_NO_UPGRADE_CHECK"
+ 
+@@ -87,7 +87,7 @@
+ 
+ 
+ class UpgradeChecker:
+-    """Manage the version cache at ``~/.kittify/last-cli-check.json``.
++    """Manage the version cache in the canonical runtime home.
+ 
+     All public methods are safe to call unconditionally — any I/O or subprocess
+     error is swallowed so callers never need to guard against exceptions.

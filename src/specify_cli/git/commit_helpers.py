@@ -107,7 +107,7 @@ from mission_runtime import CommitTarget
 from specify_cli.core.commit_guard import GuardCapability, GuardVerdict, ProtectionState
 from specify_cli.core.constants import KITTY_SPECS_DIR
 from specify_cli.core.commit_guard import evaluate as evaluate_commit_guard
-from kernel.git import GitCommandError, changed_paths
+from kernel.git import GitCommandError, changed_paths, tree_entry
 from kernel.resolution import is_symlink_loop_error, resolve_commit_path
 from kernel.git_topology import (
     GitTopologyError,
@@ -901,6 +901,19 @@ def _staged_tree_is_empty_for_paths(repo_path: Path, normalized_files: list[str]
     return result.returncode == 0
 
 
+def _raise_if_staged_tree_unchanged(
+    worktree_root: Path,
+    normalized_files: list[str],
+    requested_staged_patch: str,
+    *,
+    destination_ref: str,
+) -> None:
+    """Restore requested staging and report a genuine no-op before hooks run."""
+    if _staged_tree_is_empty_for_paths(worktree_root, normalized_files):
+        _restore_staged_patch(worktree_root, normalized_files, requested_staged_patch, destination_ref=destination_ref)
+        raise SafeCommitStagedTreeUnchanged(destination_ref=destination_ref)
+
+
 def _run_commit_capture_sha(
     repo_path: Path,
     commit_message: str,
@@ -1169,6 +1182,7 @@ def _build_expected_parent_tree(
     *,
     env: dict[str, str],
     expected_path_bytes: Mapping[str, bytes],
+    expected_path_modes: Mapping[str, str],
 ) -> str:
     """Run commit-message hooks and build a tree containing only requested paths."""
     read_tree = _run_git_for_commit(worktree_root, ["read-tree", expected_parent_sha], env=env)
@@ -1199,6 +1213,10 @@ def _build_expected_parent_tree(
         requested = ", ".join(normalized_files)
         raise RuntimeError(f"safe_commit: commit hook changed requested path contents after staging; refusing expected-parent commit for {requested}")
     _verify_expected_parent_tree_bytes(worktree_root, tree, expected_path_bytes, env=env)
+    for path, mode in expected_path_modes.items():
+        entry = tree_entry(worktree_root, tree, path, env=env, timeout=10)
+        if entry is None or entry.type != "blob" or entry.mode != mode:
+            raise RuntimeError(f"safe_commit: staged mode for {path!r} differs from expected {mode}; refusing expected-parent commit")
     return tree
 
 
@@ -1279,6 +1297,20 @@ def _normalize_expected_parent_path_bytes(
             raise RuntimeError(f"safe_commit: duplicate expected raw-bytes path: {relative_path!r}")
         normalized[relative_path] = contents
     return normalized
+
+
+def _normalize_expected_parent_path_modes(
+    worktree_root: Path,
+    normalized_files: list[str],
+    expected_path_modes: Mapping[Path, str] | None,
+) -> dict[str, str]:
+    """Normalize caller-supplied regular-file mode assertions for staged paths."""
+    if expected_path_modes is None:
+        return {}
+    if any(mode not in {"100644", "100755"} for mode in expected_path_modes.values()):
+        raise ValueError("safe_commit: expected mode must be 100644 or 100755")
+    encoded = {path: mode.encode("ascii") for path, mode in expected_path_modes.items()}
+    return {path: mode.decode("ascii") for path, mode in _normalize_expected_parent_path_bytes(worktree_root, normalized_files, encoded).items()}
 
 
 def _create_expected_parent_commit(
@@ -1362,6 +1394,7 @@ def _safe_commit_with_expected_parent(
     message: str,
     normalized_files: list[str],
     expected_path_bytes: Mapping[str, bytes],
+    expected_path_modes: Mapping[str, str],
 ) -> CommitResult:
     """Create a hook-checked commit and atomically compare-and-swap its ref."""
     landed_sha: str | None = None
@@ -1382,6 +1415,7 @@ def _safe_commit_with_expected_parent(
                 message_file,
                 env=candidate_env,
                 expected_path_bytes=expected_path_bytes,
+                expected_path_modes=expected_path_modes,
             )
             expected_tree = _run_git_text(worktree_root, ["show", "-s", "--format=%T", expected_parent_sha])
             if tree_sha == expected_tree:
@@ -1582,6 +1616,7 @@ def safe_commit(
     capability: GuardCapability = GuardCapability.STANDARD,
     expected_parent_sha: str | None = None,
     expected_path_bytes: Mapping[Path, bytes] | None = None,
+    expected_path_modes: Mapping[Path, str] | None = None,
     owned: OwnedCheckout | OwnedCreateMission | None = None,
     index_deletions: Sequence[Path] = (),
 ) -> CommitResult:
@@ -1652,6 +1687,9 @@ def safe_commit(
         expected_path_bytes: Optional exact raw bytes expected in selected
             staged blobs. Requires ``expected_parent_sha`` and refuses before
             ref update if a clean filter changes any asserted path.
+        expected_path_modes: Optional exact regular-file Git modes for selected
+            paths. Requires ``expected_parent_sha`` and refuses before the ref
+            update if a staged path has a different type or executable bit.
         index_deletions: Paths whose INDEX deletion is committed while the file
             stays on disk (FR-022: a migration's ``git rm --cached``). Committed
             from a temporary index seeded from HEAD, so the work tree is never
@@ -1726,6 +1764,7 @@ def safe_commit(
             normalized_files,
             expected_path_bytes,
         )
+        normalized_expected_path_modes = _normalize_expected_parent_path_modes(worktree_root, normalized_files, expected_path_modes)
         return _safe_commit_with_expected_parent(
             repo_root=repo_root,
             worktree_root=worktree_root,
@@ -1734,9 +1773,10 @@ def safe_commit(
             message=message,
             normalized_files=normalized_files,
             expected_path_bytes=normalized_expected_path_bytes,
+            expected_path_modes=normalized_expected_path_modes,
         )
-    if expected_path_bytes is not None:
-        raise ValueError("expected_path_bytes requires expected_parent_sha")
+    if expected_path_bytes is not None or expected_path_modes is not None:
+        raise ValueError("expected_path_bytes and expected_path_modes require expected_parent_sha")
 
     # 7. Snapshot, then stage, EXACTLY the requested paths -- and ONLY these
     #    paths. `git add --force -- <path>` mutates the index entry for that
@@ -1773,6 +1813,11 @@ def safe_commit(
         _restore_staged_patch(worktree_root, normalized_files, requested_staged_patch, destination_ref=destination_ref)
         bad_path, git_reason = stage_failure
         raise RuntimeError(f"safe_commit: failed to stage requested files in {worktree_root}: {bad_path!r}: {git_reason}")
+
+    # An authoritative scoped comparison must precede commit hooks: an unchanged
+    # artifact is not a commit attempt. Restore even partially staged requested
+    # content before returning the existing typed no-op result.
+    _raise_if_staged_tree_unchanged(worktree_root, normalized_files, requested_staged_patch, destination_ref=destination_ref)
 
     # 8-9. Commit ONLY the requested paths via `git commit --only`
     # (FR-011/FR-012/#4888): this is the structural fix. `--only` commits

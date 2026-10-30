@@ -85,6 +85,11 @@
        "hidden": false,
        "deprecated": false
       },
+      "inspect": {
+       "help": "Inspect saved planning identity/facts without changing the active checkout.",
+       "hidden": false,
+       "deprecated": false
+      },
       "acceptance-verdict": {
        "help": "Record an acceptance-criterion verdict, or register/execute a negative\ninvariant (FR-007/FR-008) — exactly one of ``--criterion``/\n``--negative-invariant``, both routed through the WP03 write seam.",
        "hidden": false,
@@ -690,6 +695,11 @@
      "hidden": false,
      "deprecated": false
     },
+    "organization-workspaces": {
+     "help": "Account for accessible organization workspaces as JSON; never remove them.",
+     "hidden": false,
+     "deprecated": false
+    },
     "identity": {
      "help": "Report mission-identity health across kitty-specs/.\n\nClassifies every mission into one of four states (FR-045):\n\n\\b\n- assigned: mission_id present AND mission_number non-null (fully migrated)\n- pending:  mission_id present AND mission_number null (pre-merge)\n- legacy:   mission_id missing AND mission_number present (needs backfill)\n- orphan:   both fields missing or meta.json unreadable (needs triage)\n\nAlso reports duplicate numeric prefixes (FR-011) and ambiguous selectors\nthat would resolve to multiple missions (FR-012).\n\nExamples:\n    spec-kitty doctor identity\n    spec-kitty doctor identity --json\n    spec-kitty doctor identity --mission 083-foo\n    spec-kitty doctor identity --fail-on legacy,orphan",
      "hidden": false,
@@ -1073,7 +1083,7 @@
      "deprecated": false
     },
     "backfill-runtime-state": {
-     "help": "Seed legacy runtime state as events, verify fail-closed, and flip status_phase.\n\nDrives the shared :func:`~specify_cli.migration.runtime_state_cutover.cutover_mission`\nhelper over the corpus (or a single ``--mission``). For every mission it seeds\nthe frontmatter/checkbox runtime state into the event log, verifies the reduced\nsnapshot equals the OLD reader by **count + value**, and flips ``meta.json``\n``status_phase`` to snapshot-authority **only** for missions that verify.\n\nPer-mission best-effort (research D-03): a mission whose verify fails is left\nun-flipped (``status_phase`` untouched) and named in the summary; other missions\nstill flip. Use ``--dry-run`` to preview would-seed and would-flip counts\nwithout writing. The summary's ``Flipped`` counter names the missions this\nrun actually flipped — a mission with event-log evidence but no legacy\nfrontmatter state to seed still flips and is counted there, never as\n\"Skipped (already migrated)\" (#3212).\n\nExit codes:\n\n- ``0`` — every visited mission flipped or is already migrated (verify ok, no error)\n- ``1`` — one or more missions failed verify / errored, or ``--mission`` named an\n  unknown handle\n\nExamples:\n\n    spec-kitty migrate backfill-runtime-state --dry-run\n\n    spec-kitty migrate backfill-runtime-state --mission my-mission-01ABCD\n\n    spec-kitty migrate backfill-runtime-state --json",
+     "help": "Seed legacy runtime state as events, verify fail-closed, and flip status_phase.\n\nDrives the shared :func:`~specify_cli.migration.runtime_state_cutover.cutover_mission`\nhelper over the corpus (or a single ``--mission``). For every mission it seeds\nthe frontmatter/checkbox runtime state into the event log, verifies the reduced\nsnapshot equals the OLD reader by **count + value**, and flips ``meta.json``\n``status_phase`` to snapshot-authority **only** for missions that verify.\n\nPer-mission best-effort (research D-03): a mission whose verify fails is left\nun-flipped (``status_phase`` untouched) and named in the summary; other missions\nstill flip. Use ``--dry-run`` to preview would-seed and would-flip counts\nwithout writing. The summary's ``Flipped`` counter names the missions this\nrun actually flipped — a mission with event-log evidence but no legacy\nfrontmatter state to seed still flips and is counted there, never as\n\"Skipped (already migrated)\" (#3212).\n\nAn explicit ``--owned-checkout`` is supported only with ``--mission`` and\n``--dry-run``. It previews the retained dossier and history in that checkout,\nincluding coordinated missions; it does not select, adopt or repair the live\ncoordination status surface, grant write authority, or create new approvals.\n\nExit codes:\n\n- ``0`` — a completed dry-run (inspect its result payload for failures), or a\n  live run where every visited mission verified and migrated successfully\n- non-zero — live verification failed, selection was invalid, or the requested\n  owned mode was refused; selector/usage errors retain their existing codes\n\nExamples:\n\n    spec-kitty migrate backfill-runtime-state --dry-run\n\n    spec-kitty migrate backfill-runtime-state --mission my-mission-01ABCD\n\n    spec-kitty migrate backfill-runtime-state --json\n\n    spec-kitty migrate backfill-runtime-state --mission my-mission-01ABCD --owned-checkout /path/to/checkout --dry-run --json",
      "hidden": false,
      "deprecated": false
     },
@@ -1667,6 +1677,58 @@
     },
     "import": {
      "help": "Import a workflow YAML into `.kittify/overrides/workflows`.",
+     "hidden": false,
+     "deprecated": false
+    }
+   }
+  },
+  "workspaces": {
+   "help": "Durable workspace accounting and status",
+   "hidden": false,
+   "deprecated": false,
+   "commands": {
+    "initialize": {
+     "help": "Initialize an explicitly admitted empty private directory; refuse existing contents.",
+     "hidden": false,
+     "deprecated": false
+    },
+    "status": {
+     "help": "Report recorded obligations; never infer workflow completion or deletion.",
+     "hidden": false,
+     "deprecated": false
+    },
+    "account": {
+     "help": "Run foreground inventory and durably merge observations without cleanup.\n\nThis explicit diagnostic scan is not an event callback or automatic worker.\nIncomplete scans retain previous obligations; they never erase missing work.",
+     "hidden": false,
+     "deprecated": false
+    },
+    "resume": {
+     "help": "Recover missed completion events through the independently verifying worker.",
+     "hidden": false,
+     "deprecated": false
+    },
+    "worker": {
+     "help": "Drain pending hints; the creator, not event JSON, authorizes every effect.",
+     "hidden": false,
+     "deprecated": false
+    },
+    "managed-run": {
+     "help": "Run one joined producer in a registered checkout and enqueue closeout.\n\nThe producer receives SPEC_KITTY_LIFECYCLE_RESULT for an owned 0600 JSON\n{\"pr\": number} result. No existing checkout is registered by this admission. Failed or\nunconfirmed producers retain their workspace; main is never a merge target.",
+     "hidden": false,
+     "deprecated": false
+    },
+    "configure": {
+     "help": "Admit background observation scope; never install hooks or adopt creators.",
+     "hidden": false,
+     "deprecated": false
+    },
+    "event": {
+     "help": "Queue a hint, never owner release. SessionEnd does not dispatch a worker.",
+     "hidden": false,
+     "deprecated": false
+    },
+    "hook-definition": {
+     "help": "Print exact reviewable hooks. Installation and platform trust are separate.",
      "hidden": false,
      "deprecated": false
     }

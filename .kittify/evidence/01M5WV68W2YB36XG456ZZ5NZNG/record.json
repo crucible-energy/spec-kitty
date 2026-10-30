@@ -1,0 +1,8 @@
+{
+  "event": "completed",
+  "invocation_id": "01M5WV68W2YB36XG456ZZ5NZNG",
+  "completed_at": "2026-10-26T19:33:37.937877+00:00",
+  "outcome": "done",
+  "closed_by": "agent",
+  "evidence_ref": "/private/tmp/pdb-mission-control-20261024/governance-recovery/owned-lanes-continuation-design-r1.md"
+}

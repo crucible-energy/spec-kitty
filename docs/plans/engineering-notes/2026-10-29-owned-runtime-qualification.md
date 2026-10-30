@@ -1,0 +1,167 @@
+---
+title: Private owned-runtime qualification
+description: Qualify actual owned SDK behavior and preserve native agent state before consumer receiving.
+doc_status: active
+updated: 2026-10-29
+---
+
+# Qualify the installed owner and its effects
+
+## User experience findings
+
+Private runtime configuration alone does not isolate agent commands and skills.
+The published RC7 runtime selected native agent directories during actual SDK
+startup. Even after applying the accepted consumer asset closure, its upgrade
+checker created `~/.kittify/last-cli-check.json` despite `SPEC_KITTY_HOME`.
+Getter-only checks missed this second writer. The installed startup and complete
+owned-mission fixtures exposed it before consumer admission.
+
+## Engineering decisions
+
+Reuse the existing canonical owned-analysis RC7 patch: it already selects the
+owned analysis root. Retain the separately qualified operation-specific
+finalization port. Port the six live asset paths from accepted source
+`c9f90a3a7f67176608f2284316a7a290c6688d86` without fuzz. Its additional historical
+workflow API hunks do not match the published runtime and are not force-ported.
+
+Repair the existing upgrade cache writer by delegating to
+`kernel.paths.get_kittify_home`; do not introduce another resolver. Include this
+same small correction as a seventh path in the compatibility data patch. The
+canonical resolver retains platform-specific default runtime location policy.
+
+Independent review questioned whether the direct cache import could bypass
+consumer admission. Actual fresh-process controls for relative, parent-segment,
+missing-home and invalid-scope inputs all refused before filesystem effects.
+Their trace identifies the existing authority: package import loads the operator
+environment through `bootstrap.env_file`, which calls
+`kernel.paths.get_runtime_state_root` and `consumer_agent_asset_root` before the
+cache module is reached. Retain that regression; do not add a duplicate guard or
+switch the cache to the different default runtime-state directory.
+
+Build a new private wheel and executable instead of modifying a retained runtime.
+Record the published archive, exact ports, wheel and installed file hashes, all
+dependency identities, dependency supplier and executable in external evidence.
+The supplier is a pinned, retained private runtime; dependencies are not claimed
+to be independently copied or equivalent to a vanished historical installation.
+
+Use native tests that call the actual installed SDK: private command and skill
+paths, real startup, an SDK-created disposable owned mission, recorded analysis,
+advancement, material-drift refusal, and the existing three-argument workflow
+freshness helper. Public owned `agent action implement` currently refuses with
+`OWNED_ACTION_UNSUPPORTED`; prove its state invariance rather than claim dispatch.
+Protect the fixture primary and native home. Exercise actual foreground cache
+refresh with a local provider fixture and check default user path resolution.
+
+Resolve the current published release independently before bounded offline
+qualification. Use the existing explicit `SPEC_KITTY_NO_UPGRADE_CHECK` opt-out
+for those CLI invocations: the default background checker detaches a process,
+which an original process-group join cannot certify. The foreground cache test
+exercises its actual writer separately without a background process or network.
+Do not silently change the default upgrade-check behavior.
+
+Compile the native harness under the existing compiler resource envelope, then
+execute its exact hashed binary under the separate execution envelope. Retain
+failed stages and their original settlement uncertainty. A passing process
+receipt does not qualify an artifact written outside its declared resource root.
+Bind the artifact root before the builder's first filesystem effect.
+
+## Known limitations
+
+These are private compatibility and fixture proofs. Exact independent receiving
+and the named consumer's own checks precede any runtime replacement. They do not
+prove unrestricted SDK descendant ownership, successful unsupported dispatch,
+production readiness, Windows execution, or organization-wide adoption.
+
+The named consumer's first live-home qualification failed its preservation check:
+42 managed skill files changed permissions and 14 managed command files were
+replaced. The writer remains unconfirmed. Preserve that failure; synthetic
+success does not retrospectively pass it. Additional portable controls seed
+genuine managed skills with owner-read-only permissions and older managed
+command markers, then exercise private startup and the full owned workflow,
+including both plan-setup calls with the caller's search path. A new diagnostic
+receiving increment needs its own independent plan review and every original
+invariant; no native-file rollback, weaker check or runtime replacement follows
+from an unconfirmed cause.
+
+Ordinary full-agent launch and handback integration remains a separate blocker.
+Each repository retains its own pending execution and useful-work recovery
+obligations. Missing historical artifacts, unknown original worktree state and
+unresolved attribution authority remain preserved; neither age nor a new runtime
+grants deletion permission. External receipts record actual test outcomes and
+failed stages without changing a frozen candidate merely to record a pass.
+
+
+## Standalone operation compatibility
+
+The RC7 owned-next artifact did not include Source's standalone operation custody closure. Actual installed dispatch refused `--owned-checkout` before opening an Op. A new private candidate ports the existing canonical dispatch, completion, typed `OperationRoot`, executor and record schema. Its first actual open found the published protection method lacked `allow_bypass=False`; the existing strict method was ported rather than dropping that argument. Unrelated bounded-subprocess changes were excluded. Source record/executor advisory model attribution remains paired and grants no actual model execution.
+
+The installed standalone regression uses a disposable real linked checkout. It opens and closes real journal records as `done`, `failed`, and `abandoned`, verifies generated close commands outside the checkout, checks explicit no-commit preservation and a normal selective owning commit, and refuses foreign, protected (including operator hatch), detached, and switched-branch effects. Primary HEAD/index/status, native content/metadata and unrelated staged bytes must survive. This is local operation custody, not an actual researcher audit, host admission or whole-agent lifecycle contract.
+
+Existing consumer runtime and its dependency supplier stay immutable while the new candidate passes its complete installed regression, owning checks and independent receiving. Previous failed launches and the incomplete strict-API candidate remain failed evidence; no actual host, receiver, key or Store operation is performed by these fixtures.
+
+## Owned acceptance classification compatibility
+
+Issue #144 exposed a missing compatibility port: the installed RC7 acceptance
+classifier omitted validated owning-checkout authority while reading WP kinds.
+A code mission absent from the primary checkout was classified as planning-only,
+skipping all four matrix checks even with a missing or failing matrix. Existing
+canonical source fix `6ce9f43cf385d2eab410a88bc3a6dde7520e32fd` already propagates
+the validated owner through the normalized WP index and both branch/lane gates.
+Port that exact seven-addition/five-deletion correction; do not create a second
+classifier or alter matrix policy. The owned compatibility patch now carries
+that acceptance correction alongside the earlier operation closure.
+
+A native failing-first regression runs the actual installed public `accept
+--diagnose` command against a real distinct primary/linked owned checkout. Its
+immutable authored source and mission archives preserve real evidence paths;
+the mission is absent from primary. The corrected runtime must evaluate the
+passing code matrix, refuse missing and failing matrices, and retain the
+explicit planning-only control. All commands remain read-only and preserve
+primary, owning files/HEAD and native fixture state. Historical source commit
+ancestry is not fabricated when importing the disposable archive.
+
+Build a separate private artifact and preserve the existing runtime and supplier.
+The new acceptance-classifier test supplements the existing complete installed
+regression; earlier SDK isolation/operation success did not cover this classifier.
+Independent source/artifact receiving and actual Auth-owner CLI receiving are
+separate gates. Source branch publication is not default delivery or organization
+adoption; issue #144 stays open until its owning delivery obligations are proved.
+
+The SDK kernel-exclusion profile is also separate from Phoenix's legacy lifecycle
+compatibility: required macOS setuid `ps` refuses even minimal confinement. Do
+not replace the legacy contract with a different native identity contract or copy
+a privileged executable to claim a pass. Phoenix owns that migration. The SDK
+checks can run under inherited unused-root exclusions without that command.
+
+## Approved owned completion after squash delivery
+
+The selected owned task could be canonically approved after its source landed,
+but `move-task --to done` refused owned checkouts and `consolidate` has no owned
+selector. Dossier reconciliation compares recorded artifacts; it is not a task
+completion seam. Copying the mission to the primary or forcing a terminal state
+would introduce a different authority and is not a repair.
+
+Extend the existing `move-task` seam only for an already approved owned task
+with paired `--review-source-commit` and `--review-delivery-commit` identities.
+Reuse `resolve_owned_review_source` for exact source/delivery trees, complete
+history, target ancestry, original task attempt and unchanged owned source.
+Recheck the same verifier at the late ancestry boundary. Existing review currency,
+subtask, issue-matrix, protection, index, selective commit and override refusals
+remain mandatory. Local history inspection is not independent remote PR approval;
+the owning workflow still verifies the real merged PR and actual default branch.
+
+The real CLI regression keeps the mission absent from primary and sibling
+checkouts. It verifies approved exact delivery completes while premature,
+missing-proof, mismatched, forced and dirty-owned attempts refuse without effects.
+This narrow path neither grants checkout retirement nor supplies general planned
+or missing-review reconciliation. Private runtime installation, independent
+receiving and actual consumer completion remain separately recorded boundaries.
+
+The source may be reviewed and accepted before the squash publication. For
+completion only, compare authored mission metadata independently of the
+canonical acceptance bookkeeping and the supported phase migration; require
+the published and current metadata bytes to match exactly. Allow the original
+source attempt to be approved in this ordering. Ordinary review remains strict,
+and acceptance bookkeeping never grants review or merge authority. The real
+public-CLI fixture exercises acceptance before publication as well as authored
+metadata drift and the existing negative controls.

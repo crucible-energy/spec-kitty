@@ -23,12 +23,14 @@ mixed-lane-authorship-soundness-01M3M7Y0).
 
 from __future__ import annotations
 
+from tests.terminus.feature_fixture_support import feature_build_coord_mission_mixed_lane_canceled as build_coord_mission_mixed_lane_canceled
+
 from pathlib import Path
 
 import pytest
 
 from specify_cli.status.models import ReviewResult
-from tests.terminus.conftest import CoordMission, build_coord_mission_mixed_lane_canceled, git_rev, run_terminus
+from tests.terminus.conftest import CoordMission, git_rev, run_terminus
 from tests.terminus.conftest import _git as git
 from tests.terminus.mixed_lane_support import FAIL_HEADER, FAIL_WHO, LANE_NAME, collapse, ensure_wp01_subtasks_roster, reapprove_wp01, transition
 

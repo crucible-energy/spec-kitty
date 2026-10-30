@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -106,6 +107,104 @@ def _read_events(project: Path, invocation_id: str) -> list[dict[str, object]]:
     return [json.loads(line) for line in text.splitlines() if line.strip()]
 
 
+@pytest.mark.parametrize("json_output", [False, True])
+def test_no_commit_closes_once_without_changing_foreign_git_state(tmp_path: Path, json_output: bool) -> None:
+    project = _setup_project(tmp_path)
+
+    def git(*args: str) -> bytes:
+        return subprocess.run(["git", "-C", str(project), *args], check=True, capture_output=True, timeout=10).stdout
+
+    git("init", "--initial-branch=main")
+    git("config", "user.name", "Synthetic Owner")
+    git("config", "user.email", "owner@example.invalid")
+    tracked = project / "owned-by-another-lane.md"
+    tracked.write_text("original\n", encoding="utf-8")
+    git("add", tracked.name)
+    git("commit", "-m", "fixture baseline")
+    git("checkout", "-b", "fixture/ops-work")
+    invocation_id = _open_invocation(project)
+    tracked.write_text("staged foreign work\n", encoding="utf-8")
+    git("add", tracked.name)
+    tracked.write_text("additional unstaged foreign work\n", encoding="utf-8")
+    untracked = project / "foreign-untracked.md"
+    untracked.write_text("synthetic private work\n", encoding="utf-8")
+
+    def snapshot() -> tuple[bytes, bytes, bytes, bytes, bytes]:
+        return (
+            git("rev-parse", "HEAD"),
+            (project / ".git" / "index").read_bytes(),
+            git("show-ref"),
+            tracked.read_bytes(),
+            untracked.read_bytes(),
+        )
+
+    before = snapshot()
+    args = [
+        "--invocation-id",
+        invocation_id,
+        "--outcome",
+        "done",
+        "--no-commit",
+        "--artifact",
+        "https://example.invalid/recovery-proof",
+        "--commit",
+        "deadbeef1234",
+    ]
+    if json_output:
+        args.append("--json")
+    result = _run_complete(project, *args)
+    assert result.exit_code == 0, result.output
+    assert snapshot() == before
+    events = _read_events(project, invocation_id)
+    assert [event["event"] for event in events] == [
+        "started",
+        "completed",
+        "artifact_link",
+        "commit_link",
+    ]
+    assert events[1]["closed_by"] == "agent"
+    if json_output:
+        assert json.loads(result.stdout) == {
+            "result": "success",
+            "invocation_id": invocation_id,
+            "outcome": "done",
+            "evidence_ref": None,
+            "artifact_links": ["https://example.invalid/recovery-proof"],
+            "commit_link": "deadbeef1234",
+        }
+    else:
+        assert "uncommitted" in result.output.lower()
+        assert "refused" not in result.output.lower()
+    closed_bytes = (project / EVENTS_DIR / f"{invocation_id}.jsonl").read_bytes()
+    again = _run_complete(project, *args)
+    assert again.exit_code == 1
+    assert "already" in again.output
+    assert (project / EVENTS_DIR / f"{invocation_id}.jsonl").read_bytes() == closed_bytes
+    assert snapshot() == before
+
+
+def test_no_commit_still_refuses_advisory_evidence_before_writing(tmp_path: Path) -> None:
+    project = _setup_project(tmp_path)
+    invocation_id = _open_invocation(project, mode=ModeOfWork.ADVISORY)
+    evidence = project / "evidence.md"
+    evidence.write_text("synthetic evidence\n", encoding="utf-8")
+    before = (project / EVENTS_DIR / f"{invocation_id}.jsonl").read_bytes()
+    result = _run_complete(
+        project,
+        "--invocation-id",
+        invocation_id,
+        "--outcome",
+        "done",
+        "--no-commit",
+        "--evidence",
+        str(evidence),
+    )
+    assert result.exit_code == 2
+    assert "evidence" in result.output.lower()
+    assert (project / EVENTS_DIR / f"{invocation_id}.jsonl").read_bytes() == before
+    assert not (project / ".kittify" / "evidence" / invocation_id).exists()
+
+
 # ---------------------------------------------------------------------------
 # closed_by="agent" on CLI closes; outcomes verbatim
 # ---------------------------------------------------------------------------
@@ -151,25 +250,34 @@ def test_cli_does_not_expose_closed_by_flag(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_cli_missing_outcome_is_usage_error(tmp_path: Path) -> None:
+@pytest.mark.parametrize("no_commit", [False, True])
+def test_cli_missing_outcome_is_usage_error(tmp_path: Path, no_commit: bool) -> None:
     project = _setup_project(tmp_path)
     inv_id = _open_invocation(project)
 
-    result = _run_complete(project, "--invocation-id", inv_id)
+    extra = ["--no-commit"] if no_commit else []
+    result = _run_complete(project, "--invocation-id", inv_id, *extra)
 
     assert result.exit_code == 2, result.output
+    assert "missing option" in result.output.lower()
+    assert "--outcome" in result.output
+    assert "no such option" not in result.output.lower()
     # Nothing written — the Op is still open.
     events = _read_events(project, inv_id)
     assert [e["event"] for e in events] == ["started"]
 
 
-def test_cli_invalid_outcome_is_usage_error(tmp_path: Path) -> None:
+@pytest.mark.parametrize("no_commit", [False, True])
+def test_cli_invalid_outcome_is_usage_error(tmp_path: Path, no_commit: bool) -> None:
     project = _setup_project(tmp_path)
     inv_id = _open_invocation(project)
 
-    result = _run_complete(project, "--invocation-id", inv_id, "--outcome", "finished")
+    extra = ["--no-commit"] if no_commit else []
+    result = _run_complete(project, "--invocation-id", inv_id, "--outcome", "finished", *extra)
 
     assert result.exit_code == 2, result.output
+    assert "invalid outcome" in result.output.lower()
+    assert "no such option" not in result.output.lower()
     events = _read_events(project, inv_id)
     assert [e["event"] for e in events] == ["started"]
 
@@ -236,11 +344,13 @@ def test_cli_evidence_refused_for_legacy_advisory_before_any_write(tmp_path: Pat
     assert not (project / ".kittify" / "evidence" / inv_id).exists()
 
 
-def test_cli_evidence_accepted_for_task_execution(tmp_path: Path) -> None:
+@pytest.mark.parametrize("no_commit", [False, True])
+def test_cli_evidence_accepted_for_task_execution(tmp_path: Path, no_commit: bool) -> None:
     project = _setup_project(tmp_path)
     inv_id = _open_invocation(project, mode=ModeOfWork.TASK_EXECUTION)
     evidence = tmp_path / "evidence.md"
     evidence.write_text("# evidence", encoding="utf-8")
+    extra = ["--no-commit"] if no_commit else []
 
     result = _run_complete(
         project,
@@ -250,6 +360,7 @@ def test_cli_evidence_accepted_for_task_execution(tmp_path: Path) -> None:
         "done",
         "--evidence",
         str(evidence),
+        *extra,
     )
 
     assert result.exit_code == 0, result.output

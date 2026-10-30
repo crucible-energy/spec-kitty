@@ -40,6 +40,9 @@ FR-012, T008/T009/T010/T021). Two facets:
 
 from __future__ import annotations
 
+# Current full consolidation targets feature/integration; historical issue prose
+# below describes the original main-target reproduction. Primary stays separate.
+
 import contextlib
 import json
 import subprocess
@@ -82,13 +85,16 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 def _init_git_repo(repo: Path) -> None:
     repo.mkdir(parents=True, exist_ok=True)
-    _run(["git", "init", "-qb", "main", str(repo)])
+    _run(["git", "init", "-qb", "feature/integration", str(repo)])
     _git(repo, "config", "user.email", "test@test.com")
     _git(repo, "config", "user.name", "Test")
     _git(repo, "config", "commit.gpgsign", "false")
     (repo / "README.md").write_text("init\n", encoding="utf-8")
     _git(repo, "add", ".")
     _git(repo, "commit", "-m", "init")
+    from tests._support.feature_landing import pin_primary
+
+    pin_primary(repo)
 
 
 def _branch_tip(repo: Path, branch: str) -> str:
@@ -112,7 +118,7 @@ def _dot_write_meta(feature_dir: Path) -> None:
         "mission_id": "01M2DOT7000000000000004764",
         "mission_number": None,
         "mission_type": "software-dev",
-        "target_branch": "main",
+        "target_branch": "feature/integration",
         "purpose_tldr": "#2745 direct-on-target refuse-before-advance regression",
         "purpose_context": "a not-merge-ready direct-on-target mission must refuse before advancing target",
     }
@@ -203,7 +209,7 @@ def test_direct_on_target_refuse_originates_from_precondition_not_missing_lanes(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     _bootstrap_direct_on_target_mission(repo)
-    pre_target_tip = _branch_tip(repo, "main")
+    pre_target_tip = _branch_tip(repo, "feature/integration")
 
     with _dot_external_mocks(), patch("specify_cli.cli.console.console.print") as mock_print, pytest.raises(typer.Exit) as excinfo:
         _run_lane_based_consolidation(
@@ -225,7 +231,7 @@ def test_direct_on_target_refuse_originates_from_precondition_not_missing_lanes(
     assert "MissingLanesError" not in printed
     assert "lanes.json" not in printed.lower()
 
-    assert _branch_tip(repo, "main") == pre_target_tip, "the target ref must be provably unchanged — refused before any advance"
+    assert _branch_tip(repo, "feature/integration") == pre_target_tip, "the target ref must be provably unchanged — refused before any advance"
 
 
 def test_direct_on_target_skip_lanes_without_lanes_json_today_raises_missing_lanes_error(
@@ -273,7 +279,7 @@ def _rb_write_meta(feature_dir: Path) -> None:
         "mid8": RB_MID8,
         "mission_number": None,
         "mission_type": "software-dev",
-        "target_branch": "main",
+        "target_branch": "feature/integration",
         "coordination_branch": RB_COORD_BRANCH,
         "purpose_tldr": "T008 pre-mutation checkpoint rollback coherence",
         "purpose_context": "a post-consolidation failure must reset the coord ref coherently",
@@ -294,7 +300,7 @@ def _rb_write_manifest(feature_dir: Path) -> LanesManifest:
         mission_slug=RB_MISSION_SLUG,
         mission_id=RB_MISSION_ID,
         mission_branch=RB_COORD_BRANCH,
-        target_branch="main",
+        target_branch="feature/integration",
         lanes=[
             ExecutionLane(
                 lane_id=RB_LANE_ID,
@@ -356,7 +362,7 @@ def _rb_bootstrap_coord_mission(repo: Path) -> Path:
     code_path.write_text("def rollback_t008() -> int:\n    return 4764\n", encoding="utf-8")
     _git(repo, "add", RB_LANE_CODE)
     _git(repo, "commit", "-m", f"feat({RB_MISSION_SLUG}): lane code for {RB_WP_ID}")
-    _git(repo, "checkout", "main")
+    _git(repo, "checkout", "feature/integration")
     restamp_log_at_lane_tips(repo, feature_dir, coord_branch=RB_COORD_BRANCH)
     CoordinationWorkspace.resolve(repo, RB_MISSION_SLUG, RB_MID8)
     return feature_dir
@@ -518,7 +524,7 @@ def _f1_write_meta(feature_dir: Path) -> None:
         "mid8": F1_MID8,
         "mission_number": None,
         "mission_type": "software-dev",
-        "target_branch": "main",
+        "target_branch": "feature/integration",
         "coordination_branch": F1_COORD_BRANCH,
         "purpose_tldr": "FOLD-F1 primary-tree bake defeats pre-target rollback guard",
         "purpose_context": ("a real primary-tree bake commit on target must not defeat the pre-target rollback baseline guard"),
@@ -539,7 +545,7 @@ def _f1_write_manifest(feature_dir: Path) -> LanesManifest:
         mission_slug=F1_MISSION_SLUG,
         mission_id=F1_MISSION_ID,
         mission_branch=F1_COORD_BRANCH,
-        target_branch="main",
+        target_branch="feature/integration",
         lanes=[
             ExecutionLane(
                 lane_id=F1_LANE_ID,
@@ -618,7 +624,7 @@ def _f1_bootstrap_primary_tree_bake_mission(repo: Path) -> Path:
     _git(repo, "add", F1_LANE_CODE)
     _git(repo, "commit", "-m", f"feat({F1_MISSION_SLUG}): lane code for {F1_WP_ID}")
     lane_tip = _git(repo, "rev-parse", "HEAD").stdout.strip()
-    _git(repo, "checkout", "main")
+    _git(repo, "checkout", "feature/integration")
 
     # The coordination branch is lifecycle-only: status.events.jsonl lives
     # there, committed AFTER the primary-tree commit above so the coord
@@ -629,7 +635,7 @@ def _f1_bootstrap_primary_tree_bake_mission(repo: Path) -> Path:
     (coord_feature_dir / "status.events.jsonl").write_text(json.dumps(with_lane_head(_f1_approved_event(), lane_tip), sort_keys=True) + "\n", encoding="utf-8")
     _git(repo, "add", str(coord_feature_dir / "status.events.jsonl"))
     _git(repo, "commit", "-m", f"chore({F1_MISSION_SLUG}): coord status events")
-    _git(repo, "checkout", "main")
+    _git(repo, "checkout", "feature/integration")
 
     CoordinationWorkspace.resolve(repo, F1_MISSION_SLUG, F1_MID8)
     return feature_dir
@@ -663,7 +669,7 @@ def test_post_bake_failure_on_real_primary_tree_bake_resets_target_and_stays_res
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     feature_dir = _f1_bootstrap_primary_tree_bake_mission(repo)
-    pre_merge_main_tip = _branch_tip(repo, "main")
+    pre_merge_main_tip = _branch_tip(repo, "feature/integration")
 
     with (
         _rb_external_mocks(include_bake_mock=False),
@@ -690,7 +696,7 @@ def test_post_bake_failure_on_real_primary_tree_bake_resets_target_and_stays_res
 
     # (b)/(c) primary meta.json must show NO mission_number for the un-merged
     #     mission -- the orphan bake commit's effect must be undone, not just
-    #     halted. (HEAD is on 'main' throughout, so reading off disk reads the
+    #     halted. (HEAD is on 'feature/integration' throughout, so reading off disk reads the
     #     post-rollback committed state.)
     persisted_meta = json.loads((feature_dir / "meta.json").read_text(encoding="utf-8"))
     assert persisted_meta.get("mission_number") is None, "primary meta.json must not carry a mission_number for a mission that never merged"
@@ -714,4 +720,4 @@ def test_post_bake_failure_on_real_primary_tree_bake_resets_target_and_stays_res
     assert resumed_state.lane == Lane.DONE, "resume must complete the merge cleanly"
     resumed_meta = json.loads((feature_dir / "meta.json").read_text(encoding="utf-8"))
     assert resumed_meta.get("mission_number") == 1, "the resumed merge must (re-)bake mission_number exactly once"
-    assert _branch_tip(repo, "main") != pre_merge_main_tip, "the resume must genuinely advance main past the ORIGINAL pre-merge baseline"
+    assert _branch_tip(repo, "feature/integration") != pre_merge_main_tip, "the resume must genuinely advance main past the ORIGINAL pre-merge baseline"

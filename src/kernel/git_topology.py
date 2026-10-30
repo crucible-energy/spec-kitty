@@ -49,11 +49,15 @@ common dirs that do not sit at ``<working tree>/.git`` (submodules). Exceptions 
 (``lru_cache`` re-runs after a raise), so a not-a-repo path that later becomes a
 repo resolves correctly on the next call.
 """
+
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
+
+from kernel.git.runner import run_git
 
 _NOT_A_REPO_MARKER = "not a git repository"
 
@@ -137,17 +141,41 @@ def git_common_dir(path: Path) -> Path:
     resolved = path.resolve()
     cwd = _probe_dir(resolved)
     result = _run_rev_parse(cwd, "--git-common-dir", resolved)
-    if result.returncode != 0:
-        if _NOT_A_REPO_MARKER in (result.stderr or "").lower():
+    return _common_dir_from_output(resolved, cwd, result.returncode, result.stdout, result.stderr)
+
+
+def _common_dir_from_output(resolved: Path, cwd: Path, returncode: int, stdout: str, stderr: str) -> Path:
+    if returncode != 0:
+        if _NOT_A_REPO_MARKER in (stderr or "").lower():
             raise NotAGitRepositoryError(resolved)
-        raise GitTopologyUnavailableError(resolved, (result.stderr or "").strip())
-    raw = result.stdout.strip()
+        raise GitTopologyUnavailableError(resolved, (stderr or "").strip())
+    raw = stdout.removesuffix("\n")
+    if not raw:
+        raise GitTopologyUnavailableError(resolved, "empty common-directory output")
     common_dir = (cwd / raw).resolve()
     # ``.git``-interior detection: a path that IS the common dir, or lives under
     # it, is not a valid project root.
     if resolved == common_dir or common_dir in resolved.parents:
         raise NotAGitRepositoryError(resolved)
     return common_dir
+
+
+def inspect_git_common_dir(path: Path, *, env: Mapping[str, str], timeout: float) -> Path:
+    """Fresh, bounded topology observation in an explicitly isolated environment.
+
+    Organization scans must not reuse a path-only cache across repository/config
+    overrides. Existing cached probes and their callers retain their contract.
+    """
+    resolved = path.resolve()
+    cwd = _probe_dir(resolved)
+    result = run_git(cwd, "rev-parse", "--git-common-dir", env=env, timeout=timeout, check=False)
+    return _common_dir_from_output(
+        resolved,
+        cwd,
+        result.returncode,
+        result.stdout.decode("utf-8", "surrogateescape"),
+        result.stderr.decode("utf-8", "replace"),
+    )
 
 
 @lru_cache(maxsize=256)
@@ -233,6 +261,7 @@ __all__ = [
     "NotAGitRepositoryError",
     "clear_caches",
     "git_common_dir",
+    "inspect_git_common_dir",
     "git_configured_worktree",
     "git_toplevel",
 ]

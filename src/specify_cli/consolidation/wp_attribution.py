@@ -545,14 +545,14 @@ def _resolve_sibling_windows(
 
 
 def first_governed_open_stamp(events: Sequence[StatusEvent], wp_ids: frozenset[str]) -> str | None:
-    """The lane head when the lane's FIRST governed work began (FR-013 anchor).
+    """The first KNOWN governed implementation stamp (FR-013 conservative fence).
 
-    The stamp on the first non-migration transition of any lane WP into an
-    implementation-class lane. Everything reachable from it predates every WP
-    window of this lane: the lane's creation, and whatever the allocator merged
-    in before work started (dependency lanes fast-forwarded without ``--no-ff``,
-    ``lanes/worktree_allocator.py``; the recorded planning-artifact commit merge,
-    which can fast-forward target-branch commits). None of that is a straggler.
+    An earlier genuine event may lack a stamp. In that case this later known
+    observation is NOT the lane's creation or the start of every WP's work.
+    Keep the conservative fence: replacing it with ``None`` would grant dependent
+    lanes unbounded inherited authorship. Missing original evidence needs recovery,
+    never a fabricated birth or retrospective approval of the pre-fence history.
+    Migration events cannot supply this observation.
     """
     for event in events:
         if event.wp_id in wp_ids and not is_migration_event(event) and _classify(event.to_lane) is WindowKind.IMPLEMENTATION:

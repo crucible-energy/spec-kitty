@@ -1,3 +1,10 @@
+---
+title: Implementation log
+description: Retained tooling friction for owned op custody.
+doc_status: active
+updated: '2026-10-24'
+---
+
 # Implementation log
 
 ## User Experience Findings

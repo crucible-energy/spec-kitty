@@ -52,6 +52,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -516,7 +517,12 @@ def published_registry_checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(authority, "REPO_ROOT", repo)
     monkeypatch.setattr(sys.modules[__name__], "_REPO_ROOT", repo)
     monkeypatch.setattr(sys.modules[__name__], "_load_registry", lambda: yaml.safe_load(registry.read_text()))
-    monkeypatch.setattr(gate_selection, "DEFAULT_REGISTRY_PATH", registry)
+    # The synthetic checkout exercises its explicit migration authorities;
+    # changing a legacy default no longer selects the canonical local JSON.
+    from functools import partial
+
+    fixture_router = gate_selection.Router(filters={"fixture_module": ("src/demo/**",)}, job_gates={})
+    monkeypatch.setattr(sys.modules[__name__], "select_modules", partial(gate_selection.select_modules, router=fixture_router, registry_path=registry))
     floor = repo / "capture-floor.txt"
     floor.write_text("2026-10-01T00:00:00Z\n")
     monkeypatch.setattr(sys.modules[__name__], "_CAPTURE_FLOOR_PATH", floor)
@@ -566,7 +572,10 @@ def test_non_main_registry_base_keeps_t019_nonvacuous(published_registry_checkou
     rows = json.loads(json.dumps(case["head_registry"]))
     rows["modules"][0]["test_dirs"] = ["tests/demo"]
     lost_routing.write_text(yaml.safe_dump(rows))
-    monkeypatch.setattr(gate_selection, "DEFAULT_REGISTRY_PATH", lost_routing)
+    from functools import partial
+
+    fixture_router = gate_selection.Router(filters={"fixture_module": ("src/demo/**",)}, job_gates={})
+    monkeypatch.setattr(sys.modules[__name__], "select_modules", partial(gate_selection.select_modules, router=fixture_router, registry_path=lost_routing))
     with pytest.raises(AssertionError, match="tests/extra/synthetic_test.py does not select"):
         test_expanded_test_dirs_are_selected_per_pr()
 

@@ -808,6 +808,7 @@ def get_or_start_run(
     *,
     emitter: Any | None = None,
     owned: OwnedCheckout | None = None,
+    required_run_id: str | None = None,
 ) -> MissionRunRef:
     """Load existing run or start a new one, through the locked RunIndex port.
 
@@ -835,6 +836,8 @@ def get_or_start_run(
         if owned is not None:
             rekeyed = _adopt_verified_unbound_run(index, mission_slug=mission_slug, mission_id=resolved_mission_id) or rekeyed
         entry = _entry_for_mission(index, mission_slug=mission_slug, mission_id=resolved_mission_id)
+        if required_run_id is not None and (entry is None or entry.get("run_id") != required_run_id):
+            raise ValueError("The requested existing run is not the mission's current indexed run")
         if entry is not None:
             run_ref = _run_ref_for_entry(entry, mission_slug=mission_slug, mission_id=resolved_mission_id, mission_type=mission_type, repo_root=repo_root)
             if rekeyed:

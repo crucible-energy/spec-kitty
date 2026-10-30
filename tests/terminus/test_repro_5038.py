@@ -69,16 +69,14 @@ pre-fix source. It now PASSes for real through the same real CLI, post-fix.
 
 from __future__ import annotations
 
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
+
 from pathlib import Path
 
 import pytest
 
 from specify_cli.consolidation.bookkeeping_projection import projected_content_matches_target
-from tests.terminus.conftest import (
-    CoordMission,
-    build_coord_mission,
-    run_terminus,
-)
+from tests.terminus.conftest import CoordMission, run_terminus
 from tests.terminus.conftest import _git as git
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo, pytest.mark.regression]

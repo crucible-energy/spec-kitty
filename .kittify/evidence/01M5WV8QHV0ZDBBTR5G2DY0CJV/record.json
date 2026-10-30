@@ -1,0 +1,8 @@
+{
+  "event": "completed",
+  "invocation_id": "01M5WV8QHV0ZDBBTR5G2DY0CJV",
+  "completed_at": "2026-10-26T20:19:11.421170+00:00",
+  "outcome": "done",
+  "closed_by": "agent",
+  "evidence_ref": "/private/tmp/pdb-mission-control-20261024/governance-recovery/owned-lanes-status-implementation-closeout-r1.md"
+}

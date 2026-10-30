@@ -55,6 +55,9 @@ alias, which is never bound at module level.
 
 from __future__ import annotations
 
+# Current full consolidation targets feature/integration; historical issue prose
+# below describes the original main-target reproduction. Primary stays separate.
+
 import contextlib
 import json
 import subprocess
@@ -132,13 +135,16 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 def _init_git_repo(repo: Path) -> None:
     repo.mkdir(parents=True, exist_ok=True)
-    _run(["git", "init", "-qb", "main", str(repo)])
+    _run(["git", "init", "-qb", "feature/integration", str(repo)])
     _git(repo, "config", "user.email", "test@test.com")
     _git(repo, "config", "user.name", "Test")
     _git(repo, "config", "commit.gpgsign", "false")
     (repo / "README.md").write_text("init\n", encoding="utf-8")
     _git(repo, "add", ".")
     _git(repo, "commit", "-m", "init")
+    from tests._support.feature_landing import pin_primary
+
+    pin_primary(repo)
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +160,7 @@ def _write_meta(feature_dir: Path) -> None:
         "mid8": MID8,
         "mission_number": None,
         "mission_type": "software-dev",
-        "target_branch": "main",
+        "target_branch": "feature/integration",
         "coordination_branch": COORD_BRANCH,
         "purpose_tldr": "merge rollback/resume coherence regression (#2711)",
         "purpose_context": "a failed target advance must not strand a committed done",
@@ -175,7 +181,7 @@ def _write_manifest(feature_dir: Path) -> LanesManifest:
         # resolvable ``<human-slug>-<mid8>`` form).
         mission_id=MISSION_SLUG,
         mission_branch=COORD_BRANCH,
-        target_branch="main",
+        target_branch="feature/integration",
         lanes=[
             ExecutionLane(
                 lane_id=LANE_ID,
@@ -260,7 +266,7 @@ def _bootstrap_coord_mission(repo: Path) -> Path:
     code_path.write_text("def feature() -> int:\n    return 2711\n", encoding="utf-8")
     _git(repo, "add", LANE_CODE)
     _git(repo, "commit", "-m", f"feat({MISSION_SLUG}): lane code for {WP_ID}")
-    _git(repo, "checkout", "main")
+    _git(repo, "checkout", "feature/integration")
     restamp_log_at_lane_tips(repo, feature_dir, coord_branch=COORD_BRANCH)
 
     # Materialize the coordination worktree with the mission branch CHECKED OUT

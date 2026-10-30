@@ -16,6 +16,8 @@ retained, local bytes intact.
 
 from __future__ import annotations
 
+from tests._support.feature_landing import pin_primary
+
 import json
 import subprocess
 from pathlib import Path
@@ -32,7 +34,7 @@ from tests.terminus.conftest import _git_out as git_out
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
 
-_TARGET = "develop"
+_TARGET = "feature/integration"
 _LOCAL = "operator local bytes\n"
 
 # Quoted-path scenario.
@@ -110,6 +112,7 @@ def _prepare_mission(
         path.write_text(content, encoding="utf-8")
     git(repo, "add", "--", "README.md", ".gitignore", *tracked)
     git(repo, "commit", "-qm", "track base files and ignore local bytes")
+    pin_primary(repo)
 
     (mission.feature_dir / "tasks").mkdir(parents=True)
     (mission.feature_dir / "meta.json").write_text(

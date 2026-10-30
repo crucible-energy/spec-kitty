@@ -1,0 +1,876 @@
+--- a/src/specify_cli/core/owned_mission.py
++++ b/src/specify_cli/core/owned_mission.py
+@@ -656,0 +657,60 @@
++
++
++_OPERATION_ROOT_TOKEN = object()
++
++
++@dataclass(frozen=True)
++class OperationRoot:
++    """Validated standalone operation custody, not mission or execution authority.
++
++    Only the canonical ownership minter constructs this fact. ``writing`` records
++    the checked mode; legacy non-Git roots still reach the existing context error.
++    Writers retain their current-branch and commit guards at the actual effect.
++    """
++
++    repository_root: Path
++    checkout: Path
++    branch: str | None
++    writing: bool
++    _token: object = field(default=None, repr=False, compare=False)
++
++    def __post_init__(self) -> None:
++        if self._token is not _OPERATION_ROOT_TOKEN:
++            raise TypeError("OperationRoot is minted only by resolve_operation_root")
++
++
++def resolve_operation_root(repository_root: Path, checkout: Path | None, *, writing: bool) -> OperationRoot:
++    """Mint standalone custody using the shared claim and strict protection rules.
++
++    Explicit read-only primary and detached selection remain supported. A write
++    requires an attached unprotected branch before any registry construction.
++    """
++    from kernel.git_topology import NotAGitRepositoryError, git_toplevel
++    from specify_cli.core.checkout_ownership import error_for_claim, resolve_ownership_claim
++    from specify_cli.core.git_ops import resolve_primary_branch
++
++    primary = repository_root.resolve()
++    selected = primary
++    if checkout is not None:
++        claim = resolve_ownership_claim(checkout, resolved_primary=primary)
++        error = error_for_claim(claim)
++        if error is not None:
++            raise error
++        selected = claim.claimed_checkout
++    branch = None
++    if writing:
++        try:
++            git_toplevel(selected)
++        except NotAGitRepositoryError:
++            return OperationRoot(primary, selected, branch, writing, _token=_OPERATION_ROOT_TOKEN)
++        branch = get_current_branch(selected)
++        if branch is None:
++            raise ValueError("Operation records require an attached feature branch; detached HEAD is read-only.")
++        primary_branch = resolve_primary_branch(primary, bias=False)
++        if any(ProtectionPolicy.resolve(root).is_protected_target(branch, primary_branch=primary_branch, allow_bypass=False) for root in {primary, selected}):
++            raise ValueError(f"Refusing operation writes on protected branch '{branch}'; use --owned-checkout on a feature branch.")
++    else:
++        branch = get_current_branch(selected)
++    return OperationRoot(primary, selected, branch, writing, _token=_OPERATION_ROOT_TOKEN)
++
++
+--- a/src/specify_cli/cli/commands/dispatch.py
++++ b/src/specify_cli/cli/commands/dispatch.py
+@@ -13 +13 @@
+-from typing import TYPE_CHECKING, NoReturn
++from typing import TYPE_CHECKING, Annotated, NoReturn
+@@ -20,0 +21 @@
++    from specify_cli.core.owned_mission import OperationRoot
+@@ -33,0 +35,4 @@
++from kernel.git_topology import GitTopologyError
++from specify_cli.core.checkout_ownership import CheckoutOwnershipError
++from specify_cli.git.protection_policy import ProtectionConfigError
++from specify_cli.cli.commands._owned_checkout import OwnedCheckoutOption, owned_checkout_option
+@@ -36,0 +42 @@
++    build_close_contract,
+@@ -46 +51,0 @@
+-
+@@ -58,0 +64,11 @@
++
++
++def _operation_checkout(primary: Path, owned_checkout: OwnedCheckoutOption, *, writing: bool) -> OperationRoot:
++    """Render custody refusal before an executor can create any state."""
++    from specify_cli.core.owned_mission import resolve_operation_root
++
++    try:
++        return resolve_operation_root(primary, owned_checkout, writing=writing)
++    except (CheckoutOwnershipError, GitTopologyError, ProtectionConfigError, ValueError) as exc:
++        typer.echo(json.dumps({"error": "operation_checkout_refused", "message": str(exc)}), err=True)
++        raise typer.Exit(2) from exc
+@@ -86 +102 @@
+-            "To set a governance baseline, run (see all presets with "
++            "To set a governance baseline, run (see all packs with "
+@@ -88 +104 @@
+-            "  spec-kitty charter activate --preset minimal\n"
++            "  spec-kitty charter pack apply minimal\n"
+@@ -232,5 +248,4 @@
+-    console.print(
+-        f"  [dim]spec-kitty profile-invocation complete "
+-        f"--invocation-id {payload.invocation_id} "
+-        f"--outcome <done|failed|abandoned> "
+-        f"\\[--evidence <file>] \\[--artifact <path>] \\[--commit <sha>][/dim]"
++    contract = build_close_contract(
++        payload.invocation_id,
++        getattr(payload, "mode_of_work", None),
++        owned_checkout=getattr(payload, "_owned_checkout", None),
+@@ -237,0 +253,4 @@
++    optional = " [--artifact <path>] [--commit <sha>]"
++    if "evidence_flag" in contract:
++        optional = " [--evidence <file>]" + optional
++    console.print(f"  {contract['command']}{optional}", markup=False)
+@@ -284,0 +304 @@
++    owned_checkout: OperationRoot | None = None,
+@@ -350,0 +371 @@
++    payload._owned_checkout = owned_checkout
+@@ -381,0 +403 @@
++    owned_checkout: Annotated[Path | None, owned_checkout_option(help="Verified checkout that owns this operation's records and commits.")] = None,
+@@ -391 +413,2 @@
+-    repo_root = _get_repo_root()
++    custody = _operation_checkout(_get_repo_root(), owned_checkout, writing=not dry_run)
++    repo_root = custody.checkout
+@@ -400,0 +424 @@
++        owned_checkout=custody if owned_checkout is not None else None,
+--- a/src/specify_cli/cli/commands/profile_invocation.py
++++ b/src/specify_cli/cli/commands/profile_invocation.py
+@@ -11 +11 @@
+-from typing import Literal
++from typing import Annotated, Literal
+@@ -16 +16,2 @@
+-from specify_cli.cli.commands.dispatch import _build_executor
++from specify_cli.cli.commands.dispatch import _build_executor, _operation_checkout
++from specify_cli.cli.commands._owned_checkout import owned_checkout_option
+@@ -28 +28,0 @@
+-
+@@ -43,4 +43 @@
+-_OPENER_EPILOG = (
+-    'Open:  spec-kitty dispatch "<request>"\n\n'
+-    "Close: spec-kitty profile-invocation complete --invocation-id <id> --outcome <outcome>"
+-)
++_OPENER_EPILOG = 'Open:  spec-kitty dispatch "<request>"\n\nClose: spec-kitty profile-invocation complete --invocation-id <id> --outcome <outcome>'
+@@ -115,0 +113,2 @@
++    no_commit: bool = typer.Option(False, "--no-commit", help="Close the Op locally without recording a commit."),
++    owned_checkout: Annotated[Path | None, owned_checkout_option(help="Verified checkout holding the operation opened by dispatch.")] = None,
+@@ -138 +137,3 @@
+-    repo_root = _get_repo_root()
++    primary = find_repo_root(owned_checkout) if owned_checkout is not None else _get_repo_root()
++    custody = _operation_checkout(primary, owned_checkout, writing=True)
++    repo_root = custody.checkout
+@@ -149,0 +151 @@
++            auto_commit=not no_commit,
+@@ -164,0 +167,2 @@
++    if no_commit and not json_output:
++        console.print("  Op journal saved locally and left uncommitted.")
+--- a/src/specify_cli/invocation/executor.py
++++ b/src/specify_cli/invocation/executor.py
+@@ -22,0 +23 @@
++    from specify_cli.core.owned_mission import OperationRoot
+@@ -40,0 +42 @@
++    InvocationWriteError,
+@@ -188 +190,6 @@
+-def build_close_contract(invocation_id: str, mode_of_work: str | None = None) -> dict[str, object]:
++def build_close_contract(
++    invocation_id: str,
++    mode_of_work: str | None = None,
++    *,
++    owned_checkout: OperationRoot | None = None,
++) -> dict[str, object]:
+@@ -203,0 +211,7 @@
++    if owned_checkout is not None:
++        from shlex import quote
++        from specify_cli.core.owned_mission import OperationRoot
++
++        if not isinstance(owned_checkout, OperationRoot):
++            raise TypeError("Close contract requires a validated OperationRoot")
++        contract["command"] = f"{contract['command']} --owned-checkout {quote(str(owned_checkout.checkout))}"
+@@ -235,0 +250 @@
++    _owned_checkout: OperationRoot | None
+@@ -250,0 +266 @@
++        "_owned_checkout",
+@@ -288 +304 @@
+-        result = self._serialize_slots(exclude=frozenset({"mode_of_work"}))
++        result = self._serialize_slots(exclude=frozenset({"mode_of_work", "_owned_checkout"}))
+@@ -292 +308,5 @@
+-        result["close_contract"] = build_close_contract(self.invocation_id, getattr(self, "mode_of_work", None))
++        result["close_contract"] = build_close_contract(
++            self.invocation_id,
++            getattr(self, "mode_of_work", None),
++            owned_checkout=getattr(self, "_owned_checkout", None),
++        )
+@@ -321 +341 @@
+-        result = self._serialize_slots(exclude=frozenset({"mode_of_work", "invocation_id"}))
++        result = self._serialize_slots(exclude=frozenset({"mode_of_work", "invocation_id", "_owned_checkout"}))
+@@ -417 +437,2 @@
+-        #: executor (``None`` before the first close). Read by the doctor sweep
++        #: executor (``None`` before the first close or after an explicit
++        #: no-commit close). Read by the doctor sweep
+@@ -466,0 +488 @@
++        checkout_branch = self._current_branch()
+@@ -493 +515 @@
+-        durable_model_id = catalog_candidate.model_id if catalog_candidate is not None else None
++        recommended_model_id = catalog_candidate.model_id if catalog_candidate is not None else None
+@@ -512,2 +534,5 @@
+-            model_id=durable_model_id,
+-        )
++            recommended_model_id=recommended_model_id,
++            checkout_branch=checkout_branch,
++        )
++        if self._current_branch() != checkout_branch:
++            raise InvocationWriteError("Checkout branch changed while opening the operation; no record was written.")
+@@ -749,0 +775 @@
++        auto_commit: bool = True,
+@@ -779,0 +806,4 @@
++
++        ``auto_commit=False`` leaves the canonical completion uncommitted.
++        Only the final Git commit is skipped; custody, validation, evidence,
++        correlation links and propagation retain their existing behavior.
+@@ -780,0 +811,8 @@
++        # A path alone is insufficient custody: an untracked record follows
++        # checkout switches. Bind agent completion to its recorded branch
++        # before any append, promotion or correlation-link effect. Legacy
++        # records without a branch remain readable/closable as before.
++        checkout_branch = self._read_started_event(invocation_id).get("checkout_branch") if closed_by == "agent" else None
++        if checkout_branch is not None and (not isinstance(checkout_branch, str) or not checkout_branch or self._current_branch() != checkout_branch):
++            raise InvocationError("Operation checkout branch changed; return to the original branch before closing.")
++
+@@ -855 +893,3 @@
+-        self._commit_op_record(invocation_id, closed_by=closed_by)
++        self.last_op_commit = None
++        if auto_commit:
++            self._commit_op_record(invocation_id, closed_by=closed_by)
+--- a/src/specify_cli/invocation/record.py
++++ b/src/specify_cli/invocation/record.py
+@@ -60,0 +61,2 @@
++    # Historical dispatch records put an advisory catalog choice here. Keep it
++    # readable for audit; it is never evidence of actual model execution.
+@@ -61,0 +64,2 @@
++    recommended_model_id: str | None = Field(default=None, min_length=1)
++    checkout_branch: str | None = Field(default=None, min_length=1)
+--- a/src/specify_cli/git/protection_policy.py
++++ b/src/specify_cli/git/protection_policy.py
+@@ -260 +260 @@
+-    def is_protected_target(self, branch: str, *, primary_branch: str) -> bool:
++    def is_protected_target(self, branch: str, *, primary_branch: str, allow_bypass: bool = True) -> bool:
+@@ -291,0 +292,3 @@
++            allow_bypass: Whether operator/mission bypasses may relax this
++                check. Authoring flows with a mandatory PR-only contract pass
++                ``False``; the existing default preserves other workflows.
+@@ -297 +300 @@
+-        if self.operator_hatch_active or (self.mission_bypass_branch is not None and branch == self.mission_bypass_branch):
++        if allow_bypass and (self.operator_hatch_active or (self.mission_bypass_branch is not None and branch == self.mission_bypass_branch)):
+@@ -299 +302 @@
+-        return branch == primary_branch or self.is_protected(branch)
++        return branch == primary_branch or branch in self.protected_branches
+
+diff --git a/src/specify_cli/acceptance/gates_core.py b/src/specify_cli/acceptance/gates_core.py
+index ac10703849..0d6a295f01 100644
+--- a/src/specify_cli/acceptance/gates_core.py
++++ b/src/specify_cli/acceptance/gates_core.py
+@@ -246 +246 @@ def _resolve_lanes_manifest_or_stop(
+-def _wp_kinds_for_manifest(repo_root: Path, mission_slug: str) -> Mapping[str, Any]:
++def _wp_kinds_for_manifest(repo_root: Path, mission_slug: str, *, owned: OwnedCheckout | None = None) -> Mapping[str, Any]:
+@@ -267 +267 @@ def _wp_kinds_for_manifest(repo_root: Path, mission_slug: str) -> Mapping[str, A
+-    index = build_normalized_wp_index(repo_root, mission_slug)
++    index = build_normalized_wp_index(repo_root, mission_slug, owned=owned)
+@@ -278,0 +279,2 @@ def _evaluate_branch_gate(
++    *,
++    owned: OwnedCheckout | None = None,
+@@ -311 +313 @@ def _evaluate_branch_gate(
+-    mission_has_code = _mission_has_code_fn(lanes_manifest, _wp_kinds_for_manifest(repo_root, feature_dir.name))
++    mission_has_code = _mission_has_code_fn(lanes_manifest, _wp_kinds_for_manifest(repo_root, feature_dir.name, owned=owned))
+@@ -836 +838 @@ def _check_lane_gates(
+-    should_continue = _evaluate_branch_gate(repo_root, lanes_manifest, feature_dir, branch, activity_issues, skipped_checks, blocked_checks)
++    should_continue = _evaluate_branch_gate(repo_root, lanes_manifest, feature_dir, branch, activity_issues, skipped_checks, blocked_checks, owned=owned)
+@@ -850 +852 @@ def _check_lane_gates(
+-        mission_has_code = _mission_has_code_fn(lanes_manifest, _wp_kinds_for_manifest(repo_root, feature_dir.name))
++        mission_has_code = _mission_has_code_fn(lanes_manifest, _wp_kinds_for_manifest(repo_root, feature_dir.name, owned=owned))
+--- a/src/kernel/git/listing.py
++++ b/src/kernel/git/listing.py
+@@ -325 +325 @@
+-def blob_at(cwd: Path, ref: str, path: str, *, env: Env = None, timeout: float | None = None) -> bytes | None:
++def blob_at(cwd: Path, ref: str, path: str, *, env: Env = None, timeout: float | None = None, max_bytes: int | None = None) -> bytes | None:
+@@ -331,0 +332 @@
++        ValueError: the optional byte bound is invalid or the immutable blob exceeds it.
+@@ -335,0 +337,6 @@
++    if max_bytes is not None:
++        if max_bytes < 0:
++            raise ValueError("Blob byte bound must be nonnegative")
++        raw_size = run_git(cwd, "cat-file", "-s", entry.oid, env=env, timeout=timeout).stdout.strip()
++        if not raw_size.isdigit() or int(raw_size) > max_bytes:
++            raise ValueError("Git blob exceeds its bounded read size")
+--- a/src/specify_cli/cli/commands/agent/tasks.py
++++ b/src/specify_cli/cli/commands/agent/tasks.py
+@@ -755,4 +755 @@
+-            help=(
+-                "Assignee name, recorded on this transition regardless of the "
+-                "target lane (not limited to --to doing)."
+-            ),
++            help=("Assignee name, recorded on this transition regardless of the target lane (not limited to --to doing)."),
+@@ -818,4 +815 @@
+-            help=(
+-                "External tracker reference (e.g., '#1298' or 'JIRA-123'). "
+-                "Repeatable; appended to the WP frontmatter tracker_refs."
+-            ),
++            help=("External tracker reference (e.g., '#1298' or 'JIRA-123'). Repeatable; appended to the WP frontmatter tracker_refs."),
+@@ -850,2 +844,2 @@
+-                "Use an owned single_branch checkout for the local review lifecycle "
+-                "(force/skip, done, and arbiter modes unsupported)."
++                "Use an owned single_branch checkout for the local review lifecycle. "
++                "Post-delivery done requires approved state and paired review-source/delivery commits; force/skip and arbiter modes unsupported."
+@@ -853,0 +848,10 @@
++    ] = None,
++    review_source_commit: Annotated[
++        str | None,
++        typer.Option(
++            "--review-source-commit", help="Exact original implementation commit for post-squash review; requires a paired delivery commit. Not PR verification."
++        ),
++    ] = None,
++    review_delivery_commit: Annotated[
++        str | None,
++        typer.Option("--review-delivery-commit", help="Exact identical-tree delivery ancestor for explicit owned review-source reconciliation."),
+@@ -891,0 +896,2 @@
++            review_source_commit=review_source_commit,
++            review_delivery_commit=review_delivery_commit,
+--- a/src/specify_cli/cli/commands/agent/tasks_move_task.py
++++ b/src/specify_cli/cli/commands/agent/tasks_move_task.py
+@@ -294,0 +295,2 @@
++    review_source_commit: str | None = None
++    review_delivery_commit: str | None = None
+@@ -423,4 +425,6 @@
+-    Owned checkouts are not specially restricted here: the fan-out handlers
+-    registered on the status emit seam are individually bounded and
+-    non-raising (``status/adapters.py``, and open-core ships none), so an
+-    owned transition completes with at worst a skipped fan-out warning.
++    #3980: the ``OWNED_SYNC_UNSUPPORTED`` refusal died with the launch
++    flip — owned checkouts publish moments like any checkout. The fan-out
++    handlers registered on the status emit seam are individually bounded and
++    non-raising (``status/adapters.py``), and the Zeitgeist moment handler
++    no-ops without a session/team, so an owned transition under active sync
++    completes with at worst a skipped fan-out warning.
+@@ -430 +434,2 @@
+-    if st.target_lane not in (
++    completing_delivered = st.target_lane == Lane.DONE and bool(st.review_source_commit and st.review_delivery_commit)
++    if not completing_delivered and st.target_lane not in (
+@@ -635,0 +641,5 @@
++    if st.owned is not None and st.target_lane == Lane.DONE and st.old_lane != Lane.APPROVED:
++        raise ActionContextError(
++            "OWNED_TRANSITION_UNSUPPORTED",
++            "Owned completion requires the current task attempt to be approved.",
++        )
+@@ -641 +651 @@
+-    if st.owned is not None and st.target_lane in (Lane.FOR_REVIEW, Lane.APPROVED):
++    if st.owned is not None and st.target_lane in (Lane.FOR_REVIEW, Lane.APPROVED, Lane.DONE):
+@@ -642,0 +653,10 @@
++    if st.review_source_commit is not None or st.review_delivery_commit is not None:
++        if st.owned is None or st.target_lane not in (Lane.FOR_REVIEW, Lane.APPROVED, Lane.DONE) or not st.review_source_commit or not st.review_delivery_commit:
++            raise ActionContextError(
++                "OWNED_REVIEW_SOURCE_INVALID",
++                "Paired review-source and delivery commits require owned review, approval or post-delivery completion admission.",
++            )
++        # Inspect before a deferred deliverable commit or verdict write. The
++        # explicit history proof cannot turn pending implementation into a
++        # delivered source, even when ordinary auto-commit is enabled.
++        _mt_require_owned_implementation(st)
+@@ -744,0 +765 @@
++    from specify_cli.lanes.claim_base import read_claim_base
+@@ -817,0 +839,16 @@
++    # Re-finalizing genuine planning can advance the mission-wide pin beyond
++    # an already implemented WP. Its immutable claim ref remains the review
++    # window. Preserve the validated planning fallback for historical rebuilt
++    # missions only when Git establishes genuine absence, never a read error.
++    try:
++        claimed = read_claim_base(st.main_repo_root, st.mission_slug, st.task_id, strict=True)
++    except RuntimeError as exc:
++        raise ActionContextError("OWNED_REVIEW_BASE_INVALID", str(exc)) from exc
++    if claimed is not None:
++        claim_commit = resolve_commit(claimed)
++        if claim_commit is None or claim_commit == head_commit or git_merge_base(owned.owned_root, head_commit, claim_commit) != claim_commit:
++            raise ActionContextError(
++                "OWNED_REVIEW_BASE_INVALID",
++                "Owned claim base must resolve to a different ancestor commit of HEAD; no planning fallback is permitted.",
++            )
++        return claim_commit
+@@ -885,8 +922,3 @@
+-    normalized = path.replace("\\", "/").removeprefix("./")
+-    for pattern in patterns:
+-        if fnmatch.fnmatch(normalized, pattern):
+-            return True
+-        prefix = pattern.replace("/**", "").replace("/*", "").rstrip("/")
+-        if prefix and normalized.startswith(prefix + "/"):
+-            return True
+-    return False
++    from specify_cli.core.owned_mission import matches_owned_file
++
++    return matches_owned_file(path, patterns)
+@@ -899 +931,2 @@
+-    patterns = _mt_owned_file_patterns(st)
++    source_commit: str | None = getattr(st, "review_source_commit", None)
++    patterns = () if source_commit is not None else _mt_owned_file_patterns(st)
+@@ -910,4 +943,22 @@
+-            f"{st.review_base_ref} (lanes.json `planning_commit_sha`) failed in {st.owned.owned_root}. "
+-            "Make sure that commit is reachable in this checkout (fetch it, or recreate the local branch that carries it), "
+-            f"or repoint `planning_commit_sha` in {st.feature_dir / 'lanes.json'} to a commit that is an ancestor of HEAD, then retry.",
+-        )
++            f"{st.review_base_ref} (recorded claim base or validated legacy planning base) failed in {st.owned.owned_root}. "
++            "Restore the recorded base through the owning claim or planning recovery workflow, "
++            "verify it is reachable and an ancestor of this checkout, then retry; do not move the mission planning pin to repair a claim base.",
++        )
++    if source_commit is not None:
++        from specify_cli.core.owned_mission import resolve_owned_review_source
++
++        assert st.review_delivery_commit is not None
++        assert st.wp is not None
++        proof = resolve_owned_review_source(st.owned, st.wp.path, source_commit, st.review_delivery_commit, st.target_branch)
++        patterns = tuple(pattern.replace("\\", "/").removeprefix("./") for pattern in proof.owned_files if pattern.strip())
++        if (
++            proof.task_id != st.task_id
++            or not patterns
++            or not any(_mt_matches_owned_file(path, patterns) for path in proof.source_changes)
++            or any(_mt_matches_owned_file(path, patterns) for path in (*proof.current_changes, *proof.dirty_paths))
++        ):
++            raise ActionContextError(
++                "OWNED_REVIEW_SOURCE_INVALID",
++                "Review-source evidence requires original owned implementation and unchanged current committed/index/worktree entries.",
++            )
++        return
+@@ -1172,0 +1224,6 @@
++    if st.owned is not None:
++        # The explicit delivery arm was inspected before any write by the same
++        # canonical verifier used for post-squash review. Recheck at the late
++        # ancestry boundary; never re-resolve this mission in the primary.
++        _mt_require_owned_implementation(st)
++        return "code_change", True, "Exact owned source/delivery tree and target ancestry verified."
+@@ -1552,0 +1610,2 @@
++    review_source_commit: str | None = None
++    review_delivery_commit: str | None = None
+@@ -1587,0 +1647,2 @@
++        review_source_commit=args.review_source_commit,
++        review_delivery_commit=args.review_delivery_commit,
+--- a/src/specify_cli/core/owned_mission.py
++++ b/src/specify_cli/core/owned_mission.py
+@@ -661,0 +662,334 @@
++_REVIEW_SOURCE_TOKEN = object()
++
++
++def matches_owned_file(path: str, patterns: tuple[str, ...]) -> bool:
++    """Use the same authored ownership semantics for diff and byte inspection."""
++    import fnmatch
++
++    normalized = path.replace("\\", "/").removeprefix("./")
++    for pattern in patterns:
++        pattern = pattern.replace("\\", "/").removeprefix("./")
++        if fnmatch.fnmatch(normalized, pattern):
++            return True
++        prefix = pattern.replace("/**", "").replace("/*", "").rstrip("/")
++        if prefix and normalized.startswith(prefix + "/"):
++            return True
++    return False
++
++
++@dataclass(frozen=True)
++class OwnedReviewSource:
++    """Inspected local source history; not a verdict or verified PR delivery."""
++
++    source_commit: str
++    delivered_commit: str
++    base_commit: str
++    current_head: str
++    task_path: str
++    task_id: str
++    owned_files: tuple[str, ...]
++    source_changes: tuple[str, ...]
++    current_changes: tuple[str, ...]
++    dirty_paths: tuple[str, ...]
++    _token: object = field(default=None, repr=False, compare=False)
++
++    def __post_init__(self) -> None:
++        if self._token is not _REVIEW_SOURCE_TOKEN:
++            raise TypeError("OwnedReviewSource is minted only by resolve_owned_review_source")
++
++
++class _ReviewSourceInspection:
++    """One bounded, read-only Git inspection shared by the source validators."""
++
++    def __init__(self, owned: OwnedCheckout, task_path: Path, source: str, delivery: str, target: str) -> None:
++        import os
++        import time
++
++        self.owned = owned
++        self.task_path = task_path
++        self.source = source
++        self.delivery = delivery
++        self.target = target
++        self.deadline = time.monotonic() + 10
++        self.inspected_bytes = 0
++        self.environment = {**os.environ, "GIT_NO_REPLACE_OBJECTS": "1", "GIT_OPTIONAL_LOCKS": "0"}
++
++    def remaining(self) -> float:
++        import time
++
++        duration = self.deadline - time.monotonic()
++        if duration <= 0:
++            raise ValueError("Review-source inspection exceeded its deadline")
++        return duration
++
++    def git(self, *args: str) -> bytes:
++        from kernel.git.runner import run_git
++
++        output = run_git(self.owned.owned_root, *args, env=self.environment, timeout=self.remaining()).stdout
++        if len(output) > 4 * 1024 * 1024:
++            raise ValueError("Review-source inspection exceeded its byte bound")
++        return output.strip()
++
++    def blob(self, ref: str, path: str) -> bytes:
++        from kernel.git import blob_at
++
++        value = blob_at(self.owned.owned_root, ref, path, env=self.environment, timeout=self.remaining(), max_bytes=4 * 1024 * 1024)
++        if value is None:
++            raise ValueError("Review-source authority is absent from the named history")
++        return value
++
++    @staticmethod
++    def unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
++        value: dict[str, Any] = {}
++        for key, item in pairs:
++            if key in value:
++                raise ValueError("Duplicate review-source authority field")
++            value[key] = item
++        return value
++
++    def document(self, ref: str, path: str) -> dict[str, Any]:
++        import json
++
++        value = json.loads(self.blob(ref, path), object_pairs_hook=self.unique)
++        if not isinstance(value, dict):
++            raise ValueError("Review-source authority must be a JSON object")
++        return value
++
++    def working_entry(self, head: str, path: str, mode: str) -> None:
++        """Compare link text or held regular bytes; never dereference a link."""
++        import os
++        import stat
++
++        from kernel.no_follow import open_no_follow
++
++        location = self.owned.owned_root / path
++        parent = self.owned.owned_root
++        for part in location.relative_to(parent).parts[:-1]:
++            parent /= part
++            if not stat.S_ISDIR(parent.lstat().st_mode):
++                raise ValueError("Review-source working entry has a non-directory parent")
++        if mode == "120000":
++            before = location.lstat()
++            if not stat.S_ISLNK(before.st_mode):
++                raise ValueError("Review-source working link has a different type")
++            content = os.fsencode(os.readlink(location))
++            after = location.lstat()
++        elif mode in ("100644", "100755"):
++            descriptor = open_no_follow(location, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
++            try:
++                before = os.fstat(descriptor)
++                if not stat.S_ISREG(before.st_mode) or bool(before.st_mode & 0o111) != (mode == "100755") or before.st_size > 4 * 1024 * 1024:
++                    raise ValueError("Review-source working entry has an unsupported type, mode or size")
++                chunks: list[bytes] = []
++                size = 0
++                while chunk := os.read(descriptor, min(65536, 4 * 1024 * 1024 + 1 - size)):
++                    self.remaining()
++                    chunks.append(chunk)
++                    size += len(chunk)
++                    if size > 4 * 1024 * 1024:
++                        raise ValueError("Review-source working authority exceeds its byte bound")
++                after = os.fstat(descriptor)
++                content = b"".join(chunks)
++            finally:
++                os.close(descriptor)
++        else:
++            raise ValueError("Review-source working entry has an unsupported Git mode")
++        self.inspected_bytes += len(content)
++        self.remaining()
++        if self.inspected_bytes > 64 * 1024 * 1024:
++            raise ValueError("Review-source working entries exceed the aggregate byte bound")
++        if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns, before.st_mode) != (
++            after.st_dev,
++            after.st_ino,
++            after.st_size,
++            after.st_mtime_ns,
++            after.st_ctime_ns,
++            after.st_mode,
++        ) or content != self.blob(head, path):
++            raise ValueError("Review-source working entry differs or changed during inspection")
++        named = location.lstat()
++        if (named.st_dev, named.st_ino, named.st_mode, named.st_size, named.st_mtime_ns, named.st_ctime_ns) != (
++            after.st_dev,
++            after.st_ino,
++            after.st_mode,
++            after.st_size,
++            after.st_mtime_ns,
++            after.st_ctime_ns,
++        ):
++            raise ValueError("Review-source working entry was replaced during inspection")
++
++    def authority(self, head: str, paths: tuple[str, ...]) -> None:
++        """Keep committed, indexed and no-follow working authority identical."""
++        from kernel.git import index_entries, tree_entry
++
++        entries = index_entries(self.owned.owned_root, pathspecs=paths, tags=True, env=self.environment, timeout=self.remaining())
++        if len(entries) != len(paths):
++            raise ValueError("Review-source authority index is incomplete or unmerged")
++        for entry in entries:
++            path = str(entry.path)
++            expected = tree_entry(self.owned.owned_root, head, path, env=self.environment, timeout=self.remaining())
++            if expected is None or entry.tag != "H" or entry.stage != 0 or entry.mode != "100644" or (entry.mode, entry.oid) != (expected.mode, expected.oid):
++                raise ValueError("Review-source authority index differs or has hidden flags")
++            self.working_entry(head, path, entry.mode)
++
++    def implementation(self, head: str, patterns: tuple[str, ...]) -> None:
++        """Git status alone cannot reveal assume-unchanged or skip-worktree edits."""
++        from kernel.git import index_entries, tree_entry
++
++        entries = index_entries(self.owned.owned_root, tags=True, env=self.environment, timeout=self.remaining())
++        if len(entries) > 100000:
++            raise ValueError("Review-source index exceeds its entry bound")
++        for entry in entries:
++            path = str(entry.path)
++            if not matches_owned_file(path, patterns):
++                continue
++            expected = tree_entry(self.owned.owned_root, head, path, env=self.environment, timeout=self.remaining())
++            if expected is None or entry.tag != "H" or entry.stage != 0 or (entry.mode, entry.oid) != (expected.mode, expected.oid):
++                raise ValueError("Review-source implementation index differs or has hidden flags")
++            self.working_entry(head, path, entry.mode)
++
++    def history(self) -> str:
++        import os
++        import re
++
++        if any(not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", value) for value in (self.source, self.delivery)):
++            raise ValueError("Review-source and delivery must be full immutable commit IDs")
++        if self.source == self.delivery:
++            raise ValueError("Identical source and delivery commits do not describe a squash")
++        if self.git("rev-parse", "--is-shallow-repository") != b"false":
++            raise ValueError("Review-source history must be complete, not shallow")
++        grafts = Path(os.fsdecode(self.git("rev-parse", "--git-path", "info/grafts")))
++        if not grafts.is_absolute():
++            grafts = self.owned.owned_root / grafts
++        if grafts.exists() or grafts.is_symlink():
++            raise ValueError("Grafted review-source history is not qualified")
++        head = self.git("rev-parse", "--verify", "HEAD^{commit}").decode("ascii")
++        target = self.git("rev-parse", "--verify", f"refs/heads/{self.target}^{{commit}}").decode("ascii")
++        for ref in (self.source, self.delivery):
++            if self.git("rev-parse", "--verify", ref + "^{commit}").decode("ascii") != ref:
++                raise ValueError("Review-source identity did not resolve exactly")
++        self.git("merge-base", "--is-ancestor", self.delivery, target)
++        self.git("merge-base", "--is-ancestor", target, head)
++        if self.git("rev-parse", self.source + "^{tree}") != self.git("rev-parse", self.delivery + "^{tree}"):
++            raise ValueError("Original source and delivered tree differ")
++        return head
++
++    def scope(self, head: str) -> tuple[str, str, str, tuple[str, ...]]:
++        import re
++
++        from kernel.git import tree_entry
++        from specify_cli.lanes.claim_base import read_claim_base
++        from specify_cli.frontmatter import FrontmatterManager
++        from specify_cli.status import WPMetadata
++
++        owned = self.owned
++        owned.files([self.task_path, owned.mission_dir / "meta.json", owned.mission_dir / "lanes.json", owned.mission_dir / "status.events.jsonl"])
++        directory = owned.mission_dir.relative_to(owned.owned_root).as_posix()
++        relative_task = self.task_path.relative_to(owned.owned_root).as_posix()
++        authority_paths = (relative_task, directory + "/meta.json", directory + "/lanes.json", directory + "/status.events.jsonl")
++        self.authority(head, authority_paths)
++        authored, _body = FrontmatterManager().parse(self.blob(self.source, relative_task).decode("utf-8-sig"), source=self.task_path)
++        task = WPMetadata.model_validate(authored, strict=False)
++        manifest = self.document(self.source, directory + "/lanes.json")
++        if manifest.get("mission_slug") != owned.mission_slug or manifest.get("target_branch") != self.target:
++            raise ValueError("Review-source mission manifest does not match")
++        # A present immutable claim outranks planning; a failed read is never
++        # treated as the documented quiet-absence legacy fallback.
++        claimed = read_claim_base(owned.repository_root, owned.mission_slug, task.work_package_id, strict=True)
++        base = claimed if claimed is not None else manifest.get("planning_commit_sha")
++        if not isinstance(base, str) or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", base) or base == self.source:
++            raise ValueError("Original review-source planning base is unavailable or empty")
++        self.git("merge-base", "--is-ancestor", base, self.source)
++        # Exact authored entries bind create-intent/exclusions and the full
++        # mission contract. Never compare a symlink's dereferenced bytes.
++        for path in (relative_task, directory + "/meta.json"):
++            entries = [tree_entry(owned.owned_root, ref, path, env=self.environment, timeout=self.remaining()) for ref in (base, self.source, head)]
++            if entries[0] is None or entries[0].mode != "100644" or any(entry != entries[0] for entry in entries[1:]):
++                raise ValueError("Original and current authored mission or task scope differs")
++        metadata = self.document(self.source, directory + "/meta.json")
++        if (
++            not isinstance(metadata.get("mission_id"), str)
++            or not metadata["mission_id"]
++            or manifest.get("mission_id") != metadata["mission_id"]
++            or metadata.get("mission_slug") != owned.mission_slug
++            or metadata.get("target_branch") != self.target
++            or metadata.get("topology") != owned.topology.value
++        ):
++            raise ValueError("Review-source target or topology differs")
++        return base, relative_task, task.work_package_id, tuple(task.owned_files)
++
++    def attempt(self, head: str, task_id: str) -> None:
++        import json
++
++        path = self.owned.mission_dir.relative_to(self.owned.owned_root).as_posix() + "/status.events.jsonl"
++        original, current = self.blob(self.source, path), self.blob(head, path)
++        if not original or not current.startswith(original):
++            raise ValueError("Current status history does not preserve the original source")
++        events = [json.loads(line, object_pairs_hook=self.unique) for line in original.splitlines()]
++        if any(not isinstance(event, dict) for event in events):
++            raise ValueError("Invalid original status event")
++        transitions = [event for event in events if event.get("wp_id") == task_id and "to_lane" in event]
++        if not transitions or transitions[-1].get("to_lane") not in ("in_progress", "for_review", "in_review"):
++            raise ValueError("Original source does not bind an active task attempt")
++        for line in current[len(original) :].splitlines():
++            event = json.loads(line, object_pairs_hook=self.unique)
++            if not isinstance(event, dict):
++                raise ValueError("Invalid current status event")
++            if event.get("wp_id") != task_id:
++                continue
++            if "to_lane" in event and event["to_lane"] not in ("for_review", "in_review", "approved"):
++                raise ValueError("Original review-source evidence belongs to an earlier task attempt")
++            delta = event.get("delta")
++            review = delta.get("review_result") if isinstance(delta, dict) else None
++            if isinstance(review, dict) and review.get("verdict") != "approved":
++                raise ValueError("Original review-source evidence predates a non-approved review")
++
++
++def resolve_owned_review_source(
++    owned: OwnedCheckout,
++    task_path: Path,
++    source_commit: str,
++    delivered_commit: str,
++    target_branch: str,
++) -> OwnedReviewSource:
++    """Inspect a preserved implementation window, not PR or release authority.
++
++    Ordinary current planning/claim-base checks still run separately. This sole
++    minter supplies only the explicit post-squash implementation-window evidence;
++    existing index/worktree, reviewer and transition guards remain mandatory.
++    """
++    from kernel.git import changed_paths, status_entries
++
++    try:
++        if not isinstance(owned, OwnedCheckout):
++            raise ValueError("Review-source evidence requires a validated owned checkout")
++        inspection = _ReviewSourceInspection(owned, task_path, source_commit, delivered_commit, target_branch)
++        head = inspection.history()
++        base, relative_task, task_id, owned_files = inspection.scope(head)
++        inspection.attempt(head, task_id)
++        inspection.implementation(head, owned_files)
++        source_changes = changed_paths(owned.owned_root, base, source_commit, env=inspection.environment, timeout=inspection.remaining())
++        current_changes = changed_paths(owned.owned_root, delivered_commit, head, env=inspection.environment, timeout=inspection.remaining())
++        dirty = status_entries(owned.owned_root, untracked="all", env=inspection.environment, timeout=inspection.remaining())
++        dirty_paths = tuple(str(path) for entry in dirty for path in (entry.path, entry.orig_path) if path is not None)
++        directory = owned.mission_dir.relative_to(owned.owned_root).as_posix()
++        inspection.authority(head, (relative_task, directory + "/meta.json", directory + "/lanes.json", directory + "/status.events.jsonl"))
++        if inspection.git("rev-parse", "HEAD").decode("ascii") != head:
++            raise ValueError("Checkout changed during review-source inspection")
++        return OwnedReviewSource(
++            source_commit,
++            delivered_commit,
++            base,
++            head,
++            relative_task,
++            task_id,
++            owned_files,
++            tuple(map(str, source_changes)),
++            tuple(map(str, current_changes)),
++            dirty_paths,
++            _token=_REVIEW_SOURCE_TOKEN,
++        )
++    except (OSError, ValueError, RuntimeError) as exc:
++        raise ActionContextError("OWNED_REVIEW_SOURCE_INVALID", str(exc)) from exc
++
++
+--- a/src/specify_cli/frontmatter.py
++++ b/src/specify_cli/frontmatter.py
+@@ -116,0 +117,11 @@
++        return self.parse(content, source=file_path)
++
++
++    def parse(self, content: str, *, source: Path) -> tuple[dict[str, Any], str]:
++        """Parse already-decoded Markdown without acquiring mutable file data.
++
++        ``source`` labels diagnostics and preserves the WP filename-dependent
++        dependencies default. It does not assert filesystem or source authority.
++        File readers retain their existing UTF-8-sig decoding at acquisition.
++        """
++        file_path = source
+@@ -121,2 +132 @@
+-        # Only a column-zero fence closes frontmatter; an indented --- can be
+-        # content of a YAML block scalar (for example, a markdown rule).
++        # Find closing ---
+@@ -126 +136 @@
+-            if line.rstrip() == "---":
++            if line.strip() == "---":
+--- a/src/specify_cli/lanes/claim_base.py
++++ b/src/specify_cli/lanes/claim_base.py
+@@ -61 +61 @@
+-def read_claim_base(repo_root: Path, mission_slug: str, wp_id: str) -> str | None:
++def read_claim_base(repo_root: Path, mission_slug: str, wp_id: str, *, strict: bool = False) -> str | None:
+@@ -64 +64 @@
+-    Never raises: an absent ref (the ordinary case before the first claim, or
++    By default never raises: an absent ref (the ordinary case before the first claim, or
+@@ -67,0 +68,5 @@
++
++    ``strict=True`` distinguishes Git's quiet absent-ref response (exit 1,
++    no output or diagnostic) from an unreadable or malformed ref. A broken
++    loose ref also returns 1, but emits a warning; never treat that as absent.
++    Existing non-strict callers retain their non-raising compatibility.
+@@ -75,0 +81,2 @@
++        if strict and (result.returncode != 1 or result.stdout or result.stderr):
++            raise RuntimeError("cannot read claim base: Git did not establish a valid ref or quiet absence")
+@@ -77,0 +85,2 @@
++    if strict and (not sha or result.stderr):
++        raise RuntimeError("cannot read claim base: Git returned empty or diagnostic-bearing success")
+--- a/src/specify_cli/cli/commands/agent/tasks_move_task.py
++++ b/src/specify_cli/cli/commands/agent/tasks_move_task.py
+@@ -952 +952,3 @@
+-        proof = resolve_owned_review_source(st.owned, st.wp.path, source_commit, st.review_delivery_commit, st.target_branch)
++        proof = resolve_owned_review_source(
++            st.owned, st.wp.path, source_commit, st.review_delivery_commit, st.target_branch, completion=st.target_lane == Lane.DONE
++        )
+--- a/src/specify_cli/core/owned_mission.py
++++ b/src/specify_cli/core/owned_mission.py
+@@ -704 +704 @@
+-    def __init__(self, owned: OwnedCheckout, task_path: Path, source: str, delivery: str, target: str) -> None:
++    def __init__(self, owned: OwnedCheckout, task_path: Path, source: str, delivery: str, target: str, *, completion: bool = False) -> None:
+@@ -712,0 +713 @@
++        self.completion = completion
+@@ -876,0 +878,22 @@
++    def completed_metadata(self, base: str, path: str) -> None:
++        """Compare authored intent; delivered/current metadata stays byte-exact.
++
++        Acceptance fields are not acceptance evidence here. They may be stamped
++        between the claim base and publication by their canonical writers.
++        Neither VCS authority nor any unrecognized authored field is waived.
++        """
++        from kernel.vcs_lock import VCS_LOCK_META_FIELDS
++        from specify_cli.acceptance import ACCEPTANCE_HISTORY_FIELD, ACCEPTANCE_PROVENANCE_FIELDS
++        from specify_cli.migration.runtime_state_cutover import _SNAPSHOT_AUTHORITY_PHASE, _STATUS_PHASE_KEY
++        from specify_cli.status.cutover_eligibility import _raw_phase_state
++
++        before = self.document(base, path)
++        published = self.document(self.source, path)
++        mutable = (set(ACCEPTANCE_PROVENANCE_FIELDS) - VCS_LOCK_META_FIELDS) | {ACCEPTANCE_HISTORY_FIELD}
++        if before.get(_STATUS_PHASE_KEY) != published.get(_STATUS_PHASE_KEY):
++            if _raw_phase_state(before) not in ("absent", "early") or published.get(_STATUS_PHASE_KEY) != _SNAPSHOT_AUTHORITY_PHASE:
++                raise ValueError("Completion source has an unsupported runtime-state phase change")
++            mutable.add(_STATUS_PHASE_KEY)
++        if {key: value for key, value in before.items() if key not in mutable} != {key: value for key, value in published.items() if key not in mutable}:
++            raise ValueError("Original and published authored mission scope differs")
++
+@@ -907 +930,7 @@
+-            if entries[0] is None or entries[0].mode != "100644" or any(entry != entries[0] for entry in entries[1:]):
++            if any(entry is None or entry.mode != "100644" for entry in entries):
++                raise ValueError("Original and current authored mission or task scope differs")
++            if self.completion and path == directory + "/meta.json":
++                if entries[1] != entries[2]:
++                    raise ValueError("Current mission metadata differs from its exact published source")
++                self.completed_metadata(base, path)
++            elif any(entry != entries[0] for entry in entries[1:]):
+@@ -932 +961,2 @@
+-        if not transitions or transitions[-1].get("to_lane") not in ("in_progress", "for_review", "in_review"):
++        allowed_source_lanes = ("in_progress", "for_review", "in_review", "approved") if self.completion else ("in_progress", "for_review", "in_review")
++        if not transitions or transitions[-1].get("to_lane") not in allowed_source_lanes:
+@@ -953,0 +984,2 @@
++    *,
++    completion: bool = False,
+@@ -964 +996 @@
+-        if not isinstance(owned, OwnedCheckout):
++        if not isinstance(owned, OwnedCheckout) or not isinstance(completion, bool):
+@@ -966 +998 @@
+-        inspection = _ReviewSourceInspection(owned, task_path, source_commit, delivered_commit, target_branch)
++        inspection = _ReviewSourceInspection(owned, task_path, source_commit, delivered_commit, target_branch, completion=completion)

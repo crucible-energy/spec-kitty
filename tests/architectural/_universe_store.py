@@ -82,6 +82,10 @@ ENV_EXCLUDED_NAMES: frozenset[str] = frozenset(
         "SPEC_KITTY_ENABLE_SAAS_SYNC",
         # tests/conftest.py session fixture that builds the isolated test venv.
         "SPEC_KITTY_TEST_VENV",
+        # Per-run IPC/descriptor projection, not a semantic collection switch.
+        # Admission still validates the live enclosure before cache use; a cache
+        # key cannot grant resource or creator authority.
+        "SPEC_KITTY_TEST_ENCLOSURE",
         # ``scripts/docs/*.py`` do ``os.environ.setdefault`` on import; two architectural modules
         # (``test_no_retired_subsystems.py``, ``test_p1_planted_regression.py``) import them, so
         # every worker that collects those modules has it, and a plain pre-step process does not.

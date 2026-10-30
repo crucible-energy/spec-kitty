@@ -16,6 +16,8 @@ an artefact of the fixture.
 
 from __future__ import annotations
 
+from tests.terminus.feature_fixture_support import feature_build_canceled_dependency_mission as build_canceled_dependency_mission
+
 from pathlib import Path
 
 import pytest
@@ -25,7 +27,6 @@ from tests.terminus.canceled_dependency_support import (
     WP01_PATH,
     WP02_PATH,
     CanceledDependencyMission,
-    build_canceled_dependency_mission,
     first_parent_shas,
     merge_commits,
     strip_lane_head_stamps,

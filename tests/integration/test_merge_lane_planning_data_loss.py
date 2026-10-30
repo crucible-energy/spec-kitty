@@ -64,15 +64,19 @@ def _run(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess
     )
 
 
-def _init_git_repo(repo: Path) -> None:
+def _init_git_repo(repo: Path, *, target_branch: str = "main") -> None:
     repo.mkdir(parents=True, exist_ok=True)
-    _run(["git", "init", "-qb", "main", str(repo)])
+    _run(["git", "init", "-qb", target_branch, str(repo)])
     _run(["git", "-C", str(repo), "config", "user.email", "test@test.com"])
     _run(["git", "-C", str(repo), "config", "user.name", "Test"])
     _run(["git", "-C", str(repo), "config", "commit.gpgsign", "false"])
     (repo / "README.md").write_text("init\n")
     _run(["git", "-C", str(repo), "add", "."])
     _run(["git", "-C", str(repo), "commit", "-m", "init"])
+    if target_branch != "main":
+        from tests._support.feature_landing import pin_primary
+
+        pin_primary(repo)
 
 
 def _make_manifest_with_planning_and_code(slug: str) -> MagicMock:
@@ -144,7 +148,7 @@ class TestMergeIncludesPlanningLane:
 
     def test_merge_state_wp_order_includes_planning_lane_wps(self, tmp_path: Path) -> None:
         slug = "test-planning-data-loss"
-        _init_git_repo(tmp_path)
+        _init_git_repo(tmp_path, target_branch="feature/integration")
         feature_dir = tmp_path / "kitty-specs" / slug
         feature_dir.mkdir(parents=True)
         _seed_wp_done_raw(feature_dir, slug, ["WP01", "WP02", "WP03", "WP04"])
@@ -236,6 +240,7 @@ class TestMergeIncludesPlanningLane:
 
             _run_lane_based_consolidation(
                 repo_root=tmp_path,
+                target_override="feature/integration",
                 mission_slug=slug,
                 push=False,
                 delete_branch=False,
@@ -273,7 +278,7 @@ class TestMergeIncludesPlanningLane:
 # ---------------------------------------------------------------------------
 
 
-def _write_meta(feature_dir: Path, slug: str, *, mission_id: str | None = None) -> None:
+def _write_meta(feature_dir: Path, slug: str, *, mission_id: str | None = None, target_branch: str = "main") -> None:
     """Write a minimal meta.json for a mission directory.
 
     ``mission_id`` defaults to ``None`` (legacy shape). Passing a canonical
@@ -287,7 +292,7 @@ def _write_meta(feature_dir: Path, slug: str, *, mission_id: str | None = None) 
         "mission_slug": slug,
         "mission_number": None,
         "mission_type": "software-dev",
-        "target_branch": "main",
+        "target_branch": target_branch,
         "purpose_tldr": "data-loss regression pin",
         "purpose_context": "real-merge planning-artifact reach-target test",
     }
@@ -525,7 +530,7 @@ def _real_invariant_external_mocks(repo_root: Path):
 
 
 def _bootstrap_legacy_planning_only_mission(
-    repo: Path, slug: str, *, baseline_merge_commit: str | None = "0" * 40
+    repo: Path, slug: str, *, target_branch: str = "main", baseline_merge_commit: str | None = "0" * 40
 ) -> Path:
     """Bootstrap a LEGACY planning-only mission (meta.json WITHOUT mission_id).
 
@@ -543,7 +548,7 @@ def _bootstrap_legacy_planning_only_mission(
         "mission_slug": slug,
         "mission_number": None,
         "mission_type": "software-dev",
-        "target_branch": "main",
+        "target_branch": target_branch,
         "purpose_tldr": "legacy planning-only invariant pin",
         "purpose_context": "post-merge invariant must classify the dirtied meta.json",
     }
@@ -558,6 +563,7 @@ def _bootstrap_legacy_planning_only_mission(
         slug,
         code_wp_ids=[],
         planning_wp_ids=["WP01"],
+        target_branch=target_branch,
     )
     # #4764/T007: _assert_mission_terminal_ready now hard-refuses a mission
     # with a non-approved WP before any mutation, so every test built on this
@@ -573,7 +579,7 @@ def _bootstrap_legacy_planning_only_mission(
     planning_relpath = f"kitty-specs/{slug}/research/decision-A.md"
     _commit_file(
         repo,
-        branch="main",
+        branch=target_branch,
         relpath=planning_relpath,
         content="# Decision A\n\nPlanning artifact body.\n",
         message=f"plan({slug}): commit planning artifact on target",
@@ -606,8 +612,8 @@ class TestLegacyPlanningOnlyMetaInvariant:
         self, tmp_path: Path
     ) -> None:
         slug = "legacy-planning-only-meta-invariant"
-        _init_git_repo(tmp_path)
-        feature_dir = _bootstrap_legacy_planning_only_mission(tmp_path, slug)
+        _init_git_repo(tmp_path, target_branch="feature/integration")
+        feature_dir = _bootstrap_legacy_planning_only_mission(tmp_path, slug, target_branch="feature/integration")
 
         with _real_invariant_external_mocks(tmp_path) as mocks:
             # Must NOT raise typer.Exit — the real post-merge invariant runs
@@ -670,8 +676,8 @@ class TestLegacyPlanningOnlyMetaInvariant:
         import specify_cli.coordination.coherence as coherence_mod
 
         slug = "legacy-planning-only-meta-loadbearing"
-        _init_git_repo(tmp_path)
-        feature_dir = _bootstrap_legacy_planning_only_mission(tmp_path, slug)
+        _init_git_repo(tmp_path, target_branch="feature/integration")
+        feature_dir = _bootstrap_legacy_planning_only_mission(tmp_path, slug, target_branch="feature/integration")
         meta_rel = f"kitty-specs/{slug}/meta.json"
 
         real_classify = phase_bookkeeping._classify_porcelain_lines
@@ -749,8 +755,8 @@ class TestPostMergePorcelainHole:
         self, tmp_path: Path
     ) -> None:
         slug = "post-merge-porcelain-hole"
-        _init_git_repo(tmp_path)
-        _bootstrap_legacy_planning_only_mission(tmp_path, slug)
+        _init_git_repo(tmp_path, target_branch="feature/integration")
+        _bootstrap_legacy_planning_only_mission(tmp_path, slug, target_branch="feature/integration")
 
         # An UNEXPECTED tracked file that sorts FIRST inside kitty-specs/<slug>/
         # ("aaa-..." < "meta.json"). It is committed (tracked) and then dirtied
@@ -759,7 +765,7 @@ class TestPostMergePorcelainHole:
         unexpected_rel = f"kitty-specs/{slug}/aaa-unexpected.md"
         _commit_file(
             tmp_path,
-            branch="main",
+            branch="feature/integration",
             relpath=unexpected_rel,
             content="unexpected v1\n",
             message=f"chore({slug}): add unexpected tracked file",
@@ -975,17 +981,16 @@ class TestPlanningOnlyDoneMarkingPersists:
         from specify_cli.status.store import read_events
 
         slug = "real-merge-planning-only-done-persist"
-        _init_git_repo(tmp_path)
+        _init_git_repo(tmp_path, target_branch="feature/integration")
 
         feature_dir = tmp_path / "kitty-specs" / slug
         feature_dir.mkdir(parents=True)
-        _write_meta(feature_dir, slug)
+        _write_meta(feature_dir, slug, target_branch="feature/integration")
         _write_lanes_manifest(
             feature_dir,
             slug,
             code_wp_ids=[],
-            planning_wp_ids=["WP01", "WP02"],
-        )
+            planning_wp_ids=["WP01", "WP02"], target_branch="feature/integration")
         for wp_id in ("WP01", "WP02"):
             _write_wp_file(feature_dir, wp_id)
             _seed_wp_approved(feature_dir, slug, wp_id)
@@ -1005,7 +1010,7 @@ class TestPlanningOnlyDoneMarkingPersists:
         planning_relpath = f"kitty-specs/{slug}/research/decision-A.md"
         _commit_file(
             tmp_path,
-            branch="main",
+            branch="feature/integration",
             relpath=planning_relpath,
             content="# Decision A\n\nPlanning artifact body.\n",
             message=f"plan({slug}): commit planning artifact on target",
@@ -1058,7 +1063,7 @@ class TestPlanningArtifactReachesTarget:
         Per research.md D4, planning_artifact WPs "execute in the canonical
         repo with workspace_path: null" — so the artifact lives on the
         planning_base branch (typically main) and ``lane_branch_name(
-        "lane-planning", planning_base_branch="main")`` returns ``"main"``
+        "lane-planning", planning_base_branch="feature/integration")`` returns ``"feature/integration"``
         so that ``consolidate_lane_into_mission`` for ``lane-planning`` brings any
         new commits from main into the mission branch (so the mission→main
         merge sees them).
@@ -1070,20 +1075,19 @@ class TestPlanningArtifactReachesTarget:
            survives the merge and is still on main afterward.
         """
         slug = "real-merge-planning-design-correct"
-        _init_git_repo(tmp_path)
+        _init_git_repo(tmp_path, target_branch="feature/integration")
 
         feature_dir = tmp_path / "kitty-specs" / slug
         feature_dir.mkdir(parents=True)
         (feature_dir / "tasks").mkdir(parents=True)
-        _write_meta(feature_dir, slug)
+        _write_meta(feature_dir, slug, target_branch="feature/integration")
 
         # Commit the lanes.json on main so it is visible to require_lanes_json.
         _write_lanes_manifest(
             feature_dir,
             slug,
             code_wp_ids=["WP01"],
-            planning_wp_ids=["WP02"],
-        )
+            planning_wp_ids=["WP02"], target_branch="feature/integration")
         # #4764/T007: _assert_mission_terminal_ready now hard-refuses a
         # mission with a non-approved WP before any mutation. This test's
         # intent is the planning-artifact data-loss check, not readiness, so
@@ -1100,7 +1104,7 @@ class TestPlanningArtifactReachesTarget:
         planning_relpath = f"kitty-specs/{slug}/research/decision-A.md"
         _commit_file(
             tmp_path,
-            branch="main",
+            branch="feature/integration",
             relpath=planning_relpath,
             content="# Decision A\n\nPlanning artifact body.\n",
             message=f"plan({slug}): commit planning artifact on planning_base",
@@ -1108,11 +1112,11 @@ class TestPlanningArtifactReachesTarget:
 
         # Create the mission branch from main.
         mission_branch = f"kitty/mission-{slug}"
-        _git(tmp_path, "branch", mission_branch, "main")
+        _git(tmp_path, "branch", mission_branch, "feature/integration")
 
         # Create the lane-a branch from main and add a real code commit.
         lane_a_branch = f"kitty/mission-{slug}-lane-a"
-        _git(tmp_path, "branch", lane_a_branch, "main")
+        _git(tmp_path, "branch", lane_a_branch, "feature/integration")
         code_relpath = "src/foo.py"
         _commit_file(
             tmp_path,
@@ -1123,7 +1127,7 @@ class TestPlanningArtifactReachesTarget:
         )
 
         # Return to main so the merge command does not run from a feature branch.
-        _git(tmp_path, "checkout", "main")
+        _git(tmp_path, "checkout", "feature/integration")
         restamp_log_at_lane_tips(tmp_path, feature_dir)
 
         # Drive the real merge.  No mocks of consolidate_lane_into_mission /
@@ -1140,11 +1144,11 @@ class TestPlanningArtifactReachesTarget:
             )
 
         # The actual data-loss check.  Both files must be on main after merge.
-        assert _file_on_branch(tmp_path, "main", code_relpath), (
+        assert _file_on_branch(tmp_path, "feature/integration", code_relpath), (
             f"FR-001 regression: code file {code_relpath} did not reach main "
             f"after merge.  ``git ls-tree main -- {code_relpath}`` returned empty."
         )
-        assert _file_on_branch(tmp_path, "main", planning_relpath), (
+        assert _file_on_branch(tmp_path, "feature/integration", planning_relpath), (
             f"FR-001 regression (load-bearing): planning artifact "
             f"{planning_relpath} was DROPPED from main during the merge.  "
             f"It was committed to main before the merge, but it is not "
@@ -1188,17 +1192,16 @@ class TestPlanningArtifactReachesTarget:
         from specify_cli.status.store import read_events
 
         slug = "real-merge-planning-only-research"
-        _init_git_repo(tmp_path)
+        _init_git_repo(tmp_path, target_branch="feature/integration")
 
         feature_dir = tmp_path / "kitty-specs" / slug
         feature_dir.mkdir(parents=True)
-        _write_meta(feature_dir, slug)
+        _write_meta(feature_dir, slug, target_branch="feature/integration")
         _write_lanes_manifest(
             feature_dir,
             slug,
             code_wp_ids=[],
-            planning_wp_ids=["WP01", "WP02"],
-        )
+            planning_wp_ids=["WP01", "WP02"], target_branch="feature/integration")
         for wp_id in ("WP01", "WP02"):
             _write_wp_file(feature_dir, wp_id)
             _seed_wp_approved(feature_dir, slug, wp_id)
@@ -1208,7 +1211,7 @@ class TestPlanningArtifactReachesTarget:
         planning_relpath = f"kitty-specs/{slug}/research/decision-A.md"
         _commit_file(
             tmp_path,
-            branch="main",
+            branch="feature/integration",
             relpath=planning_relpath,
             content="# Decision A\n\nPlanning artifact body.\n",
             message=f"plan({slug}): commit planning artifact on target",
@@ -1234,7 +1237,7 @@ class TestPlanningArtifactReachesTarget:
                 allow_sparse_checkout=True,
             )
 
-        assert _file_on_branch(tmp_path, "main", planning_relpath)
+        assert _file_on_branch(tmp_path, "feature/integration", planning_relpath)
 
         # The REAL done-marking pipeline drove both WPs to done in the canonical
         # event log (no mocked call-contract to inspect — the persisted outcome
@@ -1284,17 +1287,16 @@ class TestPlanningArtifactReachesTarget:
         # A modern (canonical-ULID) mission; shape mirrors the reliability fixture
         # default (not strictly validated at this seam, distinct per tmp repo).
         mission_id = "01KQKV85DURABILITY0000000000"
-        _init_git_repo(tmp_path)
+        _init_git_repo(tmp_path, target_branch="feature/integration")
 
         feature_dir = tmp_path / "kitty-specs" / slug
         feature_dir.mkdir(parents=True)
-        _write_meta(feature_dir, slug, mission_id=mission_id)
+        _write_meta(feature_dir, slug, mission_id=mission_id, target_branch="feature/integration")
         _write_lanes_manifest(
             feature_dir,
             slug,
             code_wp_ids=[],
-            planning_wp_ids=["WP01", "WP02"],
-        )
+            planning_wp_ids=["WP01", "WP02"], target_branch="feature/integration")
         for wp_id in ("WP01", "WP02"):
             _write_wp_file(feature_dir, wp_id)
             _seed_wp_approved(feature_dir, slug, wp_id)
@@ -1304,7 +1306,7 @@ class TestPlanningArtifactReachesTarget:
         planning_relpath = f"kitty-specs/{slug}/research/decision-A.md"
         _commit_file(
             tmp_path,
-            branch="main",
+            branch="feature/integration",
             relpath=planning_relpath,
             content="# Decision A\n\nPlanning artifact body.\n",
             message=f"plan({slug}): commit planning artifact on target",
@@ -1324,7 +1326,7 @@ class TestPlanningArtifactReachesTarget:
         # INTENT: read the append-only event log back from main's COMMITTED tree
         # (not the working tree) and prove both WPs are done on the target branch.
         events_text = _git(
-            tmp_path, "show", f"main:kitty-specs/{slug}/status.events.jsonl"
+            tmp_path, "show", f"feature/integration:kitty-specs/{slug}/status.events.jsonl"
         ).stdout
         target_snapshot = reduce(read_events_from_text(feature_dir, events_text))
         assert target_snapshot.work_packages["WP01"]["lane"] == Lane.DONE.value, (
@@ -1334,7 +1336,7 @@ class TestPlanningArtifactReachesTarget:
             "WP02 is not done on the target branch — the done event did not reach main."
         )
         # The derived snapshot must accompany its source log on the target branch.
-        _git(tmp_path, "show", f"main:kitty-specs/{slug}/status.json")
+        _git(tmp_path, "show", f"feature/integration:kitty-specs/{slug}/status.json")
 
     def test_planning_artifact_on_phantom_lane_branch_is_NOT_reached(
         self, tmp_path: Path
@@ -1352,19 +1354,18 @@ class TestPlanningArtifactReachesTarget:
         lane-planning branch.
         """
         slug = "real-merge-planning-phantom-branch"
-        _init_git_repo(tmp_path)
+        _init_git_repo(tmp_path, target_branch="feature/integration")
 
         feature_dir = tmp_path / "kitty-specs" / slug
         feature_dir.mkdir(parents=True)
         (feature_dir / "tasks").mkdir(parents=True)
-        _write_meta(feature_dir, slug)
+        _write_meta(feature_dir, slug, target_branch="feature/integration")
 
         _write_lanes_manifest(
             feature_dir,
             slug,
             code_wp_ids=["WP01"],
-            planning_wp_ids=["WP02"],
-        )
+            planning_wp_ids=["WP02"], target_branch="feature/integration")
         # #4764/T007: seed both WPs approved so the merge-ready precondition
         # lets the merge proceed far enough to exercise the phantom-branch
         # design-boundary check under test.
@@ -1376,11 +1377,11 @@ class TestPlanningArtifactReachesTarget:
 
         # Mission branch from main.
         mission_branch = f"kitty/mission-{slug}"
-        _git(tmp_path, "branch", mission_branch, "main")
+        _git(tmp_path, "branch", mission_branch, "feature/integration")
 
         # Code lane: real code commit.
         lane_a_branch = f"kitty/mission-{slug}-lane-a"
-        _git(tmp_path, "branch", lane_a_branch, "main")
+        _git(tmp_path, "branch", lane_a_branch, "feature/integration")
         code_relpath = "src/foo.py"
         _commit_file(
             tmp_path,
@@ -1393,7 +1394,7 @@ class TestPlanningArtifactReachesTarget:
         # PHANTOM lane-planning branch — this is the misuse case.
         # The planning artifact lives ONLY here, not on main.
         phantom_planning_branch = f"kitty/mission-{slug}-lane-planning"
-        _git(tmp_path, "branch", phantom_planning_branch, "main")
+        _git(tmp_path, "branch", phantom_planning_branch, "feature/integration")
         orphan_relpath = f"kitty-specs/{slug}/research/orphaned-decision.md"
         _commit_file(
             tmp_path,
@@ -1403,7 +1404,7 @@ class TestPlanningArtifactReachesTarget:
             message=f"plan({slug}): commit planning artifact on PHANTOM branch (anti-pattern)",
         )
 
-        _git(tmp_path, "checkout", "main")
+        _git(tmp_path, "checkout", "feature/integration")
         restamp_log_at_lane_tips(tmp_path, feature_dir)
 
         with _real_merge_external_mocks(tmp_path):
@@ -1418,15 +1419,15 @@ class TestPlanningArtifactReachesTarget:
             )
 
         # Code file did reach main.
-        assert _file_on_branch(tmp_path, "main", code_relpath), (
+        assert _file_on_branch(tmp_path, "feature/integration", code_relpath), (
             "Sanity: code file from lane-a should still reach main."
         )
 
         # Phantom planning artifact did NOT reach main — by design.
-        # ``lane_branch_name("lane-planning", planning_base_branch="main")``
-        # returns ``"main"``, so the merge never visits the phantom branch.
+        # ``lane_branch_name("lane-planning", planning_base_branch="feature/integration")``
+        # returns ``"feature/integration"``, so the merge never visits the phantom branch.
         # This is the documented design limitation we are pinning.
-        assert not _file_on_branch(tmp_path, "main", orphan_relpath), (
+        assert not _file_on_branch(tmp_path, "feature/integration", orphan_relpath), (
             "Design-boundary regression: a planning artifact committed only "
             f"on the phantom branch {phantom_planning_branch} unexpectedly "
             f"reached main.  Per research.md D4, planning artifacts must "
@@ -1499,7 +1500,7 @@ def _stamp_composed_log_at_lane_tips(repo: Path, primary_dir: Path, checkout: Pa
     _git(checkout, "commit", "-qm", "test: stamp the composed coordination log at lane tips (#5668)")
 
 
-def _write_coord_retaining_meta(feature_dir: Path, slug: str) -> None:
+def _write_coord_retaining_meta(feature_dir: Path, slug: str, *, target_branch: str = "main") -> None:
     """meta.json for a COORD-topology mission that retains BOTH branches and worktrees."""
     feature_dir.mkdir(parents=True, exist_ok=True)
     meta: dict[str, object] = {
@@ -1508,7 +1509,7 @@ def _write_coord_retaining_meta(feature_dir: Path, slug: str) -> None:
         "mission_slug": slug,
         "mission_number": None,
         "mission_type": "software-dev",
-        "target_branch": "main",
+        "target_branch": target_branch,
         "coordination_branch": _RETENTION_MISSION_BRANCH,
         "mission_branch": _RETENTION_MISSION_BRANCH,
         "topology": "coord",
@@ -1560,18 +1561,17 @@ class TestRetentionConstraintSurvivesCleanup:
         self, tmp_path: Path
     ) -> None:
         slug = _RETENTION_SLUG
-        _init_git_repo(tmp_path)
+        _init_git_repo(tmp_path, target_branch="feature/integration")
 
         feature_dir = tmp_path / "kitty-specs" / slug
         (feature_dir / "tasks").mkdir(parents=True)
-        _write_coord_retaining_meta(feature_dir, slug)
+        _write_coord_retaining_meta(feature_dir, slug, target_branch="feature/integration")
         _write_lanes_manifest(
             feature_dir,
             slug,
             code_wp_ids=["WP01"],
             planning_wp_ids=[],
-            mission_branch=_RETENTION_MISSION_BRANCH,
-        )
+            mission_branch=_RETENTION_MISSION_BRANCH, target_branch="feature/integration")
         # #4764/T007: seed WP01 approved so the merge-ready precondition lets
         # the merge proceed to the branch/worktree-retention behavior under test.
         _write_wp_file(feature_dir, "WP01")
@@ -1580,7 +1580,7 @@ class TestRetentionConstraintSurvivesCleanup:
         _git(tmp_path, "commit", "-m", f"chore({slug}): bootstrap coord retaining mission")
 
         # Mission branch == coordination branch (coord topology).
-        _git(tmp_path, "branch", _RETENTION_MISSION_BRANCH, "main")
+        _git(tmp_path, "branch", _RETENTION_MISSION_BRANCH, "feature/integration")
         # #4959: a declared-but-unmaterialized coord branch now fails closed;
         # materialize it the way real coord writes do (42adce94 pattern).
         from specify_cli.coordination.workspace import CoordinationWorkspace
@@ -1588,7 +1588,7 @@ class TestRetentionConstraintSurvivesCleanup:
 
         # Real code lane with a real commit.
         lane_a_branch = f"kitty/mission-{slug}-lane-a"
-        _git(tmp_path, "branch", lane_a_branch, "main")
+        _git(tmp_path, "branch", lane_a_branch, "feature/integration")
         code_relpath = "src/retention_repro.py"
         _commit_file(
             tmp_path,
@@ -1597,7 +1597,7 @@ class TestRetentionConstraintSurvivesCleanup:
             content="def foo():\n    return 1\n",
             message=f"feat({slug}): add foo function (WP01)",
         )
-        _git(tmp_path, "checkout", "main")
+        _git(tmp_path, "checkout", "feature/integration")
         restamp_log_at_lane_tips(tmp_path, feature_dir)
         _restamp_coord_worktree(tmp_path, slug, feature_dir)
 
@@ -1682,11 +1682,11 @@ class TestRetentionConstraintSurvivesCleanup:
         deletes"."""
         slug = f"retention-override-{_RETENTION_MID8}"
         mission_branch = f"kitty/mission-{slug}"
-        _init_git_repo(tmp_path)
+        _init_git_repo(tmp_path, target_branch="feature/integration")
 
         feature_dir = tmp_path / "kitty-specs" / slug
         (feature_dir / "tasks").mkdir(parents=True)
-        _write_coord_retaining_meta(feature_dir, slug)
+        _write_coord_retaining_meta(feature_dir, slug, target_branch="feature/integration")
         # Re-key the coord/mission branch marker to this slug's own branch.
         meta_path = feature_dir / "meta.json"
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -1699,8 +1699,7 @@ class TestRetentionConstraintSurvivesCleanup:
             slug,
             code_wp_ids=["WP01"],
             planning_wp_ids=[],
-            mission_branch=mission_branch,
-        )
+            mission_branch=mission_branch, target_branch="feature/integration")
         # #4764/T007: seed WP01 approved so the merge-ready precondition lets
         # the merge proceed to the explicit-override behavior under test.
         _write_wp_file(feature_dir, "WP01")
@@ -1708,13 +1707,13 @@ class TestRetentionConstraintSurvivesCleanup:
         _git(tmp_path, "add", ".")
         _git(tmp_path, "commit", "-m", f"chore({slug}): bootstrap coord retaining mission")
 
-        _git(tmp_path, "branch", mission_branch, "main")
+        _git(tmp_path, "branch", mission_branch, "feature/integration")
         # #4959: a declared-but-unmaterialized coord branch now fails closed;
         # materialize it the way real coord writes do (42adce94 pattern).
         from specify_cli.coordination.workspace import CoordinationWorkspace
         _git(tmp_path, "worktree", "add", "-q", str(CoordinationWorkspace.worktree_path(tmp_path, slug, _RETENTION_MID8)), mission_branch)
         lane_a_branch = f"kitty/mission-{slug}-lane-a"
-        _git(tmp_path, "branch", lane_a_branch, "main")
+        _git(tmp_path, "branch", lane_a_branch, "feature/integration")
         code_relpath = "src/retention_repro_override.py"
         _commit_file(
             tmp_path,
@@ -1723,7 +1722,7 @@ class TestRetentionConstraintSurvivesCleanup:
             content="def bar():\n    return 2\n",
             message=f"feat({slug}): add bar function (WP01)",
         )
-        _git(tmp_path, "checkout", "main")
+        _git(tmp_path, "checkout", "feature/integration")
         restamp_log_at_lane_tips(tmp_path, feature_dir)
         _restamp_coord_worktree(tmp_path, slug, feature_dir)
 
@@ -1790,11 +1789,11 @@ class TestRetentionConstraintSurvivesCleanup:
         # The declared coordination branch must be the name the product composes from the
         # recorded identity; the uncomposed name was never consolidatable without the mocks.
         mission_branch = f"kitty/mission-{slug}-{_RETENTION_MID8}"
-        _init_git_repo(tmp_path)
+        _init_git_repo(tmp_path, target_branch="feature/integration")
 
         feature_dir = tmp_path / "kitty-specs" / slug
         (feature_dir / "tasks").mkdir(parents=True)
-        _write_coord_retaining_meta(feature_dir, slug)
+        _write_coord_retaining_meta(feature_dir, slug, target_branch="feature/integration")
         meta_path = feature_dir / "meta.json"
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         meta["mission_slug"] = slug
@@ -1809,8 +1808,7 @@ class TestRetentionConstraintSurvivesCleanup:
             slug,
             code_wp_ids=["WP01"],
             planning_wp_ids=[],
-            mission_branch=mission_branch,
-        )
+            mission_branch=mission_branch, target_branch="feature/integration")
         # #4764/T007: seed WP01 approved so the merge-ready precondition lets
         # the merge proceed to the malformed-retention-value behavior under test.
         _write_wp_file(feature_dir, "WP01")
@@ -1818,13 +1816,13 @@ class TestRetentionConstraintSurvivesCleanup:
         _git(tmp_path, "add", ".")
         _git(tmp_path, "commit", "-m", f"chore({slug}): bootstrap malformed-retention mission")
 
-        _git(tmp_path, "branch", mission_branch, "main")
+        _git(tmp_path, "branch", mission_branch, "feature/integration")
         # #4959: a declared-but-unmaterialized coord branch now fails closed;
         # materialize it the way real coord writes do (42adce94 pattern).
         from specify_cli.coordination.workspace import CoordinationWorkspace
         _git(tmp_path, "worktree", "add", "-q", str(CoordinationWorkspace.worktree_path(tmp_path, slug, _RETENTION_MID8)), mission_branch)
         lane_a_branch = f"kitty/mission-{slug}-lane-a"
-        _git(tmp_path, "branch", lane_a_branch, "main")
+        _git(tmp_path, "branch", lane_a_branch, "feature/integration")
         _commit_file(
             tmp_path,
             branch=lane_a_branch,
@@ -1832,7 +1830,7 @@ class TestRetentionConstraintSurvivesCleanup:
             content="def baz():\n    return 3\n",
             message=f"feat({slug}): add baz function (WP01)",
         )
-        _git(tmp_path, "checkout", "main")
+        _git(tmp_path, "checkout", "feature/integration")
         restamp_log_at_lane_tips(tmp_path, feature_dir)
         _restamp_coord_worktree(tmp_path, slug, feature_dir)
 
@@ -1885,11 +1883,11 @@ class TestRetentionConstraintSurvivesCleanup:
         collapse that FR-008's fold removed) with an end-to-end CLI assertion."""
         slug = _RETENTION_SLUG + "-dryrun"
         mission_branch = f"kitty/mission-{slug}"
-        _init_git_repo(tmp_path)
+        _init_git_repo(tmp_path, target_branch="feature/integration")
 
         feature_dir = tmp_path / "kitty-specs" / slug
         (feature_dir / "tasks").mkdir(parents=True)
-        _write_coord_retaining_meta(feature_dir, slug)
+        _write_coord_retaining_meta(feature_dir, slug, target_branch="feature/integration")
         meta_path = feature_dir / "meta.json"
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         meta["mission_slug"] = slug
@@ -1901,11 +1899,10 @@ class TestRetentionConstraintSurvivesCleanup:
             slug,
             code_wp_ids=["WP01"],
             planning_wp_ids=[],
-            mission_branch=mission_branch,
-        )
+            mission_branch=mission_branch, target_branch="feature/integration")
         _git(tmp_path, "add", ".")
         _git(tmp_path, "commit", "-m", f"chore({slug}): bootstrap dry-run retaining mission")
-        _git(tmp_path, "branch", mission_branch, "main")
+        _git(tmp_path, "branch", mission_branch, "feature/integration")
         # #4959: a declared-but-unmaterialized coord branch now fails closed;
         # materialize it the way real coord writes do (42adce94 pattern).
         from specify_cli.coordination.workspace import CoordinationWorkspace
@@ -1946,6 +1943,7 @@ _COMPOSED_BRANCH = f"kitty/mission-{_BARE_SLUG}-{_RETENTION_MID8}"
 def _build_bare_slug_coord_mission(
     repo: Path,
     *,
+    target_branch: str = "main",
     alias_dir_file: str | None = None,
     alias_pair_on_target: bool = False,
     primary_dir_files: Mapping[str, str] | None = None,
@@ -1972,12 +1970,18 @@ def _build_bare_slug_coord_mission(
     slug = _BARE_SLUG
     mission_branch = _COMPOSED_BRANCH
     _init_git_repo(repo)
+    if target_branch != "main":
+        _git(repo, "checkout", "-qb", target_branch)
+        from tests._support.feature_landing import pin_primary
+
+        pin_primary(repo)
 
     feature_dir = repo / "kitty-specs" / slug
     (feature_dir / "tasks").mkdir(parents=True)
     _write_coord_retaining_meta(feature_dir, slug)
     meta_path = feature_dir / "meta.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta["target_branch"] = target_branch
     meta["coordination_branch"] = mission_branch
     meta["mission_branch"] = mission_branch
     # Default cleanup (no retention) removes the coordination worktree; that
@@ -1991,6 +1995,7 @@ def _build_bare_slug_coord_mission(
         code_wp_ids=["WP01"],
         planning_wp_ids=[],
         mission_branch=mission_branch,
+        target_branch=target_branch,
     )
     _write_wp_file(feature_dir, "WP01")
     _seed_wp_approved(feature_dir, slug, "WP01")
@@ -2010,7 +2015,7 @@ def _build_bare_slug_coord_mission(
     _git(repo, "add", ".")
     _git(repo, "commit", "-m", f"chore({slug}): bootstrap bare-slug coord mission")
 
-    _git(repo, "branch", mission_branch, "main")
+    _git(repo, "branch", mission_branch, target_branch)
     from specify_cli.coordination.workspace import CoordinationWorkspace
 
     _git(
@@ -2036,7 +2041,7 @@ def _build_bare_slug_coord_mission(
         _git(coord_worktree, "add", "-f", ".")
         _git(coord_worktree, "commit", "-qm", "chore: a planning file under the composed name")
     lane_a_branch = f"kitty/mission-{slug}-lane-a"
-    _git(repo, "branch", lane_a_branch, "main")
+    _git(repo, "branch", lane_a_branch, target_branch)
     _commit_file(
         repo,
         branch=lane_a_branch,
@@ -2044,7 +2049,7 @@ def _build_bare_slug_coord_mission(
         content="def bar():\n    return 2\n",
         message=f"feat({slug}): add bar function (WP01)",
     )
-    _git(repo, "checkout", "main")
+    _git(repo, "checkout", target_branch)
     restamp_log_at_lane_tips(repo, feature_dir)
     # A bare-slug Mission's coordination writes resolve to the COMPOSED directory,
     # so #5668's approved bound reads the approval stamp from a composed-name log
@@ -2079,13 +2084,14 @@ def _assert_bare_slug_end_state(
     slug: str,
     mission_branch: str,
     pre_run_event_ids: frozenset[str],
+    *, target_branch: str = "main",
 ) -> None:
     """The consolidated bare-slug Mission leaves ONE directory, the whole log, a clean tree."""
     from specify_cli.coordination.workspace import CoordinationWorkspace
 
     mission_dirs = sorted(
         entry
-        for entry in _git(repo, "ls-tree", "--name-only", "main", "kitty-specs/").stdout.splitlines()
+        for entry in _git(repo, "ls-tree", "--name-only", target_branch, "kitty-specs/").stdout.splitlines()
         if entry.strip()
     )
     assert mission_dirs == [f"kitty-specs/{slug}"], (
@@ -2093,12 +2099,12 @@ def _assert_bare_slug_end_state(
     )
     composed_paths = [
         path
-        for path in _git(repo, "ls-tree", "-r", "--name-only", "main").stdout.splitlines()
+        for path in _git(repo, "ls-tree", "-r", "--name-only", target_branch).stdout.splitlines()
         if path.startswith(f"kitty-specs/{slug}-")
     ]
     assert composed_paths == [], f"#5651: nothing may remain under the composed name on the target: {composed_paths}"
 
-    log_text = _git(repo, "show", f"main:kitty-specs/{slug}/status.events.jsonl").stdout
+    log_text = _git(repo, "show", f"{target_branch}:kitty-specs/{slug}/status.events.jsonl").stdout
     events = [json.loads(line) for line in log_text.splitlines() if line.strip()]
     event_ids = [event["event_id"] for event in events]
     assert len(event_ids) == len(set(event_ids)), "#5651: the event log must not repeat an event id"
@@ -2124,7 +2130,7 @@ def _consolidate_bare_slug_mission(tmp_path: Path, *strategy_args: str) -> None:
     bake, the ``done`` marking, the bookkeeping commit, the durability asserts and
     the post-merge working-tree invariant all run for real.
     """
-    slug, mission_branch, pre_run_event_ids = _build_bare_slug_coord_mission(tmp_path)
+    slug, mission_branch, pre_run_event_ids = _build_bare_slug_coord_mission(tmp_path, target_branch="feature/integration")
 
     result = _invoke_merge_cli(
         tmp_path,
@@ -2133,12 +2139,12 @@ def _consolidate_bare_slug_mission(tmp_path: Path, *strategy_args: str) -> None:
 
     exit_code = getattr(result, "exit_code", None)
     assert exit_code == 0, f"#5651: consolidate must succeed (output: {getattr(result, 'output', None)!r}, exception: {getattr(result, 'exception', None)!r})"
-    _assert_bare_slug_end_state(tmp_path, slug, mission_branch, pre_run_event_ids)
+    _assert_bare_slug_end_state(tmp_path, slug, mission_branch, pre_run_event_ids, target_branch="feature/integration")
 
 
 @pytest.mark.regression
-def test_bare_slug_coord_mission_consolidates_onto_a_protected_target(tmp_path: Path) -> None:
-    """A bare-slug coordination Mission consolidates onto a protected target and ends with ONE directory (#5651).
+def test_bare_slug_coord_mission_consolidates_onto_a_feature_target(tmp_path: Path) -> None:
+    """A bare-slug coordination Mission consolidates onto a feature target and ends with ONE directory (#5651).
 
     Pins the fix of https://github.com/spec-kitty/spec-kitty/issues/5651 (tracked
     by #5611). A coordination Mission whose primary directory is the BARE slug
@@ -2201,7 +2207,7 @@ def test_bare_slug_coord_mission_consolidates_again_after_the_bookkeeping_commit
     the same end state as an undisturbed one. The ONLY patch is the injected
     failure of the bookkeeping door, on its first call.
     """
-    slug, mission_branch, pre_run_event_ids = _build_bare_slug_coord_mission(tmp_path)
+    slug, mission_branch, pre_run_event_ids = _build_bare_slug_coord_mission(tmp_path, target_branch="feature/integration")
     args = ["--mission", slug, "--yes", "--allow-sparse-checkout"]
 
     with (
@@ -2215,7 +2221,7 @@ def test_bare_slug_coord_mission_consolidates_again_after_the_bookkeeping_commit
 
     exit_code = getattr(resumed, "exit_code", None)
     assert exit_code == 0, f"#5651: the repeated consolidation must succeed (output: {getattr(resumed, 'output', None)!r})"
-    _assert_bare_slug_end_state(tmp_path, slug, mission_branch, pre_run_event_ids)
+    _assert_bare_slug_end_state(tmp_path, slug, mission_branch, pre_run_event_ids, target_branch="feature/integration")
 
 
 @pytest.mark.regression
@@ -2228,15 +2234,15 @@ def test_bare_slug_coord_mission_with_another_file_under_the_composed_name_is_re
     bookkeeping, so the reconciliation gate refuses it, rolls the target back and
     keeps the coordination branch. No product code is patched.
     """
-    slug, mission_branch, _pre_run_event_ids = _build_bare_slug_coord_mission(tmp_path, alias_dir_file="notes.md")
-    target_before = _git(tmp_path, "rev-parse", "main").stdout.strip()
+    slug, mission_branch, _pre_run_event_ids = _build_bare_slug_coord_mission(tmp_path, alias_dir_file="notes.md", target_branch="feature/integration")
+    target_before = _git(tmp_path, "rev-parse", "feature/integration").stdout.strip()
 
     result = _invoke_merge_cli(tmp_path, ["--mission", slug, "--yes", "--allow-sparse-checkout", *strategy_args])
 
     assert getattr(result, "exit_code", None) == 1, getattr(result, "output", None)
     output = getattr(result, "output", "")
     assert "Reconciliation FAILED" in output, output
-    assert _git(tmp_path, "rev-parse", "main").stdout.strip() == target_before, "the target must be rolled back"
+    assert _git(tmp_path, "rev-parse", "feature/integration").stdout.strip() == target_before, "the target must be rolled back"
     assert _branch_exists(tmp_path, mission_branch), "nothing may be torn down"
 
 
@@ -2254,7 +2260,7 @@ def test_bare_slug_coord_mission_whose_composed_log_holds_a_foreign_event_is_ref
     """
     from specify_cli.consolidation.bookkeeping_projection import AliasStatusEventsNotPreserved
 
-    slug, mission_branch, _pre_run_event_ids = _build_bare_slug_coord_mission(tmp_path, alias_pair_on_target=True)
+    slug, mission_branch, _pre_run_event_ids = _build_bare_slug_coord_mission(tmp_path, alias_pair_on_target=True, target_branch="feature/integration")
     composed_log = tmp_path / "kitty-specs" / f"{slug}-{_RETENTION_MID8}" / "status.events.jsonl"
     foreign = json.loads(composed_log.read_text(encoding="utf-8").splitlines()[0])
     foreign["event_id"] = "01KX0000000FOREIGNEVENT0001"
@@ -2262,7 +2268,7 @@ def test_bare_slug_coord_mission_whose_composed_log_holds_a_foreign_event_is_ref
     composed_log.write_text(json.dumps(foreign, sort_keys=True) + "\n" + composed_log.read_text(encoding="utf-8"), encoding="utf-8")
     _git(tmp_path, "add", "-f", str(composed_log))
     _git(tmp_path, "commit", "-m", "chore: the target gains an event in the composed log")
-    target_before = _git(tmp_path, "rev-parse", "main").stdout.strip()
+    target_before = _git(tmp_path, "rev-parse", "feature/integration").stdout.strip()
 
     result = _invoke_merge_cli(tmp_path, ["--mission", slug, "--yes", "--allow-sparse-checkout"])
 
@@ -2273,7 +2279,7 @@ def test_bare_slug_coord_mission_whose_composed_log_holds_a_foreign_event_is_ref
     assert f"kitty-specs/{slug}-{_RETENTION_MID8}" in output.replace("\n", ""), output
     assert "01KX0000000FOREIGNEVENT0001" in output, output
     assert "Error code: ALIAS_STATUS_EVENTS_NOT_PRESERVED." in " ".join(output.split()), output  # rich wraps long lines
-    assert _git(tmp_path, "rev-parse", "main").stdout.strip() == target_before, "the target must be rolled back"
+    assert _git(tmp_path, "rev-parse", "feature/integration").stdout.strip() == target_before, "the target must be rolled back"
     assert _branch_exists(tmp_path, mission_branch), "nothing may be torn down"
     assert composed_log.exists(), "the composed directory's status files must not be deleted"
 
@@ -2300,27 +2306,27 @@ def test_mission_declaring_an_uncomposed_coordination_branch_is_refused_truthful
     slug = _RETENTION_SLUG + "-uncomposed"
     declared = f"kitty/mission-{slug}"
     expected = f"kitty/mission-{slug}-{_RETENTION_MID8}"
-    _init_git_repo(tmp_path)
+    _init_git_repo(tmp_path, target_branch="feature/integration")
     feature_dir = tmp_path / "kitty-specs" / slug
     (feature_dir / "tasks").mkdir(parents=True)
-    _write_coord_retaining_meta(feature_dir, slug)
+    _write_coord_retaining_meta(feature_dir, slug, target_branch="feature/integration")
     meta_path = feature_dir / "meta.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     meta.update({"coordination_branch": declared, "mission_branch": declared})
     meta.pop("retain_branches")
     meta.pop("retain_worktrees")
     meta_path.write_text(json.dumps(meta, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    _write_lanes_manifest(feature_dir, slug, code_wp_ids=["WP01"], planning_wp_ids=[], mission_branch=declared)
+    _write_lanes_manifest(feature_dir, slug, code_wp_ids=["WP01"], planning_wp_ids=[], mission_branch=declared, target_branch="feature/integration")
     _write_wp_file(feature_dir, "WP01")
     _seed_wp_approved(feature_dir, slug, "WP01")
     _git(tmp_path, "add", ".")
     _git(tmp_path, "commit", "-m", f"chore({slug}): bootstrap uncomposed-branch mission")
-    _git(tmp_path, "branch", declared, "main")
+    _git(tmp_path, "branch", declared, "feature/integration")
     _git(tmp_path, "worktree", "add", "-q", str(CoordinationWorkspace.worktree_path(tmp_path, slug, _RETENTION_MID8)), declared)
     lane_a_branch = f"kitty/mission-{slug}-lane-a"
-    _git(tmp_path, "branch", lane_a_branch, "main")
+    _git(tmp_path, "branch", lane_a_branch, "feature/integration")
     _commit_file(tmp_path, branch=lane_a_branch, relpath="src/uncomposed_repro.py", content="def qux():\n    return 4\n", message=f"feat({slug}): add qux (WP01)")
-    _git(tmp_path, "checkout", "main")
+    _git(tmp_path, "checkout", "feature/integration")
     lane_worktree, _lane_branch = predict_lane_worktree(tmp_path, slug, "lane-a")
     _git(tmp_path, "worktree", "add", str(lane_worktree), lane_a_branch)
     refs_before = _git(tmp_path, "for-each-ref", "--format=%(refname) %(objectname)").stdout
@@ -2389,7 +2395,7 @@ def test_a_run_killed_inside_the_fold_gets_advice_that_leads_to_a_successful_con
     import subprocess
     import sys
 
-    slug, mission_branch, pre_run_event_ids = _build_bare_slug_coord_mission(tmp_path, primary_dir_files=primary_dir_files)
+    slug, mission_branch, pre_run_event_ids = _build_bare_slug_coord_mission(tmp_path, primary_dir_files=primary_dir_files, target_branch="feature/integration")
     args = ["--mission", slug, "--yes", "--allow-sparse-checkout"]
     src_dir = Path(__file__).resolve().parents[2] / "src"
     killed = subprocess.run(
@@ -2417,4 +2423,4 @@ def test_a_run_killed_inside_the_fold_gets_advice_that_leads_to_a_successful_con
     assert getattr(aborted, "exit_code", None) == 0, getattr(aborted, "output", None)
     fresh = _invoke_merge_cli(tmp_path, args)
     assert getattr(fresh, "exit_code", None) == 0, getattr(fresh, "output", None)
-    _assert_bare_slug_end_state(tmp_path, slug, mission_branch, pre_run_event_ids)
+    _assert_bare_slug_end_state(tmp_path, slug, mission_branch, pre_run_event_ids, target_branch="feature/integration")

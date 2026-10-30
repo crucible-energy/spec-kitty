@@ -599,3 +599,31 @@ def test_golden_docs_only_pr_runs_the_fast_battery_but_not_the_legs(router_workf
     assert eval_gh_if(jobs[_HEAVY_JOB]["if"], context) is False
     assert jobs[_FAST_JOB]["if"] == _FORK_GUARD
     assert "needs" not in jobs[_FAST_JOB], "no needs: the fast job starts at pipeline start (NFR-002)"
+
+
+def test_native_validation_compiler_is_verified_before_ci_shard_execution() -> None:
+    """The native validation suite needs its target compiler, not a missing-tool skip."""
+    workflow = yaml.safe_load((_REPO_ROOT / ".github/workflows/module-tests.yml").read_text())
+    steps = workflow["jobs"]["test"]["steps"]
+    provisions = [(index, step) for index, step in enumerate(steps) if step.get("name") == "Provision pinned native validation compiler"]
+    assert len(provisions) == 1
+    index, step = provisions[0]
+    assert step["if"] == "inputs.module == 'ci'"
+    assert step["shell"] == "bash"
+    assert index < next(i for i, item in enumerate(steps) if item.get("id") == "shard-info")
+    script = step["run"]
+    ordered = (
+        "set -euo pipefail",
+        'test "$(uname -s)" = Linux',
+        'test "$(uname -m)" = x86_64',
+        'mktemp -d "${RUNNER_TEMP}/validation-compiler.XXXXXX"',
+        "https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz",
+        "70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00",
+        "sha256sum --check",
+        "tar -xJf",
+        'test "$("$compiler_root/zig" version)" = 0.16.0',
+        '>> "$GITHUB_PATH"',
+    )
+    positions = [script.index(fragment) for fragment in ordered]
+    assert positions == sorted(positions), "Checksum and executable version must pass before PATH publication"
+    assert "continue-on-error" not in step

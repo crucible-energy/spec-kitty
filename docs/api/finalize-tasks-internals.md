@@ -2,11 +2,11 @@
 title: finalize-tasks internals reference
 description: 'finalize-tasks internals: empty owned_files, lane-depth cycle safety, the planning-pin refresh (override and automatic), and the LANE_MEMBERSHIP_FROZEN refusal.'
 doc_status: active
-updated: '2026-10-05'
+updated: '2026-10-25'
 ---
 # `finalize-tasks` internals reference
 
-Five non-obvious behaviours an operator may encounter when running
+Six non-obvious behaviours an operator may encounter when running
 `spec-kitty agent mission finalize-tasks`. All have regression tests
 under `tests/specify_cli/cli/commands/` and `tests/specify_cli/lanes/`.
 
@@ -282,6 +282,30 @@ Locked by tests in:
 - `tests/specify_cli/cli/commands/agent/test_finalize_frozen_lane_preflight.py`
 - `tests/integration/test_refinalize_keeps_started_lanes.py` and
   `tests/integration/test_refinalize_frozen_lane_refusals.py`
+
+## 6. Owned planning finalization accepts plain lanes
+
+`finalize-tasks --owned-checkout <path> --mission <handle>` accepts a
+`single_branch` or plain `lanes` Mission root. It uses the canonical owned
+checkout resolver and the command-specific `FINALIZATION_OWNED_TOPOLOGIES` set.
+This planning capability does not widen implementation, acceptance, consolidation
+or cleanup authority; those commands keep their own topology restrictions.
+
+Coordinated topologies remain unsupported. Repository-root, execution-lane and
+coordination checkouts are not substitutes for the selected owned Mission root.
+The existing branch, protected-target, staged-index and identity guards remain
+in force before planning writes. `--validate-only` preserves the selected checkout
+and the repository from which the command was invoked.
+
+An ownership amendment to an unstarted WP may be re-finalized while another WP
+is active. Started membership and prior status events remain protected by the
+existing frozen-lane rules in section 5; removing a started WP refuses rather
+than silently reconstructing its history. Planning completion is not runtime
+admission or evidence that a downstream implementation dependency is satisfied.
+
+Regression coverage lives in
+`tests/integration/test_owned_lifecycle_acceptance_finalize.py` and
+`tests/core/test_owned_mission_minter.py`.
 
 ## Module map
 

@@ -13,6 +13,7 @@ Coverage focuses on:
 from __future__ import annotations
 
 import os
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -532,6 +533,30 @@ class TestBuildCli:
         captured = capsys.readouterr()
         assert "## spec-kitty foo" in captured.out
 
+    def test_capture_failure_precedes_all_target_writes(self, tmp_path: Path, stub_specify_cli: None, monkeypatch: pytest.MonkeyPatch) -> None:
+        out = tmp_path / "cli.md"
+        agents = tmp_path / "agent.md"
+        out.write_text("retain main reference\n")
+        agents.write_text("retain agent reference\n")
+        entries = [
+            CommandPathEntry(
+                path=path, kind="command", hidden=False, deprecated=False, help_summary="fixture", source_file=None, source_function=None, requires_saas_sync=False
+            )
+            for path in [("foo",), ("agent", "mission")]
+        ]
+        monkeypatch.setattr(build, "walk", lambda _app: entries)
+
+        def capture(path: tuple[str, ...]) -> str:
+            if path == ("agent", "mission"):
+                raise RuntimeError("HELP_CAPTURE_FAILED controlled second document")
+            return "Usage: spec-kitty foo [OPTIONS]\n"
+
+        monkeypatch.setattr(build, "capture_help", capture)
+        with pytest.raises(RuntimeError, match="HELP_CAPTURE_FAILED"):
+            build.main(["--output", str(out), "--agent-output", str(agents), "--repo-root", str(tmp_path), "--mode", "generated"])
+        assert out.read_text() == "retain main reference\n"
+        assert agents.read_text() == "retain agent reference\n"
+
 
 # ---------------------------------------------------------------------------
 # capture_help uses subprocess; smoke-test the wrapper with mocked subprocess.
@@ -539,11 +564,27 @@ class TestBuildCli:
 
 
 class TestCaptureHelp:
+    def test_failed_real_child_cannot_become_successful_help(self) -> None:
+        runner = (sys.executable, "-c", "import sys; print('PARTIAL-CONTROL'); print('RETAINED-HELP-CAUSE', file=sys.stderr); sys.exit(9)")
+        with pytest.raises(RuntimeError, match="HELP_CAPTURE_FAILED") as failure:
+            build.capture_help(("fixture",), cmd_runner=runner)
+        assert failure.value.returncode == 9
+        assert b"PARTIAL-CONTROL" in failure.value.stdout
+        assert b"RETAINED-HELP-CAUSE" in failure.value.stderr
+
+    @pytest.mark.parametrize("output", ["", "  \n\t", "\x1b[31m\x1b[0m"])
+    def test_empty_successful_child_is_not_required_help(self, output: str) -> None:
+        runner = (sys.executable, "-c", f"import sys; sys.stdout.write({output!r})")
+        with pytest.raises(RuntimeError, match="HELP_CAPTURE_FAILED"):
+            build.capture_help(("fixture",), cmd_runner=runner)
+
     def test_capture_help_calls_subprocess(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured: dict[str, Any] = {}
 
         class _Result:
-            stdout = "Usage: spec-kitty foo [OPTIONS]\n"
+            stdout = b"Usage: spec-kitty foo [OPTIONS]\n"
+            stderr = b""
+            returncode = 0
 
         def _fake_run(cmd: list[str], **kwargs: object) -> _Result:
             captured["cmd"] = cmd
@@ -553,6 +594,7 @@ class TestCaptureHelp:
         monkeypatch.setattr(build.subprocess, "run", _fake_run)
         result = build.capture_help(("foo",))
         assert "Usage: spec-kitty foo" in result
+        assert captured["cmd"][0] == sys.executable
         assert captured["cmd"][-1] == "--help"
         env = captured["env"]
         assert isinstance(env, dict)
@@ -588,3 +630,28 @@ class TestDirtyTarget:
 
         monkeypatch.setattr(build.subprocess, "run", lambda *a, **kw: _Result())
         assert build.is_target_dirty(target, repo_root=tmp_path) is True
+
+
+@pytest.mark.parametrize(
+    "code,reason",
+    [
+        ("import sys; sys.stdout.buffer.write(bytes([255]))", "invalid UTF-8"),
+        ("import time; time.sleep(5)", "timeout"),
+    ],
+)
+def test_capture_retains_decode_and_timeout_failures(code: str, reason: str) -> None:
+    with pytest.raises(build.HelpCaptureError, match=reason):
+        build.capture_help(("fixture",), cmd_runner=(sys.executable, "-c", code), timeout=0.2)
+
+
+def test_capture_real_success_and_private_diagnostics(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    assert build.capture_help(("fixture",), cmd_runner=(sys.executable, "-c", "print('Usage: controlled help')")) == "Usage: controlled help\n"
+    root = tmp_path / "diagnostics"
+    root.mkdir()
+    monkeypatch.setattr(build.tempfile, "mkdtemp", lambda **_: str(root))
+    failure = build.HelpCaptureError(("controlled", "--help"), "nonzero exit", returncode=9, stdout=b"partial", stderr=b"actual cause")
+    assert failure.retain_diagnostics() == root
+    assert (root / "stdout.log").read_bytes() == b"partial"
+    assert (root / "stderr.log").read_bytes() == b"actual cause"
+    assert root.stat().st_mode & 0o777 == 0o700
+    assert all(path.stat().st_mode & 0o777 == 0o600 for path in root.iterdir())

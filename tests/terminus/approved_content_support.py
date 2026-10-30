@@ -32,11 +32,11 @@ from tests.terminus.conftest import (
     _init_fixture_repo,
     _STATUS_EVENTS_FILENAME,
     _write_meta,
-    build_coord_mission,
     run_terminus,
     sha_reachable,
 )
-from tests.terminus.lanes_fixture import build_lanes_mission
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
+from tests._support.feature_landing import build_feature_lanes_mission as build_lanes_mission
 from tests.terminus.mixed_lane_support import collapse, transition
 
 Edit = Literal["delete", "rename", "revert", "modify", "none"]
@@ -95,6 +95,10 @@ def build_dependent_edit_mission(
     mid8 = mid8.upper()
     slug = f"terminus-{mid8}"
     mission = _init_fixture_repo(tmp_path, mid8=mid8, slug=slug, target_branch=target_branch, extra_base_files={SHARED_PATH: SHARED_V0})
+    if target_branch.startswith("feature/"):
+        from tests._support.feature_landing import pin_primary
+
+        pin_primary(mission.repo)
     (mission.feature_dir / "tasks").mkdir(parents=True)
     _write_meta(mission)
     manifest = _manifest(mission, depends=True)

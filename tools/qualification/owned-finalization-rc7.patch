@@ -1,0 +1,47 @@
+--- a/src/specify_cli/core/owned_mission.py
++++ b/src/specify_cli/core/owned_mission.py
+@@ -1,4 +1,4 @@
+-"""Shared preflight for explicitly selected, single-branch mission checkouts.
++"""Shared preflight for explicitly selected mission checkouts.
+ 
+ ``resolve_owned_mission`` is the SOLE minter of :class:`mission_runtime.OwnedCheckout`
+ (gate G3, ``contracts/owned-checkout-carrier.md`` §1). Every owned command
+@@ -55,6 +55,9 @@
+ # `next --owned-checkout` applies no topology check at all and must keep
+ # accepting a plain lanes-without-coordination owned mission.
+ LIFECYCLE_OWNED_TOPOLOGIES: Final[frozenset[MissionTopology]] = frozenset({MissionTopology.SINGLE_BRANCH})
++# Planning finalization can write the selected plain-LANES root without
++# granting lane implementation, acceptance, merge or coordination authority.
++FINALIZATION_OWNED_TOPOLOGIES: Final[frozenset[MissionTopology]] = frozenset({MissionTopology.SINGLE_BRANCH, MissionTopology.LANES})
+ # Planning admission is narrower than general next-query topology support.
+ # It never widens implementation, finalization or merge authority.
+ ANALYSIS_OWNED_TOPOLOGIES: Final[frozenset[MissionTopology]] = frozenset({MissionTopology.SINGLE_BRANCH, MissionTopology.LANES})
+--- a/src/specify_cli/cli/commands/agent/mission_finalize.py
++++ b/src/specify_cli/cli/commands/agent/mission_finalize.py
+@@ -77,7 +77,7 @@
+     resolve_owned_or_adopt,
+     stale_copy_payload,
+ )
+-from specify_cli.core.owned_mission import LIFECYCLE_OWNED_TOPOLOGIES, require_unstaged_index
++from specify_cli.core.owned_mission import FINALIZATION_OWNED_TOPOLOGIES, require_unstaged_index
+ from specify_cli.ownership.frontmatter_source import (
+     FinalizeFrontmatterSource,
+     resolve_wp_manifests,
+@@ -632,7 +632,7 @@
+     # favour of WP08's single shared validation surface
+     # (``resolve_owned_or_adopt``), which performs exactly the same
+     # explicit-checkout resolution here (``target_override`` forwarded,
+-    # ``LIFECYCLE_OWNED_TOPOLOGIES`` enforced) while remaining the one CLI
++    # finalization's command-specific topology set enforced) while remaining the one CLI
+     # caller other owned-capable commands also route through. Called
+     # unconditionally -- not gated on ``owned_checkout is not None`` -- so
+     # flagless adoption (FR-021) applies here too: running from inside a
+@@ -652,7 +652,7 @@
+             owned_checkout,
+             mission_handle or "",
+             cwd=Path.cwd(),
+-            allowed_topologies=LIFECYCLE_OWNED_TOPOLOGIES,
++            allowed_topologies=FINALIZATION_OWNED_TOPOLOGIES,
+             target_override=target_branch_override,
+         )
+     except ActionContextError as refusal:

@@ -25,15 +25,18 @@ from specify_cli.consolidation.bookkeeping_projection import (
     projected_content_matches_target,
 )
 from specify_cli.consolidation.config import MergeStrategy
-from specify_cli.consolidation.git_probes import GitProbeError
+from specify_cli.consolidation.git_probes import GitProbeError, first_parent_commits_in_range, path_state_at
 from specify_cli.consolidation.reconciliation import (
     ApprovedWpCommitSet,
     MergeOutcomeVerifier,
     VerifyResult,
+    _ClaimEventLog,
     build_approved_wp_set,
     lane_tips_moved_refusal,
     route_terminus,
 )
+from specify_cli.consolidation.wp_attribution import first_governed_open_stamp, is_migration_event, stamp_of
+from specify_cli.lanes.compute import is_planning_lane
 from specify_cli.consolidation.state import (
     save_state,
 )
@@ -205,6 +208,55 @@ def _phase_reconcile_before_teardown(run: _MergeRunState) -> None:
         console.print(_reconciliation_pass_message(run.strategy))
         return
     console.print(f"\n[red]Error:[/red] {escape(result.recovery_guidance())}", soft_wrap=True)
+    # Supplement an operative attribution failure, never change its verdict or
+    # widen the conservative fence. Unknown history alone cannot refuse a PASS.
+    if (
+        result.divergence is not None
+        and run.target_expected_old_sha is not None
+        and (result.divergence.unattributable_content or result.divergence.unattributable_blobs)
+    ):
+        events = _ClaimEventLog(run.feature_dir).read() or ()
+        for lane in run.lanes_manifest.lanes:
+            first = next(
+                (
+                    event
+                    for event in events
+                    if event.wp_id in lane.wp_ids and event.to_lane in {"claimed", "in_progress", "blocked"} and not is_migration_event(event)
+                ),
+                None,
+            )
+            fence = first_governed_open_stamp(events, frozenset(lane.wp_ids))
+            if not (
+                lane.depends_on_lanes
+                and not is_planning_lane(lane)
+                and any(wp in claim.approved for wp in lane.wp_ids)
+                and first is not None
+                and stamp_of(first) is None
+                and fence
+            ):
+                continue
+            try:
+                before = frozenset(first_parent_commits_in_range(run.main_repo, run.target_expected_old_sha, fence))
+                implicated = any(sha in before for sha, _ in result.divergence.unattributable_content) or any(
+                    path_state_at(run.main_repo, fence, path) == blob for path, blob in result.divergence.unattributable_blobs
+                )
+            except GitProbeError:
+                # This optional explanation cannot replace the strict failure
+                # with a guessed diagnosis when its own evidence is unreadable.
+                continue
+            if implicated:
+                console.print(
+                    f"Attribution recovery context: lane {lane.lane_id} ({', '.join(lane.wp_ids)}), first genuine event "
+                    f"{first.event_id} for {first.wp_id}, has no original lane-head stamp. Known later fence {fence} "
+                    "is a conservative observation, not creation evidence; failing content occurs at or before it. "
+                    "Recovery owner: the mission/lane implementation owner must preserve exact source, working state and history, "
+                    "recover genuine original allocation evidence through the owning workflow, or record an explicit blocked recovery "
+                    "obligation and advance useful work through a genuinely governed, validated and independently reviewed increment. "
+                    "Do not rewrite historical events, invent a stamp, broaden authorship, or retire this lane. "
+                    "The original reconciliation failure and all canceled/removed-content checks still apply.",
+                    markup=False,
+                    soft_wrap=True,
+                )
     # FR-010 (operator decision 01M3MAB8FTDKKVVTXPREK75AEP, "Rollback on REFUSE
     # only") still holds: the mission->target advance already landed before this
     # gate, so EVERY non-PASS verdict (a proven FAIL or a fail-closed REFUSE)

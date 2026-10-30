@@ -77,6 +77,9 @@ mission->target squash merge) entirely real.
 
 from __future__ import annotations
 
+# Current full consolidation targets feature/integration; historical issue prose
+# below describes the original main-target reproduction. Primary stays separate.
+
 import json
 import subprocess
 from contextlib import ExitStack
@@ -121,11 +124,7 @@ FILLED_ACCEPTANCE_MATRIX: dict[str, object] = {
     "criteria": [
         {
             "criterion_id": "FR-001",
-            "description": (
-                "Delete charter.generator module (CharterDraft/"
-                "build_charter_draft/write_charter) + its __init__ import "
-                "and __all__ entries."
-            ),
+            "description": ("Delete charter.generator module (CharterDraft/build_charter_draft/write_charter) + its __init__ import and __all__ entries."),
             "proof_type": "automated_test",
             "evidence": (
                 "WP01 (commit d5b8324f9): src/charter/generator.py deleted; "
@@ -142,10 +141,7 @@ FILLED_ACCEPTANCE_MATRIX: dict[str, object] = {
         },
         {
             "criterion_id": "FR-003",
-            "description": (
-                "Delete charter.extractor module + its test-only references "
-                "(dedicated tests retired; incidental fixtures reconstructed)."
-            ),
+            "description": ("Delete charter.extractor module + its test-only references (dedicated tests retired; incidental fixtures reconstructed)."),
             "proof_type": "automated_test",
             "evidence": (
                 "WP02 (commit 8a0a1fcf2): src/charter/extractor.py (577 LOC) "
@@ -224,13 +220,16 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 def _init_git_repo(repo: Path) -> None:
     repo.mkdir(parents=True, exist_ok=True)
-    _run(["git", "init", "-qb", "main", str(repo)], cwd=repo)
+    _run(["git", "init", "-qb", "feature/integration", str(repo)], cwd=repo)
     _git(repo, "config", "user.email", "test@test.com")
     _git(repo, "config", "user.name", "Test")
     _git(repo, "config", "commit.gpgsign", "false")
     (repo / "README.md").write_text("init\n", encoding="utf-8")
     _git(repo, "add", ".")
     _git(repo, "commit", "-m", "init")
+    from tests._support.feature_landing import pin_primary
+
+    pin_primary(repo)
 
 
 def _write_meta(feature_dir: Path) -> None:
@@ -240,13 +239,11 @@ def _write_meta(feature_dir: Path) -> None:
         "mid8": MID8,
         "mission_number": None,
         "mission_type": "software-dev",
-        "target_branch": "main",
+        "target_branch": "feature/integration",
         "purpose_tldr": "dead-code burndown + #2373/#1914 no-op-stability",
         "purpose_context": "regression fixture for #2804",
     }
-    (feature_dir / "meta.json").write_text(
-        json.dumps(meta, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    (feature_dir / "meta.json").write_text(json.dumps(meta, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def _write_manifest(feature_dir: Path) -> LanesManifest:
@@ -262,7 +259,7 @@ def _write_manifest(feature_dir: Path) -> LanesManifest:
         mission_slug=MISSION_SLUG,
         mission_id=MISSION_ID,
         mission_branch=MISSION_BRANCH,
-        target_branch="main",
+        target_branch="feature/integration",
         lanes=[
             ExecutionLane(
                 lane_id=LANE_ID,
@@ -311,7 +308,7 @@ def _approved_event() -> dict[str, object]:
     }
 
 
-def _bootstrap_mission(repo: Path) -> Path:
+def _bootstrap_mission(repo: Path, *, accepted_on_target: bool = True) -> Path:
     """Build the real #2804 divergence: mission branch and target each
     introduce ``acceptance-matrix.json`` / ``issue-matrix.json`` INDEPENDENTLY
     (an add/add divergence), matching the real incident's history:
@@ -327,26 +324,24 @@ def _bootstrap_mission(repo: Path) -> Path:
        primary checkout, a branch distinct from the mission integration
        branch).
     """
+    mission_acceptance = PLACEHOLDER_ACCEPTANCE_MATRIX if accepted_on_target else FILLED_ACCEPTANCE_MATRIX
+    mission_issues = PLACEHOLDER_ISSUE_MATRIX if accepted_on_target else FILLED_ISSUE_MATRIX
+    target_acceptance = FILLED_ACCEPTANCE_MATRIX if accepted_on_target else PLACEHOLDER_ACCEPTANCE_MATRIX
+    target_issues = FILLED_ISSUE_MATRIX if accepted_on_target else PLACEHOLDER_ISSUE_MATRIX
     feature_dir = repo / "kitty-specs" / MISSION_SLUG
     (feature_dir / "tasks").mkdir(parents=True)
     _write_meta(feature_dir)
     _write_manifest(feature_dir)
     _write_wp_file(feature_dir)
-    (feature_dir / "status.events.jsonl").write_text(
-        json.dumps(_approved_event(), sort_keys=True) + "\n", encoding="utf-8"
-    )
+    (feature_dir / "status.events.jsonl").write_text(json.dumps(_approved_event(), sort_keys=True) + "\n", encoding="utf-8")
     _git(repo, "add", ".")
     _git(repo, "commit", "-m", f"chore({MISSION_SLUG}): bootstrap (no gate artifacts yet)")
 
     # --- mission branch + lane fork BEFORE the gate artifacts exist anywhere ---
     _git(repo, "branch", MISSION_BRANCH)
     _git(repo, "checkout", MISSION_BRANCH)
-    (feature_dir / "acceptance-matrix.json").write_text(
-        json.dumps(PLACEHOLDER_ACCEPTANCE_MATRIX, indent=2) + "\n", encoding="utf-8"
-    )
-    (feature_dir / "issue-matrix.json").write_text(
-        json.dumps(PLACEHOLDER_ISSUE_MATRIX, indent=2) + "\n", encoding="utf-8"
-    )
+    (feature_dir / "acceptance-matrix.json").write_text(json.dumps(mission_acceptance, indent=2) + "\n", encoding="utf-8")
+    (feature_dir / "issue-matrix.json").write_text(json.dumps(mission_issues, indent=2) + "\n", encoding="utf-8")
     _git(repo, "add", "kitty-specs")
     _git(
         repo,
@@ -363,17 +358,13 @@ def _bootstrap_mission(repo: Path) -> Path:
     code_path.write_text("# generator module removed by WP01\n", encoding="utf-8")
     _git(repo, "add", LANE_CODE)
     _git(repo, "commit", "-m", f"feat({MISSION_SLUG}): {WP_ID} retire charter.generator")
-    _git(repo, "checkout", "main")
+    _git(repo, "checkout", "feature/integration")
     restamp_log_at_lane_tips(repo, feature_dir)
 
     # --- primary checkout (still on target_branch) authors + accepts the
     # FILLED matrix directly onto main; the mission branch never sees this. ---
-    (feature_dir / "acceptance-matrix.json").write_text(
-        json.dumps(FILLED_ACCEPTANCE_MATRIX, indent=2) + "\n", encoding="utf-8"
-    )
-    (feature_dir / "issue-matrix.json").write_text(
-        json.dumps(FILLED_ISSUE_MATRIX, indent=2) + "\n", encoding="utf-8"
-    )
+    (feature_dir / "acceptance-matrix.json").write_text(json.dumps(target_acceptance, indent=2) + "\n", encoding="utf-8")
+    (feature_dir / "issue-matrix.json").write_text(json.dumps(target_issues, indent=2) + "\n", encoding="utf-8")
     _git(repo, "add", "kitty-specs")
     _git(repo, "commit", "-m", f"Finalize acceptance artifacts for {MISSION_SLUG}")
 
@@ -394,22 +385,12 @@ def _merge_external_mocks() -> ExitStack:
         "run_check": patch("specify_cli.consolidation.phase_finalize.run_check"),
         "sparse": patch("specify_cli.consolidation.executor.require_no_sparse_checkout"),
         "preflight": patch("specify_cli.cli.commands.consolidate._enforce_git_preflight"),
-        "review_consistency": patch(
-            "specify_cli.consolidation.executor._enforce_review_artifact_consistency"
-        ),
-        "status_history": patch(
-            "specify_cli.consolidation.phase_claim._enforce_canonical_status_history"
-        ),
+        "review_consistency": patch("specify_cli.consolidation.executor._enforce_review_artifact_consistency"),
+        "status_history": patch("specify_cli.consolidation.phase_claim._enforce_canonical_status_history"),
         "hollow": patch("specify_cli.consolidation.phase_claim._warn_or_confirm_hollow_reviews"),
-        "baseline_record": patch(
-            "specify_cli.consolidation.phase_bookkeeping._record_baseline_merge_commit", return_value=None
-        ),
-        "baseline_assert": patch(
-            "specify_cli.consolidation.phase_bookkeeping._assert_baseline_merge_commit_on_target"
-        ),
-        "done_on_target": patch(
-            "specify_cli.consolidation.phase_bookkeeping._assert_merged_wps_done_on_target"
-        ),
+        "baseline_record": patch("specify_cli.consolidation.phase_bookkeeping._record_baseline_merge_commit", return_value=None),
+        "baseline_assert": patch("specify_cli.consolidation.phase_bookkeeping._assert_baseline_merge_commit_on_target"),
+        "done_on_target": patch("specify_cli.consolidation.phase_bookkeeping._assert_merged_wps_done_on_target"),
         "record_done": patch_executor_family("_record_merged_wps_done_for_merge"),
         "gates": patch("specify_cli.policy.merge_gates.evaluate_merge_gates"),
         "policy": patch("specify_cli.policy.config.load_policy_config"),
@@ -453,13 +434,9 @@ def test_merge_resets_filled_gate_artifacts_to_placeholder(tmp_path: Path) -> No
     # a fixture that started out empty. ---
     pre_matrix = json.loads((feature_dir / "acceptance-matrix.json").read_text(encoding="utf-8"))
     assert pre_matrix["overall_verdict"] == "pass", "precondition: fixture must start FILLED"
-    assert SCAFFOLD_TODO_MARKER not in json.dumps(pre_matrix), (
-        "precondition: fixture must start FILLED, not the scaffold placeholder"
-    )
+    assert SCAFFOLD_TODO_MARKER not in json.dumps(pre_matrix), "precondition: fixture must start FILLED, not the scaffold placeholder"
     pre_issue_matrix = json.loads((feature_dir / "issue-matrix.json").read_text(encoding="utf-8"))
-    assert pre_issue_matrix["rows"]["#2373"]["verdict"] == "verified-already-fixed", (
-        "precondition: fixture must start with a real terminal verdict row"
-    )
+    assert pre_issue_matrix["rows"]["#2373"]["verdict"] == "verified-already-fixed", "precondition: fixture must start with a real terminal verdict row"
 
     with _merge_external_mocks():
         _run_lane_based_consolidation(
@@ -477,10 +454,7 @@ def test_merge_resets_filled_gate_artifacts_to_placeholder(tmp_path: Path) -> No
     # the code file landed) -- so a placeholder result below is the merge's
     # own reset, not a merge that silently no-op'd or failed. ---
     code_landed = (repo / LANE_CODE).exists()
-    assert code_landed, (
-        "precondition: the merge must have genuinely integrated the mission "
-        "branch into main (lane code file missing -- merge did not run)"
-    )
+    assert code_landed, "precondition: the merge must have genuinely integrated the mission branch into main (lane code file missing -- merge did not run)"
     meta_after = json.loads((feature_dir / "meta.json").read_text(encoding="utf-8"))
     assert meta_after.get("mission_number") == 1, (
         "precondition: merge must have assigned a mission_number on target "
@@ -529,3 +503,41 @@ def test_merge_resets_filled_gate_artifacts_to_placeholder(tmp_path: Path) -> No
         f"trace of it (not even in a structured conflict marker). Post-merge "
         f"row: {merged_row!r}"
     )
+
+
+@pytest.mark.parametrize("stored_verdict", ["pending", "pass"])
+def test_pending_target_does_not_replace_accepted_mission_evidence(
+    tmp_path: Path,
+    stored_verdict: str,
+) -> None:
+    """A target scaffold is not an accepted result, even if its stored summary lies."""
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    feature_dir = _bootstrap_mission(repo, accepted_on_target=False)
+    matrix_path = feature_dir / "acceptance-matrix.json"
+    pending = json.loads(matrix_path.read_text(encoding="utf-8"))
+    pending["overall_verdict"] = stored_verdict
+    matrix_path.write_text(json.dumps(pending, indent=2) + "\n", encoding="utf-8")
+    _git(repo, "add", "kitty-specs")
+    _git(repo, "commit", "-m", "Record target scaffold summary")
+
+    with _merge_external_mocks():
+        _run_lane_based_consolidation(
+            repo_root=repo,
+            mission_slug=MISSION_SLUG,
+            push=False,
+            delete_branch=False,
+            remove_worktree=True,
+            strategy=MergeStrategy.SQUASH,
+            allow_sparse_checkout=True,
+        )
+
+    assert (repo / LANE_CODE).exists(), "the real mission integration must complete"
+    assert json.loads((feature_dir / "meta.json").read_text())["mission_number"] == 1
+    result = json.loads(matrix_path.read_text(encoding="utf-8"))
+    criteria = {row["criterion_id"]: row for row in result["criteria"]}
+    for expected in FILLED_ACCEPTANCE_MATRIX["criteria"]:
+        assert criteria.get(expected["criterion_id"]) == expected, "Consolidation restored the pending target over the accepted mission evidence"
+    assert result["overall_verdict"] == "pass"
+    issues = json.loads((feature_dir / "issue-matrix.json").read_text(encoding="utf-8"))
+    assert issues["rows"] == FILLED_ISSUE_MATRIX["rows"]

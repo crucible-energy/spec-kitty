@@ -313,3 +313,47 @@ def test_checkout_cannot_weaken_primary_protection(
     assert "protected" in result.output.lower()
     assert not (lane / "kitty-ops").exists()
     assert _git(primary, "status", "--porcelain") == before
+
+
+def test_operation_root_is_minted_bound_and_immutable(workspaces: tuple[Path, Path]) -> None:
+    from dataclasses import FrozenInstanceError
+
+    from specify_cli.core.owned_mission import OperationRoot, resolve_operation_root
+
+    primary, lane = workspaces
+    fact = resolve_operation_root(primary, lane, writing=True)
+    assert fact.repository_root == primary
+    assert fact.checkout == lane
+    assert fact.branch == "fixture/operations"
+    assert fact.writing is True
+    with pytest.raises(TypeError, match="minted"):
+        OperationRoot(primary, lane, "fixture/operations", True)
+    with pytest.raises(FrozenInstanceError):
+        fact.checkout = primary
+
+
+def test_read_only_operation_root_preserves_primary_compatibility(workspaces: tuple[Path, Path]) -> None:
+    from specify_cli.core.owned_mission import resolve_operation_root
+
+    primary, _ = workspaces
+    before = _git(primary, "status", "--porcelain")
+    fact = resolve_operation_root(primary, primary, writing=False)
+    assert fact.checkout == primary
+    assert fact.branch == "main"
+    assert fact.writing is False
+    with pytest.raises(ValueError, match="protected"):
+        resolve_operation_root(primary, primary, writing=True)
+    assert _git(primary, "status", "--porcelain") == before
+
+
+def test_close_contract_requires_validated_custody(workspaces: tuple[Path, Path]) -> None:
+    from specify_cli.core.owned_mission import resolve_operation_root
+    from specify_cli.invocation.executor import build_close_contract
+
+    primary, lane = workspaces
+    with pytest.raises(TypeError, match="OperationRoot"):
+        build_close_contract("fixture-op", owned_checkout=lane)
+    fact = resolve_operation_root(primary, lane, writing=True)
+    contract = build_close_contract("fixture-op", owned_checkout=fact)
+    args = shlex.split(str(contract["command"]))
+    assert args[args.index("--owned-checkout") + 1] == str(lane)

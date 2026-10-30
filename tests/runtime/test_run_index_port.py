@@ -120,3 +120,28 @@ def test_save_index_never_persists_an_in_repo_absolute_run_dir(tmp_path: Path) -
     resolved = run_index.resolve_run_dir(stored, repo)
     assert not Path(stored).is_absolute()
     assert resolved.is_relative_to(repo)
+
+
+def test_required_run_identity_never_starts_or_selects_another_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from runtime.next import runtime_bridge_io as bridge_io
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    monkeypatch.setattr(bridge_io, "_run_mission_id", lambda *_args: None)
+
+    def no_start(*_args, **_kwargs):
+        raise AssertionError("identity-constrained recovery must not start a run")
+
+    monkeypatch.setattr(bridge_io, "_start_new_run", no_start)
+    with pytest.raises(ValueError, match="requested existing run"):
+        bridge_io.get_or_start_run("mission", repo, "software-dev", required_run_id="original")
+
+    run_dir = repo / ".kittify" / "runtime" / "runs" / "original"
+    run_dir.mkdir(parents=True)
+    (run_dir / "state.json").write_text("{}")
+    run_index.save_index(repo, {"legacy-mission": {"run_id": "original", "run_dir": str(run_dir), "mission_slug": "mission"}})
+    with pytest.raises(ValueError, match="requested existing run"):
+        bridge_io.get_or_start_run("mission", repo, "software-dev", required_run_id="other")
+    actual = bridge_io.get_or_start_run("mission", repo, "software-dev", required_run_id="original")
+    assert actual.run_id == "original"
+    assert Path(actual.run_dir) == run_dir

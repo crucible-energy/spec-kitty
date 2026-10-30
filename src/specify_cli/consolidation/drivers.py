@@ -98,8 +98,13 @@ from specify_cli.decisions.index_fold import is_allowed_terminal_reopen
 from specify_cli.decisions.models import DecisionIndex, DecisionStatus
 from specify_cli.migration.backfill_topology import FLATTEN_COUPLED_KEYS
 from specify_cli.mission_metadata import MERGE_FIELDS, parse_meta_file
-from specify_cli.status import EventLogMergeError, merge_event_log_files
-from specify_cli.tasks.issue_matrix import _SCAFFOLD_VERDICT_PLACEHOLDER, ISSUE_MATRIX_SCHEMA_VERSION
+from specify_cli.status import EventLogMergeError, detect_concurrent_fork, merge_event_log_files
+from specify_cli.tasks.issue_matrix import (
+    _SCAFFOLD_VERDICT_PLACEHOLDER,
+    _SCAFFOLD_EVIDENCE_PLACEHOLDER,
+    _SCAFFOLD_TITLE_PLACEHOLDER,
+    ISSUE_MATRIX_SCHEMA_VERSION,
+)
 
 # meta.json serialization identical to ``mission_metadata.write_meta`` so the
 # reconciled blob is byte-consistent with the canonical writer (no diff churn).
@@ -214,9 +219,38 @@ def _resolve_merge_driver_paths(base_path: str, ours_path: str, theirs_path: str
     return resolved
 
 
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    """Parse a ``status.events.jsonl`` merge-blob, tolerating an absent/blank side."""
+    if not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError:
+            # Let merge_event_log_files raise the precise, line-numbered error.
+            return []
+        if isinstance(payload, dict):
+            rows.append(payload)
+    return rows
+
+
 def run_event_log_driver(base_path: str, ours_path: str, theirs_path: str) -> MergeDriverOutcome:
-    """Merge ``status.events.jsonl`` conflict inputs using event-log semantics."""
+    """Merge ``status.events.jsonl`` conflict inputs using event-log semantics.
+
+    #5967: a union fold cannot safely resolve two teammates' CONCURRENT
+    divergence on the same work package (one side cancels/rejects while the
+    other, not pulled, moves it elsewhere). Refuse such a fold so git leaves a
+    conflict for a human (the safe pre-#5759 behaviour), rather than silently
+    LWW-dropping the pushed cancel/rejection.
+    """
     base, ours, theirs = _resolve_merge_driver_paths(base_path, ours_path, theirs_path)
+    fork = detect_concurrent_fork(_read_jsonl(base), _read_jsonl(ours), _read_jsonl(theirs))
+    if fork is not None:
+        raise MergeDriverError(fork)
     try:
         merge_event_log_files(
             base_path=base,
@@ -791,6 +825,10 @@ _CONFLICT_MARKER_THEIRS = ">>>>>>> theirs"
 # side mirrors the CRITERION_VERDICTS / NEGATIVE_INVARIANT_RESULTS "pending"
 # member (no importable named constant exists for it yet).
 _ISSUE_MATRIX_SENTINELS: Mapping[str, str] = {"verdict": _SCAFFOLD_VERDICT_PLACEHOLDER}
+_ISSUE_METADATA_PLACEHOLDERS: Mapping[str, str] = {
+    "evidence_ref": _SCAFFOLD_EVIDENCE_PLACEHOLDER,
+    "title": _SCAFFOLD_TITLE_PLACEHOLDER,
+}
 _ACCEPTANCE_CRITERION_SENTINELS: Mapping[str, str] = {"pass_fail": "pending"}
 _ACCEPTANCE_INVARIANT_SENTINELS: Mapping[str, str] = {"result": "pending"}
 
@@ -813,7 +851,8 @@ def _merge_field(
     "changed to None" are treated identically, which is the correct 3-way
     reading). Changed on both sides to different values → a VERDICT-authority
     field (a key in *sentinels*) fails closed unless one side is the unset
-    sentinel; any other field prefers the target (``ours``). Never embeds an
+    sentinel; metadata scaffold tokens yield to authored values, and other
+    metadata conflicts prefer the target (``ours``). Never embeds an
     in-band conflict marker into the verdict artifact (#4880 / #2804).
     """
     if ours_v == theirs_v:
@@ -832,13 +871,21 @@ def _merge_field(
     #     unset sentinel (``pending`` / ``unknown``) is not an authored value
     #     and yields to the authored side.
     #   * every OTHER field (evidence_ref, description, notes, proof_type, ...)
-    #     is not verdict authority: it never aborts and never embeds a marker —
-    #     it prefers the target side (``ours``), matching #2804 / #1732's
-    #     target-authoritative tie convention (the accumulating target carries
-    #     the filled value; the incoming lane's scaffold placeholder loses).
+    #     is not verdict authority: it never aborts and never embeds a marker.
+    #     Known scaffold tokens yield; authored ties retain the #2804 / #1732
+    #     target-authoritative convention.
     verdict_sentinel = (sentinels or {}).get(field_name)
     if verdict_sentinel is None:
-        return ours_v  # non-verdict field: target-authoritative, no abort, no marker
+        # A scaffold token is not authored metadata (#136). Retain the canonical
+        # target tie for two authored values, without letting an unfilled target
+        # replace the incoming verdict's actual evidence or title.
+        placeholder = _ISSUE_METADATA_PLACEHOLDERS.get(field_name)
+        if placeholder is not None:
+            if ours_v == placeholder:
+                return theirs_v
+            if theirs_v == placeholder:
+                return ours_v
+        return ours_v  # authored non-verdict field: target-authoritative
     if theirs_v == verdict_sentinel and ours_v != verdict_sentinel:
         return ours_v
     if ours_v == verdict_sentinel and theirs_v != verdict_sentinel:

@@ -49,12 +49,12 @@ _SELECTED_PATHS = (
     "kitty-specs/m/acceptance-matrix.json",
     ".kittify/charter/charter.md",
     ".kittify/glossaries/g.yaml",
-    ".kittify/doctrine/d.yaml",
     # Unmatched-src fan-out (C-008, #4368): an unmapped src/** path selects everything.
     "src/specify_cli/__unmapped_probe__/x.py",
 )
 
 _NOT_SELECTED_PATHS = (
+    ".kittify/doctrine/d.yaml",
     "src/specify_cli/consolidation/x.py",
     "docs/x.md",
     "kitty-specs/m/status.events.jsonl",

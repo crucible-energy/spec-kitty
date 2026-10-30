@@ -550,6 +550,105 @@ def test_machine_file_lock_factory_forwards_kwargs(lock_path: Path) -> None:
     assert lock.reentrant is True
 
 
+def test_single_link_regular_lock_refuses_hardlink_before_writing(tmp_path: Path) -> None:
+    victim = tmp_path / "victim"
+    victim.write_bytes(b"preserve this evidence\n")
+    lock_path = tmp_path / "refresh.lock"
+    try:
+        os.link(victim, lock_path)
+    except OSError as exc:
+        pytest.skip(f"Hard links unavailable on this filesystem: {exc}")
+    with pytest.raises(OSError, match="single-link regular"), machine_file_lock(lock_path, single_link_regular=True):
+        pytest.fail("A hard-linked sidecar must not be acquired")
+    assert victim.read_bytes() == b"preserve this evidence\n"
+    assert lock_path.read_bytes() == b"preserve this evidence\n"
+
+
+def test_single_link_regular_rechecks_after_lock_before_record(tmp_path: Path) -> None:
+    path = tmp_path / "refresh.lock"
+    path.write_bytes(b"preserve this evidence\n")
+    core = locks._LockCore(path, single_link_regular=True)
+    fd = core.open_fd()
+    try:
+        try:
+            os.link(path, tmp_path / "second-link")
+        except OSError as exc:
+            pytest.skip(f"Hard links unavailable on this filesystem: {exc}")
+        assert core.try_lock_once(fd)
+        with pytest.raises(OSError, match="single-link regular"):
+            core.commit_record(fd)
+        fd = -1  # commit_record closes the descriptor on refusal.
+        assert path.read_bytes() == b"preserve this evidence\n"
+    finally:
+        if fd >= 0:
+            os.close(fd)
+
+
+def test_single_link_regular_refuses_late_link_without_truncating(tmp_path: Path) -> None:
+    path = tmp_path / "refresh.lock"
+    alias = tmp_path / "late-link"
+    lock = machine_file_lock(path, single_link_regular=True)
+    lock.__enter__()
+    try:
+        try:
+            os.link(path, alias)
+        except OSError as exc:
+            pytest.skip(f"Hard links unavailable on this filesystem: {exc}")
+        record = path.read_bytes()
+        with pytest.raises(OSError, match="single-link regular"):
+            lock.__exit__(None, None, None)
+    finally:
+        lock.__exit__(None, None, None)
+    assert path.read_bytes() == record == alias.read_bytes()
+    alias.unlink()
+    with machine_file_lock(path, single_link_regular=True):
+        pass  # Refusal still released the OS lock.
+
+
+def test_private_lock_refuses_late_link_without_truncating(tmp_path: Path) -> None:
+    path = tmp_path / "private.lock"
+    alias = tmp_path / "late-link"
+    lock = machine_file_lock(path, private=True)
+    lock.__enter__()
+    try:
+        try:
+            os.link(path, alias)
+        except OSError as exc:
+            pytest.skip(f"Hard links unavailable on this filesystem: {exc}")
+        record = path.read_bytes()
+        with pytest.raises(OSError, match="Private lock"):
+            lock.__exit__(None, None, None)
+    finally:
+        lock.__exit__(None, None, None)
+    assert path.read_bytes() == record == alias.read_bytes()
+    alias.unlink()
+    with machine_file_lock(path, private=True):
+        pass  # Refusal still released the OS lock.
+
+
+def test_single_link_regular_allows_existing_normal_mode_and_rejects_reentrancy(tmp_path: Path) -> None:
+    path = tmp_path / "refresh.lock"
+    path.write_bytes(b"")
+    path.chmod(0o644)
+    with machine_file_lock(path, single_link_regular=True):
+        pass
+    with pytest.raises(ValueError, match="non-reentrant"):
+        machine_file_lock(path, reentrant=True, single_link_regular=True)
+    with pytest.raises(ValueError, match="Private lock admission requires a non-reentrant hold"):
+        machine_file_lock(path, reentrant=True, private=True)
+
+
+def test_single_link_regular_does_not_blanket_refuse_windows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = tmp_path / "refresh.lock"
+    path.write_bytes(b"")
+    fd = os.open(path, os.O_RDWR)
+    monkeypatch.setattr(locks, "is_windows", lambda: True)
+    try:
+        locks._LockCore(path, single_link_regular=True).validate_fd(fd)
+    finally:
+        os.close(fd)
+
+
 def test_machine_file_lock_injection_seam_is_patchable(lock_path: Path) -> None:
     """G6: a test double substituted at ``kernel.locks.SyncMachineFileLock`` is
     what ``machine_file_lock`` constructs -- because the factory resolves the

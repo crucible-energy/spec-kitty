@@ -520,3 +520,27 @@ def test_guard_accepts_valid_bool_auto_negation() -> None:
     assert _is_registered_path(path, registered), (
         "('charter', 'context') must be registered — guard would false-positive otherwise."
     )
+
+
+def _empty_required_help(text: str) -> list[str]:
+    headings = re.findall(r"^## (spec-kitty [^\n]+)$", text, re.MULTILINE)
+    blocks = list(re.finditer(
+        r"^## (spec-kitty [^\n]+)\n(?:(?!^## ).)*?^```[^\n]*\n(.*?)^```",
+        text, re.MULTILINE | re.DOTALL,
+    ))
+    assert headings and [block.group(1) for block in blocks] == headings, "Every required command must have one help fence"
+    return [block.group(1) for block in blocks if not block.group(2).strip()]
+
+
+def test_required_reference_help_is_nonempty(reference_text: str, agent_reference_text: str) -> None:
+    empty = _empty_required_help(reference_text) + _empty_required_help(agent_reference_text)
+    assert not empty, f"Required CLI help capture is empty; regenerate after diagnosing capture failures: {empty}"
+
+
+def test_required_help_guard_rejects_empty_control() -> None:
+    assert _empty_required_help("## spec-kitty controlled\n\n```\n  \n```\n") == ["spec-kitty controlled"]
+    assert not _empty_required_help("## spec-kitty controlled\n\n```\nUsage: controlled\n```\n")
+    with pytest.raises(AssertionError, match="one help fence"):
+        _empty_required_help("## spec-kitty controlled\n\nmissing fence\n")
+    with pytest.raises(AssertionError, match="one help fence"):
+        _empty_required_help("no commands\n")

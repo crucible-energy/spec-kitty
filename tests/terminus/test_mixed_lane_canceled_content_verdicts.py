@@ -50,6 +50,7 @@ from tests.terminus.mixed_lane_support import (
     collapse,
     verdict_block,
 )
+from tests._support.feature_landing import TARGET, pin_primary
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo, pytest.mark.regression]
 
@@ -97,7 +98,9 @@ def test_unsuperseded_canceled_add_modify_delete_fails_and_restores_target(tmp_p
         survivor_reapproved=True,
         stamp_attribution=True,
         mid8="01M5046A",
+        target_branch=TARGET,
     )
+    pin_primary(mission.repo)
     pre_sha = mission.rev(mission.target_branch)
 
     result = run_terminus(mission, ["consolidate", "--mission", mission.slug, "--yes"])

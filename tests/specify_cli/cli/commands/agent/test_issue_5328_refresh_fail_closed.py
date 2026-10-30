@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
+import sys
 import threading
 from contextlib import ExitStack
 from pathlib import Path
@@ -645,11 +647,18 @@ def test_refresh_rejects_pre_commit_hook_rewriting_the_planning_pin(
         capture_output=True,
         check=True,
     ).stdout
+    # The hook must use this test's interpreter, never an ambient alias.
+    trap_bin = tmp_path / "unqualified-interpreter"
+    trap_bin.mkdir()
+    trap = trap_bin / "python"
+    trap.write_text("#!/bin/sh\nexit 97\n", encoding="utf-8")
+    trap.chmod(0o755)
+    monkeypatch.setenv("PATH", str(trap_bin) + os.pathsep + os.environ["PATH"])
     hook = repo_root / ".git" / "hooks" / "pre-commit"
     hook.parent.mkdir(parents=True, exist_ok=True)
     hook.write_text(
         "#!/bin/sh\n"
-        "python - <<'PY'\n"
+        f"{shlex.quote(sys.executable)} - <<'PY'\n"
         "import json\n"
         "from pathlib import Path\n"
         f"path = Path({lane_path!r})\n"

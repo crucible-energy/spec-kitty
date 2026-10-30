@@ -44,12 +44,12 @@ from specify_cli import mission_metadata
 from specify_cli.cli.commands.consolidate import _run_lane_based_consolidation
 from specify_cli.consolidation.config import MergeStrategy
 
+from tests._support.feature_landing import init_feature_repo as _init_git_repo
 from tests.specify_cli.cli.commands.test_merge_coord_topology_1772 import (
     COORD_BRANCH,
     MISSION_SLUG,
     _bootstrap_coord_mission,
     _git,
-    _init_git_repo,
     _materialize_coord_worktree,
     _real_merge_external_mocks,
 )
@@ -145,7 +145,7 @@ def test_squash_merge_preserves_target_newer_meta_provenance(
     is a permanent guard against the defect recurring.
     """
     _init_git_repo(tmp_path)
-    feature_dir = _bootstrap_coord_mission(tmp_path)
+    feature_dir = _bootstrap_coord_mission(tmp_path, target_branch="feature/integration")
 
     # Coord/mission branch: OLDER acceptance (v1 @ T1).
     _seed_branch_provenance(
@@ -171,7 +171,7 @@ def test_squash_merge_preserves_target_newer_meta_provenance(
     _seed_branch_provenance(
         tmp_path,
         feature_dir,
-        "main",
+        "feature/integration",
         monkeypatch,
         now=T2_TARGET,
         accepted_by="reviewer-target-v2",
@@ -190,7 +190,7 @@ def test_squash_merge_preserves_target_newer_meta_provenance(
     # Preconditions (fixture health, asserted BEFORE the merge so a fixture
     # break surfaces as a precondition failure, never as a false contract RED).
     base_main_meta = json.loads(
-        _git(tmp_path, "show", f"main:kitty-specs/{MISSION_SLUG}/meta.json").stdout
+        _git(tmp_path, "show", f"feature/integration:kitty-specs/{MISSION_SLUG}/meta.json").stdout
     )
     assert base_main_meta.get("accepted_at") == T2_TARGET, (
         "fixture precondition: target `main` must hold the NEWER acceptance "
@@ -207,7 +207,7 @@ def test_squash_merge_preserves_target_newer_meta_provenance(
     )
 
     # Run the supported squash merge through the real entry point.
-    _git(tmp_path, "checkout", "main")
+    _git(tmp_path, "checkout", "feature/integration")
     # Materialize the coord worktree NOW (post-#4959 the STATUS_STATE read
     # needs it) — every direct COORD_BRANCH checkout in the main worktree
     # (the two `_seed_branch_provenance` calls above) is done, and the main
@@ -226,7 +226,7 @@ def test_squash_merge_preserves_target_newer_meta_provenance(
         )
 
     merged_meta = json.loads(
-        _git(tmp_path, "show", f"main:kitty-specs/{MISSION_SLUG}/meta.json").stdout
+        _git(tmp_path, "show", f"feature/integration:kitty-specs/{MISSION_SLUG}/meta.json").stdout
     )
 
     # --- Contract assertions (RED on the mission base). The FIRST assertion is a
@@ -281,7 +281,7 @@ def test_squash_merge_preserves_target_newer_trace_section(
     against the defect recurring.
     """
     _init_git_repo(tmp_path)
-    feature_dir = _bootstrap_coord_mission(tmp_path)
+    feature_dir = _bootstrap_coord_mission(tmp_path, target_branch="feature/integration")
 
     _seed_branch_provenance(
         tmp_path,
@@ -304,7 +304,7 @@ def test_squash_merge_preserves_target_newer_trace_section(
     _seed_branch_provenance(
         tmp_path,
         feature_dir,
-        "main",
+        "feature/integration",
         monkeypatch,
         now=T2_TARGET,
         accepted_by="reviewer-target-v2",
@@ -321,13 +321,13 @@ def test_squash_merge_preserves_target_newer_trace_section(
     )
 
     # Precondition: the target-newer trace section is on `main` before the merge.
-    base_trace = _git(tmp_path, "show", f"main:{TRACE_RELPATH}").stdout
+    base_trace = _git(tmp_path, "show", f"feature/integration:{TRACE_RELPATH}").stdout
     assert TARGET_TRACE_MARKER in base_trace, (
         "fixture precondition: the target-newer trace section must be on `main` "
         "before the merge"
     )
 
-    _git(tmp_path, "checkout", "main")
+    _git(tmp_path, "checkout", "feature/integration")
     # Materialize the coord worktree NOW (post-#4959 the STATUS_STATE read
     # needs it) — every direct COORD_BRANCH checkout in the main worktree
     # (the two `_seed_branch_provenance` calls above) is done, and the main
@@ -345,7 +345,7 @@ def test_squash_merge_preserves_target_newer_trace_section(
             allow_sparse_checkout=True,
         )
 
-    merged_trace = _git(tmp_path, "show", f"main:{TRACE_RELPATH}").stdout
+    merged_trace = _git(tmp_path, "show", f"feature/integration:{TRACE_RELPATH}").stdout
     assert TARGET_TRACE_MARKER in merged_trace, (
         "#2709 regression: squash merge dropped the target-newer `traces/*.md` "
         "section -- `-X theirs` took the coord copy over the target-only "

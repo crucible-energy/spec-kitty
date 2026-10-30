@@ -529,7 +529,12 @@ def load_mission_template_file(path: Path) -> MissionTemplate:
         raise MissionRuntimeError(f"Mission template not found: {path}")
 
     with open(path, encoding="utf-8") as handle:
-        raw = yaml.safe_load(handle) or {}
+        return load_mission_template_content(handle.read(), path)
+
+
+def load_mission_template_content(content: str, path: Path) -> MissionTemplate:
+    """Parse already-read template content using the file loader's semantics."""
+    raw = yaml.safe_load(content) or {}
 
     if not isinstance(raw, dict):
         raise MissionRuntimeError(f"Mission template must be a mapping: {path}")

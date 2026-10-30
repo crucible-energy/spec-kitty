@@ -74,6 +74,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -190,7 +191,10 @@ def _is_git_lock_contention(output: str) -> bool:
 # A shared-registry entry path: ``.../worktrees/<id>``. The lookbehind keeps
 # this repository's own ``.worktrees/<slug>`` checkouts from matching.
 _REGISTRY_ENTRY = r"(?<!\.)/worktrees/[^/'\s]+"
-_EMPTY_COMMONDIR = re.compile(_REGISTRY_ENTRY + r"/commondir: success\b")
+# Observed zero-byte sibling fixtures also report Result too large on Darwin.
+# Recognition only enables the existing bounded retry; a persistent failure
+# still refuses, and no registry content is repaired or removed here.
+_EMPTY_COMMONDIR = re.compile(_REGISTRY_ENTRY + r"/commondir: (?:success|undefined error: 0|result too large)\b")
 _VANISHED_ENTRY = re.compile(r"invalid path '[^']*" + _REGISTRY_ENTRY + r"/?'")
 
 
@@ -200,7 +204,8 @@ def _is_sibling_registry_entry_in_flight(output: str) -> bool:
     ``git worktree list`` reads every registered entry. ``git worktree add``
     writes the entry's ``commondir`` last (truncate, then write), so a reader
     can find it zero bytes long (``failed to read .../worktrees/<id>/commondir:
-    Success``); ``git worktree remove`` deletes the entry directory under a
+    Success``, Darwin's ``Undefined error: 0``, or the observed ``Result too large``);
+    ``git worktree remove`` deletes the entry directory under a
     reader (``Invalid path '.../worktrees/<id>'``). Both are the normal
     in-flight state of another process's entry. Each wording must name a
     registry entry on the same match: a real read failure (``Permission
@@ -387,6 +392,50 @@ def _owned_coordination_unavailable_decision(agent: str, mission_slug: str, miss
     )
 
 
+def _dn_require_existing_run(
+    agent: str,
+    mission_slug: str,
+    mission_type: str,
+    config_root: Path,
+    now: str,
+    *,
+    owned: OwnedCheckout | None,
+    required_run_id: str,
+) -> tuple[MissionRunRef | None, Decision | None]:
+    try:
+        run_ref = _io_seam.get_or_start_run(mission_slug, config_root, mission_type, owned=owned, required_run_id=required_run_id)
+        return run_ref, None
+    except Exception as exc:
+        return None, _mapping._materialize_decision(
+            _cores.DecisionEnvelope(
+                kind=DecisionKind.blocked,
+                agent=agent,
+                mission_slug=mission_slug,
+                mission=mission_type,
+                mission_state="unknown",
+                timestamp=now,
+                reason=f"Failed to load the requested run: {exc}",
+            )
+        )
+
+
+def _dn_load_run_ref(
+    mission_slug: str,
+    config_root: Path,
+    mission_type: str,
+    emitter: Any,
+    *,
+    owned: OwnedCheckout | None,
+    required_ref: MissionRunRef | None,
+    required_run_id: str | None,
+) -> MissionRunRef:
+    if required_ref is not None:
+        return required_ref
+    if required_run_id is not None:
+        raise ValueError("The requested original run was not loaded")
+    return _io_seam.get_or_start_run(mission_slug, config_root, mission_type, emitter=emitter, owned=owned)
+
+
 def _dn_bootstrap(
     agent: str,
     mission_slug: str,
@@ -394,6 +443,7 @@ def _dn_bootstrap(
     repo_root: Path,
     *,
     owned: OwnedCheckout | None = None,
+    required_run_id: str | None = None,
 ) -> tuple[DecideNextContext | None, Decision | None]:
     """Phase 1/4 of ``decide_next_via_runtime`` (FR-010) — resolve
     feature/mission/run and build the shared :class:`DecideNextContext`.
@@ -483,6 +533,14 @@ def _dn_bootstrap(
     # preserving today's owned behaviour.
     config_root = owned.owned_root if owned is not None else repo_root
 
+    # Recovery is constrained to an already-indexed run. Check it before
+    # constructing the coordination emitter, which may materialize a workspace.
+    required_ref = None
+    if required_run_id is not None:
+        required_ref, early = _dn_require_existing_run(agent, mission_slug, mission_type, config_root, now, owned=owned, required_run_id=required_run_id)
+        if early is not None:
+            return None, early
+
     # Wrap with DecisionGitLog so decision events are durably committed to
     # the coordination branch (spec-kitty #1546, FR-001–FR-005).
     from specify_cli.coordination.workspace import CoordinationWorkspaceUnavailable
@@ -528,7 +586,15 @@ def _dn_bootstrap(
     # Get or start runtime run (before result handling so failed/blocked
     # decisions include canonical run_id, step_id, and mission_state)
     try:
-        run_ref = _io_seam.get_or_start_run(mission_slug, config_root, mission_type, emitter=emitter_for_engine, owned=owned)
+        run_ref = _dn_load_run_ref(
+            mission_slug,
+            config_root,
+            mission_type,
+            emitter_for_engine,
+            owned=owned,
+            required_ref=required_ref,
+            required_run_id=required_run_id,
+        )
     except Exception as exc:
         return None, _mapping._materialize_decision(
             _cores.DecisionEnvelope(
@@ -632,7 +698,7 @@ def _dn_finalized_board_override(ctx: DecideNextContext) -> Decision | None:
     """
     if ctx.result != "success" or not _run_is_untouched(ctx.run_dir):
         return None
-    board = _mapping._resolve_wp_board_action(mission_slug=ctx.mission_slug, repo_root=ctx.repo_root, owned=ctx.owned)
+    board = _mapping._resolve_wp_board_action(mission_slug=ctx.mission_slug, repo_root=ctx.repo_root, owned=ctx.owned, agent=ctx.agent)
     if board.action is not None and board.board_step is not None:
         return _mapping._build_wp_iteration_decision(
             board.board_step,
@@ -968,6 +1034,7 @@ def _dn_plan_composition_advance(ctx: DecideNextContext, composed_action: str) -
         feature_dir=ctx.feature_dir,
         repo_root=ctx.repo_root,
         owned=ctx.owned,
+        agent=ctx.agent,
     )
     return plan, wp_resolution
 
@@ -1187,6 +1254,7 @@ def _resolve_planned_wp_workspace(
     feature_dir: Path,
     repo_root: Path,
     owned: OwnedCheckout | None,
+    agent: str | None = None,
 ) -> _mapping._WpIterationResolution | None:
     """THE single place a planned WP-iteration step's board action + workspace
     is resolved BEFORE the advance is persisted (FR-008 / R-06), shared by the
@@ -1207,6 +1275,7 @@ def _resolve_planned_wp_workspace(
         feature_dir,
         repo_root,
         owned=owned,
+        agent=agent,
     )
 
 
@@ -1227,6 +1296,7 @@ def _dn_preresolve_wp_workspace(ctx: DecideNextContext) -> tuple[Any, _mapping._
         feature_dir=ctx.feature_dir,
         repo_root=ctx.repo_root,
         owned=ctx.owned,
+        agent=ctx.agent,
     )
     return plan, resolution
 
@@ -1358,6 +1428,117 @@ def _dn_decision_materialize(ctx: DecideNextContext) -> Decision:
         # computed for; any other outcome resolves normally in the mapper.
         wp_resolution=preresolved if runtime_decision.step_id == preview_step_id else None,
     )
+
+
+def _retry_analysis_refusal(
+    mission_type: str,
+    step_id: str,
+    retry_analysis_guard: Callable[[], str | None] | None,
+) -> str | None:
+    if mission_type != MISSION_TYPE_SOFTWARE_DEV or step_id != "implement":
+        return None
+    if retry_analysis_guard is None:
+        return "Retry requires a current analysis report; analysis verification is unavailable"
+    result = retry_analysis_guard()
+    if result is None:
+        return None
+    if not isinstance(result, str) or not result:
+        return "Retry requires a current analysis report; analysis verification returned an invalid result"
+    return result
+
+
+def retry_failed_step_via_runtime(
+    agent: str,
+    mission_slug: str,
+    repo_root: Path,
+    *,
+    run_id: str,
+    step_id: str,
+    result: str,
+    owned: OwnedCheckout | None = None,
+    retry_analysis_guard: Callable[[], str | None] | None = None,
+) -> Decision:
+    """Reissue one unsuccessful step without reporting its attempt as successful."""
+    if not agent or not run_id or not step_id or result not in ("failed", "blocked"):
+        raise ValueError("Retry requires an agent, original run, step, and unsuccessful result")
+    terminal = _mapping._merged_mission_short_circuit(
+        repo_root=repo_root,
+        mission_slug=mission_slug,
+        agent=agent,
+        now=now_utc_iso(),
+        terminal_kind=DecisionKind.terminal,
+        owned=owned,
+    )
+    if terminal is not None:
+        return terminal
+    ctx, early = _dn_bootstrap(agent, mission_slug, "success", repo_root, owned=owned, required_run_id=run_id)
+    if early is not None:
+        return early
+    assert ctx is not None
+
+    def refused(reason: str) -> Decision:
+        return _mapping._materialize_decision(
+            _cores.DecisionEnvelope(
+                kind=DecisionKind.blocked,
+                agent=agent,
+                mission_slug=mission_slug,
+                mission=ctx.mission_type,
+                mission_state="blocked",
+                timestamp=ctx.now,
+                reason=reason,
+                progress=ctx.progress,
+                origin=ctx.origin,
+                run_id=run_id,
+                step_id=step_id,
+            )
+        )
+
+    try:
+        if reason := _retry_analysis_refusal(ctx.mission_type, step_id, retry_analysis_guard):
+            return refused(reason)
+        plan = _engine_adapter.plan_retry_failed_step(ctx.run_ref, agent, expected_step_id=step_id, expected_result=result)
+        resolution = _resolve_planned_wp_workspace(
+            plan.decision,
+            mission_slug=mission_slug,
+            mission_type=ctx.mission_type,
+            feature_dir=ctx.feature_dir,
+            repo_root=repo_root,
+            owned=owned,
+            agent=agent,
+        )
+        if resolution is not None and resolution[-1] != step_id:
+            return refused("The current work-package board no longer selects the failed step")
+        decision = _mapping._map_runtime_decision(
+            plan.decision,
+            agent,
+            mission_slug,
+            ctx.mission_type,
+            repo_root,
+            ctx.feature_dir,
+            ctx.now,
+            ctx.progress,
+            ctx.origin,
+            owned=owned,
+            wp_resolution=resolution,
+        )
+        if decision.kind != DecisionKind.step:
+            return decision
+        if decision.run_id != run_id or decision.step_id != step_id:
+            return refused("The mapped retry no longer matches the original run and step")
+        if resolution is not None and (decision.action, decision.wp_id, decision.workspace_path) != resolution[:3]:
+            return refused("The mapped retry no longer matches the selected action, work package and workspace")
+        config_root = owned.owned_root if owned is not None else repo_root
+        current_ref = _io_seam.get_or_start_run(mission_slug, config_root, ctx.mission_type, owned=owned, required_run_id=run_id)
+        if Path(current_ref.run_dir) != Path(ctx.run_ref.run_dir):
+            return refused("The mission's indexed run location changed during retry planning")
+        if reason := _retry_analysis_refusal(ctx.mission_type, step_id, retry_analysis_guard):
+            return refused(reason)
+        # Do not fall back to next_step on a stale plan: that would report a
+        # different step as successful. The owner must inspect and plan again.
+        _engine_adapter.commit_advance(ctx.run_ref, plan, agent, ctx.emitter_for_engine)
+        return decision
+    except Exception as exc:
+        return refused(f"Retry refused: {exc}")
 
 
 def decide_next_via_runtime(

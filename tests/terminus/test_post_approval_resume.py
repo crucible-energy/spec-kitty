@@ -21,6 +21,8 @@ Real git, the real CLI in subprocesses, nothing mocked.
 
 from __future__ import annotations
 
+from tests.terminus.feature_fixture_support import feature_build_post_approval_mission as build_post_approval_mission
+
 import signal
 import subprocess
 import sys
@@ -34,7 +36,7 @@ from tests.terminus.conftest import _cli_env
 from tests.terminus.conftest import _git as git
 from tests.terminus.conftest import blob_present_at, run_terminus
 from tests.terminus.mixed_lane_support import collapse
-from tests.terminus.post_approval_support import LATE_CONTENT, LATE_PATH, Topology, add_post_approval_commit, build_post_approval_mission, lane_worktree
+from tests.terminus.post_approval_support import LATE_CONTENT, LATE_PATH, Topology, add_post_approval_commit, lane_worktree
 from tests.terminus.canceled_dependency_support import LANE_B
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]

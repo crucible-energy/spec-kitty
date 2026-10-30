@@ -28,7 +28,8 @@ from pathlib import Path
 
 import pytest
 
-from tests.terminus.conftest import CoordMission, build_coord_mission, run_terminus
+from tests.terminus.conftest import CoordMission, run_terminus
+from tests._support.feature_landing import build_feature_coord_mission as build_coord_mission
 
 pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
 
@@ -79,7 +80,9 @@ def test_4978_dirty_planning_artifact_not_reset_as_coord_residue(tmp_path: Path)
     )
     residue_kind.write_text(_DIRTY_SENTINEL, encoding="utf-8")  # now dirty, uncommitted
 
-    run_terminus(mission, ["consolidate", "--mission", mission.slug, "--strategy", "merge", "--yes"])
+    result = run_terminus(mission, ["consolidate", "--mission", mission.slug, "--strategy", "merge", "--yes"])
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "PR-only consolidation" not in result.stdout + result.stderr, "fixture must reach dirty-work preservation"
 
     # The dirty uncommitted work must NOT have been silently reset --hard away.
     surviving = residue_kind.read_text(encoding="utf-8") if residue_kind.exists() else ""

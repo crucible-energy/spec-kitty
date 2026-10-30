@@ -1358,6 +1358,21 @@
       "reason": "References only the host workflow, which SURVIVES the retirement (the job is removed, the file is not), and does so as a lookup or prose mention rather than as a claim about the file's contents. Nothing it asserts changes."
     },
     {
+      "rule": "tests/local_validation/test_selection.py::test_workflow_regeneration_refuses_changed_other_source",
+      "file": "tests/local_validation/test_selection.py",
+      "scope": "test_workflow_regeneration_refuses_changed_other_source",
+      "subjects": [
+        "retiring-host"
+      ],
+      "form": "path-anchored",
+      "lines": [
+        857
+      ],
+      "dependency": false,
+      "disposition": "none",
+      "reason": "References only the host workflow, which SURVIVES the retirement (the job is removed, the file is not), and does so as a lookup or prose mention rather than as a claim about the file's contents. Nothing it asserts changes."
+    },
+    {
       "rule": "tests/perf/test_loader_perf.py::<module-docstring>",
       "file": "tests/perf/test_loader_perf.py",
       "scope": "<module-docstring>",

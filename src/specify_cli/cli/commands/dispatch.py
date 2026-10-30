@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING, Annotated, NoReturn
 
 import typer
 from specify_cli.cli.console import console
@@ -18,6 +18,7 @@ from rich.panel import Panel
 
 if TYPE_CHECKING:
     from charter.model_routing import RoutingRecommendation
+    from specify_cli.core.owned_mission import OperationRoot
 
 # #4123: charter resolution raises these when the project was `spec-kitty
 # init`-ed but never `git init`-ed; without a command-layer catch they
@@ -34,7 +35,7 @@ from specify_cli.invocation.errors import (
 from kernel.git_topology import GitTopologyError
 from specify_cli.core.checkout_ownership import CheckoutOwnershipError
 from specify_cli.git.protection_policy import ProtectionConfigError
-from specify_cli.invocation.checkout import resolve_operation_checkout
+from specify_cli.cli.commands._owned_checkout import OwnedCheckoutOption, owned_checkout_option
 from specify_cli.invocation.executor import (
     InvocationPayload,
     ProfileInvocationExecutor,
@@ -46,7 +47,6 @@ from specify_cli.invocation.propagator import InvocationSaaSPropagator
 from specify_cli.invocation.registry import ProfileRegistry
 from specify_cli.invocation.router import ActionRouter
 from specify_cli.task_utils import find_repo_root
-
 
 
 def _get_repo_root() -> Path:
@@ -63,10 +63,12 @@ def _build_executor(repo_root: Path) -> ProfileInvocationExecutor:
     return ProfileInvocationExecutor(repo_root, router=router, propagator=propagator)
 
 
-def _operation_checkout(primary: Path, owned_checkout: Path | None, *, writing: bool) -> Path:
+def _operation_checkout(primary: Path, owned_checkout: OwnedCheckoutOption, *, writing: bool) -> OperationRoot:
     """Render custody refusal before an executor can create any state."""
+    from specify_cli.core.owned_mission import resolve_operation_root
+
     try:
-        return resolve_operation_checkout(primary, owned_checkout, writing=writing)
+        return resolve_operation_root(primary, owned_checkout, writing=writing)
     except (CheckoutOwnershipError, GitTopologyError, ProtectionConfigError, ValueError) as exc:
         typer.echo(json.dumps({"error": "operation_checkout_refused", "message": str(exc)}), err=True)
         raise typer.Exit(2) from exc
@@ -244,7 +246,8 @@ def render_open_hint_task_execution(payload: InvocationPayload) -> None:
     """Open-Op close hint for standalone dispatch."""
     console.print("\n[bold]This Op is OPEN.[/bold] After completing the work, close it with the real outcome:")
     contract = build_close_contract(
-        payload.invocation_id, getattr(payload, "mode_of_work", None),
+        payload.invocation_id,
+        getattr(payload, "mode_of_work", None),
         owned_checkout=getattr(payload, "_owned_checkout", None),
     )
     optional = " [--artifact <path>] [--commit <sha>]"
@@ -298,7 +301,7 @@ def _dispatch_impl(
     repo_root: Path,
     executor: ProfileInvocationExecutor,
     dry_run: bool = False,
-    owned_checkout: Path | None = None,
+    owned_checkout: OperationRoot | None = None,
 ) -> None:
     """Open a standalone Op and emit either JSON or rich console output.
 
@@ -397,9 +400,7 @@ def dispatch(
         "--dry-run",
         help="Route the request and return the routing signal without opening an Op or writing anything.",
     ),
-    owned_checkout: Path | None = typer.Option(
-        None, "--owned-checkout", help="Verified checkout that owns this operation's records and commits.",
-    ),
+    owned_checkout: Annotated[Path | None, owned_checkout_option(help="Verified checkout that owns this operation's records and commits.")] = None,
 ) -> None:
     """Dispatch a request to a governed Op.
 
@@ -409,7 +410,8 @@ def dispatch(
     opened, no kitty-ops/ file is written, no glossary event is persisted, and
     nothing is submitted to the SaaS propagator.
     """
-    repo_root = _operation_checkout(_get_repo_root(), owned_checkout, writing=not dry_run)
+    custody = _operation_checkout(_get_repo_root(), owned_checkout, writing=not dry_run)
+    repo_root = custody.checkout
     executor = _build_executor(repo_root)
     _dispatch_impl(
         request,
@@ -419,5 +421,5 @@ def dispatch(
         repo_root=repo_root,
         executor=executor,
         dry_run=dry_run,
-        owned_checkout=repo_root if owned_checkout is not None else None,
+        owned_checkout=custody if owned_checkout is not None else None,
     )

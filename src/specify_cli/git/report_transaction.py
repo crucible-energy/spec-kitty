@@ -109,7 +109,7 @@ def _require_idle(root: Path) -> None:
     # status-materialization guard and this transaction guard. ``sequencer``
     # (multi-commit cherry-pick/revert/rebase) was folded into that canonical
     # set so no coverage is lost by the consolidation.
-    if git_operation_in_progress(root):
+    if git_operation_in_progress(root, worktree_only=True):
         raise ValueError("Active Git operation in progress")
 
 

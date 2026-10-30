@@ -87,7 +87,7 @@ worry about a parallel run overwriting your real auth tokens or config.
 ## Per-run pytest temp root
 
 Every pytest invocation also gets its **own private basetemp** instead of the
-shared `/tmp/pytest-of-<user>` numbered tree: `<temproot>/spec-kitty-pytest-tmp/run-<pid>`
+shared `/tmp/pytest-of-<user>` numbered tree: `<temproot>/spk-t2/run-<pid>-<nonce>`
 (`temproot` honors `PYTEST_DEBUG_TEMPROOT`, then `TMPDIR`). This is a
 housekeeping fix, not a #63 fix: pytest's default tree only ever shrinks
 through its own locked, timeout-gated pruning, so a long-lived box accumulates
@@ -101,20 +101,39 @@ open pending a full-suite run that reports a summary.
 
 `tests/conftest.py` wires this in `pytest_configure` via
 `tests/_support/run_basetemp.py`; xdist workers nest under the controller's
-choice as usual (`…/run-<pid>/popen-gwN`). Consequences worth knowing:
+choice as usual (`…/run-<pid>-<nonce>/popen-gwN`). Consequences worth knowing:
 
 - An explicit `--basetemp` still wins untouched — whoever passes one owns its
-  lifecycle.
-- Retention is outcome-gated (#76): a healthy run (`ExitCode.OK`) leaves
-  nothing behind — it removes the run's dir at interpreter exit. A run with
-  failures, errors, or an interruption keeps its private basetemp tree instead,
-  so `tmp_path` contents from that run ARE available for post-mortem inspection,
-  bounded by the 24 h stale-crash sweep the next run performs at controller
-  startup (`STALE_RUN_MAX_AGE_S`, swept from `install_run_basetemp`; it also
-  catches a run that never reaches `pytest_sessionfinish`, e.g. a SIGKILL,
-  since the exit-gated reap never runs for it either). This differs from
-  pytest's own default 3-session retention, which keeps the last three
-  sessions' trees regardless of outcome.
+  lifecycle. It must pass the same safety admission before pytest can clean it.
+- Admission in the existing helper runs before Source creates HOME/config/temp
+  state. An unproven `.git` or `.kittify` ancestor refuses before those effects;
+  a genuine enclosing controller permits controlled synthetic markers inside
+  its fixed run scope. Marker symlinks and Git-directory redirects cannot escape.
+- Workers use the existing xdist `workerinput` handoff. Nested local runs must
+  verify the live controller's actual process generation, ancestry, kernel
+  connection ownership and physical reservation. An environment value or copied
+  owner record alone cannot create or expand an enclosure. Unknown observations
+  refuse; this is cooperative local test containment, not a same-user sandbox
+  or remote-worker authorization service.
+- HOME/temp allocation uses private per-run leaves. The controller's temporary
+  observation thread and descriptors close through Config cleanup; the existing
+  outcome record remains separate. Closing this transport grants no adoption,
+  sibling sweep or deletion permission.
+- Retention requires owner/runtime release: even `ExitCode.OK` does not release
+  a child or service holding this run's leaf. The launcher retains the exact
+  owner record and a separate pytest outcome record; it retains failures,
+  errors, or an interruption too. Test success alone is not owner/runtime release.
+  Failed, interrupted and uncertain state remains an explicit owner obligation.
+  `STALE_RUN_MAX_AGE_S` is observational only; `install_run_basetemp` never
+  performs a sibling age sweep. Current-run cleanup remains a separate eligible
+  owner operation after actual runtime release through the existing lifecycle
+  workflow. A negative process snapshot alone cannot authorize removal.
+
+This launcher-level retention does not change pytest's per-test policy below or
+qualify its teardown of an individual fixture. Every fixture producer must join
+its children and release external/service holds before its own teardown. The
+manifest is outcome DATA, not an admitted release receipt or a power-loss-proof
+lifecycle journal. Unknown release stays retained; no global cleanup is enabled.
 
 ## `tmp_path` retention policy
 

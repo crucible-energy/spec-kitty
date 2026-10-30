@@ -33,7 +33,7 @@ spec-kitty agent mission branch-context --json
 
 If the JSON shows the current branch, `planning_base_branch`, and `merge_target_branch` all pointing at the branch you want, run `/spec-kitty.specify` normally from the repository root checkout.
 
-This is the simplest way to keep `main` clean: start from `main`, your release branch, or your mission integration branch before planning begins.
+Use accepted primary history as the base, then create an owned named feature/integration branch before planning writes. Keep local and remote `main` unchanged until PR acceptance.
 
 ## Pick an Explicit target branch
 

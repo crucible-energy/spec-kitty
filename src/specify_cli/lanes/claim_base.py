@@ -58,13 +58,18 @@ def _claim_base_ref(mission_slug: str, wp_id: str) -> str:
     return f"{_CLAIM_BASE_REF_PREFIX}/{mission_slug}/{wp_id}"
 
 
-def read_claim_base(repo_root: Path, mission_slug: str, wp_id: str) -> str | None:
+def read_claim_base(repo_root: Path, mission_slug: str, wp_id: str, *, strict: bool = False) -> str | None:
     """Return the recorded claim-base SHA, or ``None`` if never recorded.
 
-    Never raises: an absent ref (the ordinary case before the first claim, or
+    By default never raises: an absent ref (the ordinary case before the first claim, or
     a WP claimed before this ref existed) resolves to ``None`` so callers can
     fall back to their own pre-existing refusal (:mod:`.for_review_gate`
     never passes the gate vacuously on a missing ref).
+
+    ``strict=True`` distinguishes Git's quiet absent-ref response (exit 1,
+    no output or diagnostic) from an unreadable or malformed ref. A broken
+    loose ref also returns 1, but emits a warning; never treat that as absent.
+    Existing non-strict callers retain their non-raising compatibility.
     """
     result = subprocess.run(
         ["git", "-C", str(repo_root), "rev-parse", "--verify", "--quiet", _claim_base_ref(mission_slug, wp_id)],
@@ -73,8 +78,12 @@ def read_claim_base(repo_root: Path, mission_slug: str, wp_id: str) -> str | Non
         check=False,
     )
     if result.returncode != 0:
+        if strict and (result.returncode != 1 or result.stdout or result.stderr):
+            raise RuntimeError("cannot read claim base: Git did not establish a valid ref or quiet absence")
         return None
     sha = result.stdout.strip()
+    if strict and (not sha or result.stderr):
+        raise RuntimeError("cannot read claim base: Git returned empty or diagnostic-bearing success")
     return sha or None
 
 

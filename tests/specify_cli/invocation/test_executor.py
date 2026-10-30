@@ -33,6 +33,33 @@ _MISSING_CTX.mode = "missing"
 _MISSING_CTX.text = ""
 
 
+def test_no_commit_preserves_propagation_without_a_stale_commit_outcome(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SPEC_KITTY_TEST_MODE", raising=False)
+    _init_git_repo(tmp_path)
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "checkout", "-b", "ops-work"],
+        check=True,
+        capture_output=True,
+        timeout=10,
+    )
+    _setup_fixture_profiles(tmp_path)
+    propagator = MagicMock()
+    with patch("specify_cli.invocation.executor.build_charter_context", return_value=_COMPACT_CTX):
+        executor = ProfileInvocationExecutor(tmp_path, propagator=propagator)
+        first = executor.invoke("first operation", profile_hint="implementer-fixture")
+        executor.complete_invocation(first.invocation_id, outcome="done", closed_by="agent")
+        assert executor.last_op_commit is not None
+        assert executor.last_op_commit.committed
+        second = executor.invoke("second operation", profile_hint="implementer-fixture")
+
+    propagator.reset_mock()
+    with patch.object(executor, "_commit_op_record") as commit:
+        completed = executor.complete_invocation(second.invocation_id, outcome="done", closed_by="agent", auto_commit=False)
+    commit.assert_not_called()
+    propagator.submit.assert_called_once_with(completed)
+    assert executor.last_op_commit is None
+
+
 def _setup_fixture_profiles(tmp_path: Path) -> None:
     """Copy fixture profiles into simulated project structure."""
     profiles_dir = tmp_path / ".kittify" / "profiles"

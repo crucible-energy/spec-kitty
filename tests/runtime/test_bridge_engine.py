@@ -801,7 +801,7 @@ _ENGINE_OWNED_CONSTRUCTIONS = frozenset(
 #: uses today. Anything else (``next_step``, ``_commit_advance``, ``apply_result``,
 #: a writer, a new planner) is a new door and must be added here deliberately.
 _ALLOWED_ENGINE_ACCESS: dict[str, frozenset[str]] = {
-    "_engine": frozenset({"_read_snapshot", "_load_frozen_template", "plan_advance", "commit_advance", "StaleAdvancePlan"}),
+    "_engine": frozenset({"_read_snapshot", "_load_frozen_template", "plan_advance", "plan_retry_failed_step", "commit_advance", "StaleAdvancePlan"}),
     "_planner": frozenset({"plan_next", "_resolve_workflow_for_mission"}),
 }
 #: Type-only imports the adapter may take from the engine submodule.
@@ -913,6 +913,20 @@ def test_adapter_has_no_parallel_planner_or_event_code() -> None:
     and planner attributes, applies no result, emits nothing and builds none of the
     engine's events."""
     assert _adapter_shape_violations(_ADAPTER_PATH.read_text(encoding="utf-8")) == []
+
+
+def test_retry_adapter_uses_live_engine_planner(monkeypatch: pytest.MonkeyPatch) -> None:
+    run_ref = MissionRunRef(run_id="original", run_dir="/example", mission_key="software-dev")
+    expected = object()
+    observed: list[tuple[object, str, str, str]] = []
+
+    def plan(ref: object, agent: str, *, expected_step_id: str, expected_result: str) -> object:
+        observed.append((ref, agent, expected_step_id, expected_result))
+        return expected
+
+    monkeypatch.setattr(internal_engine, "plan_retry_failed_step", plan)
+    assert engine_adapter.plan_retry_failed_step(run_ref, "agent", expected_step_id="implement", expected_result="failed") is expected
+    assert observed == [(run_ref, "agent", "implement", "failed")]
 
 
 @pytest.mark.parametrize(

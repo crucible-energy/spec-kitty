@@ -214,6 +214,7 @@ from .bootstrap import (
 )
 from .event_log_merge import (
     EventLogMergeError,
+    detect_concurrent_fork,
     merge_event_log_files,
     merge_event_log_texts,
 )
@@ -380,6 +381,7 @@ from .cutover_eligibility import (
     CutOverVerdict,
     is_cut_over,
 )
+from .cutover_eligibility import _raw_phase_state as classify_runtime_status_phase
 
 # WP03 (mixed-lane-authorship-soundness-01M3M7Y0, FR-001): the lane-head
 # stamp key, re-exported so WP04's consolidation reader resolves it via
@@ -475,6 +477,7 @@ __all__ = [
     "claim_policy_metadata",
     "build_resolved_actor",
     "is_cut_over",
+    "classify_runtime_status_phase",
     "PRE_ACCEPT_EXEMPT_NOTE",
     "REASON_ABSENT_MISSION_ID",
     "REASON_LEGACY_FRONTMATTER",
@@ -622,6 +625,7 @@ __all__ = [
     "audit_repo",
     "bootstrap_canonical_state",
     "classify_mission",
+    "detect_concurrent_fork",
     "feature_status_lock",
     "find_ambiguous_selectors",
     "find_duplicate_prefixes",

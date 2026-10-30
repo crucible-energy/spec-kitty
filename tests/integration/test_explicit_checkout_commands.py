@@ -140,7 +140,7 @@ def test_check_reads_owned_documents(checkouts):
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
     result = invoke("check-prerequisites", owned, "--include-tasks")
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert Path(payload["paths"]["feature_dir"]) == owned / "kitty-specs" / SLUG
     assert (snapshot(primary), snapshot(owned), snapshot(sibling)) == before
 
@@ -164,7 +164,7 @@ def test_flagless_check_prerequisites_from_inside_owned_checkout_adopts(checkout
     result = invoke("check-prerequisites", owned, "--include-tasks", opt_in=False)
     assert result.exit_code == 0, result.output
     assert len(claim_counter) == 1, claim_counter
-    assert Path(json.loads(result.output)["paths"]["feature_dir"]) == owned / "kitty-specs" / SLUG
+    assert Path(json.loads(result.stdout)["paths"]["feature_dir"]) == owned / "kitty-specs" / SLUG
     assert (snapshot(primary), snapshot(owned), snapshot(sibling)) == before
 
 
@@ -183,7 +183,7 @@ def test_spec_commit_is_local_and_idempotent(checkouts):
     spec.write_text(spec.read_text(encoding="utf-8") + "\nOwned edit.\n", encoding="utf-8")
     result = invoke("spec-commit", owned)
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert payload["committed"] is True
     assert payload["placement_ref"] == TARGET
     assert git(owned, "show", "--format=", "--name-only", "HEAD") == f"kitty-specs/{SLUG}/spec.md"
@@ -418,7 +418,7 @@ def test_finalize_refresh_reports_owned_checkout_commit_success(checkouts):
     result = invoke("finalize-tasks", owned, "--refresh-planning-commit")
 
     assert result.exit_code == 0, f"a committed owned-checkout pin refresh must report success; output={result.output!r}"
-    success = json.loads(result.output)
+    success = json.loads(result.stdout)
     lane_path = f"kitty-specs/{SLUG}/lanes.json"
     assert success["result"] == "success"
     assert success["files_committed"] == [lane_path]
@@ -454,16 +454,24 @@ COMMANDS = ["check-prerequisites", "finalize-tasks", "spec-commit", "accept"]
         42,
     ],
 )
-def test_unsupported_topology_is_readonly(checkouts, command, topology):
+def test_owned_topology_capability_is_readonly(checkouts, command, topology):
     primary, owned, sibling = checkouts
     meta_path = owned / "kitty-specs" / SLUG / "meta.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     meta["topology"] = topology
     meta_path.write_text(json.dumps(meta), encoding="utf-8")
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
-    result = invoke(command, owned)
-    assert result.exit_code == 1, result.output
-    assert json.loads(result.output)["error_code"] == "OWNED_TOPOLOGY_UNSUPPORTED"
+    # Analysis and planning finalization explicitly admit plain LANES roots;
+    # that capability never grants spec-commit or acceptance authority.
+    admitted_planning = topology == "lanes" and command in {"check-prerequisites", "finalize-tasks"}
+    extra = ("--validate-only",) if admitted_planning and command == "finalize-tasks" else ()
+    result = invoke(command, owned, *extra)
+    if admitted_planning:
+        assert result.exit_code == 0, result.output
+        assert "error_code" not in json.loads(result.stdout)
+    else:
+        assert result.exit_code == 1, result.output
+        assert json.loads(result.stdout)["error_code"] == "OWNED_TOPOLOGY_UNSUPPORTED"
     assert (snapshot(primary), snapshot(owned), snapshot(sibling)) == before
 
 
@@ -483,7 +491,7 @@ def test_absent_topology_is_readonly(checkouts, command):
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
     result = invoke(command, owned)
     assert result.exit_code == 1, result.output
-    assert json.loads(result.output)["error_code"] == "OWNED_TOPOLOGY_UNSUPPORTED"
+    assert json.loads(result.stdout)["error_code"] == "OWNED_TOPOLOGY_UNSUPPORTED"
     assert (snapshot(primary), snapshot(owned), snapshot(sibling)) == before
 
 
@@ -502,7 +510,7 @@ def test_branch_refusal_has_no_side_effects(checkouts, command, branch_state):
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
     result = invoke(command, owned)
     assert result.exit_code == 1, result.output
-    assert json.loads(result.output)["error_code"] == "OWNED_BRANCH_REFUSED"
+    assert json.loads(result.stdout)["error_code"] == "OWNED_BRANCH_REFUSED"
     assert (snapshot(primary), snapshot(owned), snapshot(sibling)) == before
 
 
@@ -514,7 +522,7 @@ def test_staged_changes_are_never_stashed_or_committed(checkouts, command):
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
     result = invoke(command, owned)
     assert result.exit_code == 1, result.output
-    assert json.loads(result.output)["error_code"] == "OWNED_INDEX_REFUSED"
+    assert json.loads(result.stdout)["error_code"] == "OWNED_INDEX_REFUSED"
     assert (snapshot(primary), snapshot(owned), snapshot(sibling)) == before
     assert not git(owned, "stash", "list")
 
@@ -528,7 +536,7 @@ def test_foreign_repository_is_refused(checkouts, tmp_path, command):
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
     result = invoke(command, foreign)
     assert result.exit_code == 1, result.output
-    assert json.loads(result.output)["error_code"] == "OWNERSHIP_FOREIGN"
+    assert json.loads(result.stdout)["error_code"] == "OWNERSHIP_FOREIGN"
     assert (snapshot(primary), snapshot(owned), snapshot(sibling)) == before
 
 
@@ -553,7 +561,7 @@ def test_whole_commit_batch_is_validated_before_staging(checkouts, extra_path):
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
     result = invoke("spec-commit", owned, extra_path)
     assert result.exit_code == 1, result.output
-    assert json.loads(result.output)["error_code"] == "OWNED_MISSION_PATH_REFUSED"
+    assert json.loads(result.stdout)["error_code"] == "OWNED_MISSION_PATH_REFUSED"
     assert (snapshot(primary), snapshot(owned), snapshot(sibling)) == before
 
 
@@ -562,7 +570,7 @@ def test_resume_probe_cannot_opt_in(checkouts):
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
     result = invoke("check-prerequisites", owned, "--resume-probe")
     assert result.exit_code == 1, result.output
-    assert json.loads(result.output)["error_code"] == "OWNED_OPTION_UNSUPPORTED"
+    assert json.loads(result.stdout)["error_code"] == "OWNED_OPTION_UNSUPPORTED"
     assert (snapshot(primary), snapshot(owned), snapshot(sibling)) == before
 
 
@@ -606,7 +614,7 @@ def test_broken_pointer_is_refused_before_effects(checkouts, command):
             file.truncate()
         result = invoke(command, owned)
         assert result.exit_code == 1, result.output
-        assert json.loads(result.output)["error_code"] == "OWNERSHIP_BROKEN_POINTER"
+        assert json.loads(result.stdout)["error_code"] == "OWNERSHIP_BROKEN_POINTER"
     finally:
         with pointer.open("r+", encoding="utf-8") as file:
             file.write(original)
@@ -615,17 +623,36 @@ def test_broken_pointer_is_refused_before_effects(checkouts, command):
 
 
 @pytest.mark.parametrize("command", COMMANDS)
-def test_symlink_escape_is_refused_before_effects(checkouts, command):
+def test_mission_directory_symlink_escape_is_refused_before_effects(checkouts, command):
     primary, owned, sibling = checkouts
-    link = owned / "kitty-specs" / SLUG / "escaped.txt"
+    mission = owned / "kitty-specs" / SLUG
+    outside = primary / "escaped-mission"
+    shutil.copytree(mission, outside)
+    shutil.rmtree(mission)
+    try:
+        mission.symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"Directory symlinks unavailable on this host: {exc}")
+    before = snapshot(primary), snapshot(owned), snapshot(sibling)
+    result = invoke(command, owned)
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.stdout)["error_code"] == "OWNED_MISSION_PATH_REFUSED"
+    assert (snapshot(primary), snapshot(owned), snapshot(sibling)) == before
+
+
+def test_owned_leaf_symlink_is_a_link_object_without_foreign_effects(checkouts):
+    primary, owned, sibling = checkouts
+    link = owned / "kitty-specs" / SLUG / "retained-link"
     try:
         link.symlink_to(primary / "app.py")
     except OSError as exc:
         pytest.skip(f"File symlinks unavailable on this host: {exc}")
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
-    result = invoke(command, owned)
-    assert result.exit_code == 1, result.output
-    assert json.loads(result.output)["error_code"] == "OWNED_MISSION_PATH_REFUSED"
+    context = mint_fact(primary, owned)
+    # Git commits the link's own bytes. Resolving its foreign leaf target here
+    # would erase the canonical #5671 distinction from an escaped parent/root.
+    assert context.files([link]) == [link]
+    assert link.is_symlink() and link.readlink() == primary / "app.py"
     assert (snapshot(primary), snapshot(owned), snapshot(sibling)) == before
 
 
@@ -637,7 +664,7 @@ def test_accept_flagless_from_the_repository_root_checkout_keeps_primary_resolut
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
     result = invoke("accept", owned, opt_in=False)
     assert result.exit_code == 1, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert payload["error_code"] == "MISSION_NOT_FOUND"
     assert payload["handle"] == SLUG
     assert (snapshot(primary), snapshot(owned), snapshot(sibling)) == before
@@ -661,7 +688,7 @@ def test_accept_flagless_from_inside_the_owned_checkout_adopts_it_once(checkouts
     before = snapshot(primary), snapshot(sibling)
     result = invoke("accept", owned, opt_in=False)
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert payload["diagnose"] is True
     assert Path(payload["feature_dir"]) == owned / "kitty-specs" / SLUG
     assert len(claims) == 1
@@ -673,7 +700,7 @@ def test_accept_diagnosis_reads_owned_documents_without_writes(checkouts):
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
     result = invoke("accept", owned)
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert payload["diagnose"] is True
     assert Path(payload["feature_dir"]) == owned / "kitty-specs" / SLUG
     assert payload["lanes"]["planned"] == ["WP01"]
@@ -686,7 +713,7 @@ def test_accept_diagnosis_refuses_encoding_repair(checkouts):
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
     result = invoke("accept", owned, "--normalize-encoding")
     assert result.exit_code == 1, result.output
-    assert json.loads(result.output)["error_code"] == "OWNED_OPTION_UNSUPPORTED"
+    assert json.loads(result.stdout)["error_code"] == "OWNED_OPTION_UNSUPPORTED"
     assert (snapshot(primary), snapshot(owned), snapshot(sibling)) == before
 
 
@@ -702,7 +729,7 @@ def test_accept_missing_owned_mission_does_not_fall_back(checkouts):
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
     result = invoke("accept", owned)
     assert result.exit_code == 1, result.output
-    assert json.loads(result.output)["error_code"] == "FEATURE_CONTEXT_UNRESOLVED"
+    assert json.loads(result.stdout)["error_code"] == "FEATURE_CONTEXT_UNRESOLVED"
     assert (snapshot(primary), snapshot(owned), snapshot(sibling)) == before
 
 
@@ -752,7 +779,7 @@ def test_accept_diagnosis_preserves_matrix_and_uses_owned_status(ready_accept_ch
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
     result = run_owned_accept(owned, slug, "--diagnose")
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert Path(payload["feature_dir"]) == owned / "kitty-specs" / slug
     assert payload["lanes"]["done"] == ["WP01"]
     assert not payload["needs_clarification"]
@@ -856,7 +883,7 @@ def test_owned_accept_reports_unsuccessful_cutover(ready_accept_checkouts, monke
     before = snapshot(primary), snapshot(sibling)
     result = run_owned_accept(owned, slug)
     assert result.exit_code == 1, result.output
-    assert "synthetic stamp failure" in json.loads(result.output)["error"]
+    assert "synthetic stamp failure" in json.loads(result.stdout)["error"]
     assert (snapshot(primary), snapshot(sibling)) == before
 
 
@@ -867,7 +894,7 @@ def test_accept_owned_dirty_document_is_not_hidden_by_primary_topology(ready_acc
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
     result = run_owned_accept(owned, slug, "--diagnose")
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert payload["ok"] is False
     assert any(line.endswith("/spec.md") for line in payload["git_dirty"])
     assert (snapshot(primary), snapshot(owned), snapshot(sibling)) == before
@@ -882,7 +909,7 @@ def test_accept_writing_modes_refuse_staged_changes(ready_accept_checkouts, extr
     before = snapshot(primary), snapshot(owned), snapshot(sibling)
     result = run_owned_accept(owned, slug, *extra)
     assert result.exit_code == 1, result.output
-    assert json.loads(result.output)["error_code"] == "OWNED_INDEX_REFUSED"
+    assert json.loads(result.stdout)["error_code"] == "OWNED_INDEX_REFUSED"
     assert (snapshot(primary), snapshot(owned), snapshot(sibling)) == before
 
 

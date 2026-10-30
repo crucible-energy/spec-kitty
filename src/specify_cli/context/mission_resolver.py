@@ -40,12 +40,18 @@ from __future__ import annotations
 
 from specify_cli.core.constants import KITTY_SPECS_DIR
 import re
+import os
+import time
+from os.path import normcase
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
-from kernel.git import is_tracked, run_git, tracked_paths
+from kernel.git import blob_at, is_tracked, run_git, tracked_paths, tree_entries, tree_entry
+from kernel.content_digest import sha256_digest
+from kernel.meta_decode import decode_meta
+from kernel.owned_process import process_budget
 from mission_runtime import MissionResolver
 from specify_cli.lanes.branch_naming import resolve_mid8, strip_numeric_prefix
 from specify_cli.mission_metadata import load_meta
@@ -233,7 +239,9 @@ def _iter_mission_dirs(repo_root: Path) -> Iterator[Path]:
     specs_dir = repo_root / KITTY_SPECS_DIR
     if not specs_dir.exists():
         return
-    for entry in sorted(specs_dir.iterdir()):
+    # All entries share a parent: normalize each child name once instead of
+    # repeatedly comparing full Paths. normcase preserves platform ordering.
+    for entry in sorted(specs_dir.iterdir(), key=lambda path: normcase(path.name)):
         if entry.is_dir():
             yield entry
 
@@ -620,3 +628,103 @@ def _resolve_or_raise(handle: str, matches: list[ResolvedMission]) -> ResolvedMi
     if len(matches) > 1:
         raise AmbiguousHandleError(handle, matches)
     raise MissionNotFoundError(handle)
+
+
+def _pinned_blob(root: Path, commit: str, relative: str, env: dict[str, str], limit: int) -> bytes | None:
+    entry = tree_entry(root, commit, relative, env=env, timeout=5)
+    if entry is None:
+        return None
+    if entry.type != "blob" or entry.mode not in {"100644", "100755"}:
+        raise ValueError(f"Pinned inspection requires a regular blob: {relative}")
+    return blob_at(root, commit, relative, env=env, timeout=5, max_bytes=limit)
+
+
+def _pinned_mission_index(root: Path, commit: str, env: dict[str, str]) -> tuple[list[ResolvedMission], dict[str, tuple[bytes, dict[str, Any]]]]:
+    subtree = tree_entry(root, commit, KITTY_SPECS_DIR, env=env, timeout=5)
+    if subtree is None:
+        return [], {}
+    if subtree.type != "tree":
+        raise ValueError("Pinned planning root must be a Git tree")
+    entries = tree_entries(root, f"{commit}:{KITTY_SPECS_DIR}", pathspecs=(), env=env, timeout=5)
+    if len(entries) > 1024:
+        raise ValueError("Pinned planning metadata index exceeds 1024 objects")
+    missions: list[ResolvedMission] = []
+    metadata: dict[str, tuple[bytes, dict[str, Any]]] = {}
+    remaining = 4 * 1024 * 1024
+    for entry in entries:
+        slug = str(entry.path)
+        if entry.type != "tree" or len(Path(slug).parts) != 1:
+            continue
+        relative = f"{KITTY_SPECS_DIR}/{slug}/meta.json"
+        raw = _pinned_blob(root, commit, relative, env, min(65536, remaining))
+        if raw is None:
+            continue
+        remaining -= len(raw)
+        meta = decode_meta(raw, on_malformed="none")
+        if meta is None:
+            continue  # Same unindexable legacy posture as the filesystem index.
+        identity = meta.get("mission_id")
+        if not identity:
+            continue
+        if not isinstance(identity, str) or not _is_full_ulid(identity):
+            raise ValueError(f"Pinned mission identity unavailable: {relative}")
+        if meta.get("mission_slug", slug) != slug:
+            raise ValueError(f"Pinned mission slug differs from its tree path: {relative}")
+        # The existing priority ladder consumes these locally. No synthetic
+        # path or reconstructed OwnedCheckout escapes as creator/write authority.
+        missions.append(ResolvedMission(identity, slug, root / KITTY_SPECS_DIR / slug, resolve_mid8(slug, mission_id=identity)))
+        metadata[slug] = (raw, meta)
+    return missions, metadata
+
+
+def _pinned_planning_artifacts(root: Path, commit: str, slug: str, env: dict[str, str]) -> tuple[list[dict[str, object]], dict[str, Any] | None]:
+    artifacts: list[dict[str, object]] = []
+    status: dict[str, Any] | None = None
+    remaining = 4 * 1024 * 1024
+    for name in ("meta.json", "spec.md", "plan.md", "tasks.md", "status.json", "analysis-report.md"):
+        relative = f"{KITTY_SPECS_DIR}/{slug}/{name}"
+        raw = _pinned_blob(root, commit, relative, env, min(1024 * 1024, remaining))
+        if raw is None:
+            artifacts.append({"path": relative, "present_at_commit": False})
+            continue
+        remaining -= len(raw)
+        artifacts.append({"path": relative, "present_at_commit": True, "bytes": len(raw), "sha256": sha256_digest(raw).removeprefix("sha256:")})
+        if name == "status.json":
+            status = decode_meta(raw)
+    return artifacts, status
+
+
+def inspect_mission_at(repo_root: Path, handle: str, ref: str) -> dict[str, object]:
+    """Read immutable planning facts using the canonical Git/identity authorities.
+
+    This is not a MissionContext or OwnedCheckout factory. It neither simulates
+    next nor carries a current report qualification, claim or mutation capability.
+    """
+    if not handle.strip() or not ref.strip() or len(handle) > 1024 or len(ref) > 1024 or "\0" in handle or "\0" in ref:
+        raise ValueError("Explicit bounded mission handle and Git revision required")
+    env = {**os.environ, "GIT_NO_LAZY_FETCH": "1", "GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0"}
+    with process_budget(30, cleanup_deadline=time.monotonic() + 30):
+        root = Path(run_git(repo_root, "rev-parse", "--show-toplevel", env=env, timeout=5).stdout.decode("utf-8").strip())
+        commit = run_git(root, "rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}", env=env, timeout=5).stdout.decode("ascii").strip()
+        if re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", commit) is None:
+            raise ValueError("Git did not resolve one immutable commit")
+        missions, metadata = _pinned_mission_index(root, commit, env)
+        selected = _resolve_from_index(handle, missions)
+        raw, meta = metadata[selected.mission_slug]
+        artifacts, status = _pinned_planning_artifacts(root, commit, selected.mission_slug, env)
+        tree = run_git(root, "rev-parse", f"{commit}^{{tree}}", env=env, timeout=5).stdout.decode("ascii").strip()
+    return {
+        "result": "success",
+        "read_only": True,
+        "observation_scope": "immutable_committed_planning_facts",
+        "requested_ref": ref,
+        "commit": commit,
+        "tree": tree,
+        "mission_id": selected.mission_id,
+        "mission_slug": selected.mission_slug,
+        "meta_sha256": sha256_digest(raw).removeprefix("sha256:"),
+        "metadata": meta,
+        "artifacts": artifacts,
+        "saved_status_at_commit": status,
+        "current_readiness_qualified": False,
+    }

@@ -575,6 +575,39 @@ class TestNextCommandKnownBlockedMissions:
 class TestNextCommandCLI:
     """Test the ``next`` command via CliRunner (real CLI routing)."""
 
+    def test_retry_original_failed_step_keeps_history_and_refuses_wrong_run(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from runtime.next.runtime_bridge import get_or_start_run
+        from runtime.next._internal_runtime.engine import _read_snapshot
+
+        repo_root = _scaffold_project(tmp_path)
+        monkeypatch.chdir(repo_root)
+        base = ["next", "--agent", "test-agent", "--mission", "042-test-feature"]
+        first = runner.invoke(cli_app, [*base, "--result", "success", "--json"])
+        assert first.exit_code == 0, first.output
+        issued = json.loads(first.stdout)
+        failed = runner.invoke(cli_app, [*base, "--result", "failed", "--json"])
+        assert failed.exit_code == 1, failed.output
+        run_ref = get_or_start_run("042-test-feature", repo_root, "software-dev")
+        journal = Path(run_ref.run_dir) / "run.events.jsonl"
+        before = journal.read_bytes()
+        query = runner.invoke(cli_app, ["next", "--mission", "042-test-feature", "--json"])
+        assert query.exit_code == 0, query.output
+        assert "--retry-run-id" in json.loads(query.stdout)["reason"]
+        wrong = runner.invoke(cli_app, [*base, "--retry-run-id", "wrong", "--retry-step", issued["step_id"], "--retry-result", "failed", "--json"])
+        assert wrong.exit_code == 1, wrong.output
+        assert journal.read_bytes() == before
+        retry = runner.invoke(cli_app, [*base, "--retry-run-id", issued["run_id"], "--retry-step", issued["step_id"], "--retry-result", "failed", "--json"])
+        assert retry.exit_code == 0, retry.output
+        assert json.loads(retry.stdout)["step_id"] == issued["step_id"]
+        after = journal.read_bytes()
+        assert after.startswith(before)
+        assert json.loads(after.splitlines()[-1])["payload"]["actor"]["tool"] == "spec-kitty next retry-failed-step"
+        snapshot = _read_snapshot(Path(run_ref.run_dir))
+        assert snapshot.issued_step_id == issued["step_id"]
+        assert issued["step_id"] not in snapshot.completed_steps
+
     def test_json_output_valid(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """--json flag produces valid JSON with required fields."""
         repo_root = _scaffold_project(tmp_path)

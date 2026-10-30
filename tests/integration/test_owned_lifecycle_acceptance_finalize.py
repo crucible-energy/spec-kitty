@@ -31,7 +31,7 @@ whenever ownership is provably disjoint.)
 inside_owned_checkout_and_r_is_unchanged` builds exactly that fixture. Two
 independent fixtures are therefore used, not one, matching the operator's
 go-ahead on this question. Since origin/main's #5100 a ``single_branch``
-mission (the only owned lifecycle topology) has ONE repo-root lane, so that
+mission has ONE repo-root lane, so that
 row can no longer reach a lane cycle and now pins the #5100 outcome instead;
 the stale-canceled, planning-pin-orphan and issue-matrix rows keep the
 post-write-refusal coverage.
@@ -48,6 +48,7 @@ from typing import NamedTuple
 import pytest
 from typer.testing import CliRunner
 
+from kernel.clock import now_utc_iso
 from mission_runtime import OwnedCheckout
 from specify_cli.cli.commands.agent.mission import app as mission_app
 from specify_cli.lanes.compute import PLANNING_LANE_ID
@@ -82,10 +83,12 @@ def _invoke_finalize(mission_slug: str, *extra: str) -> tuple[int, str]:
     return result.exit_code, result.output
 
 
+@pytest.mark.parametrize("topology", ["single_branch", "lanes"])
 def test_owned_worktrees_finalize_succeeds_and_r_is_unchanged(
     make_owned_checkouts: Callable[..., OwnedCheckouts],
     make_r_snapshot: Callable[[OwnedCheckouts], RSnapshotter],
     monkeypatch: pytest.MonkeyPatch,
+    topology: str,
 ) -> None:
     """US4-AS1 / O6: an owned P at R/.worktrees/owned-a finalizes; R never changes.
 
@@ -95,7 +98,7 @@ def test_owned_worktrees_finalize_succeeds_and_r_is_unchanged(
     partial write -- assert_unchanged covers HEAD/index/working
     tree/lock/home).
     """
-    checkouts = make_owned_checkouts(placement="under_worktrees")
+    checkouts = make_owned_checkouts(placement="under_worktrees", topology=topology)
     _write_finalizable_tasks_md(checkouts)
     snapshotter = make_r_snapshot(checkouts)
     monkeypatch.chdir(checkouts.repository_root)
@@ -166,6 +169,167 @@ def _assert_p_unchanged(before: POracle, after: POracle, why: str) -> None:
     assert after.head == before.head, f"P's HEAD moved despite {why}"
     assert after.porcelain == before.porcelain, f"P's working tree left dirty after {why}:\n{after.porcelain!r}"
     assert after.files == before.files, f"a file in P changed despite {why}"
+
+
+@pytest.mark.parametrize("topology", ["single_branch", "lanes"])
+def test_owned_validate_only_preserves_selected_and_primary_checkouts(
+    make_owned_checkouts: Callable[..., OwnedCheckouts],
+    make_r_snapshot: Callable[[OwnedCheckouts], RSnapshotter],
+    monkeypatch: pytest.MonkeyPatch,
+    topology: str,
+) -> None:
+    checkouts = make_owned_checkouts(topology=topology)
+    _write_finalizable_tasks_md(checkouts)
+    snapshotter = make_r_snapshot(checkouts)
+    before_r = snapshotter.take()
+    before_p = _take_p_oracle(checkouts.owned_root)
+    monkeypatch.chdir(checkouts.repository_root)
+
+    code, output = _invoke_finalize(checkouts.mission_slug, "--owned-checkout", str(checkouts.owned_root), "--validate-only")
+
+    assert code == 0, output
+    _assert_p_unchanged(before_p, _take_p_oracle(checkouts.owned_root), why="read-only validation")
+    snapshotter.assert_unchanged(before_r, snapshotter.take())
+
+
+@pytest.mark.parametrize("topology", ["coord", "lanes_with_coord"])
+def test_owned_finalize_still_refuses_coordination_before_any_write(
+    make_owned_checkouts: Callable[..., OwnedCheckouts],
+    make_r_snapshot: Callable[[OwnedCheckouts], RSnapshotter],
+    monkeypatch: pytest.MonkeyPatch,
+    topology: str,
+) -> None:
+    checkouts = make_owned_checkouts(topology=topology)
+    _write_finalizable_tasks_md(checkouts)
+    meta_path = checkouts.mission_dir / "meta.json"
+    meta = json.loads(meta_path.read_text())
+    meta["coordination_branch"] = checkouts.target_branch + "-coord"
+    meta_path.write_text(json.dumps(meta))
+    subprocess.run(["git", "add", "--", str(checkouts.mission_dir)], cwd=checkouts.owned_root, check=True)
+    subprocess.run(["git", "commit", "-qm", "valid coordinated fixture"], cwd=checkouts.owned_root, check=True)
+    snapshotter = make_r_snapshot(checkouts)
+    before_r = snapshotter.take()
+    before_p = _take_p_oracle(checkouts.owned_root)
+    monkeypatch.chdir(checkouts.repository_root)
+
+    code, output = _invoke_finalize(checkouts.mission_slug, "--owned-checkout", str(checkouts.owned_root))
+
+    assert code == 1, output
+    assert json.loads(output)["error_code"] == "OWNED_TOPOLOGY_UNSUPPORTED"
+    _assert_p_unchanged(before_p, _take_p_oracle(checkouts.owned_root), why="coordinated topology refusal")
+    snapshotter.assert_unchanged(before_r, snapshotter.take())
+
+
+def test_owned_lanes_finalize_preserves_preexisting_staged_content(
+    make_owned_checkouts: Callable[..., OwnedCheckouts],
+    make_r_snapshot: Callable[[OwnedCheckouts], RSnapshotter],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    checkouts = make_owned_checkouts(topology="lanes")
+    _write_finalizable_tasks_md(checkouts)
+    (checkouts.owned_root / "user.md").write_text("retain this staged work\n")
+    subprocess.run(["git", "add", "--", "user.md"], cwd=checkouts.owned_root, check=True)
+    index_before = subprocess.check_output(["git", "diff", "--cached", "--binary"], cwd=checkouts.owned_root)
+    snapshotter = make_r_snapshot(checkouts)
+    before_r = snapshotter.take()
+    before_p = _take_p_oracle(checkouts.owned_root)
+    monkeypatch.chdir(checkouts.repository_root)
+
+    code, output = _invoke_finalize(checkouts.mission_slug, "--owned-checkout", str(checkouts.owned_root))
+
+    assert code == 1, output
+    assert json.loads(output)["error_code"] == "OWNED_INDEX_REFUSED"
+    assert subprocess.check_output(["git", "diff", "--cached", "--binary"], cwd=checkouts.owned_root) == index_before
+    _assert_p_unchanged(before_p, _take_p_oracle(checkouts.owned_root), why="staged-content refusal")
+    snapshotter.assert_unchanged(before_r, snapshotter.take())
+
+
+@pytest.mark.parametrize("remove_started", [False, True])
+def test_owned_lanes_refinalization_preserves_started_history_and_membership(
+    make_owned_checkouts: Callable[..., OwnedCheckouts],
+    make_r_snapshot: Callable[[OwnedCheckouts], RSnapshotter],
+    monkeypatch: pytest.MonkeyPatch,
+    remove_started: bool,
+) -> None:
+    from ulid import ULID
+
+    from specify_cli.status.models import Lane, StatusEvent
+    from specify_cli.status.reducer import materialize
+    from specify_cli.status.store import append_event
+
+    checkouts = make_owned_checkouts(topology="lanes")
+    _write_finalizable_tasks_md(checkouts)
+    monkeypatch.chdir(checkouts.repository_root)
+    code, output = _invoke_finalize(checkouts.mission_slug, "--owned-checkout", str(checkouts.owned_root))
+    assert code == 0, output
+    append_event(
+        checkouts.mission_dir,
+        StatusEvent(
+            event_id=str(ULID()),
+            mission_slug=checkouts.mission_slug,
+            wp_id="WP01",
+            from_lane=Lane.PLANNED,
+            to_lane=Lane.CLAIMED,
+            at=now_utc_iso(),
+            actor="fixture",
+            force=False,
+            execution_mode="direct_repo",
+        ),
+    )
+    materialize(checkouts.mission_dir)
+    manifest_before = read_lanes_json(checkouts.mission_dir)
+    assert manifest_before is not None
+    frozen_before = next((lane.lane_id, lane.wp_ids) for lane in manifest_before.lanes if "WP01" in lane.wp_ids)
+    status_before = {name: (checkouts.mission_dir / name).read_bytes() for name in ("status.json", "status.events.jsonl")}
+    if remove_started:
+        (checkouts.mission_dir / "tasks" / "WP01-owned.md").unlink()
+        (checkouts.mission_dir / "tasks.md").write_text("# Tasks\n\n## WP02\n\n**Dependencies**: None\n")
+    else:
+        task = checkouts.mission_dir / "tasks" / "WP02-owned.md"
+        task.write_text(
+            task.read_text().replace("owned_files: [wp02.py]", "owned_files: [wp02.py, extra.py]").replace("  - wp02.py\n", "  - wp02.py\n  - extra.py\n")
+        )
+    before_p = _take_p_oracle(checkouts.owned_root)
+    snapshotter = make_r_snapshot(checkouts)
+    before_r = snapshotter.take()
+
+    code, output = _invoke_finalize(checkouts.mission_slug, "--owned-checkout", str(checkouts.owned_root))
+
+    if remove_started:
+        assert code == 1, output
+        assert "LANE_MEMBERSHIP_FROZEN" in output
+        _assert_p_unchanged(before_p, _take_p_oracle(checkouts.owned_root), why="started membership refusal")
+    else:
+        assert code == 0, output
+        manifest_after = read_lanes_json(checkouts.mission_dir)
+        assert manifest_after is not None
+        assert next((lane.lane_id, lane.wp_ids) for lane in manifest_after.lanes if "WP01" in lane.wp_ids) == frozen_before
+    assert {name: (checkouts.mission_dir / name).read_bytes() for name in status_before} == status_before
+    snapshotter.assert_unchanged(before_r, snapshotter.take())
+
+
+@pytest.mark.parametrize("branch_fault", ["protected", "mismatch"])
+def test_owned_lanes_finalization_keeps_branch_guards(
+    make_owned_checkouts: Callable[..., OwnedCheckouts],
+    make_r_snapshot: Callable[[OwnedCheckouts], RSnapshotter],
+    monkeypatch: pytest.MonkeyPatch,
+    branch_fault: str,
+) -> None:
+    checkouts = make_owned_checkouts(topology="lanes", protected_target=branch_fault == "protected")
+    _write_finalizable_tasks_md(checkouts)
+    if branch_fault == "mismatch":
+        subprocess.run(["git", "checkout", "-qb", "codex/wrong"], cwd=checkouts.owned_root, check=True)
+    before_p = _take_p_oracle(checkouts.owned_root)
+    snapshotter = make_r_snapshot(checkouts)
+    before_r = snapshotter.take()
+    monkeypatch.chdir(checkouts.repository_root)
+
+    code, output = _invoke_finalize(checkouts.mission_slug, "--owned-checkout", str(checkouts.owned_root))
+
+    assert code == 1, output
+    assert json.loads(output)["error_code"] == "OWNED_BRANCH_REFUSED"
+    _assert_p_unchanged(before_p, _take_p_oracle(checkouts.owned_root), why="branch refusal")
+    snapshotter.assert_unchanged(before_r, snapshotter.take())
 
 
 def _write_overlapping_wps(checkouts: OwnedCheckouts, *, spec_suffix: str = "") -> None:
@@ -852,7 +1016,9 @@ _RESOLVER_ENTRY_FRAMES = (
 #                                    _compose_primary_feature_dir`` once per status transaction
 #                                    (two transactions -> +2). Same entry frame, same leaf: a
 #                                    WHERE lookup, not a content read.
-#   ledger_posture                   the fan-out drain posture read
+# The two real ledger-posture reads receive the transaction-owned P root,
+# then canonicalize configuration through R. Load and observe the real reader
+# before arming root aliases; assert its roots and all22lookups separately.
 _RESOLVER_READ_LEDGER = {
     ("mission_has_coordination_branch", "_compose_primary_feature_dir"): 18,
     ("mission_has_coordination_branch", "resolve_topology"): 2,
@@ -873,6 +1039,24 @@ def test_armed_get_main_repo_root_pin_owned_finalize(
     monkeypatch.chdir(checkouts.repository_root)
     snapshotter = make_r_snapshot(checkouts)
     before_r = snapshotter.take()
+    from specify_cli.core import hosted_posture, paths as paths_module
+    from specify_cli.coordination import status_transition
+
+    assert status_transition.hosted_posture is hosted_posture
+    real_ledger_posture = hosted_posture.ledger_posture
+    ledger_roots: list[Path | None] = []
+
+    def observe_ledger_posture(project_root: Path | None = None) -> hosted_posture.LedgerPosture:
+        ledger_roots.append(project_root)
+        resolver_globals = hosted_posture.resolve_canonical_root.__globals__
+        assert resolver_globals is vars(paths_module)
+        assert resolver_globals["get_main_repo_root"] is paths_module.get_main_repo_root
+        before_reads = len(passed_through)
+        posture = real_ledger_posture(project_root)
+        assert len(passed_through) == before_reads + 1, f"posture root={project_root}; missing canonical resolver observation"
+        return posture
+
+    monkeypatch.setattr(hosted_posture, "ledger_posture", observe_ledger_posture)
     hits, passed_through, arm = _arm_get_main_repo_root(monkeypatch)
     real_resolve = finalize_module.resolve_owned_or_adopt
 
@@ -890,7 +1074,8 @@ def test_armed_get_main_repo_root_pin_owned_finalize(
     assert hits == [], "\n".join(hits)
     # What remains reaching ``get_main_repo_root`` after the mint is bounded by an
     # exact ledger of resolver entry frames (see ``_RESOLVER_READ_LEDGER``). These
-    # are topology/placement lookups and the drain-posture read: they consult R
+    # are topology/placement lookups; real ledger-posture calls are observed
+    # separately below: they consult R
     # for WHERE the coordination branch or a directory lives. They are NOT all
     # "only which directory": a resolver read of R that supplied CONTENT (the WP
     # dependencies read by ``_declared_dependencies``) was a real leak and is
@@ -909,6 +1094,7 @@ def test_armed_get_main_repo_root_pin_owned_finalize(
         else:
             counts[(entry, frames[-1])] += 1
     assert unclassified == [], "\n".join(unclassified)
+    assert ledger_roots == [checkouts.owned_root, checkouts.owned_root], f"actual ledger roots={ledger_roots}; resolver counts={dict(counts)}"
     assert dict(counts) == _RESOLVER_READ_LEDGER, (
         f"post-mint get_main_repo_root reads differ from the exact ledger (observed vs allowed): {dict(counts)} != {_RESOLVER_READ_LEDGER}"
     )

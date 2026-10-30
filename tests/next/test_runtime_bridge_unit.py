@@ -1936,7 +1936,14 @@ class TestOwnedCoordWorkspaceRetry:
         assert result == expected
         assert _TransientWorkspace.calls == 3
 
-    def test_persistent_contention_reraises_the_exact_error_after_bound(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        "diagnostic",
+        [
+            "fatal: could not lock config file .git/config: File exists",
+            "fatal: failed to read /repo/.git/worktrees/sibling/commondir: Result too large",
+        ],
+    )
+    def test_persistent_contention_reraises_the_exact_error_after_bound(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, diagnostic: str) -> None:
         """Persistent recognized contention keeps its terminal exception
         identity after exhausting all 20 attempts — never silently swallowed."""
         from runtime.next.runtime_bridge import _resolve_owned_coordination_workspace
@@ -1944,7 +1951,7 @@ class TestOwnedCoordWorkspaceRetry:
         terminal = subprocess.CalledProcessError(
             128,
             ["git", "worktree", "add"],
-            stderr="fatal: could not lock config file .git/config: File exists",
+            stderr=diagnostic,
         )
 
         class _PersistentlyContendedWorkspace:
@@ -2006,10 +2013,12 @@ class TestIsTransientGitWorktreeContention:
         "stderr",
         [
             "fatal: failed to read /repo/.git/worktrees/sibling/commondir: Success",
+            "fatal: failed to read /repo/.git/worktrees/sibling/commondir: Undefined error: 0",
+            "fatal: failed to read /repo/.git/worktrees/sibling/commondir: Result too large",
             "fatal: Invalid path '/repo/.git/worktrees/sibling': No such file or directory",
             "fatal: failed to read C:\\repo\\.git\\worktrees\\sibling\\commondir: Success",
         ],
-        ids=["empty-commondir-mid-add", "entry-vanished-mid-remove", "windows-separators"],
+        ids=["empty-commondir-mid-add", "darwin-zero-errno", "darwin-empty-commondir-erange", "entry-vanished-mid-remove", "windows-separators"],
     )
     def test_sibling_registry_entry_in_flight_is_transient(self, stderr: str) -> None:
         """#5894: ``git worktree list`` reads every registered entry; a
@@ -2029,14 +2038,20 @@ class TestIsTransientGitWorktreeContention:
             "fatal: Invalid path '/repo/src/module.py': No such file or directory",
             "fatal: Invalid path '/repo/.worktrees/x-lane-a'",
             "fatal: failed to read /repo/.git/worktrees/s/commondir: Permission denied",
+            "fatal: failed to read /repo/.git/worktrees/s/commondir: Undefined error: 1",
             "fatal: Invalid path '/repo/src/a.py'\nnote: see /repo/.git/worktrees/s",
+            "fatal: failed to read /repo/src/commondir: Result too large",
+            "fatal: failed to read /repo/.worktrees/s/commondir: Result too large",
         ],
         ids=[
             "read-failure-outside-registry",
             "invalid-path-outside-registry",
             "dot-worktrees-checkout-is-not-the-registry",
             "commondir-read-failure-is-not-in-flight",
+            "nonzero-errno-is-not-in-flight",
             "invalid-path-and-registry-mention-on-different-lines",
+            "erange-outside-registry",
+            "erange-in-checkout-not-registry",
         ],
     )
     def test_registry_wording_outside_the_worktree_registry_is_not_transient(self, stderr: str) -> None:

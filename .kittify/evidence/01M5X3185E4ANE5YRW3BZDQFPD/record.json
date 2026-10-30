@@ -1,0 +1,8 @@
+{
+  "event": "completed",
+  "invocation_id": "01M5X3185E4ANE5YRW3BZDQFPD",
+  "completed_at": "2026-10-26T22:11:31.400303+00:00",
+  "outcome": "done",
+  "closed_by": "agent",
+  "evidence_ref": "/private/tmp/pdb-mission-control-20261024/governance-recovery/owned-active-resume-corrected-ready-r4.json"
+}

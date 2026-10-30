@@ -194,14 +194,14 @@ def test_write_set_excludes_pre_existing_done_wp(tmp_path: Path) -> None:
     # #5385: a failed merge no longer leaves a committed ``done`` behind (the door
     # restores the coordination branch), so commit STRANDED_WP's ``done`` through
     # the REAL per-WP done emit (a legitimately-done WP from an earlier merge).
-    done_bookkeeping._mark_wp_merged_done(repo, MISSION_SLUG, STRANDED_WP, "main")
+    done_bookkeeping._mark_wp_merged_done(repo, MISSION_SLUG, STRANDED_WP, "feature/integration")
 
     # STRANDED_WP is now durably done on the committed coord ref (pre-existing for
     # any subsequent merge). Build a minimal run over [STRANDED_WP, WPZZ].
     state = ConsolidationState(
         mission_id=MISSION_ID,
         mission_slug=MISSION_SLUG,
-        target_branch="main",
+        target_branch="feature/integration",
         wp_order=[STRANDED_WP, "WPZZ"],
     )
     run = _make_min_run(repo, all_wp_ids=[STRANDED_WP, "WPZZ"], state=state)
@@ -222,7 +222,7 @@ def _make_min_run(
     from types import SimpleNamespace
 
     lanes_manifest = SimpleNamespace(
-        target_branch="main",
+        target_branch="feature/integration",
         mission_branch=COORD_BRANCH,
         lanes=[SimpleNamespace(lane_id="lane-a", wp_ids=all_wp_ids)],
     )
@@ -358,7 +358,7 @@ def test_resume_preserves_marker_when_coord_worktree_pruned(tmp_path: Path) -> N
     state = ConsolidationState(
         mission_id=MISSION_ID,
         mission_slug=MISSION_SLUG,
-        target_branch="main",
+        target_branch="feature/integration",
         wp_order=[STRANDED_WP],
         current_wp=STRANDED_WP,
         pending_coord_reconcile=marker,

@@ -92,6 +92,7 @@ pub const Options = struct {
     budget_probe: ?*const fn (?*anyopaque) bool = null,
     budget_context: ?*anyopaque = null,
     absolute_deadline_ns: ?i96 = null,
+    absolute_cleanup_deadline_ns: ?i96 = null,
     stdout_sink: ?std.Io.File = null,
     stderr_sink: ?std.Io.File = null,
     display_bytes: usize = 8192,
@@ -104,6 +105,11 @@ pub const Result = struct {
     exit_code: ?u8,
     leader_reaped: bool,
     group_disposed: bool,
+    /// Original unreaped leader was terminal and its group had no live
+    /// members BEFORE disposal. Successful forced cleanup alone is not this
+    /// observation. This remains the cooperative original-group contract,
+    /// never containment of detached session escapes.
+    terminal_group_quiescent: bool = false,
     elapsed_ms: u64,
     max_sampled_processes: usize,
     max_sampled_resident_bytes: u64,
@@ -292,10 +298,10 @@ pub const CheckScope = struct {
         return outcome;
     }
 
-    fn dispose(self: *CheckScope, owner: *Ownership, io: std.Io) bool {
+    fn dispose(self: *CheckScope, owner: *Ownership, io: std.Io, absolute_deadline: ?i96) bool {
         const started = now(io);
         const remaining = @max(0, @as(i96, self.limits.cleanup_ms) * std.time.ns_per_ms - self.cleanup_used_ns);
-        const disposed = owner.disposeUntil(io, started + remaining);
+        const disposed = owner.disposeUntil(io, @min(started + remaining, absolute_deadline orelse std.math.maxInt(i96)));
         self.cleanup_used_ns += @max(0, now(io) - started);
         return disposed;
     }
@@ -372,9 +378,9 @@ const SignalBridge = struct {
     }
 };
 
-fn disposeOwned(owner: *Ownership, io: std.Io, cleanup_ms: u32, scope: ?*CheckScope) bool {
-    if (scope) |check| return check.dispose(owner, io);
-    return owner.dispose(io, cleanup_ms);
+fn disposeOwned(owner: *Ownership, io: std.Io, options: Options, scope: ?*CheckScope) bool {
+    if (scope) |check| return check.dispose(owner, io, options.absolute_cleanup_deadline_ns);
+    return owner.disposeUntil(io, @min(now(io) + @as(i96, options.limits.cleanup_ms) * std.time.ns_per_ms, options.absolute_cleanup_deadline_ns orelse std.math.maxInt(i96)));
 }
 
 fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started: i96, scope: ?*CheckScope) !Result {
@@ -398,7 +404,7 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
     var child = try spawnOwned(allocator, io, options, deadline, scope);
     var owner = Ownership{ .pid = child.id.? };
     defer {
-        if (owner.valid and !owner.reaped) _ = disposeOwned(&owner, io, limits.cleanup_ms, scope);
+        if (owner.valid and !owner.reaped) _ = disposeOwned(&owner, io, options, scope);
         if (child.stdout) |file| file.close(io);
         if (child.stderr) |file| file.close(io);
         child.id = null;
@@ -409,6 +415,7 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
     var failure: ?Failure = null;
     var max_processes: usize = 0;
     var max_resident: u64 = 0;
+    var terminal_group_quiescent = false;
     while (true) {
         var usage: Usage = .{};
         if (pending_signal.load(.monotonic) != 0) {
@@ -454,7 +461,8 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
             // A terminal leader remains WNOWAIT-owned while its entire original
             // group is disposed. Pipe EOF is never used as process completion.
             if (terminal) {
-                if (!disposeOwned(&owner, io, limits.cleanup_ms, scope)) {
+                terminal_group_quiescent = usage.processes == 0;
+                if (!disposeOwned(&owner, io, options, scope)) {
                     failure = .cleanup_failed;
                     if (!owner.valid and !owner.reaped) failure = .ownership_lost;
                 }
@@ -516,7 +524,7 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
             break;
         }
     }
-    if (!owner.reaped and owner.valid and !disposeOwned(&owner, io, limits.cleanup_ms, scope)) {
+    if (!owner.reaped and owner.valid and !disposeOwned(&owner, io, options, scope)) {
         failure = .cleanup_failed;
         if (!owner.valid and !owner.reaped) failure = .ownership_lost;
     }
@@ -526,7 +534,7 @@ fn runOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, started:
     if (err.retained_known) stderr_retained = err.retained;
     const stdout = try allocator.dupe(u8, out.list.items);
     errdefer allocator.free(stdout);
-    return .{ .stdout = stdout, .stderr = try allocator.dupe(u8, err.list.items), .failure = failure, .exit_code = owner.exit_code, .leader_reaped = owner.reaped, .group_disposed = owner.disposed, .elapsed_ms = @intCast(@divTrunc(now(io) - started, std.time.ns_per_ms)), .max_sampled_processes = max_processes, .max_sampled_resident_bytes = max_resident, .stdout_observed_bytes = out.observed, .stderr_observed_bytes = err.observed, .stdout_retained_bytes = stdout_retained, .stderr_retained_bytes = stderr_retained };
+    return .{ .stdout = stdout, .stderr = try allocator.dupe(u8, err.list.items), .failure = failure, .exit_code = owner.exit_code, .leader_reaped = owner.reaped, .group_disposed = owner.disposed, .terminal_group_quiescent = terminal_group_quiescent, .elapsed_ms = @intCast(@divTrunc(now(io) - started, std.time.ns_per_ms)), .max_sampled_processes = max_processes, .max_sampled_resident_bytes = max_resident, .stdout_observed_bytes = out.observed, .stderr_observed_bytes = err.observed, .stdout_retained_bytes = stdout_retained, .stderr_retained_bytes = stderr_retained };
 }
 
 // SDK posix_spawn reports pre-exec failure without losing an already forked
@@ -595,7 +603,7 @@ fn spawnOwned(allocator: std.mem.Allocator, io: std.Io, options: Options, deadli
         return error.SpawnFailed;
     }
     var owner = Ownership{ .pid = pid };
-    errdefer _ = disposeOwned(&owner, io, options.limits.cleanup_ms, scope);
+    errdefer _ = disposeOwned(&owner, io, options, scope);
     if (actions_error != 0 or attributes_error != 0) return error.SpawnMetadataCleanupFailed;
     return .{ .id = pid, .thread_handle = {}, .stdin = null, .stdout = .{ .handle = out[0], .flags = .{ .nonblocking = false } }, .stderr = .{ .handle = err[0], .flags = .{ .nonblocking = false } }, .request_resource_usage_statistics = false };
 }
@@ -670,7 +678,7 @@ fn spawnOwnedLinux(allocator: std.mem.Allocator, io: std.Io, options: Options, d
         return error.SpawnFailed;
     }
     var owner = Ownership{ .pid = pid };
-    errdefer _ = disposeOwned(&owner, io, options.limits.cleanup_ms, scope);
+    errdefer _ = disposeOwned(&owner, io, options, scope);
     if (actions_error != 0 or attributes_error != 0) return error.SpawnMetadataCleanupFailed;
     return .{ .id = pid, .thread_handle = {}, .stdin = null, .stdout = .{ .handle = out[0], .flags = .{ .nonblocking = false } }, .stderr = .{ .handle = err[0], .flags = .{ .nonblocking = false } }, .request_resource_usage_statistics = false };
 }
