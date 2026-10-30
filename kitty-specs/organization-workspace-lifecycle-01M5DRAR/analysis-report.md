@@ -4,7 +4,7 @@ artifact_type: spec-kitty.analysis-report
 command: /spec-kitty.analyze
 mission_slug: organization-workspace-lifecycle-01M5DRAR
 mission_id: 01M5DRAR13PRV108ZDRQDS7SZ2
-generated_at: '2026-10-29T20:59:17.472229+00:00'
+generated_at: '2026-10-30T19:57:29.268694+00:00'
 analyzer_agent: codex
 input_artifacts:
   spec.md:
@@ -1620,7 +1620,7 @@ input_artifacts:
     sha256: 51982b1661e69cc6e56342c8b6ba3291cc6743e2a9244db4ffaaf457a270ec16
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP09-automatic-creator-integration-and-distribution.md
-    sha256: 3729ded041356a24dec6e85752f52ec61eb21b76939e3aa5b4f14d96df4ccc28
+    sha256: 94cc09ac81c19168f7bd2f89cc5ab8da087806bc1b582909edffde74f7919aeb
   ? material:kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
   : path: kitty-specs/organization-workspace-lifecycle-01M5DRAR/tasks/WP10-organization-rollout-and-observed-closeout-proof.md
     sha256: a8ce616e70aa2b618ddfcd3c4760704409492ea70022f7b5c6dabaf82524f604
@@ -1911,21 +1911,46 @@ input_artifacts:
     sha256: 3c3a78cf69c6f1bad1c2d4b3758b8ffe9917c4d3319677b60b2faf6f78b33bbd
   template-selection:spec:
     path:
-    sha256: 757831f4b9b38e7ca4ff6a46dd1265808e368b43baa8cd989f70190e5bb967ae
+    sha256: 13814aea1f4181f6aa77a60e0c6b724c0f23901f726a3506972b733d2d799f40
   template-selection:plan:
     path:
-    sha256: d80183a6f421b28de3b0bb428f0ffa8f6b51a4cd0242a16d554890e7c7bd539f
-verdict: ready
+    sha256: dc017857248bd9971452aa841e91d966de6e9cdc90f4960637d71c5c0ede6ee5
+verdict: blocked
 issue_counts:
-  critical: 0
   medium: 0
-  high: 0
+  critical: 0
+  high: 5
   low: 0
   info: 0
-findings: []
-report_transaction: 012b0a04be0b42efb19bbcd80afffc7f
+findings:
+- id: LIFECYCLE-MISSING-REGISTRATION
+  severity: high
+  category: preservation
+  summary: Existing Source rollback and coordination paths can remove missing checkout metadata without owner-safe recovery; the RC7 guard can prune unrelated registrations.
+- id: LIFECYCLE-DIRTY-DISCARD
+  severity: high
+  category: preservation
+  summary: The current Source and fetched-default discard helper force-remove a dirty lane; current Source coordination teardown and the private RC7 helper can remove ignored-only work.
+- id: LIFECYCLE-UNMERGED-BRANCH
+  severity: high
+  category: preservation
+  summary: Discard can delete an unmerged branch containing unique useful commits without exact delivery or recovery.
+- id: LIFECYCLE-REUSED-ROLLBACK
+  severity: high
+  category: preservation
+  summary: The current Source rollback can remove pre-existing mission content from a reused coordination checkout.
+- id: LIFECYCLE-ORDINARY-HOST-OWNERSHIP
+  severity: high
+  category: implementation
+  summary: The configured ordinary external host has not yet demonstrated original-creator lifetime, joined descendants and owner-authorized cleanup.
+report_transaction: 444921a9952e430a875bd0784e347bbe
 material_manifest_version: 1
 ---
 
-# Analysis
-Reproduced protected native home cache leak. Delegate existing cache location to canonical kernel path resolver and add actual installed native regression controls. Independent fresh release verification precedes supported background-check opt-out in bounded offline fixtures. No default feature suppression, live runtime swap, historical rewrite or ordinary adoption.
+# Bounded preservation and integration analysis
+
+The mission requires retaining active, dirty, unknown, missing or runtime-dependent work (FR-003 through FR-005, FR-008, FR-010 and FR-011; NFR-001 and NFR-003). User direction additionally requires exact recovery and owner-safe disposition before any missing registration is retired. A generic session end, absence of a directory or discard request is not itself proof of release or recovery.
+
+Freshly fetched default commit `e851d756e487a6ae0fb39d40fe3f759ec78198ad` was reproduced in `outputs/lifecycle-default-stale-prune-red-r1/`; current Source rollback and coordination functions were reproduced in `outputs/lifecycle-stale-registration-prune-red-r1/`, `outputs/lifecycle-stale-coordination-prune-red-r1/` and `outputs/lifecycle-reused-coordination-rollback-red-r1/`. The current Source and exact default discard helpers were exercised for dirty worktrees in `outputs/lifecycle-dirty-discard-red-r2/` and unique unmerged commits in `outputs/lifecycle-unmerged-discard-red-r1/`. Current Source ignored-only coordination teardown was exercised in `outputs/lifecycle-coordination-ignored-red-r1/`. The private RC7 guard and ignored-only discard helper were exercised in `outputs/lifecycle-stale-registration-prune-red-r1/rc7-result.json` and `outputs/lifecycle-rc7-ignored-discard-red-r1/`. The synthetic tests retained recovery copies; they do not establish which users approved any real discard.
+
+WP09 already prohibits broad pruning and assigns ordinary creator integration, but its current owned paths do not include the reproduced Source rollback, coordination and discard helpers or a new RC7 preservation compatibility patch. Their exact ownership and canonical task admission must be reconciled before editing them. The active ordinary allocation bridge has bounded synthetic source evidence and a scoped independent review; installed behavior, actual external-host lifetime, complete setup deadline/descendant bounds and organization-wide operation remain unproved. These findings block mission readiness. This is a bounded analysis of the newly identified preservation and ownership gaps, not a completed audit of every work package.
