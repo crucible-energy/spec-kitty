@@ -189,6 +189,9 @@ def next_step(
     answer: Annotated[str | None, typer.Option("--answer", help="Answer to a pending decision")] = None,
     decision_id: Annotated[str | None, typer.Option("--decision-id", help="Decision ID (required if multiple pending)")] = None,
     owned_checkout: OwnedCheckoutOption = None,
+    retry_run_id: Annotated[str | None, typer.Option("--retry-run-id", help="Original run to retry")] = None,
+    retry_step: Annotated[str | None, typer.Option("--retry-step", help="Exact unsuccessful step to retry")] = None,
+    retry_result: Annotated[str | None, typer.Option("--retry-result", help="Original unsuccessful result: failed|blocked")] = None,
 ) -> None:
     """Decide and emit the next agent action for the current mission.
 
@@ -204,6 +207,23 @@ def next_step(
         spec-kitty next --agent claude --mission 034-my-feature --answer "yes" --result success --json
         spec-kitty next --agent claude --mission 034-my-feature --answer "approve" --decision-id "input:review" --result success --json
     """
+    retry_requested = any(value is not None for value in (retry_run_id, retry_step, retry_result))
+    if retry_requested and (
+        not agent
+        or not mission
+        or not retry_run_id
+        or not retry_step
+        or retry_result not in ("failed", "blocked")
+        or result is not None
+        or answer is not None
+        or decision_id is not None
+    ):
+        _print_error(
+            "Error: retry requires --agent, --mission, --retry-run-id, --retry-step and --retry-result failed|blocked; do not combine it with --result or --answer",
+            json_output,
+        )
+        raise typer.Exit(1)
+
     ambient_root = locate_project_root()
     owned = _resolve_next_owned(owned_checkout, mission, ambient_root, json_output)
     if ambient_root is None:
@@ -224,10 +244,51 @@ def next_step(
 
     # The charter ``next`` enforces is the owned checkout's own (P-local governance read).
     charter_root = owned.owned_root if owned is not None else repo_root
-    _run_charter_preflight_for_next(_Path(str(charter_root)), advancing=result is not None, json_output=json_output)
+    _run_charter_preflight_for_next(_Path(str(charter_root)), advancing=result is not None or retry_requested, json_output=json_output)
 
     bare_selection = not (isinstance(mission, str) and mission.strip())
     mission_slug = _resolve_slug_or_exit(mission, repo_root, json_output, owned=owned)
+    if retry_requested:
+        assert agent is not None and retry_run_id is not None and retry_step is not None and retry_result is not None
+        capture = None
+        if owned is not None:
+            from specify_cli.cli.commands._owned_retry_lifecycle import capture_owned_retry_lifecycle
+
+            try:
+                capture = capture_owned_retry_lifecycle(owned)
+            except Exception as exc:
+                _print_error(f"Owned retry refused before issuing work: {exc}", json_output)
+                raise typer.Exit(1) from exc
+        try:
+            bridge = _runtime_bridge_module()
+            decision = bridge.retry_failed_step_via_runtime(
+                agent,
+                mission_slug,
+                repo_root,
+                run_id=retry_run_id,
+                step_id=retry_step,
+                result=retry_result,
+                owned=owned,
+            )
+            if decision.kind == "step":
+                if owned is None:
+                    _write_issuance_lifecycle_record(agent, mission_slug, repo_root, decision, owned=None)
+                else:
+                    from specify_cli.cli.commands._owned_retry_lifecycle import commit_owned_retry_lifecycle
+
+                    assert capture is not None
+                    try:
+                        commit_owned_retry_lifecycle(capture, decision, agent)
+                    except Exception as exc:
+                        _print_error(f"Retry was issued, but lifecycle persistence needs inspection: {exc}", json_output)
+                        raise typer.Exit(1) from exc
+            _print_decision(decision, json_output, None, None, owned=owned)
+            if decision.kind == "blocked":
+                raise typer.Exit(1)
+        finally:
+            if capture is not None:
+                capture.close()
+        return
     if bare_selection:
         # FR-010: a bare ``next`` that auto-selected a sole *legacy* mission
         # (no ``mission_id``) still proceeds, with an advisory backfill nudge.

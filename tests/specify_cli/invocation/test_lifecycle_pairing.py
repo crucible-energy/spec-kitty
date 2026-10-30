@@ -47,6 +47,17 @@ def _at(seconds: int = 0) -> _dt_datetime:
     return base + _dt_timedelta(seconds=seconds)
 
 
+def test_started_builder_matches_canonical_writer_without_writing(tmp_path: Path) -> None:
+    from specify_cli.invocation.lifecycle import build_started_record
+
+    kwargs = {"canonical_action_id": "implement::do", "agent": "agent", "mission_id": "01HMISSION0000000000000000", "wp_id": "WP01", "at": _at()}
+    built = build_started_record(**kwargs)
+    assert not lifecycle_log_path(tmp_path).exists()
+    written = write_started(tmp_path, **kwargs)
+    assert built == written
+    assert read_lifecycle_records(tmp_path) == [built]
+
+
 def _started(
     *,
     canonical: str = "implement::do",

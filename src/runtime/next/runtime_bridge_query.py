@@ -230,6 +230,14 @@ def _build_runtime_query_decision(
     elif runtime_decision.kind == DecisionKind.blocked:
         mission_state = snapshot.issued_step_id or runtime_decision.step_id or "blocked"
         blocked_reason = snapshot.blocked_reason or getattr(runtime_decision, "reason", None)
+        if (
+            blocked_reason
+            and blocked_reason.startswith("Previous step '")
+            and blocked_reason.endswith(("failed; manual intervention required.", "reported blocked state."))
+        ):
+            blocked_reason += (
+                " To request recovery, supply --retry-run-id, --retry-step and --retry-result; the runtime verifies the original history and current guards."
+            )
     return _mapping._materialize_decision(
         _cores.DecisionEnvelope(
             kind=DecisionKind.query,
@@ -485,7 +493,7 @@ def _query_dispatch_decision(
         progress,
         status_dir=status_state.read_dir,
     )
-    if finalized_override is not None:
+    if finalized_override is not None and not snapshot.blocked_reason:
         return _build_finalized_override_query_decision(
             agent=agent,
             mission_slug=mission_slug,
@@ -498,7 +506,7 @@ def _query_dispatch_decision(
             owned=owned,
         )
 
-    if not snapshot.completed_steps and not snapshot.pending_decisions and not snapshot.decisions:
+    if not snapshot.completed_steps and not snapshot.pending_decisions and not snapshot.decisions and not snapshot.blocked_reason:
         if runtime_decision.kind in {DecisionKind.step, DecisionKind.decision_required} and runtime_decision.step_id:
             return _build_initial_query_decision(
                 runtime_decision=runtime_decision,

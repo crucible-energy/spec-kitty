@@ -62,6 +62,7 @@ from runtime.next import runtime_bridge_retrospective as _retrospective
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from typing import Literal
 
     from runtime.next._internal_runtime import MissionRunRef, NextDecision
     from runtime.next._internal_runtime.engine import AdvancePlan, ResultType
@@ -116,6 +117,13 @@ def plan_advance(run_ref: MissionRunRef, agent_id: str, result: str = "success")
     the engine's single, pure "apply the result and plan the next step"
     authority (WP11 review cycle 1, findings 3/4)."""
     return _engine.plan_advance(run_ref, agent_id, cast("ResultType", result))
+
+
+def plan_retry_failed_step(run_ref: MissionRunRef, agent_id: str, *, expected_step_id: str, expected_result: str) -> AdvancePlan:
+    """Plan a retry through the engine's original-run evidence checks."""
+    return _engine.plan_retry_failed_step(
+        run_ref, agent_id, expected_step_id=expected_step_id, expected_result=cast('Literal["failed", "blocked"]', expected_result)
+    )
 
 
 def commit_advance(

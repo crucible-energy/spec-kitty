@@ -447,10 +447,11 @@ class _LockCore:
     ``time.sleep``) differs, in :func:`_async_acquire`/:func:`_sync_acquire`.
     """
 
-    __slots__ = ("lock_path", "fd", "record", "private")
+    __slots__ = ("lock_path", "fd", "record", "private", "single_link_regular")
 
-    def __init__(self, lock_path: Path, *, private: bool = False) -> None:
+    def __init__(self, lock_path: Path, *, private: bool = False, single_link_regular: bool = False) -> None:
         self.private = private
+        self.single_link_regular = single_link_regular
         self.lock_path = lock_path
         self.fd: int | None = None
         self.record: LockRecord | None = None
@@ -468,18 +469,22 @@ class _LockCore:
         # ``O_EXCL`` -- lock files are re-opened by every later acquirer
         # (release truncates, never unlinks, per G3); ``O_EXCL`` would make
         # every re-acquisition after the first fail (C-003).
-        if self.private:
+        if self.private or self.single_link_regular:
             flags |= getattr(os, "O_NONBLOCK", 0)
         fd = open_no_follow(self.lock_path, flags, 0o600)
         try:
-            self.validate_private_fd(fd)
+            self.validate_fd(fd)
         except BaseException:
             os.close(fd)
             raise
         return fd
 
-    def validate_private_fd(self, fd: int) -> None:
-        """Opt-in lifecycle lock admission, before any record write/truncation."""
+    def validate_fd(self, fd: int) -> None:
+        """Validate requested descriptor constraints before writing lock metadata."""
+        if self.single_link_regular:
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                raise OSError("Lock must be a single-link regular file")
         if self.private:
             info = os.fstat(fd)
             if is_windows() or not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o600:
@@ -501,7 +506,7 @@ class _LockCore:
         """Write a fresh :class:`LockRecord` to the just-locked ``fd`` and bind state."""
         record = _build_record()
         try:
-            self.validate_private_fd(fd)
+            self.validate_fd(fd)
             _atomic_write_under_lock(fd, _record_to_json(record).encode("utf-8"))
         except BaseException:
             # Roll back the OS lock so we never leave it held without content.
@@ -517,6 +522,8 @@ class _LockCore:
         if fd is None:
             return
         try:
+            if self.single_link_regular:
+                self.validate_fd(fd)
             # TRUNCATE rather than unlink so the on-disk inode survives and
             # concurrent acquirers serialise against our OS lock until
             # ``_os_unlock`` runs below (G3). Unlinking would let a
@@ -702,6 +709,11 @@ class SyncMachineFileLock:
     thread-local depth counter; only the outermost ``__exit__`` actually
     releases the OS lock and truncates the sidecar (status/locking.py's
     pre-migration contract, R-04).
+
+    ``single_link_regular=True`` refuses a non-regular or multiply linked
+    lock descriptor before writing its record, and checks again before
+    truncating it on release. It uses the same OS lock and sidecar; it cannot
+    prevent a noncooperating process from changing links between checks.
     """
 
     def __init__(
@@ -712,6 +724,7 @@ class SyncMachineFileLock:
         timeout_s: float | None = None,
         reentrant: bool = False,
         private: bool = False,
+        single_link_regular: bool = False,
     ) -> None:
         self.lock_path = lock_path
         self.blocking = blocking
@@ -719,7 +732,10 @@ class SyncMachineFileLock:
         self.reentrant = reentrant
         if private and reentrant:
             raise ValueError("Private lock admission requires a non-reentrant hold")
+        if single_link_regular and reentrant:
+            raise ValueError("Single-link lock admission requires a non-reentrant hold")
         self.private = private
+        self.single_link_regular = single_link_regular
         self._core: _LockCore | None = None
         self._key: str | None = None
 
@@ -728,7 +744,8 @@ class SyncMachineFileLock:
 
     def __enter__(self) -> LockRecord:
         if not self.reentrant:
-            core = _LockCore(self.lock_path, private=True) if self.private else _LockCore(self.lock_path)
+            options = {key: True for key, enabled in (("private", self.private), ("single_link_regular", self.single_link_regular)) if enabled}
+            core = _LockCore(self.lock_path, **options)
             record = _sync_acquire(core, blocking=self.blocking, timeout_s=self.timeout_s)
             self._core = core
             return record
@@ -740,7 +757,8 @@ class SyncMachineFileLock:
             existing.depth += 1
             return existing.record
 
-        core = _LockCore(self.lock_path, private=True) if self.private else _LockCore(self.lock_path)
+        options = {key: True for key, enabled in (("private", self.private), ("single_link_regular", self.single_link_regular)) if enabled}
+        core = _LockCore(self.lock_path, **options)
         record = _sync_acquire(core, blocking=self.blocking, timeout_s=self.timeout_s)
         _reentrancy_state.holdings[key] = _ReentrantHolding(core=core, record=record)
         return record
@@ -776,6 +794,7 @@ def machine_file_lock(
     timeout_s: float | None = None,
     reentrant: bool = False,
     private: bool = False,
+    single_link_regular: bool = False,
 ) -> SyncMachineFileLock:
     """Construct the canonical sync lock context manager (G6 test-double seam).
 
@@ -789,6 +808,5 @@ def machine_file_lock(
     ``review/verdict_commit_queue.py`` relies on today against the concrete
     ``filelock.FileLock`` type.
     """
-    if private:
-        return SyncMachineFileLock(lock_path, blocking=blocking, timeout_s=timeout_s, reentrant=reentrant, private=True)
-    return SyncMachineFileLock(lock_path, blocking=blocking, timeout_s=timeout_s, reentrant=reentrant)
+    options = {key: True for key, enabled in (("private", private), ("single_link_regular", single_link_regular)) if enabled}
+    return SyncMachineFileLock(lock_path, blocking=blocking, timeout_s=timeout_s, reentrant=reentrant, **options)

@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -55,6 +56,7 @@ from runtime.next._internal_runtime.schema import (
     PromptStep,
     RACIRoleBinding,
     load_mission_template_file,
+    load_mission_template_content,
 )
 from runtime.next._internal_runtime.significance import (
     SignificanceEvaluatedPayload,
@@ -68,9 +70,7 @@ from runtime.next._internal_runtime.significance import (
 ResultType = Literal["success", "failed", "blocked"]
 
 
-def _find_step_by_id(
-    template: MissionTemplate, step_id: str
-) -> PromptStep | AuditStep | None:
+def _find_step_by_id(template: MissionTemplate, step_id: str) -> PromptStep | AuditStep | None:
     """Look up a step by ID across both steps and audit_steps."""
     prompt_step: PromptStep
     for prompt_step in template.steps:
@@ -91,7 +91,7 @@ class MissionRunRef(BaseModel):
     mission_key: str
     # NEW — back-references to the concrete Mission (FR-026/FR-027)
     # Optional for backward-compat: existing runs without these fields load with None defaults.
-    mission_id: str | None = None    # canonical ULID from meta.json
+    mission_id: str | None = None  # canonical ULID from meta.json
     mission_slug: str | None = None  # human-readable slug
 
 
@@ -150,9 +150,7 @@ def _freeze_template(run_dir: Path, template: MissionTemplate, template_path: st
     if source_path.exists() and source_path.is_file():
         yaml_bytes = source_path.read_bytes()
     else:
-        yaml_bytes = yaml.dump(
-            template.model_dump(), default_flow_style=False, sort_keys=True
-        ).encode("utf-8")
+        yaml_bytes = yaml.dump(template.model_dump(), default_flow_style=False, sort_keys=True).encode("utf-8")
 
     frozen_path = run_dir / "mission_template_frozen.yaml"
     frozen_path.write_bytes(yaml_bytes)
@@ -201,8 +199,8 @@ def start_mission_run(
     emitter: RuntimeEventEmitter | None = None,
     template_override: MissionTemplate | None = None,
     template_path_override: str | None = None,
-    mission_slug: str | None = None,   # NEW — FR-028/FR-029: back-ref to concrete mission
-    mission_id: str | None = None,     # NEW — FR-028/FR-029: canonical ULID from meta.json
+    mission_slug: str | None = None,  # NEW — FR-028/FR-029: back-ref to concrete mission
+    mission_id: str | None = None,  # NEW — FR-028/FR-029: canonical ULID from meta.json
 ) -> MissionRunRef:
     """Start and persist a new mission run with template freezing."""
     emitter = emitter or NullEmitter()
@@ -235,9 +233,7 @@ def start_mission_run(
         mission_slug=mission_slug,
     )
     _write_snapshot(run_dir, snapshot)
-    actor = RuntimeActorIdentity(
-        actor_id="system", actor_type="service", provider=None, model=None, tool=None
-    )
+    actor = RuntimeActorIdentity(actor_id="system", actor_type="service", provider=None, model=None, tool=None)
     payload = MissionRunStartedPayload(run_id=run_id, mission_type=template.mission.key, actor=actor)
     _append_event(run_dir, MISSION_RUN_STARTED, payload.model_dump(mode="json"))
     emitter.emit_mission_run_started(payload)
@@ -272,6 +268,8 @@ class AdvancePlan(BaseModel):
     result: ResultType
     completed_step_id: str | None
     significance: SignificanceEvaluatedPayload | None = None
+    retry_journal_sha256: str | None = None
+    retry_template_sha256: str | None = None
 
 
 def apply_result(snapshot: MissionRunSnapshot, result: ResultType) -> tuple[MissionRunSnapshot, str | None]:
@@ -440,9 +438,7 @@ def plan_advance(
 
     significance: SignificanceEvaluatedPayload | None = None
     if decision.kind == "decision_required" and decision.decision_id and decision.decision_id.startswith("audit:"):
-        decision, snapshot, significance = _evaluate_audit_significance(
-            decision, snapshot, template, policy, agent_id, actor_context or {}, live_template_path
-        )
+        decision, snapshot, significance = _evaluate_audit_significance(decision, snapshot, template, policy, agent_id, actor_context or {}, live_template_path)
     if decision.kind == "step" and decision.step_id:
         snapshot = _record_step_raci(snapshot, template, decision.step_id, policy, agent_id)
 
@@ -453,6 +449,122 @@ def plan_advance(
         result=result,
         completed_step_id=completed_step_id,
         significance=significance,
+    )
+
+
+def _retry_file(path: Path, limit: int) -> bytes:
+    """Read one bounded, stable regular file without following a link."""
+    from kernel.no_follow import NoFollowPathError, open_no_follow
+
+    try:
+        fd = open_no_follow(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
+    except NoFollowPathError as exc:
+        raise MissionRuntimeError("Retry refuses linked run inputs") from exc
+    with os.fdopen(fd, "rb") as handle:
+        before = os.fstat(handle.fileno())
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_size > limit:
+            raise MissionRuntimeError("Retry requires a bounded regular single-link file")
+        data = handle.read(limit + 1)
+        after = os.fstat(handle.fileno())
+    if len(data) != before.st_size or (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mtime_ns,
+    ):
+        raise MissionRuntimeError("Retry input changed during inspection")
+    return data
+
+
+def _retry_journal(run_dir: Path) -> tuple[list[dict[str, Any]], str]:
+    """Read bounded, intact history without following a final-component link."""
+    data = _retry_file(run_dir / "run.events.jsonl", 16 * 1024 * 1024)
+    if not data.endswith(b"\n"):
+        raise MissionRuntimeError("Retry journal ends in an incomplete record")
+
+    def unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Duplicate journal field")
+            result[key] = value
+        return result
+
+    try:
+        events = [json.loads(line, object_pairs_hook=unique) for line in data.splitlines()]
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise MissionRuntimeError("Retry requires an intact run journal") from exc
+    if any(not isinstance(event, dict) for event in events):
+        raise MissionRuntimeError("Retry requires structured run events")
+    return events, hashlib.sha256(data).hexdigest()  # noqa: TID251 - run journal integrity
+
+
+def plan_retry_failed_step(
+    run_ref: MissionRunRef,
+    agent_id: str,
+    *,
+    expected_step_id: str,
+    expected_result: Literal["failed", "blocked"],
+) -> AdvancePlan:
+    """Plan an explicit reissue of the exact unsuccessful original step.
+
+    Planning is read-only. A failed attempt is never made successful; the
+    canonical issued event records the explicit retry when the plan commits.
+    """
+    if (
+        not isinstance(agent_id, str)
+        or not agent_id
+        or not isinstance(expected_step_id, str)
+        or not expected_step_id
+        or expected_result not in ("failed", "blocked")
+    ):
+        raise MissionRuntimeError("Retry requires an agent and exact failed step and result")
+    run_dir = Path(run_ref.run_dir)
+    source = MissionRunSnapshot.model_validate_json(_retry_file(run_dir / "state.json", 4 * 1024 * 1024))
+    reason = (
+        f"Previous step '{expected_step_id}' failed; manual intervention required."
+        if expected_result == "failed"
+        else f"Previous step '{expected_step_id}' reported blocked state."
+    )
+    if source.run_id != run_ref.run_id or source.blocked_reason != reason or source.issued_step_id is not None:
+        raise MissionRuntimeError("Retry does not match the current failed run state")
+    if expected_step_id in source.completed_steps or source.pending_decisions:
+        raise MissionRuntimeError("Retry cannot bypass a completed step or a pending decision")
+    events, journal_sha256 = _retry_journal(run_dir)
+    if len(events) < 2:
+        raise MissionRuntimeError("Retry lacks the original issued and unsuccessful events")
+    issued, failed = events[-2:]
+    issued_payload, failed_payload = issued.get("payload"), failed.get("payload")
+    if (
+        issued.get("event_type") != NEXT_STEP_ISSUED
+        or failed.get("event_type") != NEXT_STEP_AUTO_COMPLETED
+        or not isinstance(issued_payload, dict)
+        or not isinstance(failed_payload, dict)
+        or any(payload.get("run_id") != source.run_id or payload.get("step_id") != expected_step_id for payload in (issued_payload, failed_payload))
+        or failed_payload.get("result") != expected_result
+    ):
+        raise MissionRuntimeError("Retry journal does not end with the exact unsuccessful step")
+    frozen = run_dir / "mission_template_frozen.yaml"
+    template_bytes = _retry_file(frozen, 4 * 1024 * 1024)
+    template_sha256 = hashlib.sha256(template_bytes).hexdigest()  # noqa: TID251 - frozen template integrity
+    if template_sha256 != source.template_hash:
+        raise MissionRuntimeError("Retry requires the original frozen mission template")
+    template = load_mission_template_content(template_bytes.decode("utf-8"), frozen)
+    if not isinstance(_find_step_by_id(template, expected_step_id), PromptStep):
+        raise MissionRuntimeError("Retry requires an unchanged prompt step")
+    cleared = source.model_copy(update={"blocked_reason": None})
+    decision = plan_next(cleared, template, source.policy_snapshot, actor_context={"agent_id": agent_id}, live_template_path=existing_template_path(source))
+    if decision.kind != "step" or decision.step_id != expected_step_id:
+        raise MissionRuntimeError("Retry cannot bypass the mission planner or its current guards")
+    cleared = _record_step_raci(cleared, template, expected_step_id, source.policy_snapshot, agent_id)
+    return AdvancePlan(
+        source=source,
+        snapshot=cleared,
+        decision=decision,
+        result="success",
+        completed_step_id=None,
+        retry_journal_sha256=journal_sha256,
+        retry_template_sha256=template_sha256,
     )
 
 
@@ -473,9 +585,12 @@ def _record_significance(run_dir: Path, payload: SignificanceEvaluatedPayload, e
     emitter.emit_significance_evaluated(payload)
 
 
-def _record_step_issued(run_dir: Path, run_id: str, step_id: str, agent_id: str, emitter: RuntimeEventEmitter) -> None:
+def _record_step_issued(run_dir: Path, run_id: str, step_id: str, agent_id: str, emitter: RuntimeEventEmitter, *, retry: bool = False) -> None:
     """Persist + emit ``NextStepIssued`` for the step the plan issues."""
-    payload = NextStepIssuedPayload(run_id=run_id, step_id=step_id, agent_id=agent_id, actor=_actor(agent_id))
+    actor = _actor(agent_id)
+    if retry:
+        actor = actor.model_copy(update={"tool": "spec-kitty next retry-failed-step"})
+    payload = NextStepIssuedPayload(run_id=run_id, step_id=step_id, agent_id=agent_id, actor=actor)
     _append_event(run_dir, NEXT_STEP_ISSUED, payload.model_dump(mode="json"))
     emitter.emit_next_step_issued(payload)
 
@@ -558,7 +673,7 @@ def _commit_advance(
     pending_decisions = dict(snapshot.pending_decisions)
     if decision.kind == "step" and decision.step_id:
         issued_step_id = decision.step_id
-        _record_step_issued(run_dir, snapshot.run_id, decision.step_id, agent_id, emitter)
+        _record_step_issued(run_dir, snapshot.run_id, decision.step_id, agent_id, emitter, retry=plan.retry_journal_sha256 is not None)
     elif decision.kind == "decision_required" and decision.decision_id:
         pending_decisions = _request_decision_input(run_dir, snapshot.run_id, decision, agent_id, pending_decisions, emitter)
     elif decision.kind == "terminal" and plan.completed_step_id is not None:
@@ -588,12 +703,18 @@ def next_step(
     (:func:`_commit_advance`) -- the two halves share one plan.
     """
     plan = plan_advance(run_ref, agent_id, result, policy_snapshot=policy_snapshot, actor_context=actor_context)
-    _commit_advance(run_ref, plan, agent_id, emitter or NullEmitter())
-    return plan.decision
+    return commit_advance(run_ref, plan, agent_id, emitter)
 
 
 class StaleAdvancePlan(MissionRuntimeError):
     """The run's persisted state changed after the plan was computed."""
+
+
+def _run_write_lock(run_ref: MissionRunRef) -> Any:
+    """Share the published runtime's per-run cursor lock across versions."""
+    from runtime.next.run_lock import run_cursor_lock
+
+    return run_cursor_lock(Path(run_ref.run_dir))
 
 
 def commit_advance(
@@ -612,8 +733,8 @@ def commit_advance(
     :class:`StaleAdvancePlan`, writing nothing, when the run's persisted state
     is no longer the state it was planned from: committing it would overwrite
     newer progress. The check detects a run that moved between plan and
-    commit; it does not serialise two writers committing at the same moment
-    (#5854).
+    commit. Cooperating engine writers serialize their commits per run;
+    callers using an older runtime still require an exclusive owner boundary.
 
     ``before_run_completed`` is an abort-only guard called on the transition
     into terminal, after the stale-plan check and before anything is appended
@@ -621,9 +742,31 @@ def commit_advance(
     event, no emission, no ``state.json``), so an abort leaves the run exactly
     as it was.
     """
-    if _read_snapshot(Path(run_ref.run_dir)) != plan.source:
-        raise StaleAdvancePlan(f"Run '{plan.source.run_id}' changed after the advance was planned; plan again.")
-    _commit_advance(run_ref, plan, agent_id, emitter or NullEmitter(), before_run_completed=before_run_completed)
+    with _run_write_lock(run_ref):
+        run_dir = Path(run_ref.run_dir)
+        current = (
+            MissionRunSnapshot.model_validate_json(_retry_file(run_dir / "state.json", 4 * 1024 * 1024))
+            if plan.retry_journal_sha256 is not None
+            else _read_snapshot(run_dir)
+        )
+        if current != plan.source:
+            raise StaleAdvancePlan(f"Run '{plan.source.run_id}' changed after the advance was planned; plan again.")
+        if (plan.retry_journal_sha256 is None) != (plan.retry_template_sha256 is None):
+            raise MissionRuntimeError("Retry evidence must bind both journal and frozen template")
+        if plan.source.blocked_reason and plan.retry_journal_sha256 is None and (not plan.snapshot.blocked_reason or plan.decision.kind == "step"):
+            raise MissionRuntimeError("A blocked run can issue work only through a verified retry plan")
+        if plan.retry_journal_sha256 is not None:
+            events, journal_sha256 = _retry_journal(run_dir)
+            template_sha256 = hashlib.sha256(_retry_file(run_dir / "mission_template_frozen.yaml", 4 * 1024 * 1024)).hexdigest()  # noqa: TID251 - frozen template integrity
+            if journal_sha256 != plan.retry_journal_sha256 or template_sha256 != plan.retry_template_sha256:
+                raise StaleAdvancePlan("Run history or frozen template changed after retry planning")
+            payload = events[-1].get("payload") if events else None
+            if not isinstance(payload, dict):
+                raise MissionRuntimeError("Retry requires the original unsuccessful event")
+            verified = plan_retry_failed_step(run_ref, agent_id, expected_step_id=payload.get("step_id"), expected_result=payload.get("result"))
+            if verified != plan:
+                raise StaleAdvancePlan("Retry plan no longer matches the verified run history")
+        _commit_advance(run_ref, plan, agent_id, emitter or NullEmitter(), before_run_completed=before_run_completed)
     return plan.decision
 
 
@@ -801,6 +944,18 @@ def provide_decision_answer(
     actor: ActorIdentity,
     emitter: RuntimeEventEmitter | None = None,
 ) -> None:
+    """Serialize a decision write with ordinary advances and retry commits."""
+    with _run_write_lock(run_ref):
+        _provide_decision_answer(run_ref, decision_id, answer, actor, emitter)
+
+
+def _provide_decision_answer(
+    run_ref: MissionRunRef,
+    decision_id: str,
+    answer: str,
+    actor: ActorIdentity,
+    emitter: RuntimeEventEmitter | None = None,
+) -> None:
     """Answer a pending decision.
 
     For input-keyed decisions (input:X), writes into inputs.
@@ -948,11 +1103,7 @@ def validate_binding(value: Any, context_type: ContextType) -> tuple[bool, str |
     return (True, None)
 
 
-def _validate_rule(
-    value: Any,
-    rule_name: str,
-    rule_value: Any
-) -> tuple[bool, str | None]:
+def _validate_rule(value: Any, rule_name: str, rule_value: Any) -> tuple[bool, str | None]:
     """Validate a single rule.
 
     Args:
@@ -1015,5 +1166,4 @@ def _validate_rule(
         return (True, None)
 
     else:
-        return (False, f"Unknown validation rule '{rule_name}': "
-                f"supported rules are artifact_exists, path_exists, slug_format")
+        return (False, f"Unknown validation rule '{rule_name}': supported rules are artifact_exists, path_exists, slug_format")

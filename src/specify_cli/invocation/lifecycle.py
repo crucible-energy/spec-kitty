@@ -287,6 +287,25 @@ def make_canonical_action_id(mission_step: str, action_name: str) -> str:
     return f"{step}::{action}"
 
 
+def build_started_record(
+    *,
+    canonical_action_id: str,
+    agent: str,
+    mission_id: str,
+    wp_id: str | None = None,
+    at: datetime | None = None,
+) -> ProfileInvocationRecord:
+    """Build the canonical started record without choosing a storage path."""
+    return ProfileInvocationRecord(
+        canonical_action_id=canonical_action_id,
+        phase="started",
+        at=at or now_utc(),
+        agent=agent,
+        mission_id=mission_id,
+        wp_id=wp_id,
+    )
+
+
 def write_started(
     repo_root: Path,
     *,
@@ -296,17 +315,9 @@ def write_started(
     wp_id: str | None = None,
     at: datetime | None = None,
 ) -> ProfileInvocationRecord:
-    """Append a ``started`` lifecycle record to the local store.
-
-    Returns the record written (caller may want to log/echo it).
-    """
-    record = ProfileInvocationRecord(
-        canonical_action_id=canonical_action_id,
-        phase="started",
-        at=at or now_utc(),
-        agent=agent,
-        mission_id=mission_id,
-        wp_id=wp_id,
+    """Append a ``started`` lifecycle record to the local store."""
+    record = build_started_record(
+        canonical_action_id=canonical_action_id, agent=agent, mission_id=mission_id, wp_id=wp_id, at=at
     )
     append_lifecycle_record(repo_root, record)
     return record

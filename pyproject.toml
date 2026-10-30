@@ -420,7 +420,6 @@ exclude = [
     "src/mission_runtime/read_dir_degrade.py",
     "src/runtime/next/__init__.py",
     "src/runtime/next/_internal_runtime/discovery.py",
-    "src/runtime/next/_internal_runtime/engine.py",
     "src/runtime/next/_internal_runtime/events.py",
     "src/runtime/next/_internal_runtime/planner.py",
     "src/runtime/next/_internal_runtime/raci.py",

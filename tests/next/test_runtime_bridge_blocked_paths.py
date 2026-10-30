@@ -35,6 +35,109 @@ from runtime.next import runtime_bridge_decision_mapping as decision_mapping
 pytestmark = pytest.mark.fast
 
 
+@pytest.mark.parametrize("failure", ["stale", "board_changed", "prompt_blocked", "index_changed", "none"])
+def test_retry_refuses_without_falling_back_or_issuing_wrong_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    from runtime.next import runtime_bridge as bridge
+
+    ctx = SimpleNamespace(
+        mission_type="software-dev", now="2026-10-30T00:00:00Z", progress=None, origin={},
+        run_ref=SimpleNamespace(run_id="original", run_dir=str(tmp_path / "run")), feature_dir=tmp_path, emitter_for_engine=object(),
+    )
+    plan = SimpleNamespace(decision=SimpleNamespace(kind="step", step_id="implement"))
+    seen: list[str] = []
+    monkeypatch.setattr(bridge._mapping, "_merged_mission_short_circuit", lambda **_kwargs: None)
+    monkeypatch.setattr(bridge, "_dn_bootstrap", lambda *_args, **kwargs: (ctx, None) if kwargs["required_run_id"] == "original" else (None, None))
+    monkeypatch.setattr(bridge._engine_adapter, "plan_retry_failed_step", lambda *_args, **_kwargs: plan)
+    monkeypatch.setattr(
+        bridge._io_seam, "get_or_start_run", lambda *_args, **_kwargs: SimpleNamespace(
+            run_dir=str(tmp_path / ("other" if failure == "index_changed" else "run"))
+        )
+    )
+    board_step = "review" if failure == "board_changed" else "implement"
+    monkeypatch.setattr(bridge, "_resolve_planned_wp_workspace", lambda *_args, **_kwargs: ("implement", "WP01", str(tmp_path), None, board_step))
+    monkeypatch.setattr(
+        bridge._mapping, "_map_runtime_decision",
+        lambda *_args, **_kwargs: SimpleNamespace(kind="blocked" if failure == "prompt_blocked" else "step"),
+    )
+
+    def commit(*_args, **_kwargs):
+        seen.append("commit")
+        if failure == "stale":
+            raise bridge._engine_adapter.StaleAdvancePlan("run changed")
+
+    monkeypatch.setattr(bridge._engine_adapter, "commit_advance", commit)
+    monkeypatch.setattr(bridge, "runtime_next_step", lambda *_args, **_kwargs: pytest.fail("retry must never fall back to success"))
+    decision = bridge.retry_failed_step_via_runtime(
+        "agent", "mission", tmp_path, run_id="original", step_id="implement", result="failed"
+    )
+    assert decision.kind == (DecisionKind.step if failure == "none" else DecisionKind.blocked)
+    assert seen == (["commit"] if failure in ("stale", "none") else [])
+
+
+def test_cli_retry_requires_complete_identity_before_resolving_a_checkout(monkeypatch: pytest.MonkeyPatch) -> None:
+    import typer
+    from specify_cli.cli.commands import next_cmd
+
+    monkeypatch.setattr(next_cmd, "locate_project_root", lambda: pytest.fail("incomplete retry must not resolve a checkout"))
+    with pytest.raises(typer.Exit):
+        next_cmd.next_step(agent="agent", mission="mission", retry_step="implement")
+
+
+def test_retry_bootstrap_never_starts_when_required_run_was_not_loaded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from runtime.next import runtime_bridge as bridge
+
+    monkeypatch.setattr(bridge._io_seam, "get_or_start_run", lambda *_args, **_kwargs: pytest.fail("must not start a replacement run"))
+    with pytest.raises(ValueError, match="original run was not loaded"):
+        bridge._dn_load_run_ref("mission", tmp_path, "software-dev", object(), owned=None, required_ref=None, required_run_id="original")
+
+
+def test_cli_retry_dispatches_exact_identity_without_pairing_a_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from specify_cli.cli.commands import next_cmd
+
+    calls: list[dict[str, object]] = []
+    result = SimpleNamespace(kind="step")
+    monkeypatch.setattr(next_cmd, "locate_project_root", lambda: tmp_path)
+    monkeypatch.setattr(next_cmd, "_resolve_next_owned", lambda *_args: None)
+    monkeypatch.setattr(next_cmd, "_resolve_slug_or_exit", lambda *_args, **_kwargs: "mission")
+    monkeypatch.setattr(next_cmd, "_maybe_emit_runtime_notice", lambda *_args: None)
+    monkeypatch.setattr(next_cmd, "_run_charter_preflight_for_next", lambda *_args, **kwargs: calls.append(kwargs))
+    monkeypatch.setattr(next_cmd, "_runtime_bridge_module", lambda: SimpleNamespace(
+        retry_failed_step_via_runtime=lambda *_args, **kwargs: calls.append(kwargs) or result
+    ))
+    monkeypatch.setattr(next_cmd, "_pair_previous_lifecycle_record", lambda *_args, **_kwargs: pytest.fail("retry cannot pair success"))
+    monkeypatch.setattr(next_cmd, "_write_issuance_lifecycle_record", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(next_cmd, "_print_decision", lambda *_args, **_kwargs: None)
+    next_cmd.next_step(agent="agent", mission="mission", retry_run_id="original", retry_step="implement", retry_result="failed")
+    assert calls[0]["advancing"] is True
+    assert calls[1] == {"run_id": "original", "step_id": "implement", "result": "failed", "owned": None}
+
+
+def test_refused_owned_retry_never_commits_unrelated_mission_changes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import typer
+    from specify_cli.cli.commands import _owned_retry_lifecycle
+    from specify_cli.cli.commands import next_cmd
+
+    owned = SimpleNamespace(owned_root=tmp_path, repository_root=tmp_path)
+    monkeypatch.setattr(next_cmd, "locate_project_root", lambda: tmp_path)
+    monkeypatch.setattr(next_cmd, "_resolve_next_owned", lambda *_args: owned)
+    monkeypatch.setattr(next_cmd, "_resolve_slug_or_exit", lambda *_args, **_kwargs: "mission")
+    monkeypatch.setattr(next_cmd, "_maybe_emit_runtime_notice", lambda *_args: None)
+    monkeypatch.setattr(next_cmd, "_run_charter_preflight_for_next", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(_owned_retry_lifecycle, "capture_owned_retry_lifecycle", lambda *_args: SimpleNamespace(close=lambda: None))
+    monkeypatch.setattr(next_cmd, "_runtime_bridge_module", lambda: SimpleNamespace(
+        retry_failed_step_via_runtime=lambda *_args, **_kwargs: SimpleNamespace(kind="blocked")
+    ))
+    monkeypatch.setattr(next_cmd, "_write_issuance_lifecycle_record", lambda *_args, **_kwargs: pytest.fail("refusal has no issuance"))
+    monkeypatch.setattr(_owned_retry_lifecycle, "commit_owned_retry_lifecycle", lambda *_args, **_kwargs: pytest.fail("refusal must not commit"))
+    monkeypatch.setattr(next_cmd, "_print_decision", lambda *_args, **_kwargs: None)
+    with pytest.raises(typer.Exit):
+        next_cmd.next_step(agent="agent", mission="mission", retry_run_id="original", retry_step="implement", retry_result="failed")
+
+
 # ---------------------------------------------------------------------------
 # 2156 — _build_wp_iteration_decision blocked when prompt unresolvable
 # ---------------------------------------------------------------------------
