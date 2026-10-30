@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, NoReturn
 
 if TYPE_CHECKING:
     from specify_cli.lanes.models import ExecutionLane, LanesManifest
+    from specify_cli.workspace_lifecycle.original_run import _OriginalLaneAllocation
 
 import typer
 
@@ -240,7 +241,15 @@ def _ensure_repo_root_checkout_or_fail(cmd: str, main_repo_root: Path, mission: 
         _fail(cmd, "LANE_ALLOCATION_FAILED", str(exc), {**_common._mission_identity_payload(mission_dir), "wp_id": wp, "reason": str(exc)})
 
 
-def _resolve_start_workspace(cmd: str, main_repo_root: Path, mission: str, mission_dir: Path, wp: str) -> _StartWorkspace:
+def _resolve_start_workspace(
+    cmd: str,
+    main_repo_root: Path,
+    mission: str,
+    mission_dir: Path,
+    wp: str,
+    *,
+    _original_creation: _OriginalLaneAllocation | None = None,
+) -> _StartWorkspace:
     """Resolve (allocating if needed) the workspace for ``wp``.
 
     When the mission has a lanes manifest and ``wp`` is assigned to a lane, this
@@ -261,12 +270,20 @@ def _resolve_start_workspace(cmd: str, main_repo_root: Path, mission: str, missi
     """
     assignment = _lane_assignment_or_legacy(main_repo_root, mission, wp)
     if isinstance(assignment, _StartWorkspace):
+        if _original_creation is not None:
+            from specify_cli.workspace_lifecycle.state import StateError
+
+            raise StateError("Legacy workspaces cannot acquire original worktree custody")
         return assignment
     manifest, lane = assignment
 
     from specify_cli.lanes.compute import is_repo_root_lane
 
     if is_repo_root_lane(lane):
+        if _original_creation is not None:
+            from specify_cli.workspace_lifecycle.state import StateError
+
+            raise StateError("Repository-root lanes cannot acquire original worktree custody")
         # Repo-root lane: the WP executes directly in the write checkout,
         # never a ``.worktrees/…`` path — ``allocate_lane_worktree`` /
         # ``predict_lane_worktree`` refuse the planning lane id (#5100,
@@ -295,11 +312,13 @@ def _resolve_start_workspace(cmd: str, main_repo_root: Path, mission: str, missi
     )
 
     try:
+        ownership = {} if _original_creation is None else {"_original_creation": _original_creation}
         worktree_path, lane_branch = allocate_lane_worktree(
             repo_root=main_repo_root,
             mission_slug=mission,
             wp_id=wp,
             lanes_manifest=manifest,
+            **ownership,
         )
     except (
         LaneNotFoundError,

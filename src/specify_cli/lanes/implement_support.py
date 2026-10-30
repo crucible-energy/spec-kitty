@@ -11,6 +11,7 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import TYPE_CHECKING
 from mission_runtime import OwnedCheckout
 
 from kernel.clock import now_utc_iso
@@ -36,6 +37,9 @@ from specify_cli.lanes.worktree_allocator import (
 from specify_cli.mission_metadata import set_vcs_lock
 from specify_cli.workspace.context import ResolvedWorkspace
 from specify_cli.workspace.context import WorkspaceContext
+
+if TYPE_CHECKING:
+    from specify_cli.workspace_lifecycle.original_run import _OriginalLaneAllocation
 
 
 def git_stdout(repo_root: Path, args: list[str]) -> str:
@@ -372,6 +376,8 @@ def create_lane_workspace(
     vcs_backend_value: str,
     base: str | None = None,
     occupancy_verified: bool = False,
+    *,
+    _original_creation: _OriginalLaneAllocation | None = None,
 ) -> LaneWorkspaceResult:
     """Create or reuse the execution workspace for the given WP.
 
@@ -400,6 +406,10 @@ def create_lane_workspace(
     from specify_cli.lanes.compute import is_repo_root_lane
 
     if is_repo_root_lane(resolved_workspace):
+        if _original_creation is not None:
+            from specify_cli.workspace_lifecycle.state import StateError
+
+            raise StateError("Repository-root lanes cannot acquire original worktree custody")
         # Repo-root lane: the WP executes directly in the write checkout
         # (``repo_root``), with no worktree of its own. Keyed on the LANE,
         # not the WP kind (T009): WP05 routes single_branch code WPs through
@@ -439,12 +449,14 @@ def create_lane_workspace(
     predicted_path, predicted_branch = predict_lane_worktree(repo_root, mission_slug, lane_id)
     is_reuse = predicted_path.exists() or branch_exists(repo_root, predicted_branch)
 
+    ownership = {} if _original_creation is None else {"_original_creation": _original_creation}
     workspace_path, branch_name = allocate_lane_worktree(
         repo_root=repo_root,
         mission_slug=mission_slug,
         wp_id=wp_id,
         lanes_manifest=lanes_manifest,
         base=base,
+        **ownership,
     )
 
     # Install pre-commit ownership guard.

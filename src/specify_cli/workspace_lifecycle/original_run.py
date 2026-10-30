@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import subprocess
 import threading
 import time
@@ -102,6 +103,43 @@ class OriginalWorkspaceRun:
     """Retain exactly the owner created here, never a reconstructed owner."""
 
     __slots__ = ("_creator", "_generation", "_pid", "_phase", "_lock", "_path", "_branch", "_job")
+
+    @classmethod
+    def prepare_lane_allocation(
+        cls,
+        job: _AdmittedForegroundJob,
+        store: StateStore,
+        *,
+        repo_root: Path,
+        path: Path,
+        branch: str,
+        repository: str,
+        repository_id: int,
+        delivery: GitHubDelivery,
+        on_complete: Callable[[Completion], None],
+        expected_base_commit: str,
+        accountable_owner: str,
+        on_admitted: Callable[[dict[str, object]], None],
+    ) -> _OriginalLaneAllocation:
+        """Retain a live one-shot creator for a future fresh lane allocation."""
+        if cls is not OriginalWorkspaceRun or type(job) is not _AdmittedForegroundJob:
+            raise TypeError("Original admitted foreground job required")
+        job.remaining()
+        return _OriginalLaneAllocation(
+            _FACTORY_KEY,
+            job,
+            store,
+            repo_root=repo_root,
+            path=path,
+            branch=branch,
+            repository=repository,
+            repository_id=repository_id,
+            delivery=delivery,
+            on_complete=on_complete,
+            expected_base_commit=expected_base_commit,
+            accountable_owner=accountable_owner,
+            on_admitted=on_admitted,
+        )
 
     def __init__(self, *, _factory_key: object) -> None:
         if _factory_key is not _FACTORY_KEY:
@@ -328,3 +366,92 @@ class OriginalWorkspaceRun:
 
     def __reduce_ex__(self, protocol: SupportsIndex) -> NoReturn:
         raise TypeError("Original creator authority cannot be serialized")
+
+
+@final
+class _OriginalLaneAllocation:
+    """Private, process-bound context; paths and receipts alone cannot recreate it."""
+
+    __slots__ = ("_job", "_store", "_repo", "_path", "_branch", "_base", "_args", "_pid", "_run")
+
+    def __init__(
+        self,
+        key: object,
+        job: _AdmittedForegroundJob,
+        store: StateStore,
+        *,
+        repo_root: Path,
+        path: Path,
+        branch: str,
+        repository: str,
+        repository_id: int,
+        delivery: GitHubDelivery,
+        on_complete: Callable[[Completion], None],
+        expected_base_commit: str,
+        accountable_owner: str,
+        on_admitted: Callable[[dict[str, object]], None],
+    ) -> None:
+        if key is not _FACTORY_KEY or type(job) is not _AdmittedForegroundJob:
+            raise TypeError("Original admitted foreground job required")
+        if not isinstance(expected_base_commit, str) or not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", expected_base_commit):
+            raise ValueError("Exact starting commit required")
+        if json.loads(job._admission)["policy"]["accountable_owner"] != accountable_owner:
+            raise StateError("Original accountable owner required")
+        self._job, self._store = job, store
+        self._repo, self._path, self._branch, self._base = repo_root.absolute(), path.absolute(), branch, expected_base_commit
+        self._args: tuple[str, int, GitHubDelivery, Callable[[Completion], None], str, Callable[[dict[str, object]], None]] = (
+            repository,
+            repository_id,
+            delivery,
+            on_complete,
+            accountable_owner,
+            on_admitted,
+        )
+        self._pid = os.getpid()
+        self._run: OriginalWorkspaceRun | None = None
+
+    def _verify_target(self, repo_root: Path, path: Path, branch: str) -> None:
+        if type(self) is not _OriginalLaneAllocation or self._pid != os.getpid():
+            raise StateError("Original lane-creation process required")
+        self._job.remaining()
+        if (repo_root.absolute(), path.absolute(), branch) != (self._repo, self._path, self._branch):
+            raise StateError("Original lane allocation target changed")
+        if self._job._run is not None:
+            raise StateError("Original lane allocation already attempted")
+
+    def _create(self, repo_root: Path, path: Path, branch: str, base_commit: str) -> None:
+        self._verify_target(repo_root, path, branch)
+        if base_commit != self._base:
+            raise StateError("Original lane allocation parent changed")
+        repository, repository_id, delivery, on_complete, accountable_owner, on_admitted = self._args
+        # create_for_job atomically reserves the one original job before any
+        # creator effect; a failed admission never makes that job reusable.
+        self._run = OriginalWorkspaceRun.create_for_job(
+            self._job,
+            self._store,
+            repo_root=self._repo,
+            path=self._path,
+            branch=self._branch,
+            repository=repository,
+            repository_id=repository_id,
+            delivery=delivery,
+            on_complete=on_complete,
+            expected_base_commit=self._base,
+            accountable_owner=accountable_owner,
+            on_admitted=on_admitted,
+        )
+
+    @property
+    def original_run(self) -> OriginalWorkspaceRun:
+        if type(self) is not _OriginalLaneAllocation or self._pid != os.getpid() or self._run is None or self._job._run is not self._run:
+            raise StateError("Original lane creator is not available")
+        return self._run
+
+    def __copy__(self) -> NoReturn:
+        raise TypeError("Original lane allocation cannot be copied")
+
+    def __deepcopy__(self, memo: dict[int, object]) -> NoReturn:
+        raise TypeError("Original lane allocation cannot be copied")
+
+    def __reduce_ex__(self, protocol: SupportsIndex) -> NoReturn:
+        raise TypeError("Original lane allocation cannot be serialized")

@@ -77,6 +77,22 @@ fresh half-second waits. Failure stops before bookkeeping and preserves the
 original error plus uncertainty when persistence or join cannot finish. The
 creating object stays unconfirmed and cannot release useful work.
 
+The ordinary lane allocator can now accept a private, process-bound creation
+context prepared from the original admitted foreground job. The context binds
+the expected repository, path, branch, starting commit and accountable owner.
+The allocator resolves its selected parent and requires that exact commit
+before the original creator registers custody and creates the worktree. The
+same context is carried through the implement and orchestrator workspace
+resolvers. Returned paths remain observations; they cannot reconstruct or
+transfer the creator. Copying, serialization, a second attempt, a different
+target, and adopting an existing or recovered lane are refused.
+
+When planning-commit reconciliation encounters a real conflict after an
+original creator has created the worktree, the allocator leaves that worktree
+and branch under the creator's existing custody. An interrupted admission
+retains its pending creator record rather than retrying with a new generation.
+These rules do not change the existing unmanaged allocation path.
+
 The native bridge samples its destination clock before the admission clock,
 conservatively converting both original horizons once before log setup. Existing
 pre-spawn/loop absolute deadline checks enforce that conservative horizon. The native
@@ -104,3 +120,13 @@ fixture or opt-in command is not organization adoption. The worker's independent
 default-branch delivery, review, recovery, runtime-use and retirement checks remain
 mandatory. Useful work is retained until those conditions and original release
 are proved.
+
+The new allocation context is a private integration seam, not a host launcher.
+The source fixtures exercise direct, implement and orchestrator allocation with
+a joined foreground producer; they do not show that an ordinary external agent
+host retains this context across its own lifetime. Existing allocator setup and
+reconciliation also include legacy operations outside the native foreground
+runner; their complete deadline and descendant behavior is not qualified by
+these fixtures. An expired job cannot grant creator release, and uncertain
+state remains retained. Installed creator integration, cancellation modes beyond
+the tested cooperative signal, and automatic post-delivery cleanup remain gates.

@@ -523,34 +523,69 @@ test "existing kernel optional original cleanup horizon tightens and retains leg
 // Exercise the real allocator with an original foreground creator. A path
 // returned by the allocator is an observation, never a reconstructed owner.
 const lane_creation_fixture =
-    \\import hashlib,json,os,pathlib,subprocess,sys,tempfile
+    \\import copy,hashlib,json,os,pathlib,pickle,subprocess,sys,tempfile
     \\sys.path.insert(0,str(pathlib.Path.cwd()/'src'))
     \\from specify_cli.workspace_lifecycle.original_run import OriginalWorkspaceRun
     \\from specify_cli.workspace_lifecycle.adapters import GitHubDelivery
-    \\from specify_cli.workspace_lifecycle.state import StateStore
+    \\from specify_cli.workspace_lifecycle.state import StateError,StateStore
     \\from specify_cli.lanes.models import ExecutionLane,LanesManifest
     \\from specify_cli.lanes.persistence import write_lanes_json
     \\from specify_cli.lanes.worktree_allocator import allocate_lane_worktree,predict_lane_worktree
+    \\mode=sys.argv[1]
     \\root=pathlib.Path(tempfile.mkdtemp(prefix='owned-allocator-')).resolve();repo=root/'repo';repo.mkdir();ledger=root/'ledger';ledger.mkdir(mode=0o700)
     \\def git(*args):return subprocess.check_output(['git','-C',str(repo),*args],stderr=subprocess.PIPE,text=True,timeout=5).strip()
     \\git('init','-q','-b','main');git('config','user.name','Owned fixture');git('config','user.email','fixture@example.invalid');git('config','commit.gpgsign','false');git('config','gc.auto','0');git('remote','add','origin','https://github.com/crucible-energy/fixture.git')
-    \\slug='fixture';feature=repo/'kitty-specs'/slug;feature.mkdir(parents=True);(feature/'meta.json').write_text(json.dumps({'mission_id':slug,'mission_slug':slug,'topology':'lanes','target_branch':'main'}))
+    \\slug='fixture';feature=repo/'kitty-specs'/slug;feature.mkdir(parents=True);(feature/'meta.json').write_text(json.dumps({'mission_id':slug,'mission_slug':slug,'topology':'lanes','target_branch':'main'}));(feature/'tasks').mkdir();wp=feature/'tasks/WP01.md';wp.write_text('---\nwork_package_id: WP01\ntitle: fixture\nsubtasks: []\n---\n\n# Fixture\n')
     \\manifest=LanesManifest(version=1,mission_slug=slug,mission_id=slug,mission_branch='kitty/mission-fixture',target_branch='main',lanes=[ExecutionLane(lane_id='lane-a',wp_ids=('WP01',),write_scope=('src/**',),predicted_surfaces=('core',),depends_on_lanes=(),parallel_group=0)],computed_at='2026-10-30T00:00:00Z',computed_from='fixture');write_lanes_json(feature,manifest)
     \\(repo/'seed').write_text('primary preserved\n');git('add','.');git('commit','-qm','seed');base=git('rev-parse','HEAD');path,branch=predict_lane_worktree(repo,slug,'lane-a');seen=[]
     \\native=pathlib.Path(os.environ['SPEC_KITTY_HOST_TEST_BACKEND']);digest=hashlib.sha256(native.read_bytes()).hexdigest()
     \\job=OriginalWorkspaceRun.admit_foreground_job(native_executor=native,native_sha256=digest,execution_timeout=30,settlement_timeout=2,accountable_owner='owned-allocator-fixture',purpose='bind ordinary allocation before effects',next_action='review retained fixture',review_event='after test')
     \\def admitted(receipt):seen.append(not path.exists() and receipt['source']['head']==base)
-    \\creation=OriginalWorkspaceRun.prepare_lane_allocation(job,StateStore.initialize(ledger),repo_root=repo,path=path,branch=branch,repository='crucible-energy/fixture',repository_id=7,delivery=GitHubDelivery(),on_complete=lambda hint:None,expected_base_commit=base,accountable_owner='owned-allocator-fixture',on_admitted=admitted)
-    \\actual,actual_branch=allocate_lane_worktree(repo,slug,'WP01',manifest,_original_creation=creation)
+    \\store=StateStore.initialize(ledger)
+    \\creation=OriginalWorkspaceRun.prepare_lane_allocation(job,store,repo_root=repo,path=path,branch=branch,repository='crucible-energy/fixture',repository_id=7,delivery=GitHubDelivery(),on_complete=lambda hint:None,expected_base_commit=base,accountable_owner='owned-allocator-fixture',on_admitted=admitted)
+    \\common=dict(repo_root=repo,path=path,branch=branch,repository='crucible-energy/fixture',repository_id=7,delivery=GitHubDelivery(),on_complete=lambda hint:None,expected_base_commit=base,accountable_owner='owned-allocator-fixture',on_admitted=admitted)
+    \\wrong_owner=dict(common,accountable_owner='other-owner')
+    \\try:OriginalWorkspaceRun.prepare_lane_allocation(job,store,**wrong_owner)
+    \\except StateError:owner_refused=not path.exists()
+    \\else:owner_refused=False
+    \\wrong_path=OriginalWorkspaceRun.prepare_lane_allocation(job,store,**dict(common,path=root/'other-path'))
+    \\try:allocate_lane_worktree(repo,slug,'WP01',manifest,_original_creation=wrong_path)
+    \\except StateError:path_refused=not path.exists() and not (root/'other-path').exists()
+    \\else:path_refused=False
+    \\wrong_base=OriginalWorkspaceRun.prepare_lane_allocation(job,store,**dict(common,expected_base_commit='0'*40))
+    \\try:allocate_lane_worktree(repo,slug,'WP01',manifest,_original_creation=wrong_base)
+    \\except StateError:base_refused=not path.exists() and not list(ledger.glob('creator-*.json'))
+    \\else:base_refused=False
+    \\refused=0
+    \\for operation in (copy.copy,copy.deepcopy,pickle.dumps):
+    \\ try:operation(creation)
+    \\ except TypeError:refused+=1
+    \\try:allocate_lane_worktree(repo,slug,'WP01',manifest,_original_creation=object())
+    \\except StateError:forged_refused=not path.exists() and not list(ledger.glob('creator-*.json'))
+    \\else:forged_refused=False
+    \\if mode=='direct':actual,actual_branch=allocate_lane_worktree(repo,slug,'WP01',manifest,_original_creation=creation)
+    \\elif mode=='implement':
+    \\ from specify_cli.lanes.implement_support import create_lane_workspace
+    \\ from specify_cli.workspace.context import ResolvedWorkspace
+    \\ resolved=ResolvedWorkspace(mission_slug=slug,wp_id='WP01',execution_mode='code_change',mode_source='explicit',resolution_kind='lane_workspace',workspace_name='fixture-lane-a',worktree_path=path,branch_name=branch,lane_id='lane-a',lane_wp_ids=['WP01'])
+    \\ outcome=create_lane_workspace(repo,slug,'WP01',wp,resolved,manifest,[],'git',_original_creation=creation);actual,actual_branch=outcome.workspace_path,outcome.branch_name
+    \\elif mode=='orchestrator':
+    \\ from specify_cli.orchestrator_api.wp_lifecycle import _resolve_start_workspace
+    \\ outcome=_resolve_start_workspace('start-implementation',repo,slug,feature,'WP01',_original_creation=creation);actual,actual_branch=pathlib.Path(outcome.workspace_path),outcome.lane_branch
+    \\else:raise ValueError('Unknown fixture route')
     \\run=creation.original_run
-    \\facts={'registered_before_creation':seen==[True],'same_original_scope':run.path==actual and run.branch=='refs/heads/'+actual_branch,'expected_parent':git('rev-parse',actual_branch)==base,'primary_unchanged':git('rev-parse','main')==base and (repo/'seed').read_text()=='primary preserved\n','retained_fixture':str(root)}
+    \\try:allocate_lane_worktree(repo,slug,'WP01',manifest,_original_creation=creation)
+    \\except StateError:reuse_refused=True
+    \\else:reuse_refused=False
+    \\run.run_foreground_job([sys.executable,'-B','-c',"from pathlib import Path; Path('owned-output').write_text('retained producer work')"],job)
+    \\facts={'registered_before_creation':seen==[True],'same_original_scope':run.path==actual and run.branch=='refs/heads/'+actual_branch,'expected_parent':git('rev-parse',actual_branch)==base,'primary_unchanged':git('rev-parse','main')==base and (repo/'seed').read_text()=='primary preserved\n','forged_refused':forged_refused,'reuse_refused':reuse_refused,'copies_refused':refused==3,'owner_refused':owner_refused,'path_refused':path_refused,'base_refused':base_refused,'original_producer_joined':(actual/'owned-output').read_text()=='retained producer work','retained_fixture':str(root)}
     \\print(json.dumps(facts))
 ;
 
-test "ordinary allocator retains its original admitted creator before effects" {
+fn laneCreationProbe(mode: []const u8) !void {
     const raw = c.getenv("SPEC_KITTY_HOST_TEST_PYTHON") orelse return error.ExplicitFixtureInterpreterRequired;
     const result = try std.process.run(std.testing.allocator, std.testing.io, .{
-        .argv = &.{ std.mem.span(raw), "-B", "-c", lane_creation_fixture },
+        .argv = &.{ std.mem.span(raw), "-B", "-c", lane_creation_fixture, mode },
         .stdout_limit = .limited(8192),
         .stderr_limit = .limited(8192),
         .timeout = .{ .duration = .{ .clock = .awake, .raw = .fromSeconds(40) } },
@@ -564,8 +599,127 @@ test "ordinary allocator retains its original admitted creator before effects" {
     var parsed = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, result.stdout, .{});
     defer parsed.deinit();
     const facts = parsed.value.object;
-    inline for (.{ "registered_before_creation", "same_original_scope", "expected_parent", "primary_unchanged" }) |field| {
+    inline for (.{ "registered_before_creation", "same_original_scope", "expected_parent", "primary_unchanged", "forged_refused", "reuse_refused", "copies_refused", "owner_refused", "path_refused", "base_refused", "original_producer_joined" }) |field| {
         try std.testing.expect(facts.get(field).?.bool);
     }
     std.debug.print("retained creator fixture: {s}\n", .{facts.get("retained_fixture").?.string});
+}
+
+test "ordinary allocator retains its original admitted creator before effects" {
+    try laneCreationProbe("direct");
+}
+
+test "implement workspace passes the original admitted creator to allocation" {
+    try laneCreationProbe("implement");
+}
+
+test "orchestrator workspace passes the original admitted creator to allocation" {
+    try laneCreationProbe("orchestrator");
+}
+
+const lane_conflict_fixture =
+    \\import hashlib,json,os,pathlib,subprocess,sys,tempfile
+    \\sys.path.insert(0,str(pathlib.Path.cwd()/'src'))
+    \\from specify_cli.workspace_lifecycle.original_run import OriginalWorkspaceRun
+    \\from specify_cli.workspace_lifecycle.adapters import GitHubDelivery
+    \\from specify_cli.workspace_lifecycle.state import StateStore
+    \\from specify_cli.lanes.models import ExecutionLane,LanesManifest
+    \\from specify_cli.lanes.worktree_allocator import allocate_lane_worktree,predict_lane_worktree,PlanningCommitMergeConflictError
+    \\root=pathlib.Path(tempfile.mkdtemp(prefix='owned-conflict-')).resolve();repo=root/'repo';repo.mkdir();ledger=root/'ledger';ledger.mkdir(mode=0o700)
+    \\def git(*args):return subprocess.check_output(['git','-C',str(repo),*args],stderr=subprocess.PIPE,text=True,timeout=5).strip()
+    \\git('init','-q','-b','main');git('config','user.name','Owned fixture');git('config','user.email','fixture@example.invalid');git('config','commit.gpgsign','false');git('config','gc.auto','0');git('remote','add','origin','https://github.com/crucible-energy/fixture.git');(repo/'seed').write_text('primary preserved\n');git('add','.');git('commit','-qm','seed')
+    \\slug='fixture';mission='kitty/mission-fixture';git('checkout','-qb',mission);(repo/'conflict').write_text('lane version\n');git('add','conflict');git('commit','-qm','lane parent');base=git('rev-parse','HEAD');git('checkout','-q','main');(repo/'conflict').write_text('main version\n');git('add','conflict');git('commit','-qm','planning');planning=git('rev-parse','HEAD')
+    \\manifest=LanesManifest(version=1,mission_slug=slug,mission_id=slug,mission_branch=mission,target_branch='main',lanes=[ExecutionLane(lane_id='lane-a',wp_ids=('WP01',),write_scope=('src/**',),predicted_surfaces=('core',),depends_on_lanes=(),parallel_group=0)],planning_commit_sha=planning,computed_at='2026-10-30T00:00:00Z',computed_from='fixture');path,branch=predict_lane_worktree(repo,slug,'lane-a');seen=[]
+    \\native=pathlib.Path(os.environ['SPEC_KITTY_HOST_TEST_BACKEND']);job=OriginalWorkspaceRun.admit_foreground_job(native_executor=native,native_sha256=hashlib.sha256(native.read_bytes()).hexdigest(),execution_timeout=30,settlement_timeout=2,accountable_owner='owned-conflict-fixture',purpose='retain conflicted allocation',next_action='review retained work',review_event='after test')
+    \\def admitted(receipt):seen.append(not path.exists() and receipt['source']['head']==base)
+    \\creation=OriginalWorkspaceRun.prepare_lane_allocation(job,StateStore.initialize(ledger),repo_root=repo,path=path,branch=branch,repository='crucible-energy/fixture',repository_id=7,delivery=GitHubDelivery(),on_complete=lambda hint:None,expected_base_commit=base,accountable_owner='owned-conflict-fixture',on_admitted=admitted)
+    \\try:allocate_lane_worktree(repo,slug,'WP01',manifest,_original_creation=creation)
+    \\except PlanningCommitMergeConflictError:conflict=True
+    \\else:conflict=False
+    \\run=creation.original_run;registrations=git('worktree','list','--porcelain');facts={'actual_conflict':conflict,'registered_before_creation':seen==[True],'same_original_scope':run.path==path,'conflicted_workspace_retained':path.is_dir() and ('worktree '+str(path)) in registrations and (path/'conflict').read_text()=='lane version\n','branch_retained':git('rev-parse',branch)==base,'primary_unchanged':git('rev-parse','main')==planning and (repo/'conflict').read_text()=='main version\n','retained_fixture':str(root)};print(json.dumps(facts))
+;
+
+test "ordinary creator retains actual planning-conflict workspace" {
+    const raw = c.getenv("SPEC_KITTY_HOST_TEST_PYTHON") orelse return error.ExplicitFixtureInterpreterRequired;
+    const result = try std.process.run(std.testing.allocator, std.testing.io, .{
+        .argv = &.{ std.mem.span(raw), "-B", "-c", lane_conflict_fixture },
+        .stdout_limit = .limited(8192),
+        .stderr_limit = .limited(8192),
+        .timeout = .{ .duration = .{ .clock = .awake, .raw = .fromSeconds(40) } },
+    });
+    defer std.testing.allocator.free(result.stdout);
+    defer std.testing.allocator.free(result.stderr);
+    if (result.term != .exited or result.term.exited != 0) {
+        std.debug.print("ordinary conflict fixture: {s}\n", .{result.stderr});
+        return error.FixtureFailed;
+    }
+    var parsed = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, result.stdout, .{});
+    defer parsed.deinit();
+    const facts = parsed.value.object;
+    inline for (.{ "actual_conflict", "registered_before_creation", "same_original_scope", "conflicted_workspace_retained", "branch_retained", "primary_unchanged" }) |field| {
+        try std.testing.expect(facts.get(field).?.bool);
+    }
+    std.debug.print("retained conflict fixture: {s}\n", .{facts.get("retained_fixture").?.string});
+}
+
+const lane_interrupted_fixture =
+    \\import hashlib,json,os,pathlib,subprocess,sys,tempfile
+    \\sys.path.insert(0,str(pathlib.Path.cwd()/'src'))
+    \\from specify_cli.workspace_lifecycle.original_run import OriginalWorkspaceRun
+    \\from specify_cli.workspace_lifecycle.adapters import GitHubDelivery
+    \\from specify_cli.workspace_lifecycle.state import StateError,StateStore
+    \\from specify_cli.lanes.models import ExecutionLane,LanesManifest
+    \\from specify_cli.lanes.worktree_allocator import allocate_lane_worktree,predict_lane_worktree
+    \\mode=sys.argv[1];root=pathlib.Path(tempfile.mkdtemp(prefix='owned-interrupted-')).resolve();repo=root/'repo';repo.mkdir();ledger=root/'ledger';ledger.mkdir(mode=0o700)
+    \\def git(*args):return subprocess.check_output(['git','-C',str(repo),*args],stderr=subprocess.PIPE,text=True,timeout=5).strip()
+    \\git('init','-q','-b','main');git('config','user.name','Owned fixture');git('config','user.email','fixture@example.invalid');git('config','commit.gpgsign','false');git('config','gc.auto','0');git('remote','add','origin','https://github.com/crucible-energy/fixture.git');(repo/'seed').write_text('primary preserved\n');git('add','.');git('commit','-qm','seed');base=git('rev-parse','HEAD')
+    \\slug='fixture';manifest=LanesManifest(version=1,mission_slug=slug,mission_id=slug,mission_branch='kitty/mission-fixture',target_branch='main',lanes=[ExecutionLane(lane_id='lane-a',wp_ids=('WP01',),write_scope=('src/**',),predicted_surfaces=('core',),depends_on_lanes=(),parallel_group=0)],computed_at='2026-10-30T00:00:00Z',computed_from='fixture');path,branch=predict_lane_worktree(repo,slug,'lane-a');seen=[]
+    \\native=pathlib.Path(os.environ['SPEC_KITTY_HOST_TEST_BACKEND']);job=OriginalWorkspaceRun.admit_foreground_job(native_executor=native,native_sha256=hashlib.sha256(native.read_bytes()).hexdigest(),execution_timeout=30,settlement_timeout=2,accountable_owner='owned-interrupted-fixture',purpose='retain uncertain admission',next_action='review retained state',review_event='after test')
+    \\def admitted(receipt):
+    \\ seen.append(not path.exists() and receipt['source']['head']==base)
+    \\ raise RuntimeError('synthetic admission interruption')
+    \\creation=OriginalWorkspaceRun.prepare_lane_allocation(job,StateStore.initialize(ledger),repo_root=repo,path=path,branch=branch,repository='crucible-energy/fixture',repository_id=7,delivery=GitHubDelivery(),on_complete=lambda hint:None,expected_base_commit=base,accountable_owner='owned-interrupted-fixture',on_admitted=admitted)
+    \\if mode=='crash':git('branch',branch,'main')
+    \\try:allocate_lane_worktree(repo,slug,'WP01',manifest,_original_creation=creation)
+    \\except RuntimeError as exc:refused=('Existing or recovered lanes' in str(exc)) if mode=='crash' else ('synthetic admission interruption' in str(exc))
+    \\else:refused=False
+    \\records=[json.loads(p.read_text()) for p in ledger.glob('creator-*.json')]
+    \\if mode=='admission':
+    \\ try:allocate_lane_worktree(repo,slug,'WP01',manifest,_original_creation=creation)
+    \\ except StateError:retry_refused=True
+    \\ else:retry_refused=False
+    \\ retained=len(records)==1 and records[0]['status']=='creating' and seen==[True] and retry_refused
+    \\else:retained=not records and not seen and git('rev-parse',branch)==base
+    \\facts={'refused':refused,'no_workspace_effect':not path.exists(),'uncertainty_preserved':retained,'primary_unchanged':git('rev-parse','main')==base and (repo/'seed').read_text()=='primary preserved\n','retained_fixture':str(root)};print(json.dumps(facts))
+;
+
+fn interruptedLaneProbe(mode: []const u8) !void {
+    const raw = c.getenv("SPEC_KITTY_HOST_TEST_PYTHON") orelse return error.ExplicitFixtureInterpreterRequired;
+    const result = try std.process.run(std.testing.allocator, std.testing.io, .{
+        .argv = &.{ std.mem.span(raw), "-B", "-c", lane_interrupted_fixture, mode },
+        .stdout_limit = .limited(8192),
+        .stderr_limit = .limited(8192),
+        .timeout = .{ .duration = .{ .clock = .awake, .raw = .fromSeconds(40) } },
+    });
+    defer std.testing.allocator.free(result.stdout);
+    defer std.testing.allocator.free(result.stderr);
+    if (result.term != .exited or result.term.exited != 0) {
+        std.debug.print("ordinary interrupted fixture: {s}\n", .{result.stderr});
+        return error.FixtureFailed;
+    }
+    var parsed = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, result.stdout, .{});
+    defer parsed.deinit();
+    const facts = parsed.value.object;
+    inline for (.{ "refused", "no_workspace_effect", "uncertainty_preserved", "primary_unchanged" }) |field| {
+        try std.testing.expect(facts.get(field).?.bool);
+    }
+    std.debug.print("retained interrupted fixture: {s}\n", .{facts.get("retained_fixture").?.string});
+}
+
+test "ordinary interrupted admission retains its recovery obligation" {
+    try interruptedLaneProbe("admission");
+}
+
+test "ordinary crash recovery cannot mint a new creator" {
+    try interruptedLaneProbe("crash");
 }

@@ -49,6 +49,7 @@ if TYPE_CHECKING:
     # import (mirrors ``_fresh_lane_parent_ref``'s existing lazy-import style
     # for the same ``workspace.context`` module).
     from specify_cli.workspace.context import WorkspaceContext
+    from specify_cli.workspace_lifecycle.original_run import _OriginalLaneAllocation
 
 # Issue #4827 / research.md D5: the single recovery command every orphaned-pin
 # consumer (the merge helper here, `implement_support.check_claim_ancestry`,
@@ -1026,6 +1027,8 @@ def allocate_lane_worktree(
     wp_id: str,
     lanes_manifest: LanesManifest,
     base: str | None = None,
+    *,
+    _original_creation: _OriginalLaneAllocation | None = None,
 ) -> tuple[Path, str]:
     """Allocate or reuse the worktree for the lane containing wp_id.
 
@@ -1090,6 +1093,16 @@ def allocate_lane_worktree(
     worktree_path, branch = plan.workspace_path, plan.branch
     target_tip = plan.target_tip
     decision = plan.decision
+
+    if _original_creation is not None:
+        from specify_cli.workspace_lifecycle.original_run import _OriginalLaneAllocation
+        from specify_cli.workspace_lifecycle.state import StateError
+
+        if type(_original_creation) is not _OriginalLaneAllocation:
+            raise StateError("Original lane creation context required")
+        if decision.route not in (LaneAllocationRoute.FRESH_COORD, LaneAllocationRoute.FRESH_LEGACY):
+            raise StateError("Existing or recovered lanes cannot acquire original creator custody")
+        _original_creation._verify_target(repo_root, worktree_path, branch)
 
     # #5115/WP07 (FR-018/FR-024): install the lane-tip recorder hooks here --
     # the SINGLE choke point every CODE-lane route (FRESH/REUSE/CRASH_
@@ -1181,12 +1194,7 @@ def allocate_lane_worktree(
             coordination_branch,
             lanes_manifest.target_branch,
         )
-        _create_lane_worktree(
-            repo_root,
-            worktree_path,
-            branch,
-            decision.parent_ref,
-        )
+        _create_fresh_lane(repo_root, worktree_path, branch, decision.parent_ref, _original_creation)
         # Register the sparse-checkout policy so the lane filesystem does
         # NOT contain status.events.jsonl / status.json. Only meaningful
         # when we have a mid8; new-topology missions always do because
@@ -1203,12 +1211,7 @@ def allocate_lane_worktree(
             decision.topology_parent_ref,
             lanes_manifest.target_branch,
         )
-        _create_lane_worktree(
-            repo_root,
-            worktree_path,
-            branch,
-            decision.parent_ref,
-        )
+        _create_fresh_lane(repo_root, worktree_path, branch, decision.parent_ref, _original_creation)
 
     # FR-009 (#2993) / ADR 2026-07-29-1: merge the recorded finalize-tasks
     # planning-artifact commit into the freshly created lane, on top of its
@@ -1240,7 +1243,8 @@ def allocate_lane_worktree(
         # via the crash-recovery path above (branch exists, worktree dir
         # gone), which re-attaches and re-merges rather than needing this
         # function to duplicate that recovery logic.
-        _remove_lane_worktree(repo_root, worktree_path)
+        if _original_creation is None:
+            _remove_lane_worktree(repo_root, worktree_path)
         raise
 
     # #1684 fresh-path propagation: merge approved dependency-lane tips on top
@@ -1805,6 +1809,25 @@ def _ensure_mission_branch(
         target_branch,
         label="mission branch",
     )
+
+
+def _create_fresh_lane(
+    repo_root: Path,
+    worktree_path: Path,
+    branch: str,
+    parent_ref: str,
+    original_creation: _OriginalLaneAllocation | None,
+) -> None:
+    if original_creation is None:
+        _create_lane_worktree(repo_root, worktree_path, branch, parent_ref)
+        return
+    from kernel.git import run_git
+    from specify_cli.workspace_lifecycle.adapters import _git_env
+
+    # Freeze the allocator's actual resolved parent, then compare it to the
+    # live admission before the creator's worktree effect.
+    result = run_git(repo_root, "rev-parse", "--verify", "--end-of-options", parent_ref + "^{commit}", env=_git_env(), timeout=5)
+    original_creation._create(repo_root, worktree_path, branch, result.stdout.decode().strip())
 
 
 def _create_lane_worktree(
