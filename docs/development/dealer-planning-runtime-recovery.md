@@ -13,6 +13,10 @@ The [qualification assets](../../tools/qualification/dealer-planning-rc7/) prese
 shared-runtime change. The fork default branch remains a separate 3.2.8 source
 line; applying these 4.x source files directly to that line is unsupported.
 
+The earlier planning and software layers below are historical source inputs,
+not admission for an uncontained CLI invocation. Use the complete private
+consumer closure and mandatory contained launch before invoking any SDK.
+
 Use `dealer-planning-rc7.patch` only on a fresh verified released archive:
 SHA256 `91e98774b7a69a273f9146656482e1e2bddd274a2178dfc6ac9c1f3bcede0c80`,
 release source `1b0fe9fc388b095f9964471b0177b4213e9c6c98`.
@@ -53,9 +57,14 @@ archive, inspect and apply this patch without fuzz:
 ```sh
 patch --dry-run --batch --fuzz=0 -p1 -i "$ASSETS/dealer-planning-rc7.patch"
 patch --batch --fuzz=0 -p1 -i "$ASSETS/dealer-planning-rc7.patch"
+patch --batch --fuzz=0 -p1 -i "$ASSETS/owned-software-rc7.patch"
+patch --batch --fuzz=0 -p1 -i "$ASSETS/consumer-assets-rc7.patch"
 uv venv --python python3.11 "$OUTPUT/venv"
 uv pip install --python "$OUTPUT/venv/bin/python" --constraint "$CONSTRAINTS" .
-"$OUTPUT/venv/bin/spec-kitty" --version
+SPEC_KITTY_ASSET_SCOPE=consumer SPEC_KITTY_HOME="$CONSUMER_HOME" \
+PATH="$OUTPUT/venv/bin:$PATH" \
+/usr/bin/sandbox-exec -f "$DENY_PROFILE" \
+  "$OUTPUT/venv/bin/spec-kitty" --version
 ```
 
 `ASSETS` is the reviewed `tools/qualification/dealer-planning-rc7/` directory,
@@ -63,7 +72,9 @@ uv pip install --python "$OUTPUT/venv/bin/python" --constraint "$CONSTRAINTS" .
 build directory, and `CONSTRAINTS` contains the supplier-pinned dependencies from
 a verified published rc7 runtime, excluding the CLI distribution itself. Retain
 the archive, constraints, complete output, wheel, executable/source hashes and
-installed dependency identities. Do not replace shared environments or use a
+installed dependency identities. `CONSUMER_HOME` is an absolute owner-scoped
+private runtime root; `DENY_PROFILE` is the separately verified, owner-held OS
+policy described below. Keep the real `HOME` unchanged. Do not replace shared environments or use a
 bare cached PATH executable. An applying owner must repeat relevant receiving
 and source gates for their exact toolchain and dependency context.
 
@@ -90,6 +101,110 @@ They concern existing event payload construction and Any returns in three
 unchanged files. [Issue 147](https://github.com/crucible-energy/spec-kitty/issues/147)
 tracks that source obligation. No type diagnostic was suppressed. These assets
 record bounded receiving proof, not full release or production qualification.
+
+## Bounded owned software increment
+
+Apply [owned-software-rc7.patch](../../tools/qualification/dealer-planning-rc7/owned-software-rc7.patch)
+after the complete planning patch to obtain the separately identified
+`4.0.0rc7+crucible.dealerrecovery.3` candidate. Its
+[structured proof](../../tools/qualification/dealer-planning-rc7/owned-software-qualification.json)
+retains the exact source/installed identities and actual controls. Published
+latest non-yanked resolution remained `4.0.0rc7` at 2026-10-31T02:29:53Z.
+
+This increment reuses four necessary hunks of the existing owning-analysis
+recipe: bind currency to the validated owned root, use the existing qualified
+transaction for ordinary owned recording, and check that transaction's own Git
+operation markers. Other status callers retain their conservative shared-root
+check. Single-branch admission is unchanged; the recipe's unrelated plain-lanes
+expansion and the later charter-root extension are deliberately excluded.
+
+Admission requires **both** repository-root and owned project canonical charter
+directories and YAML/Markdown files to be absent, rechecked before actual use.
+A newly present canonical charter requires a separately qualified successor.
+This proof does not establish general canonical-charter adoption.
+
+The corrected installed CLI recorded structured ready analysis and issued
+implementation for a real ULID mission in a genuine linked checkout. The prior
+build rejected that same report transaction. Each changed planning input and a
+tampered transaction receipt redirected execution to analysis. An owned Git
+operation refused recording before write; an unrelated repository-root operation
+marker remained untouched and did not block owner-local recording.
+
+Supported `next`, owned `mark-status` and `move-task` completed planned → doing
+→ for_review → in_review → approved, with a durable review verdict. Unfinished
+subtasks and missing committed owned implementation both refused review. The
+fixture inherited its validator code before planning; its later real in-scope
+documentation increment proves lifecycle handling, not new code implementation.
+Its pre-review test command was undeclared and explicitly nonblocking/skipped by
+the existing runtime; no force/skip flag or configuration change was used.
+
+The final source passed 93 focused analysis/transaction tests, canonical
+`make test-fast` (2318 passed, 5 skipped), and Ruff for all four changed modules.
+Strict mypy output is byte-identical to the prior candidate; unchanged transitive
+type errors remain visible under issue 147. The private published-archive-derived
+build, source asset delivery, release and actual consumer acceptance stay distinct.
+
+## Mandatory private consumer containment
+
+The separately identified `4.0.0rc7+crucible.dealerrecovery.4` adds the exact
+six-file consumer-routing closure from accepted source
+`c9f90a3a7f67176608f2284316a7a290c6688d86`, also present in the independent
+Phoenix-qualified `60d1168` source. Apply
+[consumer-assets-rc7.patch](../../tools/qualification/dealer-planning-rc7/consumer-assets-rc7.patch)
+after the first two layers. The
+[contained qualification](../../tools/qualification/dealer-planning-rc7/consumer-assets-qualification.json)
+binds all 20 product source/installed identities, the wheel and exact proof.
+
+Every SDK entry, including version/profile/Git callbacks, requires consumer
+scope and an absolute private `SPEC_KITTY_HOME` before interpreter startup.
+Generated commands and skills route below its `agent-assets/` child. Keep real
+`HOME` unchanged; do not redirect an editor's native configuration. Pin the
+qualified executable's directory first in `PATH` for bare Git callbacks.
+Repeat those bindings and the OS deny on every Git operation that can invoke
+such a callback. An unprefixed executable or default user scope is not admitted.
+A changed consumer root requires a fresh analysis report; do not edit a report
+or frozen state to conceal changed template custody.
+
+This macOS receiving used an exact owner-held copy of the existing profile,
+SHA256 `3d0c18f367f092f37cd201c846917bd3d3cb0f74c40063f8d3bf9e26834a92c8`.
+It denies read/write/exec on the three shared native command/skill roots.
+The profile remains an external receipt, not a new repository enforcement rule.
+No shared Git configuration, workflow, protection or native asset rollback was
+changed. This is observed macOS containment, not a claim of deployed cross-platform
+isolation or automatic native-editor discovery of private skills.
+
+The earlier uncontained corrective SDK replaced 14 native command files. That
+incident is retained. A broad subsequent observation window also found eight
+unassigned equal-byte inode/mtime replacements; their actor remains unknown.
+A fresh bounded window spanning private version/profile/report/review and Git
+callbacks observed all 279 native nodes unchanged. The OS-denial proof and
+physical observations remain distinct; no other producer was stopped or undone.
+
+All seven driver entrypoints passed 13 authored positive/refusal cases, and a
+real Git merge invoked the pinned bare SDK callback. A fresh CLI-created mission
+completed its full supported local review lifecycle with the same `codex` actor
+and an explicit Sam-authorized self-review note; its approval verdict persisted
+durably. No independent reviewer is claimed. A backward transition without a
+required feedback artifact refused and was repeated through the supported
+feedback-file path, without force or status editing.
+
+The final contained source passed 179 focused tests, `make test-fast`
+(2318 passed, 5 skipped), Ruff and strict mypy for all six consumer-routing
+modules. The initial installer failures were the exact already-fixed issue 73
+fixture inconsistency; its canonical capability-metadata patch is preserved in
+[consumer-assets-test-fixture.patch](../../tools/qualification/dealer-planning-rc7/consumer-assets-test-fixture.patch).
+Assertions and production no-follow protections remain unchanged. The first
+fast run supplied an explicit home override to a test asserting no override;
+the corrected launcher restores that declared test context under the same OS
+deny. Both red receipts remain retained. These are diagnosed corrections, not
+skipped cases or a repeat-until-green claim.
+
+The owned acceptance-verdict criterion writer and post-merge ledger closeout
+are not qualified by this increment. Actual receiving found that the retained
+criterion CLI lacks owned placement propagation. Approval and delivered PR
+evidence must not be represented as a completed acceptance matrix or done
+ledger; a separately isolated corrective increment is required. Do not edit
+matrix JSON or event logs to bypass these missing supported surfaces.
 
 ## Mission creation admission
 

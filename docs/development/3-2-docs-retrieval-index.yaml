@@ -5776,6 +5776,8 @@ pages:
     anchors:
     - {slug: "correction-and-authority", text: "Correction and authority", level: 2}
     - {slug: "build-and-validation", text: "Build and validation", level: 2}
+    - {slug: "bounded-owned-software-increment", text: "Bounded owned software increment", level: 2}
+    - {slug: "mandatory-private-consumer-containment", text: "Mandatory private consumer containment", level: 2}
     - {slug: "mission-creation-admission", text: "Mission creation admission", level: 2}
     - {slug: "delivery-and-closeout", text: "Delivery and closeout", level: 2}
   - path: "docs/development/index.md"

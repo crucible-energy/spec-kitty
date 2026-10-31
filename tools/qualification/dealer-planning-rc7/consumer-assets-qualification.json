@@ -1,0 +1,241 @@
+{
+  "schema_version": "contained_consumer_corrective_rc7_v1",
+  "published_base": {
+    "version": "4.0.0rc7",
+    "archive_sha256": "91e98774b7a69a273f9146656482e1e2bddd274a2178dfc6ac9c1f3bcede0c80",
+    "source_commit": "1b0fe9fc388b095f9964471b0177b4213e9c6c98"
+  },
+  "local_version": "4.0.0rc7+crucible.dealerrecovery.4",
+  "source_closure": "crucible-energy/spec-kitty@c9f90a3a7f67176608f2284316a7a290c6688d86; exact consumer-routing closure also present at60d1168c7d",
+  "apply_after": [
+    "dealer-planning-rc7.patch",
+    "owned-software-rc7.patch"
+  ],
+  "increment": "consumer-assets-rc7.patch",
+  "product_files": [
+    {
+      "path": "src/specify_cli/__init__.py",
+      "sha256": "9f73cfa17ac9e310b171dc9384146298b79e156ae1bde5807d323c05bc0fb4e3",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/cli/commands/_owned_checkout.py",
+      "sha256": "12bc2dab8feb305950d52c79603c2e2cd7e757e4cf7d94ac3e05f3e4451b6dd6",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/core/_ownership_claim_scope.py",
+      "sha256": "ea4e1bd1345548d1354f041b9043cd513a69a2aabb7c0449e56c98a1e09dbf54",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/core/owned_mission.py",
+      "sha256": "dd1e6c8fa07c3c88a14af3a25f5bea40671855266072a2beec41739b53ea2fda",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/mission_step_contracts/profile_defaults.py",
+      "sha256": "1655f43f968373833713e5e4834707073d776d1c80f015c2a15f013c5daf6664",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/runtime/next/runtime_bridge.py",
+      "sha256": "f8f40eaa9393dd225c214f98fb1421a6373721ababf183178d836045133ba12f",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/runtime/next/runtime_bridge_io.py",
+      "sha256": "bc2d5f4cf1ef579eb37cf2dbcfe044dc0f49b5f674fe4409e69558f28b2c2c97",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/acceptance/__init__.py",
+      "sha256": "13e79a55b3f71137ad89eae3e8c2a7519eae5d9c47b55cadf663ab7379245450",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/acceptance/non_wp_runtime.py",
+      "sha256": "d0abb7b992d901dd7adc9fa8de4eb6787d4c229b7beff95537566a0acf825af7",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/kernel/mission_runtime_shape.py",
+      "sha256": "9b3e85142254c9a32e2a30e88ac354b2096f43972bdd2c09fa1feb6c8754dfa3",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/cli/commands/agent/mission_record_analysis.py",
+      "sha256": "6bae950fce25b54da57517a9d120e185a2db6c277934d63eb3f3520d762514b8",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/cli/commands/next_cmd.py",
+      "sha256": "c47b1f27ec825f3afb9d92db15fbd7cac9b604d7b9ce0e0575aed1178f03fcbc",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/git/report_transaction.py",
+      "sha256": "dd8b9ac265b712e08a1438f5158212163a90eb7f2f1e96ffb45899ce1d1e4563",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/status/views.py",
+      "sha256": "66544fa1cda74f3021c63408d1941eb130f2dae7ba1586dfe8e2d5cc0a33af5f",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/kernel/paths.py",
+      "sha256": "50448d07590cf868216ebfa29e56e382f631ec643570d3ecff16e2ca5943012d",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/runtime/home.py",
+      "sha256": "18bd85a1c2a91250b0efc2c6cf089a4516617613bc2ed9a05e4688b28816156a",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/runtime/agent_commands.py",
+      "sha256": "2fffbd1a6697a77c88550a4a948e15a1d99b3fa110cc4dbda1d0054b98c4c2e1",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/runtime/asset_preparation.py",
+      "sha256": "b0445c1ee086e37340d599c991625a25e3c4c7748bfa0b764e83a3241263e7ef",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/skills/installer.py",
+      "sha256": "cde9c774ffb62dbccb954538e186df663484f8a80386459e2baf7fb756b39b09",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/skills/paths.py",
+      "sha256": "888acefc5e79053c9c8cad9219689151ebb14900f55bd38c9a3516e04703df21",
+      "installed_matches_source": true
+    }
+  ],
+  "required_launch": {
+    "HOME": "real caller home, unchanged",
+    "SPEC_KITTY_ASSET_SCOPE": "consumer",
+    "SPEC_KITTY_HOME": "absolute owner-scoped private consumer root",
+    "PATH": "explicit qualified runtime bin first for inherited Git callbacks",
+    "os_deny": "deny read/write/exec to all three native command/skill roots before every SDK/Git entry",
+    "policy_sha256": "3d0c18f367f092f37cd201c846917bd3d3cb0f74c40063f8d3bf9e26834a92c8",
+    "owned_policy_provenance": "/Users/sam/.codex/validation/phoenix/infinitedrive-native-provision-parent-20261027/workspace-held-contained-gates-r1/preparation/shared-assets-excluded-r2.sb"
+  },
+  "qualification": {
+    "fast": "2318 passed,5 skipped,3 warnings in134.07seconds under same OS deny; canonical no-explicit-override test context",
+    "focused": "179 passed in67.89seconds; exact c9/#73 fixture capability metadata repair, assertions unchanged",
+    "ruff": "All6consumer-routing modules pass",
+    "strict_mypy": "Success: no issues found in6consumer-routing files; prior untouched runtime type limitations remain issue147",
+    "native_observation": {
+      "nodes": 279,
+      "bounded_differences": 0,
+      "before": "2026-10-31T03:16:27.453Z",
+      "after": "2026-10-31T03:21:41.512Z",
+      "broad_window_differences": 8,
+      "broad_window_attribution": "unassigned equal-byte inode/mtime replacements; original delta retained; no restore or actor attribution"
+    },
+    "same_actor": "Fresh CLI-created mission, all transitions by codex, explicit Sam-authorized self-review; approved verdict durable",
+    "callbacks": "7actualSDKdriver entrypoints,13canonical positive/refusal cases; actual Git merge invokes bare SDK callback through pinned PATH and preserves independent fields",
+    "scope_negative_controls": "5invalidscope/home configurations refuse before effects; OS protected native read refused",
+    "raw_logs": [
+      {
+        "file": "runtime-v4-fast.log",
+        "sha256": "e31e7fecd2b70f5781296694fdabe660e202120c8dd1869cff1864b587e50d3b"
+      },
+      {
+        "file": "runtime-v4-fast-correct-context.log",
+        "sha256": "8cf26845ffdeaeefe58cf616a3eda936b599080a8ed8a11a6e55ef9064c0e413"
+      },
+      {
+        "file": "runtime-v4-focused.log",
+        "sha256": "9b8f156e6b280d935d9626f3b7d310945c1545905b4b7de9e735f06b3b7e5c1d"
+      },
+      {
+        "file": "runtime-v4-focused-canonical-fixture.log",
+        "sha256": "9cecf55454e01b26c08ab086bf872958fc109e8ac9c76a8df1eee7253a4a1bef"
+      },
+      {
+        "file": "runtime-v4-lint.log",
+        "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+      },
+      {
+        "file": "runtime-v4-mypy.log",
+        "sha256": "ab35ee42183d4d6d3ba483825ab037d18a5a15622d03be01d82220b1564851ff"
+      },
+      {
+        "file": "runtime-v4-driver-callbacks.json",
+        "sha256": "40c3036bd1fe3bc95638598cb0972f0c453c3fa434ff20a9e0e6a0839e90c31b"
+      },
+      {
+        "file": "runtime-v4-git-driver-result.json",
+        "sha256": "8957384acd167ffa25ad3ccc53337d76e91db37ce673cab6560052ae23d246a4"
+      },
+      {
+        "file": "runtime-v4-fresh-same-actor-controls.json",
+        "sha256": "9379325d38abd8540de0114153cd5f1bcbd51e0a406cad8fd5ac86759d6f3d4b"
+      },
+      {
+        "file": "runtime-v4-bounded-callback-controls-complete.json",
+        "sha256": "b993ade4e95ca960a957c70dfe705130e2f08044216f1adbe94dbf5c4761f284"
+      },
+      {
+        "file": "runtime-v4-bounded-driver-result.json",
+        "sha256": "6c2a047bb1cf39c61ed89b7b4c0e2cb0a1547f68695c629f0b4ddb62cc8534af"
+      },
+      {
+        "file": "runtime-v4-negative-scope.json",
+        "sha256": "64d0197398039bdb297823ddbe657b3d9b5a44df5e25a79f5addea7b3fe2def8"
+      },
+      {
+        "file": "runtime-v4-native-delta.json",
+        "sha256": "b8f36c74bc07b5373ed181d756187783ab19a3f76d79347db4b60f5540c98d3b"
+      },
+      {
+        "file": "runtime-v4-native-before-bounded.json",
+        "sha256": "c5ca11563c8611a19306f627956b77f24ace89f259b86238761d79384330987a"
+      },
+      {
+        "file": "runtime-v4-native-after-final.json",
+        "sha256": "4aeeb9904569be50f8d92943bdcb403df89060e272b5d02c5668860a723fb97e"
+      },
+      {
+        "file": "runtime-v4-native-final-delta.json",
+        "sha256": "50eeeb385e0e9f10ce2a2feed4a5cde3727413a72fd991a5cd6c59037ff80d38"
+      }
+    ]
+  },
+  "limits": [
+    "Default user scope retains canonical native destinations; isolation is only admitted with all sealed launch bindings and OS profile.",
+    "Earlier .3 shared asset incident and8unassigned equal-byte broad-window replacements remain preserved; no global rollback occurred.",
+    "Pre-review command is undeclared in fixture and nonblocking/skipped by existing policy; no force or skip flags used.",
+    "Inherited fixture implementation is not new code proof; actual committed in-scope documentation increments exercise review ownership gates.",
+    "Private source repair is not package-index publication, upstream/default adoption, release, production authority or a global green strict-type claim."
+  ],
+  "scope": {
+    "actions": [
+      "OS-contained version/profile",
+      "OS-contained owned structured analysis and next",
+      "OS-contained owned doing/mark-status/for_review/in_review/approved with same codex actor",
+      "OS-contained actual Git callbacks with inherited private environment and pinned PATH"
+    ],
+    "governance_state": "Both repository-root and owned .kittify/charter directories/YAML/Markdown absent; root must freshly verify before receiving. Present canonical charter requires separate closure.",
+    "not_admitted": [
+      "uncontained/user asset scope",
+      "standalone Op custody",
+      "unsupported agent action owned implement/review",
+      "general canonical-charter adoption",
+      "owned acceptance-verdict criterion writes",
+      "owned post-merge ledger done closeout"
+    ]
+  },
+  "default_user_scope_not_admitted": true,
+  "cleanup_owner": "/root/spec_runtime_recovery; retain until parent consumer release and exact source delivery verification",
+  "increment_sha256": "dbf875cec0a13e38a41364811b7ea8974a17d40d334f30e8613887b091fcac18",
+  "canonical_test_fixture": {
+    "file": "consumer-assets-test-fixture.patch",
+    "sha256": "6c78a180425c2c8c4fcebb5308bc3356ffd5d7b2bd4136b6272396ce0de3a64e",
+    "source": "c9f90a3a7 / issue73, capability metadata matches rejecting syscall simulation; assertions unchanged"
+  }
+}
