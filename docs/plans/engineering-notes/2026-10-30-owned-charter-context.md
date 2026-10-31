@@ -41,7 +41,7 @@ source-pinned authored directive fixture. They check actual directive intents,
 source paths, primary drift, equal-YAML/different-companion cases, scoped JSON
 and invalid mission boundaries. Source compilation also identified an explicit
 loader callback's new scope keyword contract; a protocol records that contract.
-Default compact collaborators retain their original invocation when no explicit
+Default collaborators retain their original invocation when no explicit
 scope is supplied, including their error/provenance behavior.
 
 ## Known limitations and qualification boundaries

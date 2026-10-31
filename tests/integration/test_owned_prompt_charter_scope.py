@@ -111,3 +111,39 @@ class TestOwnedPromptCharterScope:
         assert "PRIMARY_ONLY_POLICY" not in text
         assert _snapshot(self.primary) == expected
         assert not (self.primary / ".kittify/charter/context-state.json").exists()
+
+    @pytest.mark.parametrize("loader", ["activations", "selection"])
+    def test_default_loader_keeps_keyword_absence_and_explicit_scope(self, monkeypatch, loader: str) -> None:
+        from charter.activation.context_renderers.activation_block import _load_governance_activations
+        from charter.activation.org_pack_discovery import _load_governance_charter_config
+        from charter.activation.schemas import GovernanceConfig
+
+        calls = []
+
+        def load(root: Path, **kwargs):
+            calls.append((root, kwargs))
+            return GovernanceConfig()
+
+        monkeypatch.setattr("charter.activation.sync.load_governance_config", load)
+        operation = _load_governance_activations if loader == "activations" else _load_governance_charter_config
+        operation(self.primary)
+        assert calls == [(self.primary, {})]
+        scope = CharterScope.default(self.owned)
+        operation(self.primary, scope=scope)
+        assert calls[-1] == (self.primary, {"scope": scope})
+        assert _snapshot(self.primary) == self.before
+
+    @pytest.mark.parametrize("loader", ["activations", "selection"])
+    def test_scoped_loader_propagates_actual_retired_owned_governance(self, loader: str) -> None:
+        from charter.activation.context_renderers.activation_block import _load_governance_activations
+        from charter.activation.org_pack_discovery import _load_governance_charter_config
+
+        self.primary_charter.write_text("schema_version: 2.0.0\ngovernance: {}\n", encoding="utf-8")
+        expected = _snapshot(self.primary)
+        (self.owned / ".kittify/charter/charter.yaml").write_text(
+            "schema_version: 2.0.0\ngovernance:\n  doctrine:\n    selected_directives: []\n", encoding="utf-8"
+        )
+        operation = _load_governance_activations if loader == "activations" else _load_governance_charter_config
+        with pytest.raises(ActiveCharterConfigError):
+            operation(self.primary, scope=CharterScope.default(self.owned))
+        assert _snapshot(self.primary) == expected

@@ -64,7 +64,7 @@ def _load_governance_activations(repo_root: Path, *, scope: CharterScope | None 
     from charter.offering.packs.retired_fields import RetiredPackFieldError
 
     try:
-        governance = load_governance_config(repo_root, scope=scope)
+        governance = load_governance_config(repo_root) if scope is None else load_governance_config(repo_root, scope=scope)
     except (RetiredPackFieldError, ActiveCharterConfigError):
         raise
     except Exception:  # noqa: BLE001 — best-effort governance load

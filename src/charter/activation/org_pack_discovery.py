@@ -319,7 +319,7 @@ def _load_governance_charter_config(repo_root: Path, *, scope: CharterScope | No
     from charter.offering.packs.retired_fields import RetiredPackFieldError
 
     try:
-        governance = load_governance_config(repo_root, scope=scope)
+        governance = load_governance_config(repo_root) if scope is None else load_governance_config(repo_root, scope=scope)
         selection = governance.charter
     except (RetiredPackFieldError, ActiveCharterConfigError):
         # A retired shape is not a parse failure: never dropped in silence (#3732, FR-011).
