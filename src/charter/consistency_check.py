@@ -328,6 +328,8 @@ def _load_raw_activation_lists(ctx: ProjectContext) -> dict[str, list[str] | Non
 def _collect_all_doctrine_ids(
     ctx: ProjectContext,
     manager: CharterPackManager,
+    *,
+    layer_roots: dict[str, Path] | None = None,
 ) -> dict[str, frozenset[str]]:
     """Return a mapping of CLI kind → frozenset of doctrine IDs (loaded once).
 
@@ -336,7 +338,7 @@ def _collect_all_doctrine_ids(
     all_ids: dict[str, frozenset[str]] = {}
     for kind in YAML_KEY_MAP:
         try:
-            all_ids[kind] = manager.list_available(ctx, kind)
+            all_ids[kind] = manager.list_available(ctx, kind, layer_roots=layer_roots)
         except ValueError:
             all_ids[kind] = frozenset()
     return all_ids
@@ -382,6 +384,8 @@ def _check_drg_cross_kind_refs(
     activated_by_kind: dict[str, frozenset[str] | None],
     missing_from_doctrine: list[str],
     suggestions: list[str],
+    *,
+    layer_roots: dict[str, Path] | None = None,
 ) -> None:
     """Populate *missing_from_doctrine* for cross-kind DRG edge gaps (FR-012).
 
@@ -404,7 +408,7 @@ def _check_drg_cross_kind_refs(
         repo_root = ctx.require_repo_root()
         pack_context = ctx.require_pack_context()
         full_drg = load_validated_graph(repo_root)
-        activated_drg = filter_graph_by_activation(full_drg, pack_context)
+        activated_drg = filter_graph_by_activation(full_drg, pack_context, layer_roots=layer_roots)
 
         reported_kind_pairs: set[tuple[str, str]] = set()
         for edge in activated_drg.edges:
@@ -600,6 +604,8 @@ def _check_reference_id_parity(
     reference_id_divergences: list[str],
     verification_errors: list[str],
     suggestions: list[str],
+    *,
+    layer_roots: dict[str, Path] | None = None,
 ) -> None:
     """FR-005/T017: config.activated_* <-> references.yaml, at ID level.
 
@@ -672,6 +678,7 @@ def _check_reference_id_parity(
         references_by_kind,
         doctrine_root=doctrine_root,
         org_roots=org_roots,
+        layer_roots=layer_roots,
         reference_id_divergences=reference_id_divergences,
         suggestions=suggestions,
     )
@@ -689,6 +696,7 @@ def _check_reference_id_forward_parity(
     *,
     doctrine_root: Path,
     org_roots: list[Path],
+    layer_roots: dict[str, Path] | None = None,
     reference_id_divergences: list[str],
     suggestions: list[str],
 ) -> None:
@@ -712,7 +720,8 @@ def _check_reference_id_forward_parity(
         for stem in sorted(set(raw_list)):
             try:
                 urn = resolve_artifact_urn(
-                    kind_enum, stem, doctrine_root=doctrine_root, org_roots=org_roots
+                    kind_enum, stem, doctrine_root=doctrine_root, org_roots=org_roots,
+                    layer_roots=layer_roots,
                 )
             except UnknownArtifactIdError:
                 continue  # Already reported by _check_unknown_references.
@@ -764,6 +773,7 @@ def _resolve_graph_kind_parity_stem(
     *,
     doctrine_root: Path,
     org_roots: list[Path],
+    layer_roots: dict[str, Path] | None = None,
     graph_kind_gaps: list[str],
     verification_errors: list[str],
     suggestions: list[str],
@@ -783,7 +793,8 @@ def _resolve_graph_kind_parity_stem(
     """
     try:
         urn = resolve_artifact_urn(
-            kind_enum, stem, doctrine_root=doctrine_root, org_roots=org_roots
+            kind_enum, stem, doctrine_root=doctrine_root, org_roots=org_roots,
+            layer_roots=layer_roots,
         )
     except UnknownArtifactIdError as exc:
         verification_errors.append(f"{cli_kind}/{stem}: {exc}")
@@ -810,6 +821,8 @@ def _check_graph_kind_parity(
     graph_kind_gaps: list[str],
     verification_errors: list[str],
     suggestions: list[str],
+    *,
+    layer_roots: dict[str, Path] | None = None,
 ) -> None:
     """FR-005/T018: config.activated_* <-> DRG graph, at per-ID level (T007).
 
@@ -861,7 +874,7 @@ def _check_graph_kind_parity(
         repo_root = ctx.require_repo_root()
         pack_context = ctx.require_pack_context()
         full_drg = load_validated_graph(repo_root)
-        activated_drg = filter_graph_by_activation(full_drg, pack_context)
+        activated_drg = filter_graph_by_activation(full_drg, pack_context, layer_roots=layer_roots)
     except Exception as exc:  # noqa: BLE001 -- fail-closed signal below, not a silent pass.
         verification_errors.append(
             f"drg: Could not verify config<->graph kind parity "
@@ -891,6 +904,7 @@ def _check_graph_kind_parity(
                 surviving_urns,
                 doctrine_root=doctrine_root,
                 org_roots=org_roots,
+                layer_roots=layer_roots,
                 graph_kind_gaps=graph_kind_gaps,
                 verification_errors=verification_errors,
                 suggestions=suggestions,
@@ -917,6 +931,8 @@ def _check_graph_kind_parity(
 def _build_tension_active_urns(
     full_drg: DRGGraph,
     pack_context: PackContext,
+    *,
+    layer_roots: dict[str, Path] | None = None,
 ) -> frozenset[str]:
     """Return the set of node URNs active for tension-scan purposes.
 
@@ -927,7 +943,7 @@ def _build_tension_active_urns(
     """
     from charter.drg import filter_graph_by_activation  # noqa: PLC0415
 
-    activated_drg = filter_graph_by_activation(full_drg, pack_context)
+    activated_drg = filter_graph_by_activation(full_drg, pack_context, layer_roots=layer_roots)
     return frozenset(node.urn for node in activated_drg.nodes)
 
 
@@ -974,7 +990,9 @@ def _tension_reconciled_urns(
     return reconciled
 
 
-def scan_unreconciled_tensions(ctx: ProjectContext) -> list[TensionFinding]:
+def scan_unreconciled_tensions(
+    ctx: ProjectContext, *, layer_roots: dict[str, Path] | None = None,
+) -> list[TensionFinding]:
     """Scan the activation-filtered DRG for unreconciled tension pairs (FR-009).
 
     Single canonical authority for the tension-finding shape: both
@@ -1001,7 +1019,7 @@ def scan_unreconciled_tensions(ctx: ProjectContext) -> list[TensionFinding]:
     pack_context = ctx.require_pack_context()
     full_drg = load_validated_graph(repo_root)
 
-    active_urns = _build_tension_active_urns(full_drg, pack_context)
+    active_urns = _build_tension_active_urns(full_drg, pack_context, layer_roots=layer_roots)
     candidate_pairs = _tension_candidate_pairs(full_drg, active_urns)
     if not candidate_pairs:
         return []
@@ -1019,6 +1037,8 @@ def _check_unreconciled_tensions(
     unreconciled_tensions: list[TensionFinding],
     verification_errors: list[str],
     suggestions: list[str],
+    *,
+    layer_roots: dict[str, Path] | None = None,
 ) -> None:
     """FR-009: fail-closed wrapper around :func:`scan_unreconciled_tensions`.
 
@@ -1029,7 +1049,7 @@ def _check_unreconciled_tensions(
     (contracts/tension-finding.md, Error case).
     """
     try:
-        unreconciled_tensions.extend(scan_unreconciled_tensions(ctx))
+        unreconciled_tensions.extend(scan_unreconciled_tensions(ctx, layer_roots=layer_roots))
     except Exception as exc:  # noqa: BLE001 -- fail-closed signal below, not a silent pass.
         verification_errors.append(
             f"drg: Could not verify tension reconciliation "
@@ -1047,7 +1067,9 @@ def _check_unreconciled_tensions(
 # ---------------------------------------------------------------------------
 
 
-def run_consistency_check(ctx: ProjectContext) -> ConsistencyReport:
+def run_consistency_check(
+    ctx: ProjectContext, *, layer_roots: dict[str, Path] | None = None,
+) -> ConsistencyReport:
     """Run a full consistency check for the project's activated charter pack.
 
     Checks:
@@ -1062,6 +1084,7 @@ def run_consistency_check(ctx: ProjectContext) -> ConsistencyReport:
 
     Args:
         ctx: The project context, used to resolve activation state and doctrine.
+        layer_roots: Canonical org/project roots resolved by the caller (C-008).
 
     Returns:
         A frozen ConsistencyReport with coherence flag and categorised findings.
@@ -1111,7 +1134,7 @@ def run_consistency_check(ctx: ProjectContext) -> ConsistencyReport:
         # keeping this surface aligned with the always-on ``charter activate``
         # warning (SC-001).
         _check_unreconciled_tensions(
-            ctx, unreconciled_tensions, verification_errors, suggestions
+            ctx, unreconciled_tensions, verification_errors, suggestions, layer_roots=layer_roots
         )
         return ConsistencyReport(
             coherent=not verification_errors,
@@ -1120,13 +1143,13 @@ def run_consistency_check(ctx: ProjectContext) -> ConsistencyReport:
             suggestions=suggestions,
         )
 
-    all_doctrine_ids = _collect_all_doctrine_ids(ctx, manager)
+    all_doctrine_ids = _collect_all_doctrine_ids(ctx, manager, layer_roots=layer_roots)
 
     _check_unknown_references(
         activated_by_kind, all_doctrine_ids, unknown_references, suggestions
     )
     _check_drg_cross_kind_refs(
-        ctx, activated_by_kind, missing_from_doctrine, suggestions
+        ctx, activated_by_kind, missing_from_doctrine, suggestions, layer_roots=layer_roots
     )
     _check_duplicates(raw_activated_by_kind, kind_violations)
     _check_kind_violations(
@@ -1138,12 +1161,14 @@ def run_consistency_check(ctx: ProjectContext) -> ConsistencyReport:
         reference_id_divergences,
         verification_errors,
         suggestions,
+        layer_roots=layer_roots,
     )
     _check_graph_kind_parity(
-        ctx, raw_activated_by_kind, graph_kind_gaps, verification_errors, suggestions
+        ctx, raw_activated_by_kind, graph_kind_gaps, verification_errors, suggestions,
+        layer_roots=layer_roots,
     )
     _check_unreconciled_tensions(
-        ctx, unreconciled_tensions, verification_errors, suggestions
+        ctx, unreconciled_tensions, verification_errors, suggestions, layer_roots=layer_roots
     )
 
     # NFR-001: unreconciled_tensions is deliberately excluded from this

@@ -6045,6 +6045,27 @@ pages:
     - {slug: "engineering-decisions", text: "Engineering Decisions", level: 2}
     - {slug: "known-limitations", text: "Known Limitations", level: 2}
     - {slug: "hosted-check-admission", text: "Hosted check admission", level: 2}
+  - path: "docs/engineering-notes/2026-10-28-project-layer-consistency.md"
+    title: "Project-layer consistency and runtime admission"
+    divio_type: "none"
+    abstract: "Preserve project policy while qualifying the assigned consistency-check repair."
+    anchors:
+    - {slug: "user-experience-findings", text: "User Experience Findings", level: 2}
+    - {slug: "engineering-decisions", text: "Engineering Decisions", level: 2}
+    - {slug: "validation", text: "Validation", level: 2}
+    - {slug: "known-limitations", text: "Known Limitations", level: 2}
+    - {slug: "2026-10-28-legacy-helper-compatibility-correction", text: "2026-10-28 – Legacy helper compatibility correction", level: 2}
+    - {slug: "user-experience-findings-2", text: "User Experience Findings", level: 3}
+    - {slug: "engineering-decisions-2", text: "Engineering Decisions", level: 3}
+    - {slug: "validation-and-known-limitations", text: "Validation And Known Limitations", level: 3}
+    - {slug: "migrated-governing-selection-read-correction", text: "Migrated Governing Selection Read Correction", level: 2}
+    - {slug: "user-experience-findings-3", text: "User Experience Findings", level: 3}
+    - {slug: "engineering-decisions-3", text: "Engineering Decisions", level: 3}
+    - {slug: "validation-and-known-limitations-2", text: "Validation And Known Limitations", level: 3}
+    - {slug: "governing-workspace-merge-driver-reconciliation", text: "Governing Workspace Merge Driver Reconciliation", level: 2}
+    - {slug: "user-experience-findings-4", text: "User Experience Findings", level: 3}
+    - {slug: "engineering-decisions-4", text: "Engineering Decisions", level: 3}
+    - {slug: "validation-and-known-limitations-3", text: "Validation And Known Limitations", level: 3}
   - path: "docs/guides/accept-and-merge.md"
     title: "How to Accept and Merge a Mission"
     divio_type: "how-to"

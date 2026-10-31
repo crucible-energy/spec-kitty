@@ -1856,6 +1856,12 @@
   owning_workstream: none
   current_target: true
   notes: null
+- path: docs/engineering-notes/2026-10-28-project-layer-consistency.md
+  tag: current
+  divio_type: none
+  owning_workstream: none
+  current_target: true
+  notes: null
 - path: docs/guides/accept-and-merge.md
   tag: current
   divio_type: how-to

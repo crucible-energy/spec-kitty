@@ -297,6 +297,7 @@ def _resolve_activated_urns_for_kind(
     *,
     doctrine_root: Path,
     org_roots: list[Path],
+    layer_roots: dict[str, Path] | None = None,
 ) -> frozenset[str] | None:
     """Resolve one kind's config-stem activation set to canonical URNs.
 
@@ -334,7 +335,8 @@ def _resolve_activated_urns_for_kind(
         try:
             urns.add(
                 resolve_artifact_urn(
-                    kind_enum, stem, doctrine_root=doctrine_root, org_roots=org_roots
+                    kind_enum, stem, doctrine_root=doctrine_root, org_roots=org_roots,
+                    layer_roots=layer_roots,
                 )
             )
         except UnknownArtifactIdError:
@@ -344,6 +346,8 @@ def _resolve_activated_urns_for_kind(
 
 def _resolve_activated_urns_by_kind(
     pack_context: PackContext,
+    *,
+    layer_roots: dict[str, Path] | None = None,
 ) -> dict[str, frozenset[str] | None]:
     """Batch-resolve every per-kind activation set to canonical URNs, once.
 
@@ -362,6 +366,7 @@ def _resolve_activated_urns_by_kind(
             getattr(pack_context, per_kind_field, None),
             doctrine_root=doctrine_root,
             org_roots=org_roots,
+            layer_roots=layer_roots,
         )
         for node_kind, per_kind_field in _SINGULAR_TO_PER_KIND_FIELD.items()
     }
@@ -439,6 +444,8 @@ def _node_is_activated(
 def filter_graph_by_activation(
     graph: DRGGraph,
     pack_context: PackContext,
+    *,
+    layer_roots: dict[str, Path] | None = None,
 ) -> DRGGraph:
     """Return a copy of *graph* limited to artifacts activated in *pack_context*.
 
@@ -459,13 +466,15 @@ def filter_graph_by_activation(
       case dangling edges.
 
     The function never mutates *graph*; it builds a fresh :class:`DRGGraph`.
+    ``layer_roots`` carries caller-resolved org/project roots as data (C-008).
+    Omitting it preserves the existing built-in/org resolution contract.
 
     See module docstring for the FR-006 / FR-018 binding and the WP11 T069
     invariant: this filter applies only to charter-mediated resolution.
     Direct doctrine-API callers (``DoctrineService.<repo>.get(...)``,
     ``MissionTemplateRepository.get(...)``) are exempt.
     """
-    resolved_urns_by_kind = _resolve_activated_urns_by_kind(pack_context)
+    resolved_urns_by_kind = _resolve_activated_urns_by_kind(pack_context, layer_roots=layer_roots)
     surviving_nodes = [
         n for n in graph.nodes
         if _node_is_activated(*_split_urn(n.urn), pack_context, resolved_urns_by_kind)

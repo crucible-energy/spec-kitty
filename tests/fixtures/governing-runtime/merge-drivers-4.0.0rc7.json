@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "distribution": {
+    "name": "spec-kitty-cli",
+    "version": "4.0.0rc7",
+    "filename": "spec_kitty_cli-4.0.0rc7-py3-none-any.whl",
+    "url": "https://files.pythonhosted.org/packages/b3/e3/cb65e62811aa8b77f1c57f86a3d612998979bb271bfe9047c4c481e84695/spec_kitty_cli-4.0.0rc7-py3-none-any.whl",
+    "sha256": "174361d4a2c75f1f9fb20ca17f6f9eca60b0017052425680630628feab362124"
+  },
+  "source_sha256": {
+    "specify_cli/lanes/consolidation.py": "58508f11ebbc1d7cec4bb4de549508440d4380336989b33723106f4f9597683c",
+    "specify_cli/cli/commands/init.py": "5f6897b88574995c45d2dc3bef2260c368c42945ba11180d2f1f44fd440a1ddf"
+  },
+  "drivers": [
+    {
+      "pattern": "kitty-specs/**/status.events.jsonl",
+      "config_key": "spec-kitty-event-log",
+      "name": "Spec Kitty event log union merge",
+      "command": "spec-kitty merge-driver-event-log %O %A %B"
+    },
+    {
+      "pattern": "kitty-specs/**/decisions.events.jsonl",
+      "config_key": "spec-kitty-event-log",
+      "name": "Spec Kitty event log union merge",
+      "command": "spec-kitty merge-driver-event-log %O %A %B"
+    },
+    {
+      "pattern": "kitty-specs/**/meta.json",
+      "config_key": "spec-kitty-meta",
+      "name": "Spec Kitty mission meta field merge",
+      "command": "spec-kitty merge-driver-meta %O %A %B"
+    },
+    {
+      "pattern": "kitty-specs/**/traces/*.md",
+      "config_key": "spec-kitty-traces",
+      "name": "Spec Kitty mission traces union merge",
+      "command": "spec-kitty merge-driver-traces %O %A %B"
+    },
+    {
+      "pattern": "kitty-specs/**/acceptance-matrix.json",
+      "config_key": "spec-kitty-acceptance-matrix",
+      "name": "Spec Kitty acceptance matrix filled-side merge",
+      "command": "spec-kitty merge-driver-acceptance-matrix %O %A %B"
+    },
+    {
+      "pattern": "kitty-specs/**/issue-matrix.json",
+      "config_key": "spec-kitty-issue-matrix",
+      "name": "Spec Kitty issue matrix row-aware merge",
+      "command": "spec-kitty merge-driver-issue-matrix %O %A %B"
+    },
+    {
+      "pattern": "kitty-specs/**/tasks/*/review-cycle-*.md",
+      "config_key": "spec-kitty-review-cycle",
+      "name": "Spec Kitty review-cycle verdict collision refusal",
+      "command": "spec-kitty merge-driver-review-cycle %O %A %B"
+    },
+    {
+      "pattern": "kitty-specs/**/decisions/index.json",
+      "config_key": "spec-kitty-decision-index",
+      "name": "Spec Kitty decision-index entry union merge",
+      "command": "spec-kitty merge-driver-decision-index %O %A %B"
+    }
+  ],
+  "scope": "Independent published governing runtime registry, not derived from Source3 product registry. Actual installer/configured callback behavior requires separate qualified runtime evidence."
+}

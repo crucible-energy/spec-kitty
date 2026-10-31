@@ -98,7 +98,9 @@ _PATH_KIND_PATTERNS: list[tuple[re.Pattern[str], str]] = [
 ]
 
 
-def _resolve_path_ref(path_str: str) -> tuple[str, str] | None:
+def _resolve_path_ref(
+    path_str: str, *, doctrine_root: Path | None = None,
+) -> tuple[str, str] | None:
     """Return ``(kind, raw_id)`` for a raw path-string reference, or ``None``.
 
     Styleguide and toolguide ``references`` fields carry plain file paths such as
@@ -115,6 +117,9 @@ def _resolve_path_ref(path_str: str) -> tuple[str, str] | None:
     Args:
         path_str: A raw path string from a styleguide or toolguide ``references``
             list entry.
+        doctrine_root: When provided, prefer the referenced body's declared ID
+            inside this root. Retain filename normalization for absent bodies
+            and callers without a root; never read a path escaping the root.
 
     Returns:
         ``(kind, raw_id)`` where *raw_id* is the filename stem (stripped of any
@@ -127,6 +132,14 @@ def _resolve_path_ref(path_str: str) -> tuple[str, str] | None:
     for pattern, kind in _PATH_KIND_PATTERNS:
         m = pattern.search(path_str)
         if m:
+            if doctrine_root is not None and path_str.startswith("src/doctrine/"):
+                root = doctrine_root.resolve()
+                path = (root / path_str.removeprefix("src/doctrine/")).resolve()
+                if path.is_relative_to(root) and path.is_file():
+                    data = _load_yaml(path)
+                    declared_id = data.get("id") if data is not None else None
+                    if isinstance(declared_id, str) and declared_id.strip():
+                        return kind, declared_id.strip()
             return kind, m.group(1)
     return None
 
@@ -599,7 +612,7 @@ def extract_artifact_edges(  # noqa: C901
             for ref_raw in data.get("references", []) or []:
                 if not isinstance(ref_raw, str):
                     continue
-                resolved = _resolve_path_ref(ref_raw)
+                resolved = _resolve_path_ref(ref_raw, doctrine_root=doctrine_root)
                 if resolved is None:
                     continue  # URL, glossary path, or unrecognised pattern — skip
                 ref_kind, ref_id = resolved
@@ -636,7 +649,7 @@ def extract_artifact_edges(  # noqa: C901
             for ref_raw in data.get("references", []) or []:
                 if not isinstance(ref_raw, str):
                     continue
-                resolved = _resolve_path_ref(ref_raw)
+                resolved = _resolve_path_ref(ref_raw, doctrine_root=doctrine_root)
                 if resolved is None:
                     continue
                 ref_kind, ref_id = resolved

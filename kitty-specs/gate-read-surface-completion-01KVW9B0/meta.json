@@ -25,7 +25,7 @@
   "slug": "gate-read-surface-completion-01KVW9B0",
   "status_phase": "1",
   "target_branch": "feat/gate-read-surface-completion",
-  "topology": "single_branch",
+  "topology": "lanes",
   "vcs": "git",
   "vcs_locked_at": "2026-06-24T15:12:30.488995+00:00"
 }

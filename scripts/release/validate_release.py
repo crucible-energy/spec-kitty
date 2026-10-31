@@ -241,7 +241,11 @@ def load_pyproject_version(path: Path) -> str:
 
 
 def load_metadata_yaml_version(repo_root: Path) -> str:
-    """Load spec_kitty.version from .kittify/metadata.yaml."""
+    """Load the governing CLI version, independently of the product release.
+
+    ProjectMetadata is written by init and upgrade with the executing/target
+    CLI version. A source checkout may be governed by a newer installed CLI.
+    """
     try:
         import yaml
     except ModuleNotFoundError as exc:  # pragma: no cover - pyyaml required
@@ -254,22 +258,34 @@ def load_metadata_yaml_version(repo_root: Path) -> str:
         raise ReleaseValidatorError(
             f".kittify/metadata.yaml not found at {metadata_path}"
         )
-    data = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))
-    version = data.get("spec_kitty", {}).get("version")
+    try:
+        data = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, yaml.YAMLError) as exc:
+        raise ReleaseValidatorError(
+            ".kittify/metadata.yaml could not be read as valid YAML"
+        ) from exc
+    spec_kitty = data.get("spec_kitty") if isinstance(data, dict) else None
+    version = spec_kitty.get("version") if isinstance(spec_kitty, dict) else None
     if not version:
         raise ReleaseValidatorError(
             ".kittify/metadata.yaml missing spec_kitty.version"
         )
-    return str(version)
+    if not isinstance(version, str) or not RELEASE_VERSION_RE.fullmatch(version):
+        raise ReleaseValidatorError(
+            ".kittify/metadata.yaml requires a valid spec_kitty.version string"
+        )
+    return version
 
 
 def validate_metadata_yaml_version_sync(
     pyproject_version: str,
     repo_root: Path,
 ) -> ValidationIssue | None:
-    """Assert .kittify/metadata.yaml version matches pyproject.toml. See FR-601, FR-602.
+    """Preserve the legacy opt-in exact-version comparison (FR-601/FR-602).
 
-    Returns a ValidationIssue if there is a mismatch, otherwise None.
+    Existing integrations may import this helper directly. The current release
+    CLI instead validates governing-runtime metadata independently of product
+    identity; keep that policy separate from this strict comparison contract.
     """
     try:
         metadata_version = load_metadata_yaml_version(repo_root)
@@ -287,6 +303,15 @@ def validate_metadata_yaml_version_sync(
                 f"{pyproject_version!r} so both files agree before cutting the release."
             ),
         )
+    return None
+
+
+def validate_governing_runtime_metadata(repo_root: Path) -> ValidationIssue | None:
+    """Require valid runtime metadata without conflating it with product identity."""
+    try:
+        load_metadata_yaml_version(repo_root)
+    except ReleaseValidatorError as exc:
+        return ValidationIssue(message=str(exc))
     return None
 
 
@@ -458,7 +483,7 @@ def validate_version_source_consistency(
 ) -> list[ValidationIssue]:
     """Collect cross-file release-version consistency issues."""
     checks = [
-        validate_metadata_yaml_version_sync(version, repo_root),
+        validate_governing_runtime_metadata(repo_root),
         validate_uv_lock_version_sync(version, lockfile_path),
         validate_release_covers_migration_targets(version, repo_root),
         validate_changelog_latest_version_sync(version, changelog_text),

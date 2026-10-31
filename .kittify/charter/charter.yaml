@@ -16,7 +16,7 @@ governance:
   branch_strategy:
     main_branch: main
     rules: []
-  doctrine:
+  charter:
     selected_paradigms: []
     # Project-level directives reach local agent context without becoming
     # product-wide doctrine for downstream projects.
@@ -128,6 +128,9 @@ catalog:
   template_set: software-dev-default
   languages:
   - python
+  - typescript
+  - javascript
+  - swift
   references:
   - id: USER:PROJECT_PROFILE
     kind: user_profile
@@ -171,6 +174,30 @@ catalog:
     summary: "Software design guided by a deep model of the business domain. Strategic design decomposes a system into Bounded Contexts connected through explicit Context Mapping patterns (ACL, OHS, Shared Kernel, Published Language, etc.). Within each context a Ubiquitous Language keeps code, model, and domain expert communication aligned. Tactical patterns (Aggregates, Entities, Value Objects, Domain Events, Repositories, Domain Services) enforce invariants at the model boundary. DDD treats the domain model as the primary artifact — code is a direct expression of that model, not a translation layer above a database schema or UI framework.\n"
     source_path: src/doctrine/paradigms/built-in/domain-driven-design.paradigm.yaml
     local_path: _LIBRARY/paradigm-domain-driven-design.md
+  - id: PARADIGM:execution-lanes
+    kind: paradigm
+    title: Execution Lanes
+    summary: "The default Spec Kitty implementation workspace paradigm. Each work package runs in an isolated execution-lane worktree so agents can implement, test, review, and hand off changes without mutating another lane's checkout. Execution lanes keep task status, branch state, prompt files, and verification evidence aligned around one work package at a time. Shared mainline state is reached only through explicit review, merge, and quality gates.\n"
+    source_path: src/doctrine/paradigms/built-in/execution-lanes.paradigm.yaml
+    local_path: _LIBRARY/paradigm-execution-lanes.md
+  - id: PARADIGM:git-flow
+    kind: paradigm
+    title: Git Flow
+    summary: "A branch-management paradigm built around long-lived integration and release branches, with feature and hotfix branches feeding controlled release points. In Spec Kitty this exists as a resolvable compatibility paradigm for projects whose charter already requires Git Flow. It is not the default implementation workspace model; execution-lane worktrees remain the supported default when no project-specific branching paradigm is selected.\n"
+    source_path: src/doctrine/paradigms/built-in/git-flow.paradigm.yaml
+    local_path: _LIBRARY/paradigm-git-flow.md
+  - id: PARADIGM:semantic-compression
+    kind: paradigm
+    title: Semantic Compression
+    summary: "Treat a software system as an over-expanded expression of observable behavior. The work is to remove accidental implementation complexity while preserving semantics: first map the behavior that must not change, then find duplicated or dead expressions of that behavior, extract one concept per responsibility, collapse parallel behavioral paths, and verify equivalence. The goal is not prettier code or architectural purity. The goal is a smaller implementation that still produces the same externally observable behavior, with evidence strong enough for the risk of the reduction.\n"
+    source_path: src/doctrine/paradigms/built-in/semantic-compression.paradigm.yaml
+    local_path: _LIBRARY/paradigm-semantic-compression.md
+  - id: PARADIGM:shared-branch-ci
+    kind: paradigm
+    title: Shared-Branch CI
+    summary: "A collaborative workspace paradigm where multiple contributors integrate through a shared branch protected by continuous integration, staging hygiene, and explicit commit attribution. In Spec Kitty this is a resolvable compatibility paradigm for teams whose charter selects a shared branch model. It must still preserve isolated verification evidence and quality gates before shared state is promoted.\n"
+    source_path: src/doctrine/paradigms/built-in/shared-branch-ci.paradigm.yaml
+    local_path: _LIBRARY/paradigm-shared-branch-ci.md
   - id: PARADIGM:specification-by-example
     kind: paradigm
     title: Specification by Example
@@ -183,6 +210,12 @@ catalog:
     summary: "Treat structured prompts and REASONS canvases as governed change-intent and decision-boundary artifacts. Code remains the source of truth for current behavior; canvases record approved intent, boundaries, and safeguards for a mission or work package. Applies to high-risk and multi-WP missions where change-boundary clarity reduces drift; not appropriate for tiny fixes, throwaway spikes, or purely visual exploration where canvas authoring is overhead.\n"
     source_path: src/doctrine/paradigms/built-in/structured-prompt-driven-development.paradigm.yaml
     local_path: _LIBRARY/paradigm-structured-prompt-driven-development.md
+  - id: PARADIGM:trunk-based
+    kind: paradigm
+    title: Trunk-Based Development
+    summary: "A branch-management paradigm where contributors integrate small, verified changes into the mainline frequently, avoiding long-lived divergence. In Spec Kitty this exists as a resolvable compatibility paradigm for projects whose charter selects trunk-based development. Work remains gated by targeted staging, commit attribution, and test/typecheck verification before mainline integration.\n"
+    source_path: src/doctrine/paradigms/built-in/trunk-based.paradigm.yaml
+    local_path: _LIBRARY/paradigm-trunk-based.md
   - id: DIRECTIVE:DIRECTIVE_001
     kind: directive
     title: Architectural Integrity Standard
@@ -333,6 +366,12 @@ catalog:
     summary: "Every mission branch and pull request an agent prepares must be readable, consistent, and supported by sufficient automated proof before it is handed to the operator. Concretely, three properties are required and must not be traded away for speed: (1) LINEAR history — the branch is rebased onto the current upstream base and carries a small set of logically-sliced commits, never a tangle of merge and status commits (rebase over merge); (2) CONSISTENT and COMPLETE scope — the branch finishes the work it set out to do and does not defer genuinely small remaining items to a follow-up, deferring only work that is genuinely high-effort or mission-sized; (3) AUTOMATICALLY PROVEN — the rebased aggregate diff has passed its relevant tests, type/lint checks, and applicable regression or architectural gates before the agent opens a full, non-draft pull request. Draft pull requests are prohibited. The adversarial review squad (adversarial-squad-deployment) may add signal, but is optional and never a substitute for executable proof or a human-review gate.\n"
     source_path: ''
     local_path: _LIBRARY/directive-directive-046.md
+  - id: DIRECTIVE:RECONCILE_CHANGE_SCOPE_TENSIONS
+    kind: directive
+    title: Reconciling Change-Scope Tensions
+    summary: "Locality of Change (DIRECTIVE_024), the Boy Scout Rule (DIRECTIVE_025), and the Change Apply Smallest Viable Diff tactic each bound the size of a change from a different angle, and by design they are not fully compatible: Locality of Change minimizes blast radius, Boy Scout Rule licenses opportunistic in-place improvement of touched areas, and smallest-viable-diff minimizes the diff itself. This directive gives an operator or agent a single place to weigh the three together on a given change, instead of applying each in isolation, so the default doctrine pack stays coherent even though the underlying tension between the three rules is real and intentionally left unresolved at the rule level.\n"
+    source_path: ''
+    local_path: _LIBRARY/directive-reconcile-change-scope-tensions.md
   - id: TACTIC:acceptance-test-first
     kind: tactic
     title: Acceptance Test Driven Development (ATDD)
@@ -417,6 +456,12 @@ catalog:
     summary: "Challenge a proposed implementation or design for unnecessary complexity by asking whether each abstraction or feature addresses a current, observed need. Keeps implementation effort proportional to scope, reduces cyclic complexity, and guards against speculative over-engineering that wastes time and calcifies into technical debt.\n"
     source_path: ''
     local_path: _LIBRARY/tactic-avoid-gold-plating.md
+  - id: TACTIC:bdd-scenario-formulation
+    kind: tactic
+    title: BDD Scenario Formulation
+    summary: "Define system behavior through concrete examples before implementation, ensuring shared understanding between stakeholders and implementers. BDD scenarios serve as behavioral contracts, acceptance criteria, and executable test definitions simultaneously. Apply when: a feature or business rule is being defined and stakeholders are available, the behavior can be expressed in observable outcomes, or behavioral ambiguity must be resolved before implementation begins. Not applicable: implementation-only tasks with no behavioral ambiguity, purely technical refactoring, or when behavior is already unambiguously specified.\n"
+    source_path: ''
+    local_path: _LIBRARY/tactic-bdd-scenario-formulation.md
   - id: TACTIC:behavior-driven-development
     kind: tactic
     title: Behavior-Driven Development
@@ -1059,6 +1104,12 @@ catalog:
     summary: "Reference other aggregates by identity only: an aggregate must not hold a direct object reference to another aggregate. Use the other aggregate's ID instead to prevent transaction scope from spanning multiple aggregates."
     source_path: ''
     local_path: _LIBRARY/styleguide-aggregate-design-rules.md
+  - id: STYLEGUIDE:boring-code-review
+    kind: styleguide
+    title: Boring Code Review
+    summary: Prefer obvious control flow over clever control flow, unless the clever option clearly improves correctness, safety, or change cost.
+    source_path: ''
+    local_path: _LIBRARY/styleguide-boring-code-review.md
   - id: STYLEGUIDE:common-docs
     kind: styleguide
     title: Common Docs Styleguide
@@ -1071,6 +1122,12 @@ catalog:
     summary: 'A skill description is a routing contract: it must name what the skill does and the concrete triggers that should cause an agent to load it.'
     source_path: ''
     local_path: _LIBRARY/styleguide-deployable-skill-authoring.md
+  - id: STYLEGUIDE:given-when-then-authoring
+    kind: styleguide
+    title: Given-When-Then Scenario Authoring
+    summary: 'A scenario has three parts: Given (the precondition/context), When (the single trigger), Then (the observable outcome). This is the same behavioural skeleton the specs in this repository already use — one scenario describes one behaviour.'
+    source_path: ''
+    local_path: _LIBRARY/styleguide-given-when-then-authoring.md
   - id: STYLEGUIDE:java-conventions
     kind: styleguide
     title: Java Conventions Styleguide
@@ -1137,6 +1194,12 @@ catalog:
     summary: Operation-oriented guidance for using efficient local tools during repository work.
     source_path: ''
     local_path: _LIBRARY/toolguide-efficient-local-tooling.md
+  - id: TOOLGUIDE:gherkin
+    kind: toolguide
+    title: The Gherkin Scenario Language
+    summary: "Reference for the Gherkin DSL itself — the language, not any runner. Covers Feature, Background, Scenario, Scenario Outline, the Given/When/Then/And/But steps, Examples tables, tags, and doc strings / data tables. Explicitly scoped to the notation only; the runner that executes Gherkin (Cucumber, behave, SpecFlow, and others) is out of scope and named only to draw the boundary.\n"
+    source_path: ''
+    local_path: _LIBRARY/toolguide-gherkin.md
   - id: TOOLGUIDE:git-agent-commit-signing
     kind: toolguide
     title: Git Agent Commit Signing
@@ -1290,7 +1353,7 @@ catalog:
   - id: PROCEDURE:red-main-release-discipline
     kind: procedure
     title: Red Main & Release Discipline
-    summary: "Keep the mainline CI signal honest and authoritative for release. A red main is a true signal of known release-blocking (P0) defects, never something to hide by reverting an honest failure or declining a bug's reproduction test. Mainline CI status is the single authoritative release gate; expensive QA and manual testing are not spent on a known-broken base; and red main is worked down as top priority. Consensus policy (CEO/product owner, QA lead, maintainers); governing decision ADR 2026-07-17-1, operational guide docs/guides/red-main-and-release-readiness.md.\n"
+    summary: "Keep the mainline CI signal honest and authoritative for release. A red main is a true signal of known release-blocking (P0) defects, never something to hide by reverting an honest failure or declining a bug's reproduction test. Mainline CI status is the single authoritative release gate; expensive QA and manual testing are not spent on a known-broken base; and red main is worked down as top priority. Consensus policy (CEO/product owner, QA lead, maintainers); governing decision ADR 2026-07-17-1, operational guide docs/development/red-main-and-release-readiness.md.\n"
     source_path: ''
     local_path: _LIBRARY/procedure-red-main-release-discipline.md
   - id: PROCEDURE:refactoring
@@ -1341,6 +1404,12 @@ catalog:
     summary: External-agent onboarding and doctrine artifact curation specialist
     source_path: ''
     local_path: _LIBRARY/agent_profile-doctrine-daphne.md
+  - id: AGENT_PROFILE:frontend-freddy
+    kind: agent_profile
+    title: Frontend Freddy
+    summary: Browser-side implementer for HTML/CSS/JavaScript/TypeScript with component frameworks, accessibility, and frontend testing
+    source_path: ''
+    local_path: _LIBRARY/agent_profile-frontend-freddy.md
   - id: AGENT_PROFILE:generic-agent
     kind: agent_profile
     title: Generic Agent
@@ -1365,6 +1434,12 @@ catalog:
     summary: Java-specialist implementer applying ATDD/TDD discipline, Maven build tooling, and idiomatic Java style enforcement
     source_path: ''
     local_path: _LIBRARY/agent_profile-java-jenny.md
+  - id: AGENT_PROFILE:node-norris
+    kind: agent_profile
+    title: Node Norris
+    summary: Server-side Node.js implementer for HTTP APIs, event-loop discipline, streaming, and npm ecosystem
+    source_path: ''
+    local_path: _LIBRARY/agent_profile-node-norris.md
   - id: AGENT_PROFILE:paula-patterns
     kind: agent_profile
     title: Paula Patterns
@@ -1415,7 +1490,7 @@ catalog:
     local_path: _LIBRARY/template-set-software-dev-default.md
 overrides: {}
 metadata:
-  generated_at: '2026-07-18T13:41:11Z'
+  generated_at: '2026-10-28T20:21:20Z'
   bundle_schema_version: 2
 activated_directives:
 - 001-architectural-integrity-standard
@@ -1457,12 +1532,9 @@ activated_tactics:
 - atomic-state-ownership
 - autonomous-operation-protocol
 - avoid-gold-plating
-- behavior-driven-development
 - black-box-integration-testing
-- boring-code-review
 - bounded-context-canvas-fill
 - bounded-context-identification
-- bug-fixing-checklist
 - c4-zoom-in-architecture-documentation
 - chain-of-responsibility-rule-pipeline
 - change-apply-smallest-viable-diff
@@ -1492,7 +1564,6 @@ activated_tactics:
 - input-validation-fail-fast
 - interface-variation-design
 - language-driven-design
-- locality-of-change
 - mutation-testing-workflow
 - no-parallel-duplicate-test-runs
 - occurrence-classification-workflow
@@ -1550,10 +1621,10 @@ activated_tactics:
 - clean-linear-commit-history
 - ownership-map-leeway
 - reviewer-implementer-role-separation
-- common-docs-curation
 - common-docs-find
 - common-docs-scaffold
 - common-docs-write
+- bdd-scenario-formulation
 activated_styleguides:
 - aggregate-design-rules
 - deployable-skill-authoring
@@ -1563,10 +1634,10 @@ activated_styleguides:
 - python-conventions
 - reasons-canvas-writing
 - testing-principles
-- adversarial-squad-cadence
 - tiered-standards
 - planning-and-tracking
 - common-docs
+- boring-code-review
 activated_toolguides:
 - contextive
 - efficient-local-tooling
@@ -1580,15 +1651,6 @@ activated_toolguides:
 - typescript-mutation-tools
 - terminology-guard
 - github-tracker
-activated_paradigms:
-- atomic-design
-- behaviour-driven-development
-- brownfield-onboarding
-- c4-incremental-detail-modeling
-- deep-module-design
-- domain-driven-design
-- specification-by-example
-- structured-prompt-driven-development
 activated_procedures:
 - bdd-scenario-lifecycle
 - disciplined-defect-diagnosis
@@ -1608,3 +1670,8 @@ activated_procedures:
 - post-merge-arch-gate-adjudication
 - mission-wrap-up-sequence
 - red-main-release-discipline
+mission_type_activations:
+- software-dev
+- documentation
+- research
+- plan

@@ -94,9 +94,15 @@ DOCTRINE_ROOT: Path = Path(__file__).resolve().parents[4] / "src" / "doctrine"
 #: The canonical regeneration in PR128 removes the two stale DIRECTIVE_046
 #: suggestions absent from its authored source. Nodes/orphans and the exact
 #: regenerated-plus-authored-overlay equality below remain unchanged.
-_EXPECTED_NODE_COUNT = 303
-_EXPECTED_EDGE_COUNT = 755
-_EXPECTED_ORPHAN_COUNT = 30
+#: Source141's published-policy backport adds four authored nodes: the BDD
+#: tactic, boring-review and Given/When/Then styles, and Gherkin toolguide.
+#: Their declared references add eleven suggests edges (eight BDD, three boring
+#: review); all existing nodes/edges remain. The existing named scope reconciler
+#: is now reached by boring review instead of remaining a pure-graph orphan.
+#: This is a data baseline change, not an implementation-completion metric.
+_EXPECTED_NODE_COUNT = 307
+_EXPECTED_EDGE_COUNT = 766
+_EXPECTED_ORPHAN_COUNT = 29
 
 #: software-dev steps that are not action-sequence members (retrospect lives
 #: outside every type's step directory and is asserted separately).

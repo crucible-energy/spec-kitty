@@ -9,7 +9,7 @@ Defines the output schema for:
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from ruamel.yaml import YAML
 
 from charter.activations import ActivationEntry
@@ -131,6 +131,20 @@ class DoctrineSelectionConfig(BaseModel):
 
 class GovernanceConfig(BaseModel):
     """Top-level governance configuration."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def preserve_governing_selection(cls, value: Any) -> Any:
+        """Read the current governor's selection without changing Source3 output.
+
+        Official 4.x upgrades rename ``doctrine`` to ``charter``. Ignoring that
+        key silently disables authored policy; conflicting dual keys are unsafe.
+        """
+        if not isinstance(value, dict) or "charter" not in value:
+            return value
+        if "doctrine" in value and value["doctrine"] != value["charter"]:
+            raise ValueError("Conflicting governance selection keys")
+        return {**value, "doctrine": value["charter"]}
 
     testing: CharterTestingConfig = Field(default_factory=CharterTestingConfig)
     quality: QualityConfig = Field(default_factory=QualityConfig)

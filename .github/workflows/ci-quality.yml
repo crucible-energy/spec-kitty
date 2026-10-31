@@ -16,7 +16,7 @@ on:
       - 'docs/**'
       - 'scripts/docs/**'
       - 'scripts/ci/**'
-      - '.kittify/doctrine/overlays/**'
+      - '.kittify/charter-packs/**'
       - 'tests/**'
       - 'pyproject.toml'
       - '.kittify/metadata.yaml'
@@ -46,7 +46,7 @@ on:
       - 'docs/**'
       - 'scripts/docs/**'
       - 'scripts/ci/**'
-      - '.kittify/doctrine/overlays/**'
+      - '.kittify/charter-packs/**'
       - 'tests/**'
       - 'pyproject.toml'
       - '.kittify/metadata.yaml'
@@ -280,7 +280,7 @@ jobs:
               - 'tests/kernel/**'
             doctrine:
               - 'src/doctrine/**'
-              - '.kittify/doctrine/overlays/**'
+              - '.kittify/charter-packs/**'
               - 'tests/doctrine/**'
             execution_context:
               - 'src/mission_runtime/**'
@@ -738,7 +738,9 @@ jobs:
           # tee's 0 — otherwise the downstream security gate is vacuous
           # (aggregate-squad alphonso). tee still writes the report regardless.
           set -o pipefail
-          uv run python -m pip_audit | tee out/reports/security/pip-audit-report.txt
+          # The editable workspace is source under review, not a published PyPI artifact.
+          # Keep the CVE lookup for its installed third-party dependencies.
+          uv run python -m pip_audit --skip-editable | tee out/reports/security/pip-audit-report.txt
 
       - name: "[ENFORCED] Validate patch() target strings (closes #394)"
         run: uv run python scripts/check_patch_targets.py

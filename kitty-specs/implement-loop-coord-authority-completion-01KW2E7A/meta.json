@@ -26,7 +26,7 @@
   "slug": "implement-loop-coord-authority-completion-01KW2E7A",
   "status_phase": "1",
   "target_branch": "design/coord-authority-remediation-2160",
-  "topology": "single_branch",
+  "topology": "lanes",
   "vcs": "git",
   "vcs_locked_at": "2026-06-26T19:01:19.964496+00:00"
 }

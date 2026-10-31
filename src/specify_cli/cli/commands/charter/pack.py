@@ -8,6 +8,7 @@ import typer
 from specify_cli.cli.console import console
 
 from charter.invocation_context import ProjectContext
+from specify_cli.cli.commands.charter._layer_roots import resolve_layer_roots
 
 __all__ = ["charter_pack_app"]
 
@@ -27,7 +28,7 @@ def consistency_check_cmd(
     from charter.consistency_check import run_consistency_check  # noqa: PLC0415
 
     ctx = ProjectContext.from_repo(repo_root)
-    report = run_consistency_check(ctx)
+    report = run_consistency_check(ctx, layer_roots=resolve_layer_roots(ctx.require_repo_root()))
     if json_output:
         typer.echo(report.to_json())
     else:

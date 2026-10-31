@@ -11,7 +11,7 @@
   "slug": "synthesized-drg-stale-refresh-01KXN8KZ",
   "status_phase": "1",
   "target_branch": "fix/2681-synthesized-drg-stale",
-  "topology": "single_branch",
+  "topology": "lanes",
   "vcs": "git",
   "vcs_locked_at": "2026-07-16T15:13:37.977783+00:00"
 }
