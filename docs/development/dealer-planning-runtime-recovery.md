@@ -1,3 +1,11 @@
+---
+title: Planning runtime recovery and owned acceptance
+description: Build the isolated published-release planning repair and verify owned acceptance without changing customer authorization gates.
+doc_status: active
+updated: "2026-10-30"
+type: reference
+---
+
 # Isolated planning acceptance repair for published rc7
 
 The [qualification assets](../../tools/qualification/dealer-planning-rc7/) preserve an inert, complete source patch for the published
