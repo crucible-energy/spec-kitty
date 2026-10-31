@@ -8241,6 +8241,7 @@ pages:
     - {slug: "2026-10-30", text: "2026-10-30", level: 3}
     - {slug: "engineering-decisions", text: "Engineering Decisions", level: 2}
     - {slug: "2026-10-30-2", text: "2026-10-30", level: 3}
+    - {slug: "2026-10-31", text: "2026-10-31", level: 3}
     - {slug: "known-limitations", text: "Known Limitations", level: 2}
     - {slug: "2026-10-30-3", text: "2026-10-30", level: 3}
   - path: "docs/plans/engineering-notes/2173-infra-logic-separation/00-SYNTHESIS.md"

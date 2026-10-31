@@ -2,7 +2,7 @@
 title: Fork packaging hooks
 description: How renamed or private-index forks customize Spec Kitty upgrade checks and package identity via entry points—without overlaying core sources.
 doc_status: active
-updated: '2026-10-30'
+updated: '2026-10-31'
 type: how-to
 related:
 - docs/guides/upgrade-cli.md
@@ -18,7 +18,10 @@ Stock wheels register a package-identity fallback so startup can identify the
 installed supplier without scanning every installed distribution. Custom
 `spec_kitty.cli_package` providers retain priority over that stock fallback.
 The fallback reads its registering distribution’s actual name, so renaming a
-wheel does not turn its identity back into `spec-kitty-cli`. Older wheels with
+wheel does not turn its identity back into `spec-kitty-cli`. Only the declared
+`stock` entry targeting `specify_cli.distribution.package_name:DEFAULT_CLI_PACKAGE_NAME`
+is that fallback. Other names reusing the constant, and custom entries named
+`stock` with another value, keep their normal loaded-payload semantics. Older wheels with
 no registration retain the existing import-package ownership fallback.
 
 ## What Spec Kitty owns vs what you own

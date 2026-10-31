@@ -224,3 +224,19 @@ def test_unavailable_registration_and_ownership_metadata_preserves_stock_default
     monkeypatch.setattr("specify_cli.distribution.package_name.entry_points", unavailable)
     monkeypatch.setattr("specify_cli.distribution.package_name.packages_distributions", unavailable)
     assert resolve_cli_package_name() == DEFAULT_CLI_PACKAGE_NAME
+
+
+def test_custom_provider_reusing_stock_constant_keeps_loaded_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    custom = _RegisteredStockEntryPoint("custom-plugin-distribution")
+    custom.name = "main"
+    stock = _RegisteredStockEntryPoint("renamed-cli")
+    monkeypatch.setattr("specify_cli.distribution.package_name.entry_points", lambda group: [stock, custom])
+    assert resolve_cli_package_name() == DEFAULT_CLI_PACKAGE_NAME
+
+
+def test_custom_provider_named_stock_with_different_value_remains_custom(monkeypatch: pytest.MonkeyPatch) -> None:
+    custom = _FakeEntryPoint("stock", "explicit-custom-cli")
+    custom.value = "custom_plugin:PACKAGE_NAME"
+    stock = _RegisteredStockEntryPoint("renamed-cli")
+    monkeypatch.setattr("specify_cli.distribution.package_name.entry_points", lambda group: [stock, custom])
+    assert resolve_cli_package_name() == "explicit-custom-cli"

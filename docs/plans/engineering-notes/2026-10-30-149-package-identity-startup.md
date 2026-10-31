@@ -2,7 +2,7 @@
 title: Package identity startup repair
 description: Preserve supplier and custom-provider contracts while removing stock wheel package discovery from the startup path.
 doc_status: active
-updated: '2026-10-30'
+updated: '2026-10-31'
 type: explanation
 ---
 
@@ -76,6 +76,16 @@ version equality, cached-object identity, override and unknown-attribute refusal
 checks; version-metadata reads are also checked for demand and cached access.
 A bounded review of related package/version tests and the active guide found
 one additional stale stock-install checklist label, which is updated explicitly.
+
+### 2026-10-31
+
+Final semantic review found that value-only stock detection also captured a
+custom `main` hook deliberately returning the existing stock constant. A red-first
+control reproduced the wrong plugin supplier name. Recognition now requires the
+complete declared registration name and value; custom constant reuse and a custom
+`stock` name with a different value retain normal loaded-payload semantics. Both
+directions are explicit controls. This changes the bounded source repair, not
+any frozen corrective 4.x runtime or customer authority.
 
 ## Known Limitations
 

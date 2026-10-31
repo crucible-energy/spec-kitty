@@ -74,16 +74,21 @@ def _resolve_cli_package_name_uncached() -> str:
     return DEFAULT_CLI_PACKAGE_NAME
 
 
+def _is_stock_entry_point(entry: EntryPoint) -> bool:
+    """Match the declared fallback, not custom hooks reusing its payload."""
+    return entry.name == "stock" and getattr(entry, "value", None) == _STOCK_ENTRY_POINT_VALUE
+
+
 def _select_entry_point(discovered: list[EntryPoint]) -> EntryPoint | None:
     if not discovered:
         return None
-    custom = [entry for entry in discovered if getattr(entry, "value", None) != _STOCK_ENTRY_POINT_VALUE]
+    custom = [entry for entry in discovered if not _is_stock_entry_point(entry)]
     return sorted(custom or discovered, key=lambda entry: entry.name)[0]
 
 
 def _name_from_entry_point(entry: EntryPoint) -> str | None:
     try:
-        if getattr(entry, "value", None) == _STOCK_ENTRY_POINT_VALUE:
+        if _is_stock_entry_point(entry):
             # A static stock constant would misidentify a renamed wheel. The
             # entry-point owner is authoritative; invalid metadata retains the
             # existing import-package ownership fallback rather than guessing.
