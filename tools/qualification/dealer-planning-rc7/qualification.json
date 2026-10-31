@@ -1,0 +1,221 @@
+{
+  "schema_version": "dealer_planning_corrective_rc7_v1",
+  "observed_at": "2026-10-31T02:12:34.537Z",
+  "published_base": {
+    "version": "4.0.0rc7",
+    "archive_sha256": "91e98774b7a69a273f9146656482e1e2bddd274a2178dfc6ac9c1f3bcede0c80",
+    "source_commit": "1b0fe9fc388b095f9964471b0177b4213e9c6c98"
+  },
+  "local_version": "4.0.0rc7+crucible.dealerrecovery.2",
+  "owning_base": "crucible-energy/spec-kitty@e851d756e487a6ae0fb39d40fe3f759ec78198ad",
+  "source_ports": {
+    "startup": "a8e8435517e7b4369f1b2e7bd6b8ba1a970e2c9c",
+    "plan_profiles": "72b896044977cd86fa31ad42e074507ff8f04a9e",
+    "non_wp_acceptance": "4e2ae4eb6e9f27ff44bd6dfb5fea36dae9cd6ef1",
+    "canonical_pack": "spec-kitty-open-packs@af1c370f34601f2aa00d45a7a9597ab8d6a46ea1",
+    "kernel_runtime_shape": "4e2ae4eb6e9f27ff44bd6dfb5fea36dae9cd6ef1:src/kernel/mission_runtime_shape.py",
+    "qualification_recipe": "crucible-energy/spec-kitty@c2c6c15f5b44565128ae1b0bf1bea0b9dfad1727:tools/qualification/"
+  },
+  "patches": [
+    {
+      "path": "dealer-planning-rc7.patch",
+      "sha256": "25ba32e74b7e8ae0de90cfb99195cc8c08da2c62249e0996ed7e32ddc368e535"
+    },
+    {
+      "path": "owned-acceptance-context.patch",
+      "sha256": "ae46754ab142962c6104e29cf531ce7129d5b9c27034090c0acb4f23f1907b1e"
+    }
+  ],
+  "canonical_pack_records": [
+    {
+      "source": "spec-kitty-open-packs@af1c370f34601f2aa00d45a7a9597ab8d6a46ea1",
+      "path": "packs/built-in/missions/built_in_step_contracts/plan-specify.step-contract.yaml",
+      "sha256": "59fbf6381a1cd155aeac6cce6a3cb2c530c2f660d7e27ceea1cd75434e401fa9"
+    },
+    {
+      "source": "spec-kitty-open-packs@af1c370f34601f2aa00d45a7a9597ab8d6a46ea1",
+      "path": "packs/built-in/missions/built_in_step_contracts/plan-research.step-contract.yaml",
+      "sha256": "32fcb00d813a52d020eefc4a2e9ea63e814d8811bb9dfccb36c6689734751c86"
+    },
+    {
+      "source": "spec-kitty-open-packs@af1c370f34601f2aa00d45a7a9597ab8d6a46ea1",
+      "path": "packs/built-in/missions/built_in_step_contracts/plan-plan.step-contract.yaml",
+      "sha256": "40ec493818812ceff882944ce997bb38c98f4c3223a15c4bb27ca170b76e5cb0"
+    },
+    {
+      "source": "spec-kitty-open-packs@af1c370f34601f2aa00d45a7a9597ab8d6a46ea1",
+      "path": "packs/built-in/missions/built_in_step_contracts/plan-review.step-contract.yaml",
+      "sha256": "db97f1c62e648bdac8920bb047c97c3a9b77dab8b2e5707be3438ec37e61c40e"
+    },
+    {
+      "source": "spec-kitty-open-packs@af1c370f34601f2aa00d45a7a9597ab8d6a46ea1",
+      "path": "packs/built-in/missions/plan/expected-artifacts.yaml",
+      "sha256": "2fb54ca8e5776db97349299850af734a9f38de87a7a08fd7efbb80fc2b4e2abe"
+    }
+  ],
+  "product_files": [
+    {
+      "path": "src/specify_cli/__init__.py",
+      "sha256": "9f73cfa17ac9e310b171dc9384146298b79e156ae1bde5807d323c05bc0fb4e3",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/cli/commands/_owned_checkout.py",
+      "sha256": "12bc2dab8feb305950d52c79603c2e2cd7e757e4cf7d94ac3e05f3e4451b6dd6",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/core/_ownership_claim_scope.py",
+      "sha256": "ea4e1bd1345548d1354f041b9043cd513a69a2aabb7c0449e56c98a1e09dbf54",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/core/owned_mission.py",
+      "sha256": "dd1e6c8fa07c3c88a14af3a25f5bea40671855266072a2beec41739b53ea2fda",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/mission_step_contracts/profile_defaults.py",
+      "sha256": "1655f43f968373833713e5e4834707073d776d1c80f015c2a15f013c5daf6664",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/runtime/next/runtime_bridge.py",
+      "sha256": "f8f40eaa9393dd225c214f98fb1421a6373721ababf183178d836045133ba12f",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/runtime/next/runtime_bridge_io.py",
+      "sha256": "bc2d5f4cf1ef579eb37cf2dbcfe044dc0f49b5f674fe4409e69558f28b2c2c97",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/acceptance/__init__.py",
+      "sha256": "13e79a55b3f71137ad89eae3e8c2a7519eae5d9c47b55cadf663ab7379245450",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/acceptance/non_wp_runtime.py",
+      "sha256": "d0abb7b992d901dd7adc9fa8de4eb6787d4c229b7beff95537566a0acf825af7",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/kernel/mission_runtime_shape.py",
+      "sha256": "9b3e85142254c9a32e2a30e88ac354b2096f43972bdd2c09fa1feb6c8754dfa3",
+      "installed_matches_source": true
+    }
+  ],
+  "wheel": [
+    {
+      "file": "spec_kitty_cli-4.0.0rc7+crucible.dealerrecovery.2-py3-none-any.whl",
+      "sha256": "b32b182bd9ef1617e9913326b7d858e90ca36a4f38bf64b1196070168fd6520d"
+    }
+  ],
+  "dependencies": {
+    "sha256": "36ed347657a82374685dea7070cce83f3f01eb399761cade121b42f2977aa1ea",
+    "supplier_constraints_sha256": "7f762595ea0532711991f5b9a2820d872b3c247226dd2eac58b217b45712b58b"
+  },
+  "qualification": {
+    "focused": "295 passed, 50 warnings in114.82seconds",
+    "fast": "2318 passed, 5 skipped, 3 warnings in95.28seconds",
+    "lint": "source-locked ruff0.15.12: All checks passed",
+    "typing": "14 identical transitive errors in frozen v1 and v2, complete declared-stub environment; tracked https://github.com/crucible-energy/spec-kitty/issues/147",
+    "logs": [
+      {
+        "file": "repaired-runtime-v2-focused.log",
+        "sha256": "2b270297ce6672e9c1735ccb99f4ad9131742e3a15a8fce4c897fe8b4e8a9387"
+      },
+      {
+        "file": "repaired-runtime-v2-fast.log",
+        "sha256": "a6179aabb192132c3661bf70aaf17f5031596120e87f37783a88ee9a510984f8"
+      },
+      {
+        "file": "repaired-runtime-v2-lint.log",
+        "sha256": "a4b145f0435c11b9607b4a48d9b579fd7e4aa612d1608657fc5c2540ef6f1b33"
+      },
+      {
+        "file": "repaired-runtime-v1-mypy-complete-env.log",
+        "sha256": "48491b61779fb9331e855c0e52aefdffe160bcfa99130de200eda2a11c28e38b"
+      },
+      {
+        "file": "repaired-runtime-v2-mypy-complete-env.log",
+        "sha256": "48491b61779fb9331e855c0e52aefdffe160bcfa99130de200eda2a11c28e38b"
+      },
+      {
+        "file": "owned-acceptance-v2-controls.json",
+        "sha256": "0a86925dad9e603080d1cc4272ec48dc04444713a6638cbbecf5862122d6690d"
+      }
+    ],
+    "owned_receiving": [
+      {
+        "label": "v1-red",
+        "exit": 0,
+        "ok": false,
+        "missing": [
+          "tasks.md"
+        ],
+        "activity": [
+          "lanes.json is required for /Users/sam/.codex/receipts/dealer-validator-20261030/owned-acceptance-v2-linked/kitty-specs/runtime-recovery-proof-01M67TA9. Run 'spec-kitty agent mission finalize-tasks' to compute execution lanes, or if the mission has already begun executing, run 'spec-kitty doctor mission-state --fix --mission <slug>' to rebuild lanes.json from the event log."
+        ]
+      },
+      {
+        "label": "v2-positive",
+        "exit": 0,
+        "ok": true,
+        "missing": [],
+        "activity": []
+      },
+      {
+        "label": "v2-missing-spec.md",
+        "exit": 1,
+        "ok": false,
+        "missing": [
+          "spec.md"
+        ],
+        "activity": []
+      },
+      {
+        "label": "v2-missing-research.md",
+        "exit": 1,
+        "ok": false,
+        "missing": [
+          "research.md"
+        ],
+        "activity": []
+      },
+      {
+        "label": "v2-missing-plan.md",
+        "exit": 1,
+        "ok": false,
+        "missing": [
+          "plan.md"
+        ],
+        "activity": []
+      },
+      {
+        "label": "v2-wp-negative",
+        "exit": 1,
+        "ok": false,
+        "missing": [
+          "tasks.md"
+        ],
+        "activity": [
+          "WP01: canonical lane is 'planned', expected 'approved' or 'done'",
+          "lanes.json is required for /Users/sam/.codex/receipts/dealer-validator-20261030/owned-acceptance-v2-linked/kitty-specs/runtime-recovery-proof-01M67TA9. Run 'spec-kitty agent mission finalize-tasks' to compute execution lanes, or if the mission has already begun executing, run 'spec-kitty doctor mission-state --fix --mission <slug>' to rebuild lanes.json from the event log."
+        ]
+      }
+    ],
+    "earlier_non_owned_controls": "All seven installed public CLI controls passed on correction.1: positive, each missing required artifact, incomplete review, frozen-template tampering, and unfinished WP."
+  },
+  "limitations": [
+    "Private corrective build; not a published release or default-branch delivery.",
+    "Standalone operation owned-custody and broad SDK isolation were not ported or qualified. Use supported explicit owned-mission controls only.",
+    "Later canonical plan-composition test depends on post-rc7 ledger API; replaced by actual installed public CLI receiving controls with real mission IDs.",
+    "Runtime must preserve all customer and human authorization gates; passing synthetic planning fixtures grants no target access.",
+    "Correction to v1 scope: v1 synthetic main-checkout acceptance did not qualify linked owned acceptance; real Phalanx replay found missing context propagation. V2 linked receiving now covers no-mission primary, positive acceptance, each required-artifact denial and unfinished-WP denial.",
+    "Strict type baseline is not green; no global or publication qualification claimed."
+  ],
+  "authorization": "Synthetic planning proof grants no customer target access, audit authority, publication, deployment or traffic authority. Preserve contractual and human-in-the-loop gates.",
+  "resource_owner": "/root/spec_runtime_recovery coordinated with parent dealer-security-modernization-01M67NQS owner",
+  "closeout": "Runtime/source remain retained for actual mission receiving. Retire eligible asset lane through owning Git workflow only after merge/delivery verification; retain active consumer runtime until released."
+}

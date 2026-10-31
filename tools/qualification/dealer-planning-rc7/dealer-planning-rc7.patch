@@ -1,0 +1,943 @@
+diff --git a/pyproject.toml b/pyproject.toml
+index 332458f..9bae7e3 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -1,6 +1,6 @@
+ [project]
+ name = "spec-kitty-cli"
+-version = "4.0.0rc7"
++version = "4.0.0rc7+crucible.dealerrecovery.2"
+ description = "Spec Kitty, a tool for Specification Driven Development (SDD) agentic projects, with kanban and git worktree isolation."
+ readme = "README.md"
+ license = { file = "LICENSE" }
+diff --git a/src/specify_cli/__init__.py b/src/specify_cli/__init__.py
+index c857cb5..369a968 100644
+--- a/src/specify_cli/__init__.py
++++ b/src/specify_cli/__init__.py
+@@ -38,7 +38,7 @@ import os  # noqa: E402
+ import sys  # noqa: E402
+ from collections.abc import Callable  # noqa: E402
+ from pathlib import Path  # noqa: E402
+-from typing import TYPE_CHECKING, Any, TypeVar  # noqa: E402
++from typing import TYPE_CHECKING, Any, TypeVar, cast  # noqa: E402
+ 
+ T = TypeVar("T")
+ 
+@@ -70,7 +70,7 @@ def root_callback(*args: Any, **kwargs: Any) -> Any:
+ def locate_project_root() -> Path | None:
+     from specify_cli.core.project_resolver import locate_project_root as _locate_project_root
+ 
+-    return _locate_project_root()
++    return cast(Path | None, _locate_project_root())
+ 
+ 
+ def activate_mission(project_path: Path, mission_type: str, mission_display: str, console: "Console") -> str:
+@@ -167,10 +167,19 @@ def main_callback(
+ 
+ def _run_startup_project_gates(ctx: typer.Context) -> None:
+     """Run project-local safety gates shared by normal and startup-fast paths."""
++    from specify_cli.cli.helpers import ROOT_COMMAND_ARGS_META_KEY
++    from specify_cli.core._ownership_claim_scope import owned_claim_scope
+     from specify_cli.runtime.bootstrap import check_version_pin
+ 
++    ctx.with_resource(owned_claim_scope())
+     # F-Pin-001 / 1A-16: Warn on runtime.pin_version for all project invocations.
+     project_root = locate_project_root()
++    repository_root = project_root
++    args = ctx.meta.get(ROOT_COMMAND_ARGS_META_KEY, ())
++    if project_root is not None and any(arg == "--owned-checkout" or arg.startswith("--owned-checkout=") for arg in args):
++        from specify_cli.cli.commands._owned_checkout import startup_project_checkout
++
++        project_root = startup_project_checkout(ctx, project_root)
+     if project_root is not None:
+         check_version_pin(project_root)
+ 
+@@ -185,17 +194,17 @@ def _run_startup_project_gates(ctx: typer.Context) -> None:
+     # created before the upgrade), that still carries the retired doctrine layout.
+     # The hook paths never reach here (main_callback skips both gates for them).
+     if project_root is not None:
+-        _check_legacy_charter_layout(ctx, project_root)
++        _check_legacy_charter_layout(ctx, project_root, inspect_invoking_checkout=project_root == repository_root)
+ 
+ 
+-def _check_legacy_charter_layout(ctx: typer.Context, project_root: Path) -> None:
++def _check_legacy_charter_layout(ctx: typer.Context, project_root: Path, *, inspect_invoking_checkout: bool = True) -> None:
+     from specify_cli.cli.helpers import ROOT_COMMAND_ARGS_META_KEY
+     from specify_cli.migration.legacy_charter_gate import check_legacy_charter_layout, current_checkout_root, usage_errors_first
+ 
+     args = tuple(ctx.meta.get(ROOT_COMMAND_ARGS_META_KEY, sys.argv[1:]))
+     check_legacy_charter_layout(
+         project_root,
+-        current_checkout_root(),
++        current_checkout_root() if inspect_invoking_checkout else project_root,
+         invoked_subcommand=ctx.invoked_subcommand,
+         argv=args,
+         before_refusal=usage_errors_first(ctx, args),
+@@ -504,7 +513,7 @@ def _load_bytecode_heal_invoker() -> Callable[..., Any]:
+     try:
+         from specify_cli.bytecode_heal import invoke_with_bytecode_heal
+ 
+-        return invoke_with_bytecode_heal
++        return cast(Callable[..., Any], invoke_with_bytecode_heal)
+     except Exception:
+         import importlib
+         from importlib.util import cache_from_source
+@@ -518,7 +527,7 @@ def _load_bytecode_heal_invoker() -> Callable[..., Any]:
+         try:
+             from specify_cli.bytecode_heal import invoke_with_bytecode_heal
+ 
+-            return invoke_with_bytecode_heal
++            return cast(Callable[..., Any], invoke_with_bytecode_heal)
+         except Exception:
+             return _invoke_unguarded
+ 
+diff --git a/src/specify_cli/cli/commands/_owned_checkout.py b/src/specify_cli/cli/commands/_owned_checkout.py
+index 4891697..4cab8d5 100644
+--- a/src/specify_cli/cli/commands/_owned_checkout.py
++++ b/src/specify_cli/cli/commands/_owned_checkout.py
+@@ -88,6 +88,38 @@ def owned_checkout_option(help: str) -> object:  # noqa: A002 -- matches typer's
+     return typer.Option("--owned-checkout", help=help)
+ 
+ 
++def startup_project_checkout(ctx: typer.Context, repository_root: Path) -> Path:
++    """Select the validated explicit checkout for read-only startup gates.
++
++    Tokenize the real command path without invoking callbacks. A raw flag in
++    a positional argument or on a command without the owned option grants no
++    authority. Full mission/topology/write validation remains the leaf's job;
++    invalid claims keep normal startup and leaf refusal behavior.
++    """
++    from specify_cli.cli.helpers import ROOT_COMMAND_ARGS_META_KEY
++
++    args = list(ctx.meta.get(ROOT_COMMAND_ARGS_META_KEY, ()))
++    if not any(arg == "--owned-checkout" or arg.startswith("--owned-checkout=") for arg in args):
++        return repository_root
++    from specify_cli.core.owned_mission import resolve_owned_create_root
++
++    command = ctx.command
++    try:
++        while command is not None:
++            options, remaining, _order = command.make_parser(ctx).parse_args(args=args)
++            claim = options.get("owned_checkout")
++            if claim is not None:
++                return Path(resolve_owned_create_root(repository_root, Path(claim)).checkout)
++            if not remaining or not hasattr(command, "resolve_command"):
++                break
++            name, command, args = command.resolve_command(ctx, remaining)
++            if command is not None:
++                ctx = command.context_class(command, info_name=name, parent=ctx)
++    except Exception:  # noqa: BLE001 -- an unvalidated claim must never redirect startup gates
++        return repository_root
++    return repository_root
++
++
+ def resolve_owned_or_adopt(
+     repository_root: Path,
+     owned_claim: Path | None,
+@@ -126,7 +158,7 @@ def resolve_owned_or_adopt(
+     root = get_main_repo_root(repository_root).resolve()
+     if owned_claim is not None:
+         checkout = owned_claim if owned_claim.is_absolute() else cwd / owned_claim
+-        return resolve_owned_mission(
++        validated: OwnedCheckout = resolve_owned_mission(
+             root,
+             checkout,
+             handle,
+@@ -134,7 +166,9 @@ def resolve_owned_or_adopt(
+             allowed_topologies=allowed_topologies,
+             discover_sole=discover_sole,
+         )
+-    return adopt_owned_checkout(root, cwd, handle, allowed_topologies=allowed_topologies)
++        return validated
++    adopted: OwnedCheckout | None = adopt_owned_checkout(root, cwd, handle, allowed_topologies=allowed_topologies)
++    return adopted
+ 
+ 
+ def resolve_owned_or_refuse(
+@@ -346,6 +380,7 @@ def echo_stale_copy_warning(owned: OwnedCheckout) -> None:
+ 
+ 
+ __all__ = [
++    "startup_project_checkout",
+     "OwnedCheckoutOption",
+     "echo_stale_copy_warning",
+     "emit_owned_refusal",
+diff --git a/src/specify_cli/core/_ownership_claim_scope.py b/src/specify_cli/core/_ownership_claim_scope.py
+new file mode 100644
+index 0000000..4c801e4
+--- /dev/null
++++ b/src/specify_cli/core/_ownership_claim_scope.py
+@@ -0,0 +1,28 @@
++"""Request lifetime for immutable basic ownership claims; no custody decisions."""
++
++from __future__ import annotations
++
++from collections.abc import Iterator
++from contextlib import contextmanager
++from contextvars import ContextVar
++from pathlib import Path
++from typing import TYPE_CHECKING
++
++if TYPE_CHECKING:
++    from specify_cli.core.checkout_ownership import OwnershipClaim
++
++_claims: ContextVar[dict[tuple[Path, Path], OwnershipClaim] | None] = ContextVar("owned_command_claims", default=None)
++
++
++def command_claims() -> dict[tuple[Path, Path], OwnershipClaim] | None:
++    return _claims.get()
++
++
++@contextmanager
++def owned_claim_scope() -> Iterator[None]:
++    """Use a fresh scope per root invocation and restore it on every exit."""
++    token = _claims.set({})
++    try:
++        yield
++    finally:
++        _claims.reset(token)
+diff --git a/src/specify_cli/core/owned_mission.py b/src/specify_cli/core/owned_mission.py
+index 6bd56da..e067a06 100644
+--- a/src/specify_cli/core/owned_mission.py
++++ b/src/specify_cli/core/owned_mission.py
+@@ -20,6 +20,7 @@ from mission_runtime import (
+     single_branch_write_ref,
+ )
+ from specify_cli.core.constants import KITTY_SPECS_DIR
++from specify_cli.core._ownership_claim_scope import command_claims
+ from specify_cli.core.git_ops import get_current_branch
+ from specify_cli.core.paths import assert_safe_path_segment, get_status_read_root, load_meta_fail_closed
+ from specify_cli.core.utils import ensure_within_directory
+@@ -33,6 +34,7 @@ if TYPE_CHECKING:
+     from specify_cli.context.mission_resolver import ResolvedMission
+     from specify_cli.core.checkout_ownership import OwnershipClaim
+ 
++
+ # Two pre-existing wire codes this module raises that predate WP01's
+ # OwnedRefusalCode registry and are NOT part of it (orchestrator decision,
+ # review cycle 1): values are unchanged (logs_telemetry: do_not_change), each
+@@ -145,12 +147,18 @@ def _require_owned_claim(repository_root: Path, checkout: Path) -> OwnershipClai
+         resolve_ownership_claim,
+     )
+ 
++    claims = command_claims()
++    key = (repository_root.resolve(), checkout.resolve())
++    if claims is not None and key in claims:
++        return claims[key]
+     claim = resolve_ownership_claim(checkout, resolved_primary=repository_root)
+     error = error_for_claim(claim)
+     if error is not None:
+         raise ActionContextError(error.error_code, str(error))
+     if claims_repository_root(claim):
+         raise ActionContextError(OWNED_CHECKOUT_IS_REPOSITORY_ROOT, _REPOSITORY_ROOT_REFUSAL)
++    if claims is not None:
++        claims[key] = claim
+     return claim
+ 
+ 
+diff --git a/src/specify_cli/mission_step_contracts/profile_defaults.py b/src/specify_cli/mission_step_contracts/profile_defaults.py
+index c69ab34..6ce70cb 100644
+--- a/src/specify_cli/mission_step_contracts/profile_defaults.py
++++ b/src/specify_cli/mission_step_contracts/profile_defaults.py
+@@ -29,6 +29,10 @@ _ACTION_PROFILE_DEFAULTS: Final[dict[tuple[str, str], str]] = {
+     ("software-dev", "tasks"): "architect-alphonso",
+     ("software-dev", "implement"): "implementer-ivan",
+     ("software-dev", "review"): "reviewer-renata",
++    ("plan", "specify"): "researcher-robbie",
++    ("plan", "research"): "researcher-robbie",
++    ("plan", "plan"): "architect-alphonso",
++    ("plan", "review"): "reviewer-renata",
+     ("research", "scoping"): "researcher-robbie",
+     ("research", "methodology"): "researcher-robbie",
+     ("research", "gathering"): "researcher-robbie",
+diff --git a/src/runtime/next/runtime_bridge.py b/src/runtime/next/runtime_bridge.py
+index 1326e8b..325f254 100644
+--- a/src/runtime/next/runtime_bridge.py
++++ b/src/runtime/next/runtime_bridge.py
+@@ -99,7 +99,7 @@ from runtime.next import runtime_bridge_io as _io_seam
+ # the seam to intercept the runtime's own calls; patching these names here only
+ # affects the CLI callers that import them from the bridge.
+ from runtime.next.runtime_bridge_decision_log import DecisionGitLogUnavailable
+-from runtime.next.runtime_bridge_io import build_operational_context_for_claim, get_or_start_run
++from runtime.next.runtime_bridge_io import build_operational_context_for_claim, get_or_start_run, read_runtime_acceptance_facts
+ from runtime.next.runtime_bridge_query import (
+     MissionNotFoundError,
+     QueryModeValidationError,
+@@ -1432,4 +1432,5 @@ __all__ = [
+     "decide_next_via_runtime",
+     "get_or_start_run",
+     "query_current_state",
++    "read_runtime_acceptance_facts",
+ ]
+diff --git a/src/runtime/next/runtime_bridge_io.py b/src/runtime/next/runtime_bridge_io.py
+index 3163ecd..bd7f73b 100644
+--- a/src/runtime/next/runtime_bridge_io.py
++++ b/src/runtime/next/runtime_bridge_io.py
+@@ -25,10 +25,10 @@ dependency on it.
+ This module owns the names it defines. Callers inside ``src/runtime/next/``
+ look a seam-owned name up on this module (``runtime_bridge`` does so through
+ its ``_io_seam`` alias); a seam calls its own functions directly. The bridge
+-keeps no forwarder for any of them. Two names are public and reached from
++keeps no forwarder for any of them. Three names are public and reached from
+ outside the package, so the bridge re-exports them as the very same objects
+ (``from runtime.next.runtime_bridge_io import get_or_start_run,
+-build_operational_context_for_claim``): CLI modules look them up on the
++build_operational_context_for_claim, read_runtime_acceptance_facts``): CLI modules look them up on the
+ bridge. A test replaces a seam-owned function by patching THIS module; a patch
+ on the bridge's re-export intercepts only the callers that look the name up
+ on the bridge.
+@@ -60,6 +60,7 @@ from pathlib import Path
+ from typing import TYPE_CHECKING, Any, TypedDict
+ 
+ import yaml
++from kernel.mission_runtime_shape import step_ids_declare_wp_iteration
+ from kernel.tree_removal import remove_tool_owned_tree
+ from charter.activation.mission_type_profile_repository import builtin_missions_root
+ from charter.pack_paths import PackRootNotFound
+@@ -902,7 +903,7 @@ def get_or_start_run(
+ # ---------------------------------------------------------------------------
+ 
+ 
+-def _resolve_run_dir_for_mission(repo_root: Path, mission_slug: str) -> Path | None:
++def _resolve_run_dir_for_mission(repo_root: Path, mission_slug: str, *, owned: OwnedCheckout | None = None) -> Path | None:
+     """Return the persisted run directory for ``mission_slug``, read-only.
+ 
+     Looks the run up in the durable ``feature-runs.json`` index without
+@@ -911,7 +912,7 @@ def _resolve_run_dir_for_mission(repo_root: Path, mission_slug: str) -> Path | N
+     free of any run-start side effect (NFR-004). The canonical (rekeyed) view
+     is computed in memory only; nothing is persisted here.
+     """
+-    mission_id = _identity._resolve_mission_ulid(mission_slug, repo_root)
++    mission_id = _run_mission_id(mission_slug, repo_root, owned)
+     index, _rekeyed = _load_run_index(repo_root)
+     entry = _entry_for_mission(index, mission_slug=mission_slug, mission_id=mission_id)
+     if not entry:
+@@ -924,6 +925,49 @@ def _resolve_run_dir_for_mission(repo_root: Path, mission_slug: str) -> Path | N
+     return run_index.resolve_run_dir(run_dir_raw, repo_root)
+ 
+ 
++@dataclass(frozen=True)
++class RuntimeAcceptanceFacts:
++    """Read-only facts from a mission's existing run and frozen workflow."""
++
++    mission_family: str
++    wp_driven: bool
++    step_ids: tuple[str, ...]
++    completed_step_ids: tuple[str, ...]
++    issued_step_id: str | None
++    blocked_reason: str | None
++    pending_decision_ids: tuple[str, ...]
++
++
++def read_runtime_acceptance_facts(repo_root: Path, mission_slug: str, *, owned: OwnedCheckout | None = None) -> RuntimeAcceptanceFacts | None:
++    """Never start, advance or repair a run while gathering acceptance facts."""
++    from kernel.content_digest import sha256_digest
++    from runtime.next import runtime_bridge_engine as engine
++
++    run_dir = _resolve_run_dir_for_mission(repo_root, mission_slug, owned=owned)
++    if run_dir is None:
++        return None
++    snapshot = engine._read_snapshot(run_dir)
++    bound_slug = snapshot.mission_slug or snapshot.inputs.get("mission_slug")
++    if bound_slug != mission_slug or snapshot.run_id != run_dir.name:
++        raise MissionRuntimeError("Runtime snapshot does not belong to the requested mission/run")
++    frozen_bytes = (run_dir / "mission_template_frozen.yaml").read_bytes()
++    if sha256_digest(frozen_bytes).removeprefix("sha256:") != snapshot.template_hash:
++        raise MissionRuntimeError("Frozen runtime template does not match its recorded hash")
++    template = engine._load_frozen_template(run_dir)
++    if template.mission.key != snapshot.mission_key:
++        raise MissionRuntimeError("Frozen runtime type does not match its recorded run")
++    step_ids = tuple(step.id for step in template.steps)
++    return RuntimeAcceptanceFacts(
++        mission_family=snapshot.mission_key,
++        wp_driven=step_ids_declare_wp_iteration(step_ids),
++        step_ids=step_ids,
++        completed_step_ids=tuple(snapshot.completed_steps),
++        issued_step_id=snapshot.issued_step_id,
++        blocked_reason=snapshot.blocked_reason,
++        pending_decision_ids=tuple(snapshot.pending_decisions),
++    )
++
++
+ def _resolve_tech_stack_for_profile(repo_root: Path, profile_id: str | None) -> frozenset[str]:
+     """Best-effort resolution of the in-scope tech stack for ``profile_id``.
+ 
+@@ -1392,11 +1436,8 @@ def guard_failure_artifact_paths(
+     # *guard_failures*. The presence vocabulary is resolved per family, so if the
+     # path-resolution family ever diverges from the guard-evaluation family, a
+     # genuinely missing artifact whose tag is absent from this family's vocab
+-    # would silently drop its ``looked for`` line. Live today all guards evaluate
+-    # under software-dev (``_check_cli_guards``); the one structural mismatch is
+-    # the not-yet-wired plan family (``_evaluate_plan_guards`` names ``spec.md``,
+-    # which is not in ``_presence_filenames_for("plan")``) — keep the two families
+-    # in step if plan-family guards are ever dispatched live.
++    # would silently drop its ``looked for`` line. Keep the per-family artifact
++    # manifest aligned with the runtime action vocabulary.
+     known_tags = _presence_filenames_for(
+         mission_family,
+         repo_root=owned.owned_root if owned is not None and repo_root is not None else repo_root,
+diff --git a/src/specify_cli/acceptance/__init__.py b/src/specify_cli/acceptance/__init__.py
+index 4f0d2fe..2470441 100644
+--- a/src/specify_cli/acceptance/__init__.py
++++ b/src/specify_cli/acceptance/__init__.py
+@@ -1443,6 +1443,24 @@ def collect_feature_summary(
+     skipped_checks: list[AcceptanceCheckDiagnostic] = []
+     blocked_checks: list[AcceptanceCheckDiagnostic] = []
+ 
++    # A non-WP workflow is vouched for by its real completed runtime and
++    # declared artifacts, never by fabricating tasks, lanes or WP state.
++    from .non_wp_runtime import collect_non_wp_runtime_summary
++
++    non_wp_summary = collect_non_wp_runtime_summary(
++        repo_root=repo_root,
++        feature_dir=feature_dir,
++        status_feature_dir=status_feature_dir,
++        branch=branch,
++        worktree_root=worktree_root,
++        primary_repo_root=primary_repo_root,
++        git_dirty=git_dirty,
++        strict_metadata=strict_metadata,
++        owned=owned,
++    )
++    if non_wp_summary is not None:
++        return non_wp_summary
++
+     snapshot_wps = _collect_snapshot_wps(feature, status_feature_dir, activity_issues)
+ 
+     # #2122: PRIMARY-partition reads (WP tasks/, planning artifacts) must key on
+diff --git a/src/specify_cli/acceptance/non_wp_runtime.py b/src/specify_cli/acceptance/non_wp_runtime.py
+new file mode 100644
+index 0000000..301e686
+--- /dev/null
++++ b/src/specify_cli/acceptance/non_wp_runtime.py
+@@ -0,0 +1,119 @@
++"""Accept artifact-producing workflows through their existing frozen runtime.
++
++The ordinary WP acceptance path is unchanged. This branch is only selected
++when the recorded runtime has no WP-iteration step and no WP task files.
++"""
++
++from __future__ import annotations
++
++from pathlib import Path
++from typing import TYPE_CHECKING
++
++from runtime.next.runtime_bridge import read_runtime_acceptance_facts
++from runtime.next.runtime_bridge_cores import MISSING_ARTIFACT_MESSAGE, evaluate_guards_strict
++from runtime.next.runtime_bridge_io import gather_artifact_presence
++from specify_cli.mission import MissionError, get_mission_for_feature
++from specify_cli.mission_metadata import resolve_mission_identity
++from specify_cli.runtime.resolver import required_artifacts_for
++from specify_cli.task_utils import LANES
++
++from .gates_core import PLANNING_ARTIFACT_ONLY_SKIP_REASON
++from .summary_core import _build_recommended_fix_order, build_warnings, evaluate_path_conventions
++
++if TYPE_CHECKING:
++    from mission_runtime import OwnedCheckout
++    from . import AcceptanceSummary
++
++
++def collect_non_wp_runtime_summary(
++    *,
++    repo_root: Path,
++    feature_dir: Path,
++    status_feature_dir: Path,
++    branch: str | None,
++    worktree_root: Path,
++    primary_repo_root: Path,
++    git_dirty: list[str],
++    strict_metadata: bool,
++    owned: OwnedCheckout | None,
++) -> AcceptanceSummary | None:
++    from . import AcceptanceError, AcceptanceSummary, _check_needs_clarification, _optional_artifact_tokens, _planning_read_dir, _wp_tasks_read_dir
++
++    identity = resolve_mission_identity(feature_dir)
++    # This bounded repair admits only the built-in plan family. Preserve the
++    # exact existing WP/custom path, including its runtime-independent gates.
++    if identity.mission_type != "plan":
++        return None
++    runtime_root = owned.owned_root if owned is not None else repo_root
++    try:
++        facts = read_runtime_acceptance_facts(runtime_root, feature_dir.name, owned=owned)
++    except (OSError, ValueError, RuntimeError) as exc:
++        raise AcceptanceError("Cannot read canonical mission runtime for acceptance; no state was changed") from exc
++    if facts is None or facts.wp_driven:
++        return None
++    wp_homes = {feature_dir, status_feature_dir, _wp_tasks_read_dir(repo_root, feature_dir.name, owned=owned)}
++    if any(next((home / "tasks").glob("WP*.md"), None) is not None for home in wp_homes):
++        return None
++    if facts.mission_family != identity.mission_type:
++        raise AcceptanceError("Mission type does not match its recorded runtime; acceptance refused")
++
++    activity: list[str] = []
++    if "review" not in facts.step_ids:
++        activity.append("Plan runtime has no review action; acceptance refused")
++    incomplete = sorted(set(facts.step_ids) - set(facts.completed_step_ids))
++    if not facts.step_ids or incomplete or facts.issued_step_id or facts.blocked_reason or facts.pending_decision_ids:
++        activity.append("Non-WP runtime is not complete; remaining steps: " + (", ".join(incomplete) or "pending runtime decision/result"))
++    planning_dir = _planning_read_dir(repo_root, feature_dir.name, owned=owned)
++    required: set[str] = set()
++    missing: set[str] = set()
++    missing_prefix = MISSING_ARTIFACT_MESSAGE.format(name="")
++    for step_id in facts.step_ids:
++        required.update(required_artifacts_for(step_id, facts.mission_family, repo_root=runtime_root))
++        snapshot = gather_artifact_presence(status_feature_dir, mission_family=facts.mission_family, step_id=step_id, repo_root=repo_root, owned=owned)
++        for failure in evaluate_guards_strict(snapshot):
++            if failure.startswith(missing_prefix):
++                missing.add(failure[len(missing_prefix) :])
++            else:
++                activity.append(f"{step_id}: {failure}")
++    if not required:
++        activity.append("Non-WP runtime has no declared blocking artifacts; acceptance refused")
++    try:
++        mission = get_mission_for_feature(feature_dir)
++    except MissionError:
++        mission = None
++    optional_missing = [token for token in _optional_artifact_tokens(mission) if not (planning_dir / token).exists()]
++    path_violations, path_warning, dedup = evaluate_path_conventions(mission, repo_root, feature_dir, planning_dir, strict_metadata=strict_metadata)
++    optional_missing = [token for token in optional_missing if token not in dedup]
++    warnings = build_warnings(missing_optional=optional_missing, path_violations=path_violations, path_convention_warning=path_warning)
++    return AcceptanceSummary(
++        feature=feature_dir.name,
++        repo_root=repo_root,
++        feature_dir=feature_dir,
++        tasks_dir=feature_dir / "tasks",
++        branch=branch,
++        worktree_root=worktree_root,
++        primary_repo_root=primary_repo_root,
++        lanes={lane: [] for lane in LANES},
++        work_packages=[],
++        metadata_issues=[],
++        activity_issues=activity,
++        unchecked_tasks=[],
++        needs_clarification=_check_needs_clarification([planning_dir / name for name in sorted(required)]),
++        missing_artifacts=sorted(missing),
++        optional_missing=optional_missing,
++        git_dirty=git_dirty,
++        path_violations=path_violations,
++        warnings=warnings,
++        acceptance_matrix_gate_skip_reason=PLANNING_ARTIFACT_ONLY_SKIP_REASON,
++        recommended_fix_order=_build_recommended_fix_order(
++            lanes={lane: [] for lane in LANES},
++            metadata_issues=[],
++            activity_issues=activity,
++            unchecked_tasks=[],
++            needs_clarification=[],
++            missing_artifacts=sorted(missing),
++            git_dirty=git_dirty,
++            path_violations=path_violations,
++            blocked_checks=[],
++        ),
++    )
+diff --git a/src/kernel/mission_runtime_shape.py b/src/kernel/mission_runtime_shape.py
+new file mode 100644
+index 0000000..089d05d
+--- /dev/null
++++ b/src/kernel/mission_runtime_shape.py
+@@ -0,0 +1,60 @@
++"""Runtime-shape step-id parser and WP-iteration rule (single source).
++
++Pure kernel primitives for the flat ``steps:`` list of a ``mission-runtime.yaml``
++file. Charter and runtime layers consume these instead of keeping their own copy.
++"""
++
++from __future__ import annotations
++
++from collections.abc import Iterable
++from pathlib import Path
++from typing import Any
++
++from ruamel.yaml import YAML
++
++__all__ = ["read_runtime_shape_step_ids", "step_ids_declare_wp_iteration"]
++
++_IMPLEMENT_STEP_ID = "implement"
++
++
++def read_runtime_shape_step_ids(path: Path) -> list[str]:
++    """Ordered step ids from a flat ``steps:`` list; ``[]`` if unreadable or malformed.
++
++    Fails closed on ANY malformed entry rather than filtering it out: if even one
++    ``steps`` entry is not a mapping, or lacks a non-empty ``id`` or ``title``, the
++    whole file yields ``[]`` so callers never fabricate a shorter, wrong sequence.
++    ``id`` + ``title`` mirror the minimum the runtime loader (``PromptStep``) requires.
++
++    **Duplicate ids also fail closed (#6323).** A ``steps:`` list with a repeated
++    ``id`` cannot be a valid action sequence (the invariant requires unique ids),
++    so the whole file yields ``[]`` — routing to the governed
++    ``MissionTypeEmptyActionSequenceError`` upstream — rather than emitting a
++    duplicate-bearing list that ``project_action_sequence`` would reject downstream
++    with a *raw* ``ValueError`` escaping custom-type resolution. This is one of two
++    deliberate charter<->runtime divergences: the runtime loader (a ``PromptStep``
++    list) tolerates duplicate ids, and its ``min_length=1`` ids are laxer than
++    charter's ``IDENTIFIER_PATTERN`` (enforced one layer up, in the charter shim's
++    ``resolve_runtime_shape_steps``). This reader fails closed in both cases —
++    refuse, never accept what the runtime loader would reject. Both boundaries, and
++    the single-valid-fixture agreement, are pinned by the charter<->runtime parity
++    tests.
++    """
++    try:
++        # A fresh instance per call: YAML(typ="safe") is not thread-safe to share.
++        raw: Any = YAML(typ="safe").load(path.read_text(encoding="utf-8"))
++    except Exception:  # noqa: BLE001  # malformed runtime file => no steps (fail-closed)
++        return []
++    steps = raw.get("steps") if isinstance(raw, dict) else None
++    if not isinstance(steps, list):
++        return []
++    if not all(isinstance(step, dict) and step.get("id") and step.get("title") for step in steps):
++        return []
++    step_ids = [str(step["id"]) for step in steps]
++    if len(step_ids) != len(set(step_ids)):
++        return []
++    return step_ids
++
++
++def step_ids_declare_wp_iteration(step_ids: Iterable[str]) -> bool:
++    """True when the sequence declares the canonical ``implement`` step (WP-driven)."""
++    return _IMPLEMENT_STEP_ID in set(step_ids)
+diff --git a/packs/built-in/missions/built_in_step_contracts/plan-specify.step-contract.yaml b/packs/built-in/missions/built_in_step_contracts/plan-specify.step-contract.yaml
+new file mode 100644
+index 0000000..ed0ca7f
+--- /dev/null
++++ b/packs/built-in/missions/built_in_step_contracts/plan-specify.step-contract.yaml
+@@ -0,0 +1,53 @@
++# plan mission / specify action (mirrored from the software-dev contracts).
++# Required top-level fields: schema_version, id, action, mission, steps[]
++# Each step: id, description; optional command, delegates_to{kind, candidates[]},
++# guidance. No expected_artifacts field, no doctrine-reference field.
++# Contracts are discovered by directory glob over built_in_step_contracts/ and
++# keyed by the internal (mission, action) pair -- not by filename and not via a
++# manifest. This file supplies the plan mission's `specify` action, whose spec is
++# DECISION-shaped (problem, goals/non-goals, stakeholders, constraints, success
++# criteria, open questions, out of scope) -- not a software feature spec.
++schema_version: "1.0"
++id: plan-specify
++action: specify
++mission: plan
++steps:
++  - id: bootstrap
++    description: Load charter context for this action
++    command: "spec-kitty charter context --action specify --json"
++
++  - id: frame_problem
++    description: Capture the decision-shaped problem and stakeholder intent
++    delegates_to:
++      kind: directive
++      candidates:
++        - DIRECTIVE_010
++        - DIRECTIVE_037
++  - id: validate_boundaries
++    description: Make goals, non-goals, constraints, and success criteria explicit and testable
++    delegates_to:
++      kind: tactic
++      candidates:
++        - requirements-validation-workflow
++
++  - id: document_decisions
++    description: Record any scoping decisions made while framing the plan spec
++    delegates_to:
++      kind: directive
++      candidates:
++        - DIRECTIVE_003
++  - id: write_spec
++    description: Write spec.md to kitty-specs/{mission_slug}/
++    command: "Write spec.md in kitty-specs/{mission_slug}/"
++    guidance: >
++      A plan spec is DECISION-shaped, not a feature spec: state the problem,
++      goals and non-goals, stakeholders, constraints, success criteria, open
++      questions, and what is explicitly out of scope.
++
++  - id: commit_spec
++    description: Commit the plan spec with co-author attribution
++    delegates_to:
++      kind: directive
++      candidates:
++        - DIRECTIVE_029
++        - DIRECTIVE_033
+diff --git a/packs/built-in/missions/built_in_step_contracts/plan-research.step-contract.yaml b/packs/built-in/missions/built_in_step_contracts/plan-research.step-contract.yaml
+new file mode 100644
+index 0000000..21fddb7
+--- /dev/null
++++ b/packs/built-in/missions/built_in_step_contracts/plan-research.step-contract.yaml
+@@ -0,0 +1,51 @@
++# plan mission / research action (mirrored from the software-dev contracts).
++# Required top-level fields: schema_version, id, action, mission, steps[]
++# Each step: id, description; optional command, delegates_to{kind, candidates[]},
++# guidance. Contracts are discovered by directory glob over
++# built_in_step_contracts/ and keyed by the internal (mission, action) pair --
++# not by filename and not via a manifest. This file supplies the plan mission's
++# `research` action: resolve the spec's open questions against concrete evidence.
++schema_version: "1.0"
++id: plan-research
++action: research
++mission: plan
++steps:
++  - id: bootstrap
++    description: Load charter context for this action
++    command: "spec-kitty charter context --action research --json"
++
++  - id: read_open_questions
++    description: Read spec.md and enumerate the open questions research must resolve
++    delegates_to:
++      kind: directive
++      candidates:
++        - DIRECTIVE_010
++  - id: gather_and_validate
++    description: Gather evidence for each open question and validate it against the plan intent
++    delegates_to:
++      kind: tactic
++      candidates:
++        - requirements-validation-workflow
++        - adr-drafting-workflow
++    guidance: >
++      Every answer written to research.md must trace to concrete evidence.
++      Where evidence is weak or absent, keep the question open rather than
++      recording a speculative answer.
++
++  - id: document_decisions
++    description: Record research decisions, alternatives considered, and excluded evidence
++    delegates_to:
++      kind: directive
++      candidates:
++        - DIRECTIVE_003
++  - id: write_research
++    description: Write research.md to kitty-specs/{mission_slug}/
++    command: "Write research.md in kitty-specs/{mission_slug}/"
++
++  - id: commit_research
++    description: Commit research.md with co-author attribution
++    delegates_to:
++      kind: directive
++      candidates:
++        - DIRECTIVE_029
++        - DIRECTIVE_033
+diff --git a/packs/built-in/missions/built_in_step_contracts/plan-plan.step-contract.yaml b/packs/built-in/missions/built_in_step_contracts/plan-plan.step-contract.yaml
+new file mode 100644
+index 0000000..bdac74d
+--- /dev/null
++++ b/packs/built-in/missions/built_in_step_contracts/plan-plan.step-contract.yaml
+@@ -0,0 +1,63 @@
++# plan mission / plan action (mirrored from the software-dev contracts).
++# Required top-level fields: schema_version, id, action, mission, steps[]
++# Each step: id, description; optional command, delegates_to{kind, candidates[]},
++# guidance. Contracts are discovered by directory glob over
++# built_in_step_contracts/ and keyed by the internal (mission, action) pair --
++# not by filename and not via a manifest. This file supplies the plan mission's
++# `plan` action: decompose the decision into owned, sequenced sub-problems with
++# each trade-off decided.
++schema_version: "1.0"
++id: plan-plan
++action: plan
++mission: plan
++steps:
++  - id: bootstrap
++    description: Load charter context for this action
++    command: "spec-kitty charter context --action plan --json"
++
++  - id: read_inputs
++    description: Read spec.md and research.md before decomposing the plan
++    delegates_to:
++      kind: directive
++      candidates:
++        - DIRECTIVE_010
++  - id: decompose_and_decide
++    description: Break the decision into sub-problems with owners and sequencing; decide each trade-off
++    delegates_to:
++      kind: tactic
++      candidates:
++        - requirements-validation-workflow
++        - adr-drafting-workflow
++    guidance: >
++      Name each sub-problem, its owner, and where it sits in the sequence.
++      Decide every trade-off explicitly and record the rejected alternatives,
++      not only the chosen path.
++
++  - id: document_decisions
++    description: Record the planning decisions as ADR-style entries
++    delegates_to:
++      kind: directive
++      candidates:
++        - DIRECTIVE_003
++  - id: supply_chain_check
++    description: >
++      Surface install-time and dependency supply-chain risk, per DIRECTIVE_051
++      and the supply-chain-install-safety tactic, for any dependency the plan
++      introduces or upgrades. Advisory: visibility and evidence are required,
++      but this step does not gate the transition.
++    delegates_to:
++      kind: tactic
++      candidates:
++        - supply-chain-install-safety
++
++  - id: write_plan
++    description: Write plan.md to kitty-specs/{mission_slug}/
++    command: "Write plan.md in kitty-specs/{mission_slug}/"
++
++  - id: commit_plan
++    description: Commit plan.md with co-author attribution
++    delegates_to:
++      kind: directive
++      candidates:
++        - DIRECTIVE_029
++        - DIRECTIVE_033
+diff --git a/packs/built-in/missions/built_in_step_contracts/plan-review.step-contract.yaml b/packs/built-in/missions/built_in_step_contracts/plan-review.step-contract.yaml
+new file mode 100644
+index 0000000..659c5f8
+--- /dev/null
++++ b/packs/built-in/missions/built_in_step_contracts/plan-review.step-contract.yaml
+@@ -0,0 +1,52 @@
++# plan mission / review action (mirrored from the software-dev contracts).
++# Required top-level fields: schema_version, id, action, mission, steps[]
++# Each step: id, description; optional command, delegates_to{kind, candidates[]},
++# guidance. Contracts are discovered by directory glob over
++# built_in_step_contracts/ and keyed by the internal (mission, action) pair --
++# not by filename and not via a manifest.
++#
++# DIFFERENCE FROM software-dev review: a plan mission has NO work packages, so
++# this contract deliberately omits the software-dev review contract's two
++# WP-specific pieces -- there is NO `gates:` block (no "spec-kitty-pre-review"
++# pre-review handler) and NO `move-task` status_transition. The plan mission is a
++# linear specify -> research -> plan -> review loop advanced with
++# `spec-kitty next`, not a WP board, so review ends by recording the outcome and
++# advancing the loop rather than moving a task to `approved`.
++schema_version: "1.0"
++id: plan-review
++action: review
++mission: plan
++steps:
++  - id: bootstrap
++    description: Load charter context for this action
++    command: "spec-kitty charter context --action review --json"
++
++  - id: verify_plan_fidelity
++    description: Verify the plan honors the spec's intent and stays in sync with spec.md and research.md
++    delegates_to:
++      kind: directive
++      candidates:
++        - DIRECTIVE_010
++        - DIRECTIVE_037
++  - id: assess_intent_and_risk
++    description: Evaluate the plan for intent alignment and risk
++    delegates_to:
++      kind: tactic
++      candidates:
++        - review-intent-and-risk-first
++
++  - id: verify_decisions_complete
++    description: Check that every decision and trade-off is resolved and stopping conditions are met
++    delegates_to:
++      kind: tactic
++      candidates:
++        - quality-gate-verification
++        - stopping-conditions
++
++  - id: record_outcome
++    description: Record the review outcome and advance the mission loop
++    guidance: >
++      A plan mission has no work packages, so there is no task to move to
++      `approved` and no pre-review gate. Advance the loop with
++      `spec-kitty next --result success` when the plan passes, or
++      `spec-kitty next --result blocked` with a reason when it does not.
+diff --git a/packs/built-in/missions/plan/expected-artifacts.yaml b/packs/built-in/missions/plan/expected-artifacts.yaml
+index b66dbfd..a04a85b 100644
+--- a/packs/built-in/missions/plan/expected-artifacts.yaml
++++ b/packs/built-in/missions/plan/expected-artifacts.yaml
+@@ -1,80 +1,51 @@
+ # Expected artifact manifest for plan mission
+ #
+ # Defines which artifacts are required/optional at each plan-mission step.
+-# Step names correspond to mission.yaml state IDs (goals/research/structure/
+-# draft/review/done).
+ #
+-# IMPORTANT -- this manifest describes `plan` mission type's OWN state-machine
+-# contract; it is honest scaffolding, not a claim that any guard branch
+-# enforces it today. Investigation for this mission
+-# (kitty-specs/expected-artifacts-manifest-repair-01KZY498/tracer-design-decisions.md
+-# Decision 1) found that `_check_cli_guards`
+-# (src/runtime/next/runtime_bridge.py::_check_cli_guards) hardcodes
+-# mission_family="software-dev" for EVERY mission type, including `plan`, so
+-# there is no dedicated `plan`-family guard branch at all:
+-#   - `goals`/`research`/`structure`/`draft`/`done` fall through to
+-#     `_evaluate_software_dev_guards`'s bare `return []` (no-op).
+-#   - `review` is the one exception: it lexically collides with
+-#     software-dev's own `review` step id, so it is instead evaluated by
+-#     `_evaluate_wp_iteration_guard("review", snapshot)` -- a real, reachable,
+-#     mission-blind branch that today only returns `[]` because
+-#     `wp_advance_ready` defaults `True` when a plan mission's directory has
+-#     no `tasks/` subdirectory. This is a latent spurious-block risk, not a
+-#     second no-op fallback. The follow-up issue for this defect is tracked
+-#     separately (see the addendum to Decision 1 in tracer-design-decisions.md
+-#     once filed) -- it is NOT fixed by this manifest or by this mission.
++# Step keys are the RUNTIME ACTION IDS of the plan step contracts
++# (missions/built_in_step_contracts/plan-*.step-contract.yaml):
++# specify / research / plan / review. The runtime guard dispatches on these
++# action ids and gathers artifact presence from this manifest, so keying it on
++# another vocabulary (the old goals/structure/draft/done phase names) makes a
++# committed artifact read as absent and the step block without naming a path.
++#
++# `review` gates on an approval gate, not a filesystem artifact, so it carries
++# no required-artifact entry.
+ 
+ schema_version: "1.0"
+ mission_type: "plan"
+ # manifest_version is a sync-namespace identity key (feeds NamespaceRef), not
+ # a content-freshness counter; kept at "1" per
+ # kitty-specs/expected-artifacts-manifest-repair-01KZY498/tracer-design-decisions.md
+-# Decision 2 -- this is a distinct rationale from the AS4 guard-gap comment
+-# above, not a restatement of it.
++# Decision 2.
+ manifest_version: "1"
+ 
+ # Artifacts required regardless of mission step
+ required_always: []
+ 
+-# Artifacts required at specific mission steps
++# Artifacts required at specific mission steps (keys = runtime action ids)
+ required_by_step:
+-  goals:
+-    # goals->research transition requires artifact_exists("goals.md") per
+-    # mission.yaml.
+-    - artifact_key: "output.goals.main"
++  specify:
++    # The plan `specify` action produces the decision-shaped spec.
++    - artifact_key: "output.spec.main"
+       artifact_class: "output"
+-      path_pattern: "goals.md"
++      path_pattern: "spec.md"
+       blocking: true
+ 
+   research:
+-    # research->structure transition requires artifact_exists("research.md")
+-    # per mission.yaml.
+     - artifact_key: "evidence.research"
+       artifact_class: "evidence"
+       path_pattern: "research.md"
+       blocking: true
+ 
+-  structure:
+-    # structure->draft is an UNCONDITIONAL transition in mission.yaml -- no
+-    # filesystem-artifact gate to express here.
+-    []
+-
+-  draft:
+-    # draft->review transition requires artifact_exists("plan.md") per
+-    # mission.yaml.
++  plan:
+     - artifact_key: "output.plan.main"
+       artifact_class: "output"
+       path_pattern: "plan.md"
+       blocking: true
+ 
+   review:
+-    # review->done transition gates on gate_passed("plan_approved"), not a
+-    # filesystem artifact -- this schema has no field to express a gate
+-    # check, so this step carries no required-artifact entry.
+-    []
+-
+-  done:
+-    # Terminal state; no further artifact requirement.
++    # Approval gate, not a filesystem artifact: no required-artifact entry.
+     []
+ 
+ # Artifacts optional throughout the mission
