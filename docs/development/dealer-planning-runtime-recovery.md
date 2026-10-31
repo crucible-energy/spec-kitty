@@ -2,7 +2,7 @@
 title: Planning runtime recovery and owned acceptance
 description: Build the isolated published-release planning repair and verify owned acceptance without changing customer authorization gates.
 doc_status: active
-updated: "2026-10-30"
+updated: "2026-10-31"
 type: reference
 ---
 
@@ -59,6 +59,7 @@ patch --dry-run --batch --fuzz=0 -p1 -i "$ASSETS/dealer-planning-rc7.patch"
 patch --batch --fuzz=0 -p1 -i "$ASSETS/dealer-planning-rc7.patch"
 patch --batch --fuzz=0 -p1 -i "$ASSETS/owned-software-rc7.patch"
 patch --batch --fuzz=0 -p1 -i "$ASSETS/consumer-assets-rc7.patch"
+patch --batch --fuzz=0 -p1 -i "$ASSETS/owned-criterion-rc7.patch"
 uv venv --python python3.11 "$OUTPUT/venv"
 uv pip install --python "$OUTPUT/venv/bin/python" --constraint "$CONSTRAINTS" .
 SPEC_KITTY_ASSET_SCOPE=consumer SPEC_KITTY_HOME="$CONSUMER_HOME" \
