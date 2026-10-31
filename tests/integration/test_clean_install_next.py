@@ -121,6 +121,32 @@ def test_clean_install_next_runs_without_runtime(tmp_path: Path) -> None:
         f"importing specify_cli pulled in spec_kitty_runtime: {check.stderr}"
     )
 
+    # Verify the installed artifact, not the source tree or a warm timing run.
+    # Losing the wheel registration must fail independently of host speed.
+    isolated_env = dict(os.environ)
+    isolated_env.pop("PYTHONPATH", None)
+    identity = subprocess.run(
+        [
+            str(py),
+            "-c",
+            (
+                "import sys; from pathlib import Path; "
+                "import specify_cli.distribution.package_name as package; "
+                "assert Path(package.__file__).resolve().is_relative_to(Path(sys.prefix).resolve()); "
+                "scans = []; "
+                "package.packages_distributions = lambda: scans.append(True) or {}; "
+                "assert package.resolve_cli_package_name() == 'spec-kitty-cli'; "
+                "assert not scans, 'installed stock wheel performed global ownership discovery'"
+            ),
+        ],
+        cwd=tmp_path,
+        env=isolated_env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert identity.returncode == 0, f"installed wheel identity contract failed: {identity.stderr}"
+
     # ---- Assertion 2: spec-kitty next runs against the fixture mission.
     fixture_copy = tmp_path / "mission"
     shutil.copytree(_FIXTURE, fixture_copy)

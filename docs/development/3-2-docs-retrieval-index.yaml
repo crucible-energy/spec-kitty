@@ -8232,6 +8232,18 @@ pages:
     - {slug: "user-experience-findings", text: "User Experience Findings", level: 2}
     - {slug: "engineering-decisions", text: "Engineering Decisions", level: 2}
     - {slug: "known-limitations-and-retained-obligations", text: "Known Limitations and Retained Obligations", level: 2}
+  - path: "docs/plans/engineering-notes/2026-10-30-149-package-identity-startup.md"
+    title: "Package identity startup repair"
+    divio_type: "explanation"
+    abstract: "Preserve supplier and custom-provider contracts while removing stock wheel package discovery from the startup path."
+    anchors:
+    - {slug: "user-experience-findings", text: "User Experience Findings", level: 2}
+    - {slug: "2026-10-30", text: "2026-10-30", level: 3}
+    - {slug: "engineering-decisions", text: "Engineering Decisions", level: 2}
+    - {slug: "2026-10-30-2", text: "2026-10-30", level: 3}
+    - {slug: "2026-10-31", text: "2026-10-31", level: 3}
+    - {slug: "known-limitations", text: "Known Limitations", level: 2}
+    - {slug: "2026-10-30-3", text: "2026-10-30", level: 3}
   - path: "docs/plans/engineering-notes/2173-infra-logic-separation/00-SYNTHESIS.md"
     title: "Infra-to-logic separation (#2173) — investigation synthesis"
     divio_type: "none"

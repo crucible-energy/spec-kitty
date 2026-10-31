@@ -2,7 +2,7 @@
 title: Fork packaging hooks
 description: How renamed or private-index forks customize Spec Kitty upgrade checks and package identity via entry points—without overlaying core sources.
 doc_status: active
-updated: '2026-07-21'
+updated: '2026-10-31'
 type: how-to
 related:
 - docs/guides/upgrade-cli.md
@@ -14,8 +14,15 @@ audience: packagers
 Publish a renamed Spec Kitty CLI (different distribution name and/or a private
 PEP 503 simple index) **without rewriting** files under `src/specify_cli/**`.
 
-Stock `spec-kitty-cli` from public PyPI registers nothing. Absence of hooks
-preserves today’s public-PyPI / `spec-kitty-cli` behaviour.
+Stock wheels register a package-identity fallback so startup can identify the
+installed supplier without scanning every installed distribution. Custom
+`spec_kitty.cli_package` providers retain priority over that stock fallback.
+The fallback reads its registering distribution’s actual name, so renaming a
+wheel does not turn its identity back into `spec-kitty-cli`. Only the declared
+`stock` entry targeting `specify_cli.distribution.package_name:DEFAULT_CLI_PACKAGE_NAME`
+is that fallback. Other names reusing the constant, and custom entries named
+`stock` with another value, keep their normal loaded-payload semantics. Older wheels with
+no registration retain the existing import-package ownership fallback.
 
 ## What Spec Kitty owns vs what you own
 
@@ -83,8 +90,11 @@ If several `spec_kitty.upgrade_provider` entry points are registered, set
 `SPEC_KITTY_UPGRADE_PROVIDER=<entry-point-name>` to pick one. Unknown names do
 not invent a provider; resolution falls back to the stock public-PyPI provider.
 
-The distribution **package name** is never controlled by a runtime environment
-variable.
+Custom package-name providers keep their existing alphabetical selection rule;
+the stock registration is considered only when no custom provider is registered.
+A broken selected custom provider or invalid stock supplier metadata still uses
+the existing import-package ownership fallback. The distribution **package name**
+is never controlled by a runtime environment variable.
 
 ## Phase 2 — Full distribution profile
 
@@ -139,7 +149,8 @@ registered, Spec Kitty synthesizes a minimal profile from
 
 ## Phase 3 — Validation checklist
 
-- [ ] Stock install (no entry points): public PyPI + `spec-kitty-cli` behaviour unchanged
+- [ ] Stock fallback registration: public PyPI and the actual installed supplier identity, without global ownership discovery
+- [ ] Older wheel without package registration: import-package ownership fallback remains correct
 - [ ] `--version` / installed-version lookup use the fork name (and aliases if set)
 - [ ] Upgrade refresh / compat planner call your provider for the fork package name
 - [ ] Remediation commands include `--index-url` when the profile sets it and still pass CHK028 (allowlist length 512, same character class)
