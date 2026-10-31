@@ -2,11 +2,12 @@
 
 Precedence (never controlled by a runtime env var for the distribution name):
 
-1. ``spec_kitty.cli_package`` entry point (string, zero-arg callable → str, or
-   object with ``package_name`` / ``name``)
-2. Distribution owning the ``specify_cli`` import package via
+1. Custom ``spec_kitty.cli_package`` entry point (string, zero-arg callable → str,
+   or object with ``package_name`` / ``name``)
+2. Registered stock fallback, using its actual distribution supplier name
+3. Distribution owning the ``specify_cli`` import package via
    ``packages_distributions``
-3. Default ``spec-kitty-cli``
+4. Default ``spec-kitty-cli``
 """
 
 from __future__ import annotations
@@ -30,6 +31,10 @@ __all__ = [
 CLI_PACKAGE_GROUP = "spec_kitty.cli_package"
 DEFAULT_CLI_PACKAGE_NAME = "spec-kitty-cli"
 IMPORT_PACKAGE_NAME = "specify_cli"
+
+# This registration is a fallback beneath every custom provider. Its attached
+# distribution metadata preserves the supplier name when packagers rename wheels.
+_STOCK_ENTRY_POINT_VALUE = "specify_cli.distribution.package_name:DEFAULT_CLI_PACKAGE_NAME"
 
 _cached_name: str | None = None
 
@@ -72,13 +77,20 @@ def _resolve_cli_package_name_uncached() -> str:
 def _select_entry_point(discovered: list[EntryPoint]) -> EntryPoint | None:
     if not discovered:
         return None
-    if len(discovered) == 1:
-        return discovered[0]
-    return sorted(discovered, key=lambda entry: entry.name)[0]
+    custom = [entry for entry in discovered if getattr(entry, "value", None) != _STOCK_ENTRY_POINT_VALUE]
+    return sorted(custom or discovered, key=lambda entry: entry.name)[0]
 
 
 def _name_from_entry_point(entry: EntryPoint) -> str | None:
     try:
+        if getattr(entry, "value", None) == _STOCK_ENTRY_POINT_VALUE:
+            # A static stock constant would misidentify a renamed wheel. The
+            # entry-point owner is authoritative; invalid metadata retains the
+            # existing import-package ownership fallback rather than guessing.
+            supplier = entry.dist.metadata["Name"] if entry.dist is not None else None
+            if isinstance(supplier, str):
+                return supplier.strip() or None
+            return None
         loaded = entry.load()
     except Exception:
         _log.debug(

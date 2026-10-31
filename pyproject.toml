@@ -129,6 +129,9 @@ lint = [
 [project.scripts]
 spec-kitty = "specify_cli:main"
 
+[project.entry-points."spec_kitty.cli_package"]
+stock = "specify_cli.distribution.package_name:DEFAULT_CLI_PACKAGE_NAME"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
