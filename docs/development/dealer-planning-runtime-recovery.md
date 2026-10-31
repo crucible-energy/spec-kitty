@@ -206,6 +206,50 @@ evidence must not be represented as a completed acceptance matrix or done
 ledger; a separately isolated corrective increment is required. Do not edit
 matrix JSON or event logs to bypass these missing supported surfaces.
 
+## Owned criterion authoring and acceptance increment
+
+[owned-criterion-rc7.patch](../../tools/qualification/dealer-planning-rc7/owned-criterion-rc7.patch)
+adds the separately qualified fifth increment on the private consumer layer.
+Its canonical ownership closure comes from `a6f8add16f` and `c3d26bd566`:
+the CLI validates the checkout once, carries that fact through matrix placement
+and the shared locked writer, and classifies explicit WP execution modes from
+the owned checkout. A code WP cannot disappear into planning-only matrix skips.
+Ordinary and coordination routes, lock refusal and negative-invariant integrity
+remain covered. The distribution honestly identifies its local `.5` repair.
+
+Criterion mode also accepts explicit `--description` and `--notes` updates.
+Use the actual requirement definition and verification findings to replace
+scaffold prose through this command; do not hand-edit matrix JSON. Omitted
+metadata remains unchanged. Identical row state, including both metadata fields,
+produces no timestamp or commit change. Row identifiers and sibling criteria or
+negative invariants remain intact. Evidence must bind the actual reviewed source
+and checks; a pass records the named actor's judgement, not an authority grant.
+
+The [qualification record](../../tools/qualification/dealer-planning-rc7/owned-criterion-qualification.json)
+pins all 23 matching product/installed identities and the complete delta.
+The [test patch](../../tools/qualification/dealer-planning-rc7/owned-criterion-tests.patch)
+retains canonical owner-only, concurrency, negative, lock and stale-copy controls.
+Final gates passed 68 focused tests, `make test-fast` (2318 passed, 5 skipped)
+and Ruff. Strict types show zero new errors against the identical baseline's
+single existing Any-return error. Interrupted and failing intermediate evidence
+is retained with its diagnosis; no cases or assertions were skipped to qualify.
+
+Actual installed linked-checkout controls showed all-pass acceptance with zero
+skipped checks; pending and failed criteria refused. Unknown rows, foreign claims
+and a held mission lock refused without changing matrix bytes or HEAD. A valid
+all-pass matrix still refused a planned WP. Primary HEAD and status stayed
+unchanged. The fixture inherits its code; this is runtime routing proof, while
+the parent mission owns actual implementation verification. Both canonical R/P
+charters must freshly remain absent before receiving. Use a distinct private
+consumer home for this increment, preserving every live earlier consumer.
+
+The broad native observation has nine metadata changes by an unknown actor.
+It is not an unchanged-world claim; enforced producer isolation remains separate.
+Owned post-merge `done` recording is still unsupported in published rc7 and is
+tracked by an active owner in [issue 49](https://github.com/crucible-energy/spec-kitty/issues/49).
+PR delivery, acceptance and ledger completion remain separate facts. Never use
+raw events, forced transitions or primary checkout writes to simulate closeout.
+
 ## Mission creation admission
 
 For a new mission, invoke the explicitly addressed runtime from the actual
