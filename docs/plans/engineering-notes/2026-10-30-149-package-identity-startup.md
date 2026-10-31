@@ -67,6 +67,16 @@ script. Stock and renamed candidate metadata are checked separately. Real
 HOME stays unchanged, private state homes are distinct, and the owner-held OS
 policy denies shared native assets for every producer callback.
 
+The existing version-demand regression originally required exactly one global
+ownership scan after requesting a version. That assertion encoded the retired
+stock discovery mechanism. Its corrected controls explicitly distinguish a
+registered stock supplier (zero scans) from forced absent registration (one
+scan on demand, never on import or cached access). Both retain the original
+version equality, cached-object identity, override and unknown-attribute refusal
+checks; version-metadata reads are also checked for demand and cached access.
+A bounded review of related package/version tests and the active guide found
+one additional stale stock-install checklist label, which is updated explicitly.
+
 ## Known Limitations
 
 ### 2026-10-30

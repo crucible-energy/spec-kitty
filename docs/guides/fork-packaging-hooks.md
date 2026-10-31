@@ -146,7 +146,8 @@ registered, Spec Kitty synthesizes a minimal profile from
 
 ## Phase 3 — Validation checklist
 
-- [ ] Stock install (no entry points): public PyPI + `spec-kitty-cli` behaviour unchanged
+- [ ] Stock fallback registration: public PyPI and the actual installed supplier identity, without global ownership discovery
+- [ ] Older wheel without package registration: import-package ownership fallback remains correct
 - [ ] `--version` / installed-version lookup use the fork name (and aliases if set)
 - [ ] Upgrade refresh / compat planner call your provider for the fork package name
 - [ ] Remediation commands include `--index-url` when the profile sets it and still pass CHK028 (allowlist length 512, same character class)
