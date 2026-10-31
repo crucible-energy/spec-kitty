@@ -1,0 +1,416 @@
+diff --git a/tests/integration/test_owned_acceptance_authority_6023.py b/tests/integration/test_owned_acceptance_authority_6023.py
+new file mode 100644
+index 0000000..8e01618
+--- /dev/null
++++ b/tests/integration/test_owned_acceptance_authority_6023.py
+@@ -0,0 +1,105 @@
++"""#6023 red-first reproduction: owned-mission acceptance authority.
++
++A supported owned, PR-bound ``single_branch`` mission reaches acceptance with
++its code work packages approved, but two acceptance surfaces lose the validated
++ownership fact:
++
++* GAP 1 -- ``agent mission acceptance-verdict`` resolves the repo root with
++  ``find_repo_root()`` and the handle with ``resolve_mission_handle`` and has NO
++  ``--owned-checkout`` option, so it searches the primary checkout, cannot find
++  an owned-only mission, and the criterion verdict can never be recorded.
++* GAP 2 -- ``accept``'s branch gate classifies the mission's WP kinds through the
++  PRIMARY checkout (``_wp_kinds_for_manifest`` drops the owned fact), so
++  ``mission_has_code`` is false, the minted ``kitty/mission-<slug>`` branch is
++  excluded from ``allowed_branches``, and acceptance refuses with
++  "Acceptance must run on mission or target branch (main), not kitty/mission-...",
++  skipping the acceptance-matrix checks entirely.
++
++Both are driven through the pre-existing CLI entry points against the
++allocator-faithful owned R/P/S fixtures. RED at base, GREEN once the owned fact
++is threaded through resolution, the matrix write dir, the shared locked writer
++and the branch-gate WP-kind lookup.
++"""
++
++from __future__ import annotations
++
++import json
++
++import pytest
++
++# Shared owned R/P/S fixtures + CLI driver (the same helpers the sibling
++# owned-checkout integration suites build on). The ``<name> as <name>``
++# redundant-alias form re-exports the pytest fixtures so using them as test
++# parameters below is not read as an F811 redefinition.
++from tests.integration.test_explicit_checkout_commands import invoke
++from tests.integration.test_explicit_checkout_commands import checkouts as checkouts  # noqa: F401 -- pytest fixture
++from tests.integration.test_owned_pr_bound_finalization import pr_bound_checkouts as pr_bound_checkouts  # noqa: F401 -- pytest fixture
++
++pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
++
++
++def _json(result) -> dict:
++    return json.loads(result.output)
++
++
++def test_acceptance_verdict_owned_records_criterion(checkouts, monkeypatch: pytest.MonkeyPatch) -> None:
++    """GAP 1: record a criterion verdict for an owned-only mission.
++
++    RED today: ``acceptance-verdict`` has no ``--owned-checkout`` option (the
++    mission lives only in the owned checkout P, never in primary R), so the
++    verdict cannot be recorded. GREEN once the owned fact is threaded through
++    resolution + the matrix write seam.
++    """
++    _primary, owned, _sibling = checkouts
++
++    # finalize-tasks scaffolds acceptance-matrix.json (one pending FR-001 row).
++    fin = invoke("finalize-tasks", owned)
++    assert fin.exit_code == 0, fin.output
++
++    junit = owned / "junit.xml"
++    junit.write_text("<testsuite tests='1' failures='0' errors='0'></testsuite>\n", encoding="utf-8")
++
++    res = invoke(
++        "acceptance-verdict",
++        owned,
++        "--criterion",
++        "FR-001",
++        "--result",
++        "pass",
++        "--verification-method",
++        "automated_test",
++        "--actor",
++        "codex",
++        "--evidence",
++        str(junit),
++    )
++    assert res.exit_code == 0, (
++        f"owned acceptance-verdict must resolve the owned mission and record the verdict, not fail because it searched primary (#6023 gap 1). output:\n{res.output}"
++    )
++    payload = _json(res)
++    assert payload.get("success") is True, payload
++    assert payload.get("criterion") == "FR-001"
++    assert payload.get("result") == "pass"
++
++
++def test_accept_owned_recognizes_minted_mission_branch(pr_bound_checkouts, monkeypatch: pytest.MonkeyPatch) -> None:
++    """GAP 2: the branch gate must recognise the minted mission branch under owned authority.
++
++    The owned checkout sits on ``kitty/mission-<slug>`` (target ``main``), with a
++    ``code_change`` WP. RED today: ``mission_has_code`` is computed through
++    primary, so the branch gate rejects the mission branch and skips the matrix
++    checks. GREEN once the owned fact reaches the WP-kind lookup.
++    """
++    _primary, owned, _sibling = pr_bound_checkouts
++
++    fin = invoke("finalize-tasks", owned)
++    assert fin.exit_code == 0, fin.output
++
++    res = invoke("accept", owned, "--mode", "pr")
++    # Assert on the RAW output (robust to any stderr the owned diagnose path mixes
++    # in): the branch-gate rejection names the minted mission branch verbatim.
++    assert "must run on mission or target branch" not in res.output, (
++        "accept's branch gate rejected the minted mission branch for an owned mission "
++        "because mission_has_code was computed through primary (#6023 gap 2). "
++        f"exit={res.exit_code} output:\n{res.output}"
++    )
+diff --git a/tests/specify_cli/acceptance/test_acceptance_verdict_command.py b/tests/specify_cli/acceptance/test_acceptance_verdict_command.py
+index 00fbed4..b9d2351 100644
+--- a/tests/specify_cli/acceptance/test_acceptance_verdict_command.py
++++ b/tests/specify_cli/acceptance/test_acceptance_verdict_command.py
+@@ -882,6 +882,8 @@ class TestConcurrentVerdictLostUpdateCriterionMode:
+             verification_method: str | None,
+             actor: str | None,
+             evidence: str | None,
++            description: str | None = None,
++            notes: str | None = None,
+         ) -> AcceptanceCriterion:
+             nonlocal driven
+             if not driven:
+@@ -904,6 +906,8 @@ class TestConcurrentVerdictLostUpdateCriterionMode:
+                 verification_method=verification_method,
+                 actor=actor,
+                 evidence=evidence,
++                description=description,
++                notes=notes,
+             )
+ 
+         monkeypatch.setattr(av_command, "_resolve_criterion_update", _wrapper)
+@@ -1361,3 +1365,17 @@ class TestEmitWriteOutcomeErrorAndRefusedArms:
+         assert exc_info.value.exit_code == 1
+         payload = json.loads(printed[0])
+         assert payload["surfaces"] == []
++
++
++def test_explicit_criterion_authoring_is_idempotent_and_preserves_identity() -> None:
++    original = AcceptanceCriterion("FR-001", "Verify FR-001 is satisfied", "automated_test", notes="TODO: replace with a real acceptance criterion")
++    updated = _resolve_criterion_update(original, result="pass", verification_method=None, actor="codex", evidence="repo@main:commit:tests/proof", description="Reject malformed evidence without network access", notes="CLI refusal and mutation checks passed")
++    assert updated.criterion_id == original.criterion_id
++    assert updated.description == "Reject malformed evidence without network access"
++    assert updated.notes == "CLI refusal and mutation checks passed"
++    assert updated.verified_at is not None
++    repeated = _resolve_criterion_update(updated, result="pass", verification_method=None, actor="codex", evidence="repo@main:commit:tests/proof", description=updated.description, notes=updated.notes)
++    assert repeated == updated
++    preserved = _resolve_criterion_update(updated, result="pending", verification_method=None, actor=None, evidence=None)
++    assert preserved.description == updated.description
++    assert preserved.notes == updated.notes
+diff --git a/tests/specify_cli/acceptance/test_owned_acceptance_verdict.py b/tests/specify_cli/acceptance/test_owned_acceptance_verdict.py
+new file mode 100644
+index 0000000..e4e4f71
+--- /dev/null
++++ b/tests/specify_cli/acceptance/test_owned_acceptance_verdict.py
+@@ -0,0 +1,259 @@
++"""Issue 59: the real verdict CLI commits only in the validated owning checkout."""
++
++from __future__ import annotations
++
++import json
++import shutil
++from pathlib import Path
++
++import pytest
++from typer.testing import CliRunner
++
++from specify_cli.acceptance.matrix import AcceptanceCriterion, AcceptanceMatrix, NegativeInvariant, read_acceptance_matrix, write_acceptance_matrix
++from specify_cli.cli.commands.agent.mission import app
++from tests.integration.test_explicit_checkout_commands import SLUG, checkouts, git, snapshot
++from tests.status.test_transition_request_owned import claim_counter
++
++__all__ = ["checkouts", "claim_counter"]
++pytestmark = [pytest.mark.integration, pytest.mark.git_repo]
++
++
++@pytest.fixture
++def matrix_checkouts(checkouts: tuple[Path, Path, Path]) -> tuple[Path, Path, Path]:
++    _, owned, _ = checkouts
++    write_acceptance_matrix(
++        owned / "kitty-specs" / SLUG,
++        AcceptanceMatrix(
++            mission_slug=SLUG,
++            criteria=[AcceptanceCriterion("FR-001", "Owned proof", "automated_test")],
++            negative_invariants=[
++                NegativeInvariant(
++                    "NI-preserved",
++                    "Established proof",
++                    "custom_command",
++                    "must-not-be-reexecuted",
++                    result="confirmed_absent",
++                    evidence="receipt://established",
++                    verified_ref="original-proof-ref",
++                    verified_surface_kind="primary",
++                    provenance_origin="recorded",
++                )
++            ],
++        ),
++    )
++    git(owned, "add", ".")
++    git(owned, "commit", "-qm", "fixture: authored matrix")
++    return checkouts
++
++
++def verdict(owned: Path, *args: str, explicit: bool = True):
++    flags = ["--owned-checkout", str(owned)] if explicit else []
++    return CliRunner().invoke(app, ["acceptance-verdict", "--mission", SLUG, *flags, "--json", *args])
++
++
++@pytest.mark.parametrize("caller", [0, 1, 2], ids=["primary", "owner", "sibling"])
++def test_owner_only_commit_and_idempotence(matrix_checkouts, monkeypatch, claim_counter, caller):
++    primary, owned, sibling = matrix_checkouts
++    monkeypatch.chdir(matrix_checkouts[caller])
++    monkeypatch.setenv("SPECIFY_REPO_ROOT", str(matrix_checkouts[caller]))
++    before = snapshot(primary), snapshot(sibling)
++    original_head = git(owned, "rev-parse", "HEAD")
++    original_matrix = read_acceptance_matrix(owned / "kitty-specs" / SLUG)
++    assert original_matrix is not None
++    claim_counter.clear()
++    result = verdict(owned, "--criterion", "FR-001", "--result", "pass", "--actor", "reviewer", "--evidence", "receipt://real")
++    assert result.exit_code == 0, result.output
++    assert len(claim_counter) == 1
++    assert json.loads(result.output)["success"] is True
++    assert git(owned, "rev-parse", "HEAD") != original_head
++    assert git(owned, "show", "--format=", "--name-only", "HEAD") == f"kitty-specs/{SLUG}/acceptance-matrix.json"
++    after = snapshot(owned)
++    repeated = verdict(owned, "--criterion", "FR-001", "--result", "pass", "--actor", "reviewer", "--evidence", "receipt://real")
++    assert repeated.exit_code == 0, repeated.output
++    assert snapshot(owned) == after
++    assert (snapshot(primary), snapshot(sibling)) == before
++    assert git(owned, "status", "--porcelain") == ""
++    actual_matrix = read_acceptance_matrix(owned / "kitty-specs" / SLUG)
++    assert actual_matrix is not None and actual_matrix.negative_invariants == original_matrix.negative_invariants
++
++
++def test_flagless_owner_adoption(matrix_checkouts, claim_counter):
++    primary, owned, sibling = matrix_checkouts
++    before = snapshot(primary), snapshot(sibling)
++    claim_counter.clear()
++    result = verdict(owned, "--criterion", "FR-001", "--result", "fail", explicit=False)
++    assert result.exit_code == 0, result.output
++    assert len(claim_counter) == 1
++    matrix = read_acceptance_matrix(owned / "kitty-specs" / SLUG)
++    assert matrix is not None and matrix.criteria[0].pass_fail == "fail"
++    assert (snapshot(primary), snapshot(sibling)) == before
++
++
++def test_invariant_executes_in_owner_not_primary(matrix_checkouts, monkeypatch):
++    primary, owned, sibling = matrix_checkouts
++    (owned / "owner-only.md").write_text("bound owner\n", encoding="utf-8")
++    git(owned, "add", ".")
++    git(owned, "commit", "-qm", "fixture: owner-only check input")
++    before = snapshot(primary), snapshot(sibling)
++    monkeypatch.chdir(primary)
++    monkeypatch.setenv("SPECIFY_REPO_ROOT", str(primary))
++    result = verdict(
++        owned,
++        "--negative-invariant",
++        "NI-001",
++        "--description",
++        "Owner check",
++        "--verification-method",
++        "custom_command",
++        "--verification-command",
++        "git ls-files --error-unmatch owner-only.md",
++    )
++    assert result.exit_code == 0, result.output
++    matrix = read_acceptance_matrix(owned / "kitty-specs" / SLUG)
++    assert matrix is not None
++    judged = next(row for row in matrix.negative_invariants if row.invariant_id == "NI-001")
++    assert judged.result == "confirmed_absent"
++    assert matrix.negative_invariants[0].verified_ref == "original-proof-ref"
++    assert (snapshot(primary), snapshot(sibling)) == before
++
++
++@pytest.mark.parametrize("claim", [0, 2], ids=["repository-root", "non-owner-sibling"])
++def test_refusal_is_structured_and_zero_write(matrix_checkouts, claim):
++    before = tuple(snapshot(root) for root in matrix_checkouts)
++    result = verdict(matrix_checkouts[claim], "--criterion", "FR-001", "--result", "pass")
++    assert result.exit_code == 1, result.output
++    assert json.loads(result.output)["error_code"]
++    assert tuple(snapshot(root) for root in matrix_checkouts) == before
++
++
++@pytest.mark.parametrize("topology", ["lanes", "coord", "lanes_with_coord"])
++def test_unsupported_owned_topology_has_no_effects(matrix_checkouts, topology):
++    _, owned, _ = matrix_checkouts
++    meta = owned / "kitty-specs" / SLUG / "meta.json"
++    payload = json.loads(meta.read_text())
++    payload["topology"] = topology
++    meta.write_text(json.dumps(payload), encoding="utf-8")
++    before = tuple(snapshot(root) for root in matrix_checkouts)
++    result = verdict(owned, "--criterion", "FR-001", "--result", "pass")
++    assert result.exit_code == 1, result.output
++    assert json.loads(result.output)["error_code"] == "OWNED_TOPOLOGY_UNSUPPORTED"
++    assert tuple(snapshot(root) for root in matrix_checkouts) == before
++
++
++def test_foreign_claim_refuses_before_invariant_execution(matrix_checkouts, tmp_path):
++    foreign = tmp_path / "foreign"
++    foreign.mkdir()
++    git(foreign, "init", "-qb", "main")
++    before = tuple(snapshot(root) for root in matrix_checkouts)
++    result = verdict(
++        foreign,
++        "--negative-invariant",
++        "NI-001",
++        "--description",
++        "must not execute",
++        "--verification-method",
++        "custom_command",
++        "--verification-command",
++        "touch forbidden.md",
++    )
++    assert result.exit_code == 1, result.output
++    assert json.loads(result.output)["error_code"] == "OWNERSHIP_FOREIGN"
++    assert not (foreign / "forbidden.md").exists()
++    assert tuple(snapshot(root) for root in matrix_checkouts) == before
++
++
++@pytest.mark.parametrize("explicit", [True, False], ids=["explicit", "adopted"])
++def test_primary_identity_conflict_follows_canonical_claim_contract(matrix_checkouts, explicit):
++    primary, owned, _ = matrix_checkouts
++    shadow = primary / "kitty-specs" / SLUG
++    shutil.copytree(owned / "kitty-specs" / SLUG, shadow)
++    meta = shadow / "meta.json"
++    payload = json.loads(meta.read_text())
++    payload["mission_id"] = "01M1A900000000000000000002"
++    meta.write_text(json.dumps(payload), encoding="utf-8")
++    before = tuple(snapshot(root) for root in matrix_checkouts)
++    result = verdict(owned, "--criterion", "FR-001", "--result", "pass", explicit=explicit)
++    if explicit:
++        # An explicit claim chooses P's own identity; unlike adoption, it
++        # does not let R's unrelated same-slug mission override the selection.
++        assert result.exit_code == 0, result.output
++        assert json.loads(result.output)["stale_repository_root_copy"] is None
++        assert (snapshot(primary), snapshot(matrix_checkouts[2])) == (before[0], before[2])
++    else:
++        assert result.exit_code == 1, result.output
++        assert json.loads(result.output)["error_code"] == "MISSION_CONTEXT_CONFLICT"
++        assert tuple(snapshot(root) for root in matrix_checkouts) == before
++
++
++def test_same_identity_shadow_is_reported_and_preserved(matrix_checkouts):
++    primary, owned, sibling = matrix_checkouts
++    shadow = primary / "kitty-specs" / SLUG
++    shutil.copytree(owned / "kitty-specs" / SLUG, shadow)
++    before = snapshot(primary), snapshot(sibling)
++    result = verdict(owned, "--criterion", "FR-001", "--result", "pass")
++    assert result.exit_code == 0, result.output
++    assert json.loads(result.output)["stale_repository_root_copy"]["path"] == str(shadow)
++    assert (snapshot(primary), snapshot(sibling)) == before
++
++
++@pytest.mark.parametrize("problem", ["missing-matrix", "missing-selector", "missing-criterion"])
++def test_missing_inputs_fail_closed(matrix_checkouts, problem):
++    _, owned, _ = matrix_checkouts
++    args = ["acceptance-verdict", "--mission", SLUG, "--owned-checkout", str(owned), "--json", "--criterion", "FR-001", "--result", "pass"]
++    if problem == "missing-matrix":
++        (owned / "kitty-specs" / SLUG / "acceptance-matrix.json").unlink()
++    elif problem == "missing-selector":
++        args[2] = "absent-01M1A901"
++    else:
++        args[-3] = "FR-999"
++    before = tuple(snapshot(root) for root in matrix_checkouts)
++    result = CliRunner().invoke(app, args)
++    assert result.exit_code == 1, result.output
++    assert json.loads(result.output)["success"] is False
++    assert tuple(snapshot(root) for root in matrix_checkouts) == before
++
++
++@pytest.mark.parametrize("kind", ["coord", "lane"])
++def test_registered_mission_worktrees_are_not_owned_claims(matrix_checkouts, kind):
++    from specify_cli.lanes.models import ExecutionLane, LanesManifest
++    from specify_cli.lanes.persistence import write_lanes_json
++    from specify_cli.lanes.worktree_allocator import predict_lane_worktree
++
++    primary, owned, _ = matrix_checkouts
++    if kind == "coord":
++        claimed = primary / ".worktrees" / f"{SLUG}-coord"
++        branch = "codex/coord"
++    else:
++        shadow = primary / "kitty-specs" / SLUG
++        shutil.copytree(owned / "kitty-specs" / SLUG, shadow)
++        mission_id = json.loads((shadow / "meta.json").read_text())["mission_id"]
++        write_lanes_json(
++            shadow,
++            LanesManifest(
++                version=1,
++                mission_slug=SLUG,
++                mission_id=mission_id,
++                mission_branch=f"kitty/mission-{SLUG}",
++                target_branch="codex/owned",
++                lanes=[ExecutionLane(lane_id="lane-a", wp_ids=("WP01",), write_scope=(), predicted_surfaces=(), depends_on_lanes=(), parallel_group=0)],
++                computed_at="2026-10-10T00:00:00Z",
++                computed_from="test",
++            ),
++        )
++        claimed, branch = predict_lane_worktree(primary, SLUG, "lane-a")
++    git(primary, "worktree", "add", "-qb", branch, str(claimed))
++    before = tuple(snapshot(root) for root in (*matrix_checkouts, claimed))
++    result = verdict(claimed, "--criterion", "FR-001", "--result", "pass")
++    assert result.exit_code == 1, result.output
++    assert json.loads(result.output)["error_code"] == "OWNED_CHECKOUT_IS_MISSION_WORKTREE"
++    assert tuple(snapshot(root) for root in (*matrix_checkouts, claimed)) == before
++
++
++def test_human_output_reports_stale_copy(matrix_checkouts):
++    primary, owned, sibling = matrix_checkouts
++    shutil.copytree(owned / "kitty-specs" / SLUG, primary / "kitty-specs" / SLUG)
++    before = snapshot(primary), snapshot(sibling)
++    result = CliRunner().invoke(app, ["acceptance-verdict", "--mission", SLUG, "--owned-checkout", str(owned), "--criterion", "FR-001", "--result", "pass"])
++    assert result.exit_code == 0, result.output
++    assert "stale copy" in result.output
++    assert (snapshot(primary), snapshot(sibling)) == before

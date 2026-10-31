@@ -5769,6 +5769,18 @@ pages:
     - {slug: "decision-aid-real-regression-or-expected-scope-difference", text: "Decision aid: real regression, or expected scope difference?", level: 2}
     - {slug: "where-each-signal-is-configured", text: "Where each signal is configured", level: 2}
     - {slug: "known-caveats-and-follow-ups", text: "Known caveats and follow-ups", level: 2}
+  - path: "docs/development/dealer-planning-runtime-recovery.md"
+    title: "Planning runtime recovery and owned acceptance"
+    divio_type: "reference"
+    abstract: "Build the isolated published-release planning repair and verify owned acceptance without changing customer authorization gates."
+    anchors:
+    - {slug: "correction-and-authority", text: "Correction and authority", level: 2}
+    - {slug: "build-and-validation", text: "Build and validation", level: 2}
+    - {slug: "bounded-owned-software-increment", text: "Bounded owned software increment", level: 2}
+    - {slug: "mandatory-private-consumer-containment", text: "Mandatory private consumer containment", level: 2}
+    - {slug: "owned-criterion-authoring-and-acceptance-increment", text: "Owned criterion authoring and acceptance increment", level: 2}
+    - {slug: "mission-creation-admission", text: "Mission creation admission", level: 2}
+    - {slug: "delivery-and-closeout", text: "Delivery and closeout", level: 2}
   - path: "docs/development/index.md"
     title: "Development"
     divio_type: "none"

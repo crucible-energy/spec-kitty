@@ -1,0 +1,50 @@
+diff --git a/src/runtime/next/runtime_bridge_io.py b/src/runtime/next/runtime_bridge_io.py
+index 10906ed..bd7f73b 100644
+--- a/src/runtime/next/runtime_bridge_io.py
++++ b/src/runtime/next/runtime_bridge_io.py
+@@ -903,7 +903,7 @@ def get_or_start_run(
+ # ---------------------------------------------------------------------------
+ 
+ 
+-def _resolve_run_dir_for_mission(repo_root: Path, mission_slug: str) -> Path | None:
++def _resolve_run_dir_for_mission(repo_root: Path, mission_slug: str, *, owned: OwnedCheckout | None = None) -> Path | None:
+     """Return the persisted run directory for ``mission_slug``, read-only.
+ 
+     Looks the run up in the durable ``feature-runs.json`` index without
+@@ -912,7 +912,7 @@ def _resolve_run_dir_for_mission(repo_root: Path, mission_slug: str) -> Path | N
+     free of any run-start side effect (NFR-004). The canonical (rekeyed) view
+     is computed in memory only; nothing is persisted here.
+     """
+-    mission_id = _identity._resolve_mission_ulid(mission_slug, repo_root)
++    mission_id = _run_mission_id(mission_slug, repo_root, owned)
+     index, _rekeyed = _load_run_index(repo_root)
+     entry = _entry_for_mission(index, mission_slug=mission_slug, mission_id=mission_id)
+     if not entry:
+@@ -938,12 +938,12 @@ class RuntimeAcceptanceFacts:
+     pending_decision_ids: tuple[str, ...]
+ 
+ 
+-def read_runtime_acceptance_facts(repo_root: Path, mission_slug: str) -> RuntimeAcceptanceFacts | None:
++def read_runtime_acceptance_facts(repo_root: Path, mission_slug: str, *, owned: OwnedCheckout | None = None) -> RuntimeAcceptanceFacts | None:
+     """Never start, advance or repair a run while gathering acceptance facts."""
+     from kernel.content_digest import sha256_digest
+     from runtime.next import runtime_bridge_engine as engine
+ 
+-    run_dir = _resolve_run_dir_for_mission(repo_root, mission_slug)
++    run_dir = _resolve_run_dir_for_mission(repo_root, mission_slug, owned=owned)
+     if run_dir is None:
+         return None
+     snapshot = engine._read_snapshot(run_dir)
+diff --git a/src/specify_cli/acceptance/non_wp_runtime.py b/src/specify_cli/acceptance/non_wp_runtime.py
+index b6eb6c6..301e686 100644
+--- a/src/specify_cli/acceptance/non_wp_runtime.py
++++ b/src/specify_cli/acceptance/non_wp_runtime.py
+@@ -46,7 +46,7 @@ def collect_non_wp_runtime_summary(
+         return None
+     runtime_root = owned.owned_root if owned is not None else repo_root
+     try:
+-        facts = read_runtime_acceptance_facts(runtime_root, feature_dir.name)
++        facts = read_runtime_acceptance_facts(runtime_root, feature_dir.name, owned=owned)
+     except (OSError, ValueError, RuntimeError) as exc:
+         raise AcceptanceError("Cannot read canonical mission runtime for acceptance; no state was changed") from exc
+     if facts is None or facts.wp_driven:

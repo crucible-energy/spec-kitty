@@ -1,0 +1,397 @@
+{
+  "schema_version": "owned_software_corrective_rc7_v1",
+  "published_base": {
+    "version": "4.0.0rc7",
+    "archive_sha256": "91e98774b7a69a273f9146656482e1e2bddd274a2178dfc6ac9c1f3bcede0c80",
+    "source_commit": "1b0fe9fc388b095f9964471b0177b4213e9c6c98"
+  },
+  "local_version": "4.0.0rc7+crucible.dealerrecovery.3",
+  "source_recipe": "crucible-energy/spec-kitty@c2c6c15f5b44565128ae1b0bf1bea0b9dfad1727:tools/qualification/owned-analysis-rc7.patch",
+  "base_patch": "dealer-planning-rc7.patch",
+  "increment_patch": "owned-software-rc7.patch",
+  "increment_sha256": "22c6505eb2b43125420ec7882672bf31ec34057afe1b75e4803a2e7c35298b9c",
+  "applied_scope": [
+    "owned currency root",
+    "qualified transaction for ordinary owned recorder",
+    "per-worktree Git operation check for report transaction only"
+  ],
+  "excluded_scope": [
+    "plain-lanes topology expansion",
+    "governing charter-root extension",
+    "unsupported agent action owned implementation/review",
+    "CI or protection changes"
+  ],
+  "admission_scope": {
+    "actions": [
+      "explicit owned structured record-analysis normal and report-only transaction path",
+      "explicit owned next currency and implementation issue",
+      "supported owned move-task planned→doing",
+      "supported owned mark-status done",
+      "supported owned move-task for_review→in_review→approved"
+    ],
+    "governance_state": "Both repository-root and owned project .kittify/charter directory and charter.yaml/charter.md absent; root must recheck immediately before receiving. A present canonical charter requires separate qualified closure.",
+    "topologies": [
+      "single_branch"
+    ],
+    "not_admitted": [
+      "standalone Ops",
+      "agent action implement/review with owned-checkout",
+      "general canonical-charter adoption"
+    ],
+    "latest_resolution": "/Users/sam/.codex/receipts/dealer-validator-20261030/runtime-v3-admission.json"
+  },
+  "product_files": [
+    {
+      "path": "src/specify_cli/__init__.py",
+      "sha256": "9f73cfa17ac9e310b171dc9384146298b79e156ae1bde5807d323c05bc0fb4e3",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/cli/commands/_owned_checkout.py",
+      "sha256": "12bc2dab8feb305950d52c79603c2e2cd7e757e4cf7d94ac3e05f3e4451b6dd6",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/core/_ownership_claim_scope.py",
+      "sha256": "ea4e1bd1345548d1354f041b9043cd513a69a2aabb7c0449e56c98a1e09dbf54",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/core/owned_mission.py",
+      "sha256": "dd1e6c8fa07c3c88a14af3a25f5bea40671855266072a2beec41739b53ea2fda",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/mission_step_contracts/profile_defaults.py",
+      "sha256": "1655f43f968373833713e5e4834707073d776d1c80f015c2a15f013c5daf6664",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/runtime/next/runtime_bridge.py",
+      "sha256": "f8f40eaa9393dd225c214f98fb1421a6373721ababf183178d836045133ba12f",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/runtime/next/runtime_bridge_io.py",
+      "sha256": "bc2d5f4cf1ef579eb37cf2dbcfe044dc0f49b5f674fe4409e69558f28b2c2c97",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/acceptance/__init__.py",
+      "sha256": "13e79a55b3f71137ad89eae3e8c2a7519eae5d9c47b55cadf663ab7379245450",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/acceptance/non_wp_runtime.py",
+      "sha256": "d0abb7b992d901dd7adc9fa8de4eb6787d4c229b7beff95537566a0acf825af7",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/kernel/mission_runtime_shape.py",
+      "sha256": "9b3e85142254c9a32e2a30e88ac354b2096f43972bdd2c09fa1feb6c8754dfa3",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/cli/commands/agent/mission_record_analysis.py",
+      "sha256": "6bae950fce25b54da57517a9d120e185a2db6c277934d63eb3f3520d762514b8",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/cli/commands/next_cmd.py",
+      "sha256": "c47b1f27ec825f3afb9d92db15fbd7cac9b604d7b9ce0e0575aed1178f03fcbc",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/git/report_transaction.py",
+      "sha256": "dd8b9ac265b712e08a1438f5158212163a90eb7f2f1e96ffb45899ce1d1e4563",
+      "installed_matches_source": true
+    },
+    {
+      "path": "src/specify_cli/status/views.py",
+      "sha256": "66544fa1cda74f3021c63408d1941eb130f2dae7ba1586dfe8e2d5cc0a33af5f",
+      "installed_matches_source": true
+    }
+  ],
+  "wheel": [
+    {
+      "file": "spec_kitty_cli-4.0.0rc7+crucible.dealerrecovery.3-py3-none-any.whl",
+      "sha256": "a271c99831288848c6438de696c114b5e2178d517e736a3c70c0a958e3500ded"
+    }
+  ],
+  "proof": {
+    "fast": "2318 passed,5 skipped,3 warnings in142.75seconds",
+    "focused": "93 passed in131.02seconds",
+    "ruff": "All checks passed",
+    "strict_typing": "Exact byte-identical output for four changed modules on .2 and .3; pre-existing transitive errors remain tracked in issue147",
+    "logs": [
+      {
+        "file": "runtime-v3-fast.log",
+        "sha256": "c2a8868e0c74e01585ba53aed85fcf56eb0240d46648446e0f9534762eacdb00"
+      },
+      {
+        "file": "runtime-v3-focused.log",
+        "sha256": "3862495e056cf65e80025839d68d6fca860dee2f18d486e29b0f94ae9ad8c9a7"
+      },
+      {
+        "file": "runtime-v3-lint.log",
+        "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+      },
+      {
+        "file": "runtime-v3-next-v2.log",
+        "sha256": "a5e1928a79acf95900136630df59c6a3246c17cb2d44c6cce800ec7638212e93"
+      },
+      {
+        "file": "runtime-v3-next-v3.log",
+        "sha256": "ad6a65b326f943c5da5c02a9151188fa8ebba502358ec2f737190bb48539c691"
+      },
+      {
+        "file": "runtime-v3-analysis-normal.log",
+        "sha256": "61eb183926c0aeac86436564acd1a7c3eb3445a5dae944b965525e34fb45a67f"
+      },
+      {
+        "file": "runtime-v3-software-controls.json",
+        "sha256": "93e50d9f99ac1e600e6daace2a6e17e87884635aa003d548b72261ac59813af0"
+      }
+    ],
+    "software_controls": [
+      {
+        "label": "stale-spec.md",
+        "exit": 0,
+        "error_code": "ANALYSIS_REPORT_STALE",
+        "kind": "step",
+        "action": "analyze",
+        "wp_id": null,
+        "guard_failures": [
+          "Analysis report is stale: material:kitty-specs/owned-software-proof-01M67WWE/spec.md",
+          "Analysis report is stale: spec.md"
+        ],
+        "reason": null,
+        "preview_step": null
+      },
+      {
+        "label": "stale-plan.md",
+        "exit": 0,
+        "error_code": "ANALYSIS_REPORT_STALE",
+        "kind": "step",
+        "action": "analyze",
+        "wp_id": null,
+        "guard_failures": [
+          "Analysis report is stale: material:kitty-specs/owned-software-proof-01M67WWE/plan.md",
+          "Analysis report is stale: plan.md"
+        ],
+        "reason": null,
+        "preview_step": null
+      },
+      {
+        "label": "stale-tasks.md",
+        "exit": 0,
+        "error_code": "ANALYSIS_REPORT_STALE",
+        "kind": "step",
+        "action": "analyze",
+        "wp_id": null,
+        "guard_failures": [
+          "Analysis report is stale: material:kitty-specs/owned-software-proof-01M67WWE/tasks.md",
+          "Analysis report is stale: tasks.md"
+        ],
+        "reason": null,
+        "preview_step": null
+      },
+      {
+        "label": "tampered-transaction",
+        "exit": 0,
+        "error_code": "ANALYSIS_REPORT_STALE",
+        "kind": "step",
+        "action": "analyze",
+        "wp_id": null,
+        "guard_failures": [
+          "Analysis report is stale: unqualified_report_transaction"
+        ],
+        "reason": null,
+        "preview_step": null
+      },
+      {
+        "label": "own-operation-refused",
+        "exit": 1,
+        "success": false,
+        "commit_status": "failed_before_write",
+        "error": "Active Git operation in progress"
+      },
+      {
+        "label": "primary-operation-isolated",
+        "exit": 0,
+        "success": true,
+        "commit_status": "unchanged"
+      },
+      {
+        "label": "advance-implement",
+        "exit": 0,
+        "kind": "step",
+        "action": "implement",
+        "wp_id": "WP01",
+        "guard_failures": [],
+        "reason": null,
+        "preview_step": null
+      }
+    ],
+    "review_controls": [
+      {
+        "file": "runtime-v3-move-doing.log",
+        "sha256": "068b72dd3a6dc0af49b9a98c281922efd7c798ab5d83763f654979431741d587",
+        "payload": {
+          "result": "success",
+          "transition_applied": true,
+          "task_id": "WP01",
+          "old_lane": "planned",
+          "new_lane": "in_progress",
+          "path": "/Users/sam/.codex/receipts/dealer-validator-20261030/owned-software-v3-linked/kitty-specs/owned-software-proof-01M67WWE/tasks/WP01-offline-validator.md",
+          "event_id": "01M67XCMPXSH8H385804AK8288",
+          "work_package_id": "WP01",
+          "to_lane": "in_progress",
+          "status_events_path": "/Users/sam/.codex/receipts/dealer-validator-20261030/owned-software-v3-linked/kitty-specs/owned-software-proof-01M67WWE/status.events.jsonl"
+        }
+      },
+      {
+        "file": "runtime-v3-for-review-incomplete.log",
+        "sha256": "4a2b13ef5c01a68c737b255f93af9a3dcd7f3755148f0fd1cf5b3daae003c15d",
+        "payload": {
+          "error": "Cannot move WP01 to for_review - unchecked subtasks:\n  - [ ] T001\n  - [ ] T002\n  - [ ] T003\n  - [ ] T004\n\nMark these complete first:\n  spec-kitty agent tasks mark-status T001 --status done\n  spec-kitty agent tasks mark-status T002 --status done\n  spec-kitty agent tasks mark-status T003 --status done\n\nOr use --force to override (not recommended)"
+        }
+      },
+      {
+        "file": "runtime-v3-mark-done.log",
+        "sha256": "e3e75961e4e658bd18dd2d00b8d350451d60c21606401e6a57a1be67b11d0212",
+        "payload": {
+          "results": [
+            {
+              "id": "T001",
+              "outcome": "updated",
+              "format": "checkbox",
+              "message": "Recorded done for T001 in WP01."
+            },
+            {
+              "id": "T002",
+              "outcome": "updated",
+              "format": "checkbox",
+              "message": "Recorded done for T002 in WP01."
+            },
+            {
+              "id": "T003",
+              "outcome": "updated",
+              "format": "checkbox",
+              "message": "Recorded done for T003 in WP01."
+            },
+            {
+              "id": "T004",
+              "outcome": "updated",
+              "format": "checkbox",
+              "message": "Recorded done for T004 in WP01."
+            }
+          ],
+          "summary": {
+            "updated": 4,
+            "already_satisfied": 0,
+            "not_found": 0
+          },
+          "owned_checkout": "/Users/sam/.codex/receipts/dealer-validator-20261030/owned-software-v3-linked",
+          "destination_ref": "codex/owned-software-proof",
+          "commit_sha": "38a63a3dcd3e0478bd2eca31538e984cb918bb6b",
+          "status_events_path": "/Users/sam/.codex/receipts/dealer-validator-20261030/owned-software-v3-linked/kitty-specs/owned-software-proof-01M67WWE/status.events.jsonl",
+          "status_snapshot_path": "/Users/sam/.codex/receipts/dealer-validator-20261030/owned-software-v3-linked/kitty-specs/owned-software-proof-01M67WWE/status.json",
+          "event_ids": [
+            "01M67XGKGCVGKBVAHP3X3Z8EVG"
+          ],
+          "applied_wps": [
+            "WP01"
+          ],
+          "state_applied": true
+        }
+      },
+      {
+        "file": "runtime-v3-for-review-complete.log",
+        "sha256": "30b14426b2ba90a83434b14310a28926d1cb29b04bfbc459a56b47194cbe8458",
+        "payload": {
+          "error_code": "OWNED_IMPLEMENTATION_MISSING",
+          "error": "Owned review requires a committed change matching WP owned_files."
+        }
+      },
+      {
+        "file": "runtime-v3-for-review-real-increment.log",
+        "sha256": "172f66394f869b00d915f4c1272ea83181ac35448412131cca2bfd0b8d0004dd",
+        "payload": {
+          "result": "success",
+          "transition_applied": true,
+          "task_id": "WP01",
+          "old_lane": "in_progress",
+          "new_lane": "for_review",
+          "path": "/Users/sam/.codex/receipts/dealer-validator-20261030/owned-software-v3-linked/kitty-specs/owned-software-proof-01M67WWE/tasks/WP01-offline-validator.md",
+          "event_id": "01M67XMTSYR9Z7592QKS2MP3JD",
+          "work_package_id": "WP01",
+          "to_lane": "for_review",
+          "status_events_path": "/Users/sam/.codex/receipts/dealer-validator-20261030/owned-software-v3-linked/kitty-specs/owned-software-proof-01M67WWE/status.events.jsonl",
+          "pre_review_gate": {
+            "outcome": "skipped",
+            "reason": "pre-review regression gate not declared by this repo — skipped (non-blocking; configure review.test_command in .kittify/config.yaml to declare one)",
+            "new_failure_count": 0,
+            "new_failure_nodeids": [],
+            "pre_existing_failure_count": 0,
+            "affected_shard_count": 0,
+            "matched_shard_groups": [],
+            "matched_composite_dirs": [],
+            "test_targets": [],
+            "block_enabled": false,
+            "blocked": false,
+            "force_bypassed": false,
+            "run_state": "completed"
+          }
+        }
+      },
+      {
+        "file": "runtime-v3-move-in-review.log",
+        "sha256": "90fbcdcf7a139ace98ade8bbd3213db8de3aa7b8092973e187b934a0c99d7c19",
+        "payload": {
+          "result": "success",
+          "transition_applied": true,
+          "task_id": "WP01",
+          "old_lane": "for_review",
+          "new_lane": "in_review",
+          "path": "/Users/sam/.codex/receipts/dealer-validator-20261030/owned-software-v3-linked/kitty-specs/owned-software-proof-01M67WWE/tasks/WP01-offline-validator.md",
+          "event_id": "01M67XPQYSXN2J885K493DD1S4",
+          "work_package_id": "WP01",
+          "to_lane": "in_review",
+          "status_events_path": "/Users/sam/.codex/receipts/dealer-validator-20261030/owned-software-v3-linked/kitty-specs/owned-software-proof-01M67WWE/status.events.jsonl"
+        }
+      },
+      {
+        "file": "runtime-v3-move-approved.log",
+        "sha256": "7a308368010d7c9e72206bbdbe239e4af5822f1e13d519f1442233c3bc558ecd",
+        "payload": {
+          "result": "success",
+          "transition_applied": true,
+          "task_id": "WP01",
+          "old_lane": "in_review",
+          "new_lane": "approved",
+          "path": "/Users/sam/.codex/receipts/dealer-validator-20261030/owned-software-v3-linked/kitty-specs/owned-software-proof-01M67WWE/tasks/WP01-offline-validator.md",
+          "event_id": "01M67XQAJK0EH6GEZV6N7528M7",
+          "work_package_id": "WP01",
+          "to_lane": "approved",
+          "status_events_path": "/Users/sam/.codex/receipts/dealer-validator-20261030/owned-software-v3-linked/kitty-specs/owned-software-proof-01M67WWE/status.events.jsonl",
+          "review_feedback": "review-cycle://owned-software-proof-01M67WWE/WP01-offline-validator/review-cycle-1.md",
+          "verdict_durably_persisted": true,
+          "durability_classification": "durable",
+          "durability_reason": null,
+          "evidence_ref": "kitty-specs/owned-software-proof-01M67WWE/tasks/WP01-offline-validator/review-cycle-1.md",
+          "destination_ref": "codex/owned-software-proof"
+        }
+      }
+    ],
+    "review_scope": "Inherited validator code is not new implementation proof. A substantive in-scope documentation commit c9ef97a after planning base supplies the actual committed owned-file increment. Review role uses distinct fixture-reviewer actor; approved verdict persisted durably.",
+    "primary_clean": true,
+    "pre_review_regression": "Existing configuration has no review.test_command; reporter explicitly skips undeclared gate non-blockingly. No force/skip flag and no gate configuration change."
+  },
+  "limitations": [
+    "Both repository-root and owned project canonical charter directory/YAML/Markdown absent; fresh absence verification is required before receiving. Canonical-charter adoption requires a separately qualified successor.",
+    "Inherited fixture code is not new implementation proof; later real in-scope documentation commit exercises the existing committed-owned-file review gate.",
+    "Review gate is not declared in the fixture configuration and is explicitly non-blocking/skipped by the existing runtime. No skip or force flag was used.",
+    "Existing strict type baseline remains red; source/publication/release/adoption remain separate facts."
+  ]
+}

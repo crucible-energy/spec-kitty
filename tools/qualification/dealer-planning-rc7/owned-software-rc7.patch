@@ -1,0 +1,76 @@
+diff --git a/pyproject.toml b/pyproject.toml
+index 9bae7e3..cfff78e 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -1,6 +1,6 @@
+ [project]
+ name = "spec-kitty-cli"
+-version = "4.0.0rc7+crucible.dealerrecovery.2"
++version = "4.0.0rc7+crucible.dealerrecovery.3"
+ description = "Spec Kitty, a tool for Specification Driven Development (SDD) agentic projects, with kanban and git worktree isolation."
+ readme = "README.md"
+ license = { file = "LICENSE" }
+diff --git a/src/specify_cli/cli/commands/agent/mission_record_analysis.py b/src/specify_cli/cli/commands/agent/mission_record_analysis.py
+index 37145b4..66d42f1 100644
+--- a/src/specify_cli/cli/commands/agent/mission_record_analysis.py
++++ b/src/specify_cli/cli/commands/agent/mission_record_analysis.py
+@@ -481,7 +481,7 @@ def record_analysis(
+ 
+         write_feature_dir = placement_seam(repo_root, feature_dir.name, owned=owned).read_dir(_kind_for_artifact("spec"))
+ 
+-        if report_only:
++        if report_only or owned is not None:
+             _run_report_only(
+                 repo_root=repo_root,
+                 write_feature_dir=write_feature_dir,
+diff --git a/src/specify_cli/cli/commands/next_cmd.py b/src/specify_cli/cli/commands/next_cmd.py
+index 0b10533..7114c25 100644
+--- a/src/specify_cli/cli/commands/next_cmd.py
++++ b/src/specify_cli/cli/commands/next_cmd.py
+@@ -114,7 +114,7 @@ def analysis_currency_for(
+         from specify_cli.analysis_report import check_analysis_report_current
+ 
+         feature_dir = placement_seam(repo_root, mission_slug, owned=owned).read_dir(MissionArtifactKind.ANALYSIS_REPORT)
+-        return _analysis_verdict(check_analysis_report_current(feature_dir, repo_root))
++        return _analysis_verdict(check_analysis_report_current(feature_dir, owned.owned_root if owned is not None else repo_root))
+ 
+     return _check
+ 
+diff --git a/src/specify_cli/git/report_transaction.py b/src/specify_cli/git/report_transaction.py
+index 9387fef..67b23b5 100644
+--- a/src/specify_cli/git/report_transaction.py
++++ b/src/specify_cli/git/report_transaction.py
+@@ -112,7 +112,7 @@ def _require_idle(root: Path) -> None:
+     # status-materialization guard and this transaction guard. ``sequencer``
+     # (multi-commit cherry-pick/revert/rebase) was folded into that canonical
+     # set so no coverage is lost by the consolidation.
+-    if git_operation_in_progress(root):
++    if git_operation_in_progress(root, worktree_only=True):
+         raise ValueError("Active Git operation in progress")
+ 
+ 
+diff --git a/src/specify_cli/status/views.py b/src/specify_cli/status/views.py
+index 956ef09..baaeb98 100644
+--- a/src/specify_cli/status/views.py
++++ b/src/specify_cli/status/views.py
+@@ -208,7 +208,7 @@ def _resolve_git_dirs(repo_root: Path) -> tuple[Path, ...]:
+     return tuple(dirs)
+ 
+ 
+-def git_operation_in_progress(repo_root: Path) -> bool:
++def git_operation_in_progress(repo_root: Path, *, worktree_only: bool = False) -> bool:
+     """Return ``True`` when a git operation is in progress for ``repo_root``.
+ 
+     Detects rebase (merge- or apply-backend), merge, cherry-pick, revert, and a
+@@ -228,7 +228,10 @@ def git_operation_in_progress(repo_root: Path) -> bool:
+     detection so reads and the dashboard share one source of truth (IC-12 /
+     FR-014(a)).
+     """
+-    for git_dir in _resolve_git_dirs(repo_root):
++    # Report transactions touch their own index/HEAD, not the primary index.
++    # Other status callers keep the conservative common-directory default.
++    git_dirs = _resolve_git_dirs(repo_root)
++    for git_dir in git_dirs[:1] if worktree_only else git_dirs:
+         for marker in _GIT_OP_MARKERS:
+             if (git_dir / marker).exists():
+                 return True

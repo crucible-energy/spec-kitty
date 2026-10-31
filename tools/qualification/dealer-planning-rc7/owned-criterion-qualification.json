@@ -1,0 +1,292 @@
+{
+  "schema_version": "corrective_rc7_owned_criterion_qualification_v5",
+  "published_base": {
+    "version": "4.0.0rc7",
+    "archive_sha256": "91e98774b7a69a273f9146656482e1e2bddd274a2178dfc6ac9c1f3bcede0c80",
+    "source_commit": "1b0fe9fc388b095f9964471b0177b4213e9c6c98"
+  },
+  "local_version": "4.0.0rc7+crucible.dealerrecovery.5",
+  "source_snapshot_commit": "0cab804de1b0b10999b2d1e66d55c6be932bae5f",
+  "canonical_product_sources": [
+    "a6f8add16f909e09da3525bd26eb18e2a80990c2",
+    "c3d26bd566b429a469c9b4892531af094829586f"
+  ],
+  "scope": "Owned criterion authoring through validated single-authority fact, locked shared write seam, and owned explicit WP execution-mode classification; no customer authority grants.",
+  "local_extension": "Explicit criterion --description and --notes; optional metadata participates in equality/timestamp idempotence; row IDs/sibling/negative rows preserved. Existing concurrency spy forwards new optional fields; survival assertions unchanged.",
+  "increment_patch": {
+    "file": "owned-criterion-rc7.patch",
+    "sha256": "1add9fe41f1ed19d9a0438a3c09bb53e9af0facd4186f859dea72189bd9a6783",
+    "base": "Layer on qualified private consumer increment .4 only; full patch dry-run zero fuzz passed"
+  },
+  "test_patch": {
+    "file": "owned-criterion-tests.patch",
+    "sha256": "173a6022eaa7571d31e41f95c868bef609a207d6c6a7ea6733342e4b49714489",
+    "canonical_sources": [
+      "5dd503eec09cb2b011619cb00b4812e997787136",
+      "a6f8add16f909e09da3525bd26eb18e2a80990c2"
+    ],
+    "local_change": "Optional metadata authoring idempotence test plus concurrency spy forwards new optional fields; no assertion removed or weakened."
+  },
+  "source_installed_files": [
+    {
+      "source_path": "src/specify_cli/__init__.py",
+      "source_sha256": "9f73cfa17ac9e310b171dc9384146298b79e156ae1bde5807d323c05bc0fb4e3",
+      "installed_sha256": "9f73cfa17ac9e310b171dc9384146298b79e156ae1bde5807d323c05bc0fb4e3"
+    },
+    {
+      "source_path": "src/specify_cli/cli/commands/_owned_checkout.py",
+      "source_sha256": "12bc2dab8feb305950d52c79603c2e2cd7e757e4cf7d94ac3e05f3e4451b6dd6",
+      "installed_sha256": "12bc2dab8feb305950d52c79603c2e2cd7e757e4cf7d94ac3e05f3e4451b6dd6"
+    },
+    {
+      "source_path": "src/specify_cli/core/_ownership_claim_scope.py",
+      "source_sha256": "ea4e1bd1345548d1354f041b9043cd513a69a2aabb7c0449e56c98a1e09dbf54",
+      "installed_sha256": "ea4e1bd1345548d1354f041b9043cd513a69a2aabb7c0449e56c98a1e09dbf54"
+    },
+    {
+      "source_path": "src/specify_cli/core/owned_mission.py",
+      "source_sha256": "dd1e6c8fa07c3c88a14af3a25f5bea40671855266072a2beec41739b53ea2fda",
+      "installed_sha256": "dd1e6c8fa07c3c88a14af3a25f5bea40671855266072a2beec41739b53ea2fda"
+    },
+    {
+      "source_path": "src/specify_cli/mission_step_contracts/profile_defaults.py",
+      "source_sha256": "1655f43f968373833713e5e4834707073d776d1c80f015c2a15f013c5daf6664",
+      "installed_sha256": "1655f43f968373833713e5e4834707073d776d1c80f015c2a15f013c5daf6664"
+    },
+    {
+      "source_path": "src/runtime/next/runtime_bridge.py",
+      "source_sha256": "f8f40eaa9393dd225c214f98fb1421a6373721ababf183178d836045133ba12f",
+      "installed_sha256": "f8f40eaa9393dd225c214f98fb1421a6373721ababf183178d836045133ba12f"
+    },
+    {
+      "source_path": "src/runtime/next/runtime_bridge_io.py",
+      "source_sha256": "bc2d5f4cf1ef579eb37cf2dbcfe044dc0f49b5f674fe4409e69558f28b2c2c97",
+      "installed_sha256": "bc2d5f4cf1ef579eb37cf2dbcfe044dc0f49b5f674fe4409e69558f28b2c2c97"
+    },
+    {
+      "source_path": "src/specify_cli/acceptance/__init__.py",
+      "source_sha256": "13e79a55b3f71137ad89eae3e8c2a7519eae5d9c47b55cadf663ab7379245450",
+      "installed_sha256": "13e79a55b3f71137ad89eae3e8c2a7519eae5d9c47b55cadf663ab7379245450"
+    },
+    {
+      "source_path": "src/specify_cli/acceptance/non_wp_runtime.py",
+      "source_sha256": "d0abb7b992d901dd7adc9fa8de4eb6787d4c229b7beff95537566a0acf825af7",
+      "installed_sha256": "d0abb7b992d901dd7adc9fa8de4eb6787d4c229b7beff95537566a0acf825af7"
+    },
+    {
+      "source_path": "src/kernel/mission_runtime_shape.py",
+      "source_sha256": "9b3e85142254c9a32e2a30e88ac354b2096f43972bdd2c09fa1feb6c8754dfa3",
+      "installed_sha256": "9b3e85142254c9a32e2a30e88ac354b2096f43972bdd2c09fa1feb6c8754dfa3"
+    },
+    {
+      "source_path": "src/specify_cli/cli/commands/agent/mission_record_analysis.py",
+      "source_sha256": "6bae950fce25b54da57517a9d120e185a2db6c277934d63eb3f3520d762514b8",
+      "installed_sha256": "6bae950fce25b54da57517a9d120e185a2db6c277934d63eb3f3520d762514b8"
+    },
+    {
+      "source_path": "src/specify_cli/cli/commands/next_cmd.py",
+      "source_sha256": "c47b1f27ec825f3afb9d92db15fbd7cac9b604d7b9ce0e0575aed1178f03fcbc",
+      "installed_sha256": "c47b1f27ec825f3afb9d92db15fbd7cac9b604d7b9ce0e0575aed1178f03fcbc"
+    },
+    {
+      "source_path": "src/specify_cli/git/report_transaction.py",
+      "source_sha256": "dd8b9ac265b712e08a1438f5158212163a90eb7f2f1e96ffb45899ce1d1e4563",
+      "installed_sha256": "dd8b9ac265b712e08a1438f5158212163a90eb7f2f1e96ffb45899ce1d1e4563"
+    },
+    {
+      "source_path": "src/specify_cli/status/views.py",
+      "source_sha256": "66544fa1cda74f3021c63408d1941eb130f2dae7ba1586dfe8e2d5cc0a33af5f",
+      "installed_sha256": "66544fa1cda74f3021c63408d1941eb130f2dae7ba1586dfe8e2d5cc0a33af5f"
+    },
+    {
+      "source_path": "src/kernel/paths.py",
+      "source_sha256": "50448d07590cf868216ebfa29e56e382f631ec643570d3ecff16e2ca5943012d",
+      "installed_sha256": "50448d07590cf868216ebfa29e56e382f631ec643570d3ecff16e2ca5943012d"
+    },
+    {
+      "source_path": "src/specify_cli/runtime/home.py",
+      "source_sha256": "18bd85a1c2a91250b0efc2c6cf089a4516617613bc2ed9a05e4688b28816156a",
+      "installed_sha256": "18bd85a1c2a91250b0efc2c6cf089a4516617613bc2ed9a05e4688b28816156a"
+    },
+    {
+      "source_path": "src/specify_cli/runtime/agent_commands.py",
+      "source_sha256": "2fffbd1a6697a77c88550a4a948e15a1d99b3fa110cc4dbda1d0054b98c4c2e1",
+      "installed_sha256": "2fffbd1a6697a77c88550a4a948e15a1d99b3fa110cc4dbda1d0054b98c4c2e1"
+    },
+    {
+      "source_path": "src/specify_cli/runtime/asset_preparation.py",
+      "source_sha256": "b0445c1ee086e37340d599c991625a25e3c4c7748bfa0b764e83a3241263e7ef",
+      "installed_sha256": "b0445c1ee086e37340d599c991625a25e3c4c7748bfa0b764e83a3241263e7ef"
+    },
+    {
+      "source_path": "src/specify_cli/skills/installer.py",
+      "source_sha256": "cde9c774ffb62dbccb954538e186df663484f8a80386459e2baf7fb756b39b09",
+      "installed_sha256": "cde9c774ffb62dbccb954538e186df663484f8a80386459e2baf7fb756b39b09"
+    },
+    {
+      "source_path": "src/specify_cli/skills/paths.py",
+      "source_sha256": "888acefc5e79053c9c8cad9219689151ebb14900f55bd38c9a3516e04703df21",
+      "installed_sha256": "888acefc5e79053c9c8cad9219689151ebb14900f55bd38c9a3516e04703df21"
+    },
+    {
+      "source_path": "src/specify_cli/acceptance/gates_core.py",
+      "source_sha256": "f449cd18918816e69389f8bb17b084930da26302f85d7c064b87cd9b7e201b8b",
+      "installed_sha256": "f449cd18918816e69389f8bb17b084930da26302f85d7c064b87cd9b7e201b8b"
+    },
+    {
+      "source_path": "src/specify_cli/acceptance/matrix.py",
+      "source_sha256": "9eb23f83d460be6be8b42ef0b2c22c8024938061c9b50b694041ccbc119f1bb0",
+      "installed_sha256": "9eb23f83d460be6be8b42ef0b2c22c8024938061c9b50b694041ccbc119f1bb0"
+    },
+    {
+      "source_path": "src/specify_cli/cli/commands/agent/acceptance_verdict.py",
+      "source_sha256": "73e19cfce39727755e03bb970b47fa7e9099412fa6e813e8dd772c083aa66c6e",
+      "installed_sha256": "73e19cfce39727755e03bb970b47fa7e9099412fa6e813e8dd772c083aa66c6e"
+    }
+  ],
+  "wheel_sha256": "1d10a61b60747a2bf5c5850a1c49cf717d1910cb411a3f6f1384b07a375bbe80",
+  "required_containment": {
+    "policy_sha256": "3d0c18f367f092f37cd201c846917bd3d3cb0f74c40063f8d3bf9e26834a92c8",
+    "asset_scope": "consumer",
+    "home": "A distinct absolute private SPEC_KITTY_HOME must precede every callback, including version/profile/Git drivers; real HOME unchanged. Never reuse the live .4 home.",
+    "os": "Exact owner-held macOS deny policy on all three shared native asset roots; no global restore or shared Git config change."
+  },
+  "proof": {
+    "fast": "2318 passed, 5 skipped,3warnings in98.60s",
+    "focused": "68 passed in62.55s",
+    "ruff": "All three changed product modules pass",
+    "strict_type_delta": "0 new errors; unchanged gates_core Any-return-as-Path error .4 line514 versus .5 line522",
+    "installed_controls": [
+      {
+        "label": "authored-pass",
+        "exit": 0,
+        "success": true,
+        "ok": null,
+        "error_code": null,
+        "write_status": "unchanged"
+      },
+      {
+        "label": "all-pass",
+        "exit": 0,
+        "success": null,
+        "ok": true,
+        "error_code": null,
+        "write_status": null
+      },
+      {
+        "label": "idempotent-authoring",
+        "exit": 0,
+        "success": true,
+        "ok": null,
+        "error_code": null,
+        "write_status": "unchanged"
+      },
+      {
+        "label": "unknown-criterion",
+        "exit": 1,
+        "success": false,
+        "ok": null,
+        "error_code": null,
+        "write_status": null
+      },
+      {
+        "label": "pending-write",
+        "exit": 0,
+        "success": true,
+        "ok": null,
+        "error_code": null,
+        "write_status": "committed"
+      },
+      {
+        "label": "pending-accept",
+        "exit": 0,
+        "success": null,
+        "ok": false,
+        "error_code": null,
+        "write_status": null
+      },
+      {
+        "label": "fail-write",
+        "exit": 0,
+        "success": true,
+        "ok": null,
+        "error_code": null,
+        "write_status": "committed"
+      },
+      {
+        "label": "fail-accept",
+        "exit": 0,
+        "success": null,
+        "ok": false,
+        "error_code": null,
+        "write_status": null
+      },
+      {
+        "label": "restore-pass",
+        "exit": 0,
+        "success": true,
+        "ok": null,
+        "error_code": null,
+        "write_status": "committed"
+      },
+      {
+        "label": "foreign-owner",
+        "exit": 1,
+        "success": false,
+        "ok": null,
+        "error_code": "OWNERSHIP_FOREIGN",
+        "write_status": null
+      },
+      {
+        "label": "lock-denial",
+        "exit": 1,
+        "success": false,
+        "ok": null,
+        "error_code": null,
+        "write_status": null
+      }
+    ],
+    "unfinished_wp": {
+      "approved_to_planned": "Supported feedback-file transition; no force/skip",
+      "accept_ok": false,
+      "accepted_wps": []
+    },
+    "primary": "HEAD and status unchanged through writer/lock/foreign controls",
+    "identity_receipt_sha256": "821d6f035f62317ff619d97337ac41e0cea1338633dd313ddfed824d809ba3a9",
+    "external_receipt_checksums": {
+      "runtime-v5-final-fast.log": "932d1f86e3ccc9835b4d766995d02a554d4873d8884f27672e19bfc09ec002aa",
+      "runtime-v5-final-focused.log": "05977b033010bf157556c82a7aaddcd27c93f9a7707b7ac5a2e567297d70b335",
+      "runtime-v5-final-ruff.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "runtime-v5-final-mypy.log": "a339cc554b4edce944125a432e9133cf120583516ed718e3bc7b2dfec3773cfb",
+      "runtime-v5-mypy-baseline.log": "81fb4b5241e1f2419b5c83d8181d10dddc3440612acb666b50b8c9a74b2affd6",
+      "runtime-v5-final-installed-controls.json": "100d18b7c8ee231d7725e46ccbf4068841e30b9cb62924762f05681e28211fa2",
+      "runtime-v5-final-wp-gate.json": "30caf8c577b676b9693eea29e07f6726961e23214694946f503f61ae4c4e1e96",
+      "runtime-v5-final-preservation.json": "be74fba719d8e75ced462ccf80840445dbe2d44bb1a89d359af5b0c39768b0be",
+      "runtime-v5-receiving-stage1.json": "eb7285b9e5f4dbbfcf9245a58bdbb4f9ff84c478496a65148980148a2d14536f",
+      "runtime-v5-native-delta.json": "ba8086b4a08f6cbd8d84d66fd094ec928f7eab06b6c858af98bce012498c3bc3",
+      "runtime-v5-product.patch": "1add9fe41f1ed19d9a0438a3c09bb53e9af0facd4186f859dea72189bd9a6783",
+      "runtime-v5-tests.patch": "173a6022eaa7571d31e41f95c868bef609a207d6c6a7ea6733342e4b49714489",
+      "runtime-v5-patch-dry-run.log": "5e12f20a549403ce4e6fc2a7a585e6c02acc13daa9b14d6ec42706ff8e8ba557"
+    }
+  },
+  "retained_red_evidence": [
+    "Released .4 explicit --owned-checkout refusal and matrix skips",
+    "First focused5:63pass/5fail identified missing canonical stale-copy/negative-execution hunks and optional-argument concurrency spy",
+    "Python3.14 default trial stopped/joined before admission; exact3.11 final runtime/gates used",
+    "PR148 required source3.2 clean-install timing1.153s>1.050s remains an independent exact-head delivery blocker, unchanged CI/threshold."
+  ],
+  "native_observation": "Broad before/after279nodes has9metadata differences with unknown concurrent actor; OS denial and physical observations remain separate. No unchanged-world claim or rollback.",
+  "limits": [
+    "Both R/P canonical .kittify/charter directory/YAML/Markdown must remain absent; present charter is not admitted.",
+    "Post-merge owned done ledger remains unsupported, tracked by active source issue49; no raw status/event edits.",
+    "Inherited fixture code is not new implementation proof; actual parent must bind its own source tests and truthful criterion evidence.",
+    "Strict mypy identical baseline error gates_core returning Any as Path, line514 in4 versus522 in5; zero new errors.",
+    "Initial Python3.14 trial stopped/joined and not admitted; final candidate Python3.11.15 matches4. Interrupted/red outputs retained.",
+    "Native world-state deltas are reported separately from OS-enforced producer isolation."
+  ],
+  "ledger_obligation": {
+    "issue": "https://github.com/crucible-energy/spec-kitty/issues/49",
+    "state": "Active other owner validates approved-owned source/delivery-evidence completion; publishedrc7 lacks safe owned done surface. Do not duplicate or fabricate events."
+  },
+  "cleanup_owner": "/root/spec_runtime_recovery; retain frozen runtime/source/homes and fixture clone until parent consumer release, then archive/restoration-verify valuable proof and retire only eligible owned resources."
+}
